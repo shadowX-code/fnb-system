@@ -38,10 +38,13 @@ export function stationArt() {
   const controller = new AbortController();
   const releases = [];
   const loader = new GLTFLoader();
-  async function load(url, mount) {
+  async function loadBytes(url) {
     const response = await fetch(url, { signal: controller.signal });
     if (!response.ok) throw new Error("Could not load station art.");
-    const bytes = await response.arrayBuffer();
+    return response.arrayBuffer();
+  }
+  async function load(url, mount) {
+    const bytes = await loadBytes(url);
     if (controller.signal.aborted) return;
     // Station GLBs are self-contained. Decoding may finish after a route exit.
     const model = await loader.parseAsync(bytes, "");
@@ -68,7 +71,7 @@ export function stationArt() {
     return texture;
   }
   return {
-    load, loadTexture,
+    load, loadBytes, loadTexture,
     dispose() {
       controller.abort();
       for (const release of releases.splice(0)) release();

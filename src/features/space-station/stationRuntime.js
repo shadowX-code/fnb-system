@@ -1,10 +1,12 @@
 import * as T from "three";
 import { rooms, roomById } from "./departments.js";
 import { createKit, group, color as C } from "./modelKit.js";
-import { buildInfrastructure, mountFactoryJunction, mountOrbitalKit, serviceShuttle } from "./architecture.js";
+import { buildInfrastructure, mountFactoryJunction, mountOrbitalKit, orbitalRunningLights, serviceShuttle } from "./architecture.js";
 import { orbitalProjector, mountDepartmentCabins, bindFactoryWorkcell } from "./fittings.js";
 import { populate } from "./crew.js";
 import { stationArt } from "./stationArt.js";
+import { mountCabinLighting } from "./cabinLighting.js";
+import lightingUrl from "./assets/cabin-lighting.bin?url";
 import { applyFactoryOcclusion } from "./factoryLight.js";
 import occlusionUrl from "./assets/factory-occlusion.png?url";
 import cabinsUrl from "./assets/departments.glb?url";
@@ -15,7 +17,8 @@ import workcellUrl from "./assets/factory-workcell.glb?url";
 import technicianUrl from "./assets/technician.glb?url";
 
 const clamp=T.MathUtils.clamp;
-const OVERVIEW=[0,1.65,-1.35];
+const OVERVIEW=[0,-.65,-2.45];
+const OVERVIEW_PITCH=.40, OVERVIEW_YAW=.065;
 const POSITIONS={
   command:[.15,1.45,.03],finance:[1.55,.9,-1.36],factory:[1.7,1.22,-.84],marketing:[1.75,.9,-.40],
 };
@@ -24,7 +27,7 @@ export function createStation(host, events) {
   const canvas=document.createElement("canvas");
   canvas.setAttribute("aria-label","Interactive three-dimensional space station");
   const renderer=new T.WebGLRenderer({canvas,alpha:true,antialias:true,powerPreference:"low-power"});
-  const scene=new T.Scene(), camera=new T.OrthographicCamera(-1,1,1,-1,.1,95);
+  const scene=new T.Scene(), camera=new T.PerspectiveCamera(34,1,.2,130);
   const kit=createKit(scene);
   const art=stationArt();
   const remove=[];
@@ -32,6 +35,7 @@ export function createStation(host, events) {
     node.addEventListener(name,fn,options); remove.push(()=>node.removeEventListener(name,fn,options));
   }
   const roomRoots=new Map(), targets=[], crew=[], motions=[];
+  const animatedRooms=new Set(), frustum=new T.Frustum(), projection=new T.Matrix4();
   const targetMaterial=new T.MeshBasicMaterial({visible:false});
   const unit=new T.BoxGeometry();
   const target=(parent,room,id,at,size)=>{
@@ -43,7 +47,7 @@ export function createStation(host, events) {
   let focused=null, selected=null,hovered=null, paused=matchMedia("(prefers-reduced-motion: reduce)").matches;
   const naturalRatio=Math.min(window.devicePixelRatio||1,1.6);
   let ratio=naturalRatio, slowFrames=0,qualitySteps=0;
-  let zoom=1, desiredZoom=1, view=0,desiredYaw=.135,yaw=.135, desiredPitch=.58,pitch=.58;
+  let zoom=1, desiredZoom=1, view=0,desiredYaw=OVERVIEW_YAW,yaw=OVERVIEW_YAW, desiredPitch=OVERVIEW_PITCH,pitch=OVERVIEW_PITCH;
   const center=new T.Vector3(...OVERVIEW), toCenter=center.clone(), pointer=new T.Vector2(), ray=new T.Raycaster();
   const tmp=new T.Vector3(), color=new T.Color();
   let pointerDown=null, dragging=false, mouse=null, needsPick=false;
@@ -64,30 +68,32 @@ export function createStation(host, events) {
     for(const node of labels.values()) node.remove();
   }
   function failed() { if(alive) { dispose(); events.error("The 3D view stopped. You can still open your available workspaces."); } }
-  let highlight, stars, shuttle, fill;
+  let highlight, stars, shuttle, runningLights;
   try {
     host.prepend(canvas);
     renderer.setPixelRatio(ratio); renderer.setClearColor(0,0);
     renderer.shadowMap.enabled=true; renderer.shadowMap.type=T.PCFShadowMap;
     renderer.shadowMap.autoUpdate=false; renderer.shadowMap.needsUpdate=true;
-    fill=new T.HemisphereLight("#f8efe4","#ad8b76",1.44); scene.add(fill);
-    const key=new T.DirectionalLight("#fff0d7",2.18); key.position.set(-8,15,8); key.castShadow=true;
+    const fill=new T.HemisphereLight("#ffe8c5","#989ab6",1.38); scene.add(fill);
+    const key=new T.DirectionalLight("#ffeacb",2.57); key.position.set(-9,14,6); key.castShadow=true;
     key.shadow.mapSize.set(2048,2048);
     Object.assign(key.shadow.camera,{left:-15,right:15,top:14,bottom:-14,near:.1,far:48});
     key.shadow.camera.updateProjectionMatrix(); key.shadow.normalBias=.024; key.shadow.bias=-.00025;
     scene.add(key);
-    const rim=new T.DirectionalLight("#add9fc",1.15); rim.position.set(6,6,-9); scene.add(rim);
+    const rim=new T.DirectionalLight("#a1d5ff",1.33); rim.position.set(6,6,-9); scene.add(rim);
     const orbit=group(scene); buildInfrastructure(kit,orbit); kit.bake(orbit);
     shuttle=serviceShuttle(kit,scene); shuttle(0);
 
     for(const [index, room] of rooms.entries()) {
       const root=group(scene,...room.at); root.name=room.id; roomRoots.set(room.id,root);
-      if(room.id==="command") motions.push({root,updates:[orbitalProjector(kit,root)]});
-      const figures=populate(kit,root,room,index); crew.push({root,figures});
+      if(room.id==="command") motions.push({root,updates:[orbitalProjector(root)]});
+      const figures=populate(kit,root,room,index);
+      const crewBounds=new T.Sphere(root.position.clone().add(new T.Vector3(0,.85,0)),4.3);
+      crew.push({root,figures,crewBounds,elapsed:0,interval:.10+.008*index});
       const [sx,sy,sz]=room.hullScale;
       const factoryBay=room.id==="factory";
       target(root,room.id,null,[0,1.45*sy,0],[(factoryBay ? 7.85 : 7.2)*sx,(factoryBay ? 4.45 : 3.9)*sy,4.5*sz]);
-      target(root,room.id,"equipment",POSITIONS[room.id],room.id==="command" ? [1.90,2.76,1.90] : room.id==="finance" ? [1.83,1.64,1.04] : [1.56,2.2,1.31]);
+      target(root,room.id,"equipment",POSITIONS[room.id],room.id==="command" ? [2.08,2.90,2.08] : room.id==="finance" ? [1.83,1.64,1.04] : [1.56,2.2,1.31]);
       for (const fig of figures) target(fig.anchor,room.id,fig.id,[0,.71,0],[.58,1.53,.54]);
       kit.bake(root);
       const label=document.createElement("button"); label.type="button"; label.className="station-callout";
@@ -103,8 +109,12 @@ export function createStation(host, events) {
     const specialist=crew.find(({root})=>root===factory).figures.find(figure=>figure.id==="specialist");
     Promise.all([
       art.loadTexture(occlusionUrl),
+      art.loadBytes(lightingUrl).catch(()=>null),
       art.load(cabinsUrl,({scene})=>mountDepartmentCabins(scene,roomRoots,target,motions,remove)),
-      art.load(orbitalUrl,({scene})=>mountOrbitalKit(scene,orbit,rooms)),
+      art.load(orbitalUrl,({scene})=>{
+        mountOrbitalKit(scene,orbit,rooms);
+        runningLights=orbitalRunningLights(orbit);
+      }),
       art.load(crewUrl,model=>{
         for(const {figures} of crew) for(const figure of figures) figure.attachCrew?.(model);
       }),
@@ -120,9 +130,11 @@ export function createStation(host, events) {
         remove.push(rig.dispose);
       }),
       art.load(technicianUrl,model=>specialist.attachPilot(model)),
-    ]).then(([occlusion])=>{
+    ]).then(([occlusion,lighting])=>{
       if(!alive) return;
       applyFactoryOcclusion(factory.getObjectByName("FactoryCorner"),occlusion);
+      const releaseLighting=mountCabinLighting(lighting,roomRoots);
+      if(releaseLighting) remove.push(releaseLighting);
       artReady=true;
       renderer.shadowMap.needsUpdate=true;
       schedule();
@@ -192,8 +204,8 @@ export function createStation(host, events) {
   function focus(id) {
     focused=id; selected=null; hovered=null; settled=false; mouse=null;
     const pos=id ? roomById[id].at : OVERVIEW;
-    toCenter.set(pos[0],pos[1]+(id ? .99 : 0),pos[2]); desiredPitch=id ? .40 : .58;
-    desiredYaw=id ? .12 : .135; desiredZoom=1;
+    toCenter.set(pos[0],pos[1]+(id ? .99 : 0),pos[2]); desiredPitch=id ? .40 : OVERVIEW_PITCH;
+    desiredYaw=id ? .12 : OVERVIEW_YAW; desiredZoom=1;
     for(const label of labels.values()) label.hidden=!!id;
     schedule();
   }
@@ -213,11 +225,15 @@ export function createStation(host, events) {
       // Retain adjoining cabins and bridge endpoints while throttling their occupants.
       settled=Boolean(focused && view>.985);
       const aspect=width/height;
-      // The port solar wing rises above the crown as the orbital plane turns edge-on.
-      const orbitMargin=clamp(Math.abs(yaw-.135)/.42,0,1);
-      const overviewHeight=Math.max(24.25+1.55*orbitMargin,(30.8+3.2*orbitMargin)/aspect);
-      const roomHeight=Math.max(focused==="command" ? 7.45 : 6.95,(focused==="command" ? 12.5 : 9.5)/aspect);
+      // Frame the wheel at its normal elevation, then allow headroom for the elevated solar wing.
+      const portrait=clamp((1.35-aspect)/.55,0,1);
+      const cameraPitch=pitch+(1-view)*portrait*clamp(.85-pitch,0,.10);
+      const orbitMargin=clamp(Math.abs(yaw-OVERVIEW_YAW)/.5,0,1);
+      const elevationMargin=Math.max(0,cameraPitch-OVERVIEW_PITCH);
+      const overviewHeight=Math.max(20.6+orbitMargin+14*elevationMargin,(30.4+3*orbitMargin-1.0*portrait+2*elevationMargin)/aspect);
+      const roomHeight=Math.max(focused==="command" ? 7.65 : 7.15,(focused==="command" ? 12.8 : 9.8)/aspect);
       const half=T.MathUtils.lerp(overviewHeight,roomHeight,view)/(2*zoom);
+      const distance=T.MathUtils.lerp(34+14*portrait,50,view);
       // Cut away an entire foreground cabin only when it would block the occupied deck.
       // A near-plane slice through a neighbouring shell leaves its open backfaces on screen.
       const cabin=roomById[focused];
@@ -228,13 +244,28 @@ export function createStation(host, events) {
         const across=dx*Math.cos(yaw)-dz*Math.sin(yaw), ahead=dx*Math.sin(yaw)+dz*Math.cos(yaw);
         root.visible=!(Math.abs(across)<6.9 && ahead>3.2);
       }
-      camera.left=-half*aspect; camera.right=half*aspect; camera.top=half; camera.bottom=-half; camera.updateProjectionMatrix();
-      camera.position.set(center.x+34*Math.sin(yaw)*Math.cos(pitch),center.y+34*Math.sin(pitch),center.z+34*Math.cos(yaw)*Math.cos(pitch));
+      camera.aspect=aspect;
+      camera.fov=T.MathUtils.radToDeg(2*Math.atan(half/distance));
+      camera.updateProjectionMatrix();
+      camera.position.set(center.x+distance*Math.sin(yaw)*Math.cos(cameraPitch),center.y+distance*Math.sin(cameraPitch),center.z+distance*Math.cos(yaw)*Math.cos(cameraPitch));
       camera.lookAt(center); camera.updateMatrixWorld();
       if(!paused || !ready) {
-        for(const {root,updates} of motions) if(!settled || root.name===focused) for(const animate of updates) animate(time);
-        for(const {root,figures} of crew) if(!settled || root.name===focused) for(const actor of figures) actor.tick(time,artReady ? dt : 0);
-        shuttle(time); fill.intensity=1.44+.045*Math.sin(time*.73);
+        // Adjacent decks can still be seen behind a focused cabin. Keep their activity
+        // advancing on separate, lower-rate ticks and leave offscreen crews dormant.
+        animatedRooms.clear();
+        if(settled) frustum.setFromProjectionMatrix(projection.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse));
+        for(const cast of crew) {
+          cast.elapsed+=artReady ? dt : 0;
+          if(settled && cast.root.name!==focused) {
+            if(cast.elapsed<cast.interval) continue;
+            if(!cast.root.visible || !frustum.intersectsSphere(cast.crewBounds)) {cast.elapsed=0;continue;}
+          }
+          for(const figure of cast.figures) figure.tick(time,cast.elapsed);
+          cast.elapsed=0;
+          animatedRooms.add(cast.root);
+        }
+        for(const {root,updates} of motions) if(animatedRooms.has(root)) for(const animate of updates) animate(time);
+        shuttle(time); runningLights?.(time);
         stars.rotation.y=.018*Math.sin(time*.08); stars.material.opacity=.62+.12*Math.sin(time*.63);
         for(const root of roomRoots.values()) if(!settled || root.name===focused) root.updateMatrixWorld(true);
         kit.update(settled ? focused : null);

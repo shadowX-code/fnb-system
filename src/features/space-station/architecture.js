@@ -125,3 +125,37 @@ export function serviceShuttle(k,scene) {
     root.updateMatrixWorld(true);
   };
 }
+
+// A slowly travelling clearance signal uses the existing emissive strips on the ring.
+export function orbitalRunningLights(infrastructure) {
+  const plane = infrastructure.getObjectByName("OrbitalRingPlane");
+  const band = plane.getObjectByName("OrbitalBand");
+  plane.updateWorldMatrix(true, false);
+  const inverse = new T.Matrix4().copy(plane.matrixWorld).invert();
+  const bearing = new T.Vector2(0, 1);
+  const materials = new Set();
+  band.traverse(mesh => { if (mesh.material?.emissiveMap) materials.add(mesh.material); });
+  for (const material of materials) {
+    material.onBeforeCompile = shader => {
+      shader.uniforms.uRingInverse = {value:inverse};
+      shader.uniforms.uBearing = {value:bearing};
+      shader.vertexShader = "uniform mat4 uRingInverse; uniform vec2 uBearing; varying float vBeacon;\n" +
+        shader.vertexShader.replace("#include <project_vertex>", `
+          #include <project_vertex>
+          vec4 orbitalPoint = vec4(transformed,1.);
+          #ifdef USE_INSTANCING
+            orbitalPoint = instanceMatrix * orbitalPoint;
+          #endif
+          vec2 radial = (uRingInverse * modelMatrix * orbitalPoint).xz;
+          float cosine = dot(radial, uBearing) / max(length(radial), .001);
+          vBeacon = smoothstep(8.4,9.4,length(radial)) * smoothstep(.87,.99,cosine);
+        `);
+      shader.fragmentShader = "varying float vBeacon;\n" +
+        shader.fragmentShader.replace("#include <emissivemap_fragment>", `
+          #include <emissivemap_fragment>
+          totalEmissiveRadiance *= .76 + .96 * vBeacon;
+        `);
+    };
+  }
+  return time => bearing.set(Math.sin(.23*time+.82), Math.cos(.23*time+.82));
+}
