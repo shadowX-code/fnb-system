@@ -1,7 +1,15 @@
 import * as T from "three";
 import { color as C, group, TAU } from "./modelKit.js";
+import { roomById } from "./departments.js";
 
 const floorOutline = [[-2.65,-2.35],[2.65,-2.35],[3.6,-1.45],[3.6,1.35],[2.6,2.22],[-2.6,2.22],[-3.6,1.35],[-3.6,-1.45]];
+
+function ringPlane(parent) {
+  // Set the wheel aft of every pressure hull while keeping the rear crown above the rooms.
+  const plane = group(parent, -.65, -1.45, -6.2);
+  plane.rotation.x = .78;
+  return plane;
+}
 
 function deck(parent, outline, y, thickness, tint) {
   const shape = new T.Shape();
@@ -17,7 +25,7 @@ function deck(parent, outline, y, thickness, tint) {
 export function buildCabin(k, room, base) {
   const { box, soft, drum, part } = k;
   const hull = group(base);
-  if (room.id === "command") hull.scale.set(1.28,1.08,1.24);
+  hull.scale.set(...room.hullScale);
   deck(hull, floorOutline, -0.78, 0.48, C.blue);
   deck(hull, floorOutline.map(([x,z])=>[x*1.024,z*1.024]), -0.43, 0.27, C.hull);
   deck(hull, floorOutline.map(([x,z])=>[x*0.986,z*0.986]), -0.11, 0.08, C.floor);
@@ -112,7 +120,7 @@ export function buildCabin(k, room, base) {
 // Intersect the bridge centreline with the actual chamfered hull footprint.
 function berth(room,other) {
   const dx=other.at[0]-room.at[0],dz=other.at[2]-room.at[2];
-  const sx=room.id==="command" ? 1.28 : 1, sz=room.id==="command" ? 1.24 : 1;
+  const [sx,,sz]=room.hullScale;
   for(let i=0;i<floorOutline.length;i++) {
     const [ax,az]=floorOutline[i], [bx,bz]=floorOutline[(i+1)%floorOutline.length];
     const ex=(bx-ax)*sx,ez=(bz-az)*sz, det=dx*ez-dz*ex;
@@ -124,10 +132,10 @@ function berth(room,other) {
 }
 
 function bridge(k, root, a, b) {
-  const dx=b[0]-a[0], dz=b[2]-a[2], length=Math.hypot(dx,dz);
+  const dx=b[0]-a[0], dy=b[1]-a[1], dz=b[2]-a[2], length=Math.hypot(dx,dy,dz);
   const span=group(root,(a[0]+b[0])/2,(a[1]+b[1])/2-.13,(a[2]+b[2])/2);
   span.rotation.order="YXZ"; span.rotation.y=Math.atan2(dx,dz);
-  span.rotation.x=-Math.atan2(b[1]-a[1],length);
+  span.rotation.x=-Math.atan2(dy,Math.hypot(dx,dz));
   k.box(span,C.blue,0,-.20,0,1.07,.31,length);
   k.box(span,C.cream,0,-.012,0,.96,.09,length);
   for (let z=-length/2+.15;z<length/2;z+=.48) {
@@ -141,10 +149,12 @@ function bridge(k, root, a, b) {
 }
 
 export function buildInfrastructure(k, base, rooms) {
-  const orbit=group(base,0,-1.05,-.65);
-  orbit.rotation.x=.28;
+  const orbit=ringPlane(base);
+  orbit.name="OrbitalRingPlane";
   function point(i, r, y) { const t=i*TAU/64; return [Math.sin(t)*r,y,Math.cos(t)*r]; }
   for (let i=0;i<64;i++) {
+    // The authored Factory sector spans 281.25° to 315° in this plane.
+    if (i>=50 && i<56) continue;
     for (const [r,y,tint,gauge] of [[10.2,0,C.hull,.66],[9.66,-.75,C.blue,.32],[10.64,-.58,C.seam,.24],[10.54,.08,C.orange,.13]]) {
       k.beam(orbit,point(i,r,y),point(i+1,r,y),gauge,tint,true);
     }
@@ -159,8 +169,11 @@ export function buildInfrastructure(k, base, rooms) {
     const first=rooms.find(r=>r.id===from), second=rooms.find(r=>r.id===to);
     bridge(k,base,berth(first,second),berth(second,first));
   }
-  for (const [x,z,angle] of [[-8.4,-6.4,-.72],[7.9,-7.3,.81]]) {
-    const array=group(base,x,-.2,z); array.rotation.y=angle; array.rotation.x=.24;
+  for (const sector of [42, 23]) {
+    const array=group(orbit,...point(sector,10.2,.2));
+    array.rotation.order="YXZ";
+    array.rotation.y=sector*TAU/64-Math.PI;
+    array.rotation.x=.24;
     k.box(array,C.hull,0,0,-1.12,.27,.23,3.25);
     k.drum(array,C.orange,0,.05,-1.5,.52,.45,.52);
     for (const side of [-1,1]) {
@@ -170,9 +183,12 @@ export function buildInfrastructure(k, base, rooms) {
     }
   }
   const dock=group(orbit,0,.34,10.2);
-  k.beam(base,[-2.2,-.5,5.4],[-1.55,-3.45,8.9],.25,C.blue,true);
-  k.beam(base,[2.2,-.5,5.4],[1.55,-3.45,8.9],.25,C.blue,true);
-  k.beam(base,[-1.55,-3.45,8.9],[1.55,-3.45,8.9],.28,C.hull,true);
+  orbit.updateMatrix();
+  const command=roomById.command.at;
+  for (const side of [-1,1]) {
+    const foot=new T.Vector3(side*.8,0,10.2).applyMatrix4(orbit.matrix);
+    k.beam(base,[command[0]+side*2.2, command[1]-.68, command[2]-.78],foot.toArray(),.25,C.blue,true);
+  }
   k.box(dock,C.hull,0,0,0,2.3,.4,1.1);
   for(const x of [-.78,.78]) {
     k.soft(dock,C.orange,x,.2,.13,.42,.37,.99);
@@ -180,9 +196,26 @@ export function buildInfrastructure(k, base, rooms) {
   }
 }
 
+// Each authored assembly retains its glTF axis conversion below the matching station socket.
+export function mountFactoryJunction(junction, factoryRoot, infrastructure) {
+  const corner=junction.getObjectByName("FactoryCorner");
+  const collar=junction.getObjectByName("BridgeCollar");
+  const sector=junction.getObjectByName("RingSector");
+  const orbit=infrastructure.getObjectByName("OrbitalRingPlane");
+  if (!corner || !collar || !sector) throw new Error("The Factory junction is missing an assembly.");
+
+  const {factory, command}=roomById;
+  const start=berth(factory,command), end=berth(command,factory);
+  const socket=group(factoryRoot,start[0]-factory.at[0],0,start[2]-factory.at[2]);
+  socket.rotation.y=Math.atan2(end[0]-start[0],end[2]-start[2]);
+  socket.add(collar);
+  orbit.add(sector);
+  factoryRoot.add(corner);
+}
+
 // A short inspection flight around the forward docking collar gives scale to the ring.
 export function serviceShuttle(k,scene) {
-  const root=group(scene), craft=group(root); craft.userData.moving=true;
+  const root=ringPlane(scene), craft=group(root); craft.userData.moving=true;
   k.ball(craft,C.hull,0,0,0,.50,.38,1.53);
   k.ball(craft,C.glass,0,.12,.27,.38,.26,.66);
   k.box(craft,C.orange,0,.136,-.42,.22,.081,.51);
@@ -196,7 +229,7 @@ export function serviceShuttle(k,scene) {
   k.bake(root);
   return t=>{
     const a=-.67+.22*Math.sin(t*.13);
-    craft.position.set(11.36*Math.sin(a),-.42+.16*Math.sin(t*.64),10.84*Math.cos(a)-.65);
+    craft.position.set(11.36*Math.sin(a),.92+.16*Math.sin(t*.64),10.84*Math.cos(a));
     craft.rotation.set(.04*Math.sin(t*.7),a+1.42,.06*Math.sin(t*.5));
     root.updateMatrixWorld(true);
   };

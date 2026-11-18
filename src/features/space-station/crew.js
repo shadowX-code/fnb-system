@@ -1,4 +1,5 @@
 import { color as C, group, TAU } from "./modelKit.js";
+import { AnimationMixer } from "three";
 
 const SKINS=["#c78b65","#e2b38c","#a87151","#edc8a5"];
 const HAIRS=["#42322f","#2d3039","#744d39","#51372c"];
@@ -73,7 +74,8 @@ function buildFigure(k,parent,room,index) {
 export function populate(k,base,room,roomIndex) {
   const walkers=[];
   return ["specialist","operator","visitor"].map((id,index)=>{
-    const {figure,body,head,limbs}=buildFigure(k,base,room,index);
+    const pilot=room.id==="factory" && id==="specialist";
+    const {figure,body,head,limbs}=pilot ? {figure:group(base)} : buildFigure(k,base,room,index);
     const seated=index===1, visitor=index===2, command=room.id==="command";
     const route=visitor ? [[-2.14,1.32],[.15,1.57],[1.69,1.47]] :
       command ? [[1.74,.84],[1.97,-.12],[2.05,-.78]] :
@@ -81,11 +83,44 @@ export function populate(k,base,room,roomIndex) {
     const phase=1.7*roomIndex+index*2.49;
     let point=(roomIndex+index)%route.length, direction=point===route.length-1 ? -1 : 1;
     let pause=.45+((roomIndex*3+index*5)%8)*.41, travelled=0, speed=0, heading=seated ? Math.PI : -.5;
+    // The specialist starts beside the physical inspection switch, then rejoins the round.
+    const inspectionYaw=.58;
+    if(pilot) {heading=inspectionYaw; pause=7;}
     const start=seated ? [-1.23,-.59] : route[point];
     figure.position.set(start[0],0,start[1]);
     const presence={position:figure.position,resting:false};
     if(!seated) walkers.push(presence);
     let work=0;
+    let mixer, clips, activeClip, pilotScene, pilotState="Inspect";
+    function playPilot(dt) {
+      if(!mixer) return;
+      const next=clips[pilotState];
+      if(next!==activeClip) {
+        next.reset().play();
+        if(activeClip) next.crossFadeFrom(activeClip,.16,false);
+        else if(pilotState==="Inspect") next.time=1.15;
+        activeClip=next;
+      }
+      // Use the scheduler's travelled distance as the walk cycle clock.
+      if(pilotState==="Walk") {
+        next.paused=true;
+        next.time=(travelled/.61%1)*next.getClip().duration;
+      }
+      mixer.update(dt);
+    }
+    function attachPilot(gltf) {
+      pilotScene=gltf.scene;
+      figure.add(pilotScene);
+      mixer=new AnimationMixer(pilotScene);
+      clips=Object.fromEntries(gltf.animations.map(clip=>[clip.name,mixer.clipAction(clip)]));
+      playPilot(0);
+    }
+    function disposePilot() {
+      if(mixer) {
+        mixer.stopAllAction();
+        mixer.uncacheRoot(pilotScene);
+      }
+    }
     function tick(t,dt) {
       let stride=0, targetAngle=heading;
       if (!seated) {
@@ -109,8 +144,17 @@ export function populate(k,base,room,roomIndex) {
       presence.resting=!seated && pause>0;
       const partner=presence.resting && walkers.find(other=>other!==presence && other.resting && other.position.distanceTo(figure.position)<1.16);
       if(partner) targetAngle=Math.atan2(partner.position.x-figure.position.x,partner.position.z-figure.position.z);
+      const atPad=pilot && point===route.length-1 && presence.resting && !partner;
+      if(atPad) targetAngle=inspectionYaw;
       heading+=Math.atan2(Math.sin(targetAngle-heading),Math.cos(targetAngle-heading))*(1-Math.exp(-dt*7));
+      const aligned=atPad && Math.abs(Math.atan2(Math.sin(heading-inspectionYaw),Math.cos(heading-inspectionYaw)))<.03;
+      if(aligned) heading=inspectionYaw;
       figure.rotation.y=heading;
+      if(pilot) {
+        pilotState=aligned ? "Inspect" : partner ? "Discuss" : stride>0 ? "Walk" : "Idle";
+        playPilot(dt);
+        return;
+      }
       const gait=travelled*TAU/.61;
       work+=(Number(seated || (!visitor && pause>0 && !partner))-work)*(1-Math.exp(-dt*4));
       body.position.y=seated ? .57 : .51+.012*Math.cos(gait*2)*stride;
@@ -134,6 +178,6 @@ export function populate(k,base,room,roomIndex) {
       });
     }
     tick(0,.03);
-    return { id, anchor:figure, tick };
+    return pilot ? { id, anchor:figure, tick, attachPilot, disposePilot } : { id, anchor:figure, tick };
   });
 }

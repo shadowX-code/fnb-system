@@ -1,12 +1,15 @@
 import * as T from "three";
 import { rooms, roomById } from "./departments.js";
 import { createKit, group, color as C } from "./modelKit.js";
-import { buildCabin, buildInfrastructure, serviceShuttle } from "./architecture.js";
+import { buildCabin, buildInfrastructure, mountFactoryJunction, serviceShuttle } from "./architecture.js";
 import { furnish } from "./fittings.js";
 import { populate } from "./crew.js";
+import { stationArt } from "./stationArt.js";
+import junctionUrl from "./assets/factory-junction.glb?url";
+import technicianUrl from "./assets/technician.glb?url";
 
 const clamp=T.MathUtils.clamp;
-const OVERVIEW=[0,.65,-.7];
+const OVERVIEW=[0,1.65,-1.35];
 const POSITIONS={
   command:[.15,1.07,.03],finance:[1.55,.9,-1.36],factory:[1.7,1.22,-.84],marketing:[1.75,.9,-.40],
 };
@@ -17,6 +20,7 @@ export function createStation(host, events) {
   const renderer=new T.WebGLRenderer({canvas,alpha:true,antialias:true,powerPreference:"low-power"});
   const scene=new T.Scene(), camera=new T.OrthographicCamera(-1,1,1,-1,.1,95);
   const kit=createKit(scene);
+  const art=stationArt();
   const remove=[];
   function listen(node,name,fn,options) {
     node.addEventListener(name,fn,options); remove.push(()=>node.removeEventListener(name,fn,options));
@@ -29,7 +33,7 @@ export function createStation(host, events) {
     mesh.userData.pick={room,id}; parent.add(mesh); targets.push(mesh);
     return mesh;
   };
-  let frame=0,alive=true,drawable=true,ready=false,previous=0,time=0,width=1,height=1,settled=false;
+  let frame=0,alive=true,drawable=true,ready=false,artReady=false,previous=0,time=0,width=1,height=1,settled=false;
   let focused=null, selected=null,hovered=null, paused=matchMedia("(prefers-reduced-motion: reduce)").matches;
   const naturalRatio=Math.min(window.devicePixelRatio||1,1.6);
   let ratio=naturalRatio, slowFrames=0,qualitySteps=0;
@@ -46,6 +50,8 @@ export function createStation(host, events) {
     if (!alive) return;
     alive=false; cancelAnimationFrame(frame);
     for(const stop of remove.reverse()) stop();
+    for(const {figures} of crew) for(const figure of figures) figure.disposePilot?.();
+    art.dispose();
     kit.dispose(); unit.dispose(); targetMaterial.dispose();
     scene.traverse(node=>node.shadow?.dispose());
     renderer.dispose(); renderer.forceContextLoss(); canvas.remove();
@@ -73,7 +79,9 @@ export function createStation(host, events) {
       buildCabin(kit,room,root);
       motions.push({root,updates:furnish(kit,root,room)});
       const figures=populate(kit,root,room,index); crew.push({root,figures});
-      target(root,room.id,null,[0,1,0],[7.2,3.3,4.35]);
+      const [sx,sy,sz]=room.hullScale;
+      const factoryBay=room.id==="factory";
+      target(root,room.id,null,[0,1.45*sy,0],[(factoryBay ? 7.85 : 7.2)*sx,(factoryBay ? 4.45 : 3.9)*sy,4.5*sz]);
       target(root,room.id,"equipment",POSITIONS[room.id],room.id==="finance" ? [1.83,1.64,1.04] : [1.56,2.2,1.31]);
       target(root,room.id,"screen",[0,1.70,-1.98],[3.12,1.35,.22]);
       for (const fig of figures) target(fig.anchor,room.id,fig.id,[0,.71,0],[.58,1.53,.54]);
@@ -83,6 +91,21 @@ export function createStation(host, events) {
       label.setAttribute("aria-label","Enter "+room.name); label.onclick=()=>events.enter(room.id);
       host.append(label); labels.set(room.id,label);
     }
+    const factory=roomRoots.get("factory");
+    const specialist=crew.find(({root})=>root===factory).figures.find(figure=>figure.id==="specialist");
+    Promise.all([
+      art.load(junctionUrl,model=>{
+        mountFactoryJunction(model.scene,factory,orbit);
+        const switchFace=factory.getObjectByName("InspectContact");
+        target(switchFace,"factory","equipment",[0,-.045,0],[.32,.15,.24]);
+      }),
+      art.load(technicianUrl,model=>specialist.attachPilot(model)),
+    ]).then(()=>{
+      if(!alive) return;
+      artReady=true;
+      renderer.shadowMap.needsUpdate=true;
+      schedule();
+    }).catch(failed);
     const starGeometry=new T.BufferGeometry(), points=[];
     for (let i=0;i<125;i++) {
       const random=n=>{const a=Math.sin(n*127.1+311.7)*43758.5453;return a-Math.floor(a);};
@@ -168,7 +191,11 @@ export function createStation(host, events) {
       zoom+=(desiredZoom-zoom)*weight; view+=((focused ? 1 : 0)-view)*weight;
       // Retain adjoining cabins and bridge endpoints while throttling their occupants.
       settled=Boolean(focused && view>.985);
-      const aspect=width/height, overviewHeight=Math.max(20.7,27.6/aspect), roomHeight=Math.max(focused==="command" ? 7.45 : 6.95,(focused==="command" ? 11.15 : 9.5)/aspect);
+      const aspect=width/height;
+      // The port solar wing rises above the crown as the orbital plane turns edge-on.
+      const orbitMargin=clamp(Math.abs(yaw-.135)/.42,0,1);
+      const overviewHeight=Math.max(24.25+1.55*orbitMargin,(30.8+3.2*orbitMargin)/aspect);
+      const roomHeight=Math.max(focused==="command" ? 7.45 : 6.95,(focused==="command" ? 12.5 : 9.5)/aspect);
       const half=T.MathUtils.lerp(overviewHeight,roomHeight,view)/(2*zoom);
       // Cut away an entire foreground cabin only when it would block the occupied deck.
       // A near-plane slice through a neighbouring shell leaves its open backfaces on screen.
@@ -192,7 +219,7 @@ export function createStation(host, events) {
         kit.update(settled ? focused : null);
       }
       if(!focused) for(const room of rooms) {
-        const label=labels.get(room.id); tmp.set(room.at[0],room.at[1]-.30,room.at[2]+2.44).project(camera);
+        const label=labels.get(room.id); tmp.set(room.at[0],room.at[1]-.30,room.at[2]+2.44*room.hullScale[2]).project(camera);
         label.style.left=((tmp.x+1)*50)+"%"; label.style.top=((1-tmp.y)*50)+"%";
       }
       if(mouse && !dragging && (needsPick || (focused && !paused))) {
@@ -209,7 +236,7 @@ export function createStation(host, events) {
         }
       }
       renderer.render(scene,camera);
-      if(!ready && width>1) {ready=true;events.ready();}
+      if(!ready && artReady && width>1) {ready=true;events.ready();}
       if(!paused) schedule();
     } catch { failed(); }
   }
