@@ -52,13 +52,13 @@ export function createStation(host, events) {
     for(const node of labels.values()) node.remove();
   }
   function failed() { if(alive) { dispose(); events.error("The 3D view stopped. You can still open your available workspaces."); } }
-  let highlight, stars, shuttle;
+  let highlight, stars, shuttle, fill;
   try {
     host.prepend(canvas);
     renderer.setPixelRatio(ratio); renderer.setClearColor(0,0);
     renderer.shadowMap.enabled=true; renderer.shadowMap.type=T.PCFShadowMap;
     renderer.shadowMap.autoUpdate=false; renderer.shadowMap.needsUpdate=true;
-    scene.add(new T.HemisphereLight("#fff2de","#9da9b5",1.76));
+    fill=new T.HemisphereLight("#fff2de","#9da9b5",1.76); scene.add(fill);
     const key=new T.DirectionalLight("#fff0d7",2.18); key.position.set(-8,15,8); key.castShadow=true;
     key.shadow.mapSize.set(2048,2048);
     Object.assign(key.shadow.camera,{left:-15,right:15,top:14,bottom:-14,near:.1,far:48});
@@ -150,7 +150,6 @@ export function createStation(host, events) {
     const pos=id ? roomById[id].at : OVERVIEW;
     toCenter.set(pos[0],pos[1]+(id ? .99 : 0),pos[2]); desiredPitch=id ? .40 : .58;
     desiredYaw=id ? .12 : .135; desiredZoom=1;
-    for(const root of roomRoots.values()) root.visible=true;
     for(const label of labels.values()) label.hidden=!!id;
     schedule();
   }
@@ -167,20 +166,27 @@ export function createStation(host, events) {
       if(!paused) time+=dt;
       center.lerp(toCenter,weight); yaw+=(desiredYaw-yaw)*weight; pitch+=(desiredPitch-pitch)*weight;
       zoom+=(desiredZoom-zoom)*weight; view+=((focused ? 1 : 0)-view)*weight;
-      if(focused && view>.985 && !settled) {
-        for(const [id,root] of roomRoots) root.visible=id===focused;
-        settled=true;
-      }
+      // Retain adjoining cabins and bridge endpoints while throttling their occupants.
+      settled=Boolean(focused && view>.985);
       const aspect=width/height, overviewHeight=Math.max(20.7,27.6/aspect), roomHeight=Math.max(focused==="command" ? 7.45 : 6.95,(focused==="command" ? 11.15 : 9.5)/aspect);
       const half=T.MathUtils.lerp(overviewHeight,roomHeight,view)/(2*zoom);
-      camera.near=.1+29.45*view;
+      // Cut away an entire foreground cabin only when it would block the occupied deck.
+      // A near-plane slice through a neighbouring shell leaves its open backfaces on screen.
+      const cabin=roomById[focused];
+      for(const [id,root] of roomRoots) {
+        root.visible=true;
+        if(!cabin || id===focused || view<.80) continue;
+        const dx=root.position.x-cabin.at[0], dz=root.position.z-cabin.at[2];
+        const across=dx*Math.cos(yaw)-dz*Math.sin(yaw), ahead=dx*Math.sin(yaw)+dz*Math.cos(yaw);
+        root.visible=!(Math.abs(across)<6.9 && ahead>3.2);
+      }
       camera.left=-half*aspect; camera.right=half*aspect; camera.top=half; camera.bottom=-half; camera.updateProjectionMatrix();
       camera.position.set(center.x+34*Math.sin(yaw)*Math.cos(pitch),center.y+34*Math.sin(pitch),center.z+34*Math.cos(yaw)*Math.cos(pitch));
       camera.lookAt(center); camera.updateMatrixWorld();
       if(!paused || !ready) {
         for(const {root,updates} of motions) if(!settled || root.name===focused) for(const animate of updates) animate(time);
         for(const {root,figures} of crew) if(!settled || root.name===focused) for(const actor of figures) actor.tick(time,dt);
-        shuttle(time);
+        shuttle(time); fill.intensity=1.76+.045*Math.sin(time*.73);
         stars.rotation.y=.018*Math.sin(time*.08); stars.material.opacity=.62+.12*Math.sin(time*.63);
         for(const root of roomRoots.values()) if(!settled || root.name===focused) root.updateMatrixWorld(true);
         kit.update(settled ? focused : null);
