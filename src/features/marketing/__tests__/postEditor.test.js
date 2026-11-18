@@ -27,7 +27,7 @@ it('copies only complete scoped compatible media and validates destination cardi
  const second={...image,id:'b'},source={asset_ids:['b','a']},target={channel:'instagram',format:'carousel',caption:'',asset_ids:[]};
  expect(mediaCopyIssues(source,target,[image,second],brand)).toEqual([]);
  expect(mediaCopyIssues(source,{...target,format:'image'},[image,second],brand).join()).toContain('Choose one');
- expect(mediaCopyIssues(source,target,[{...image,mime_type:'image/png'},second],brand).join()).toContain('incompatible');
+ expect(mediaCopyIssues(source,target,[{...image,mime_type:'image/png'},second],brand)).toEqual([]);
  expect(mediaCopyIssues(source,target,[{...image,brand_id:'other'},second],brand).join()).toContain('incompatible');
  expect(mediaCopyIssues(source,target,[second],brand).join()).toContain('unavailable');
  expect(mediaCopyIssues({asset_ids:Array.from({length:11},(_,i)=>String(i))},target,[],brand).join()).toContain('2–10');

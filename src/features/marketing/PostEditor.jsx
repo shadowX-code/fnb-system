@@ -12,18 +12,20 @@ import MarketingMediaPicker from './MarketingMediaPicker.jsx';
 import CaptionLibrary,{insertCaptionText} from './CaptionLibrary.jsx';
 import SocialChannelIcon from './SocialChannelIcon.jsx';
 import {PostMedia} from './PostDetail.jsx';
+import {driveService} from './driveService.js';
 import {marketingService} from './marketingService.js';
 import {localInput} from './marketingCalendar.js';
 import {CONTENT_TIMEZONE,contentStatusLabel} from './contentManagement.js';
 import {POST_FORMATS,variantIssues,publishingAccount,mediaMetadataIssues,mediaCopyIssues} from './postEditor.js';
-import {isVideoFormat,publishingMediaEligible,extendedInstagramVariant} from './publishingMedia.js';
+import {instagramPngPreparation,isVideoFormat,publishingMediaEligible,extendedInstagramVariant} from './publishingMedia.js';
 import {publishingIntent,publishingStatus} from './publishingPlan.js';
 import './postEditor.css';
 const label=contentStatusLabel;
 export default function PostEditor({payload,onChange,brand,assets=[],plannedLocal,onPlannedChange,busy=false,can=()=>false,content}) {
  const [selected,setSelected]=useState(payload.variants[0]?.channel||'facebook'),[view,setView]=useState('editor'),[cache,setCache]=useState([]),[accounts,setAccounts]=useState(null),[accountError,setAccountError]=useState(''),[retry,setRetry]=useState(0),[copied,setCopied]=useState(''),[configuration,setConfiguration]=useState(null),[configurationError,setConfigurationError]=useState(''),[observations,setObservations]=useState({});
  useEffect(()=>{let live=true;setConfiguration(null);setConfigurationError('');marketingService.metaConfiguration().then(value=>{if(live)setConfiguration(value)}).catch(()=>{if(live)setConfigurationError('Publishing readiness could not be checked. Retry before confirming publication.');});return()=>{live=false}},[retry]);
- const [mediaCopy,setMediaCopy]=useState(null),[mediaCopyError,setMediaCopyError]=useState(''),[mediaCopied,setMediaCopied]=useState('');
+ const [mediaCopy,setMediaCopy]=useState(null),[mediaCopyError,setMediaCopyError]=useState(''),[mediaCopied,setMediaCopied]=useState(''),[preparingMedia,setPreparingMedia]=useState(false);
+ const copyingMedia=useRef(false),currentCopy=useRef(null);
  const captionInput=useRef(null),positions=useRef({}),pendingCursor=useRef(null),removedVariants=useRef({});
  const allAssets=[...new Map([...assets,...cache].map(a=>[a.id,a])).values()];
  const variant=payload.variants.find(v=>v.channel===selected)||payload.variants[0];
@@ -38,18 +40,27 @@ export default function PostEditor({payload,onChange,brand,assets=[],plannedLoca
  const planned=plannedLocal??(payload.planned_at?localInput(new Date(payload.planned_at),CONTENT_TIMEZONE):'');
  const intent=publishingIntent(payload),savedStatus=publishingStatus(content);
  const dateError=planned&&!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(planned)?'Choose both a date and time, or clear the date to leave this post unplanned.':'';
- const copySignature=JSON.stringify([brand.organization_id,brand.id,payload.variants,content?.revision]);
+ const copySignature=JSON.stringify([brand.organization_id,brand.id,payload,content?.revision,channel]);currentCopy.current=copySignature;
+ useEffect(()=>()=>{currentCopy.current=null},[]);
  useEffect(()=>{setMediaCopy(null);setMediaCopyError('');setMediaCopied('')},[channel,brand.id,brand.organization_id,variant?.format]);
- function copyMedia(confirmed=false){
-  if(busy||channel!=='instagram'||other?.channel!=='facebook')return;
+ async function copyMedia(confirmed=false){
+  if(busy||copyingMedia.current||channel!=='instagram'||other?.channel!=='facebook')return;
   setMediaCopyError('');setMediaCopied('');
   if(confirmed&&mediaCopy?.signature!==copySignature){setMediaCopy(null);setMediaCopyError('The media or post changed. Review both channels and copy again.');return;}
   const errors=mediaCopyIssues(other,variant,allAssets,brand,observations);
   if(errors.length){setMediaCopy(null);setMediaCopyError(errors.join(' '));return;}
   if(variant.asset_ids.length&&!confirmed){setMediaCopy({signature:copySignature});return;}
   // Only media references are copied; a channel's caption, format and cover stay independent.
-  onChange({...payload,variants:payload.variants.map(v=>v.channel==='instagram'?{...v,asset_ids:[...other.asset_ids]}:v)});
-  setMediaCopy(null);setMediaCopied('Media copied from Facebook. Review Instagram before saving.');
+  const expected=copySignature;copyingMedia.current=true;setPreparingMedia(true);setMediaCopy(null);
+  try{
+   const records=[];for(const id of other.asset_ids){const original=allAssets.find(a=>a.id===id);const asset=instagramPngPreparation(original,variant.format,channel)?await driveService.prepareMedia(brand.organization_id,brand.id,original,channel,variant.format):original;if(currentCopy.current!==expected)throw new Error('The post changed during media preparation. Review both channels and copy again.');records.push(asset);}
+   const ids=records.map(a=>a.id),resolved=[...allAssets,...records],errors=variantIssues({...variant,asset_ids:ids,caption:variant.caption||'Media check'},resolved,brand);
+   if(errors.length)throw new Error(errors.join(' '));
+   setCache(current=>[...new Map([...current,...records].map(a=>[a.id,a])).values()]);
+   onChange({...payload,variants:payload.variants.map(v=>v.channel==='instagram'?{...v,asset_ids:ids}:v)});
+   setMediaCopied('Media copied from Facebook. Review Instagram before saving.');
+  }catch(error){if(currentCopy.current===expected)setMediaCopyError(error.message);}
+  finally{copyingMedia.current=false;setPreparingMedia(false);}
  }
  function toggleChannel(name,checked){setCopied('');if(!checked)removedVariants.current[name]=payload.variants.find(v=>v.channel===name);onChange({...payload,variants:checked?[...payload.variants,removedVariants.current[name]||{channel:name,format:name==='facebook'?'text':'image',caption:'',asset_ids:[]}]:payload.variants.filter(v=>v.channel!==name)});if(checked)setSelected(name);}
  function insertSaved(text,kind){const result=insertCaptionText(variant.caption,text,channel==='instagram'?2200:63206,positions.current[channel]??variant.caption.length,kind);pendingCursor.current={channel,cursor:result.cursor};patchVariant({caption:result.value});}
@@ -74,7 +85,8 @@ export default function PostEditor({payload,onChange,brand,assets=[],plannedLoca
  <CaptionLibrary key={`saved-text:${channel}`} brand={brand} can={can} disabled={busy} onInsert={insertSaved}/>
  {other?<div className="post-caption-copy"><button type="button" className="btn-secondary" disabled={busy||!other.caption||other.caption.length>(channel==='instagram'?2200:63206)} onClick={()=>{patchVariant({caption:other.caption});setCopied(`Caption copied from ${label(other.channel)}.`)}}><Copy size={14}/>Copy caption from {label(other.channel)}</button>{copied?<span role="status">{copied}</span>:null}</div>:null}
  {other&&channel!=='instagram'&&isVideoFormat(variant.format)&&isVideoFormat(other.format)&&other.asset_ids.length===1&&allAssets.some(a=>a.id===other.asset_ids[0]&&a.brand_id===brand.id&&a.organization_id===brand.organization_id&&publishingMediaEligible(a,variant.format,channel))?<button type="button" className="btn-secondary" disabled={busy} onClick={()=>patchVariant({asset_ids:[...other.asset_ids]})}><Copy size={14}/>Use {label(other.channel)} video</button>:null}
- {variant.format!=='text'?<MarketingMediaPicker key={`media:${channel}`} thumbnailPreviews disabled={busy} channel={channel} brand={brand} format={variant.format} values={variant.asset_ids} assets={allAssets} renderActions={channel==='instagram'&&other?.channel==='facebook'?({disabled})=><button type="button" className="btn-secondary" disabled={disabled||!other.asset_ids.length} title={!other.asset_ids.length?'Select media in Facebook first.':undefined} onClick={()=>copyMedia()}><Copy size={14}/>Copy media from Facebook</button>:undefined} onAssetsResolved={records=>setCache(current=>[...new Map([...current,...records].map(a=>[a.id,a])).values()])} onChange={asset_ids=>patchVariant({asset_ids})}/>:null}
+ {variant.format!=='text'?<MarketingMediaPicker key={`media:${channel}`} thumbnailPreviews disabled={busy} channel={channel} brand={brand} format={variant.format} values={variant.asset_ids} assets={allAssets} renderActions={channel==='instagram'&&other?.channel==='facebook'?({disabled})=><button type="button" className="btn-secondary" disabled={disabled||preparingMedia||!other.asset_ids.length} title={!other.asset_ids.length?'Select media in Facebook first.':undefined} onClick={()=>copyMedia()}><Copy size={14}/>Copy media from Facebook</button>:undefined} onAssetsResolved={records=>setCache(current=>[...new Map([...current,...records].map(a=>[a.id,a])).values()])} onChange={asset_ids=>patchVariant({asset_ids})}/>:null}
+ {preparingMedia?<p role="status" className="text-sm text-text-secondary">Preparing and verifying Instagram media…</p>:null}
  {mediaCopyError?<p className="text-sm text-danger" role="alert">{mediaCopyError}</p>:null}
  {mediaCopied?<p className="text-sm text-text-secondary" role="status">{mediaCopied}</p>:null}
  <ConfirmDialog request={mediaCopy?{title:'Replace Instagram media?',message:`Replace Instagram’s current media with the Facebook selection, in the same order? Instagram caption, format and cover settings stay unchanged.`,confirmLabel:'Replace media'}:null} onCancel={()=>setMediaCopy(null)} onConfirm={()=>copyMedia(true)}/>

@@ -1,10 +1,10 @@
 import {afterEach,it,expect,vi} from 'vitest';
 import {render,screen,fireEvent,waitFor,cleanup,act} from '@testing-library/react';
 import MarketingMediaPicker from '../MarketingMediaPicker.jsx';
-const {listing,importFile,uploadFile}=vi.hoisted(()=>({listing:vi.fn(),importFile:vi.fn(),uploadFile:vi.fn()}));
+const {listing,importFile,uploadFile,prepareMedia}=vi.hoisted(()=>({listing:vi.fn(),importFile:vi.fn(),uploadFile:vi.fn(),prepareMedia:vi.fn()}));
 const driveFile={id:'drive-image',selection_id:'shortcut',version:'7',name:'Drive.jpg',mimeType:'image/jpeg'};
 const readyAsset={id:'snapshot',filename:'Drive.jpg',state:'ready',mime_type:'image/jpeg',size_bytes:100,source_kind:'drive',source_metadata:{selection_id:'shortcut',version:'7'}};
-vi.mock('../driveService.js',()=>({driveService:{import:importFile,upload:uploadFile}}));
+vi.mock('../driveService.js',()=>({driveService:{import:importFile,upload:uploadFile,prepareMedia}}));
 vi.mock('../marketingService.js',()=>({marketingService:{listing}}));
 vi.mock('../DriveMediaBrowser.jsx',()=>({default:({onSelect,isSelected})=><><button onClick={()=>onSelect(driveFile)} aria-pressed={isSelected(driveFile)}>Drive image</button><button onClick={()=>onSelect({...driveFile,id:'pdf',selection_id:'pdf',mimeType:'application/pdf'})}>Unsupported file</button></>}));
 vi.mock('../MarketingMediaPreview.jsx',()=>({default:({asset})=><span>{asset.filename}</span>}));
@@ -134,4 +134,10 @@ it('cancels a carousel drag when disabled, and preserves failed order for an exp
  fireEvent.click(screen.getByRole('button',{name:'Move Drive.jpg later'}));await screen.findByRole('alert');expect(screen.getByText(/selection is kept/)).toBeTruthy();
  fireEvent.click(screen.getByRole('button',{name:'Retry media save'}));await waitFor(()=>expect(onChange).toHaveBeenCalledTimes(2));expect(onChange.mock.calls[1][0]).toEqual(['second','snapshot']);
  view.rerender(<MarketingMediaPicker {...props} disabled/>);expect(screen.getByRole('button',{name:/Reorder Drive.jpg/}).disabled).toBe(true);
+});
+
+it('prepares existing Instagram PNG before attaching and exposes only the verified derivative',async()=>{
+ const png={...readyAsset,id:'png',filename:'Source.png',mime_type:'image/png'};listing.mockResolvedValue({rows:[png],total_count:1});prepareMedia.mockResolvedValue(readyAsset);const save=vi.fn(),resolved=vi.fn();
+ render(<MarketingMediaPicker brand={{id:'brand',organization_id:'org'}} channel="instagram" format="image" onChange={save} onAssetsResolved={resolved} initialOpen/>);
+ fireEvent.click(screen.getByRole('tab',{name:'Existing FeedX media'}));fireEvent.click(await screen.findByRole('button',{name:'Select Source.png'}));expect(save).not.toHaveBeenCalled();fireEvent.click(screen.getByRole('button',{name:'Done'}));await waitFor(()=>expect(save).toHaveBeenCalledWith(['snapshot']));expect(resolved).toHaveBeenCalledWith([readyAsset]);
 });

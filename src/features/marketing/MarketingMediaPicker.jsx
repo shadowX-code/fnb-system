@@ -9,11 +9,11 @@ import MarketingMediaPreview from './MarketingMediaPreview.jsx';
 import DriveMediaBrowser from './DriveMediaBrowser.jsx';
 import {driveService} from './driveService.js';
 import {marketingService} from './marketingService.js';
-import {publishingMediaEligible,publishingMimeTypes} from './publishingMedia.js';
+import {instagramPngPreparation,publishingMediaEligible,publishingMediaSelectable,publishingSelectionMimeTypes} from './publishingMedia.js';
 const EMPTY_ASSETS=[];
 const fileKey=file=>file.selection_id||file.id;
 const attachmentTypes=['image/jpeg','image/png','image/webp','video/mp4','application/pdf'];
-const eligible=(asset,format,channel,attachments=false)=>attachments?asset.state==='ready'&&attachmentTypes.includes(asset.mime_type)&&asset.size_bytes<=104857600:publishingMediaEligible(asset,format,channel);
+const eligible=(asset,format,channel,attachments=false)=>attachments?asset.state==='ready'&&attachmentTypes.includes(asset.mime_type)&&asset.size_bytes<=104857600:publishingMediaSelectable(asset,format,channel);
 export default function MarketingMediaPicker({brand,format,channel,values=[],assets=EMPTY_ASSETS,onChange,onAssetsResolved,disabled=false,thumbnailPreviews=false,initialOpen=false,attachments=false,renderActions}){
  const mediaChannel=attachments?undefined:channel;
  const scope=JSON.stringify([brand.organization_id,brand.id,format,mediaChannel,attachments]);const activeScope=useRef(scope);activeScope.current=scope;
@@ -63,10 +63,17 @@ export default function MarketingMediaPicker({brand,format,channel,values=[],ass
      const key=JSON.stringify([fileKey(entry.file),entry.file.version]);
      let asset=prepared.current.get(key);
      if(!asset){asset=await driveService.import(brand.organization_id,brand.id,entry.file,mediaChannel,format);if(activeScope.current!==expectedScope)return;
-      if(!eligible(asset,format,mediaChannel,attachments))throw new Error(attachments?'This attachment is unavailable or unsupported. Choose a JPG, PNG, WebP, MP4 or PDF up to 100 MB.':'This file is not compatible. Choose another image or MP4 video.');
+      if(!(attachments?eligible(asset,format,mediaChannel,true):publishingMediaEligible(asset,format,mediaChannel)))throw new Error(attachments?'This attachment is unavailable or unsupported. Choose a JPG, PNG, WebP, MP4 or PDF up to 100 MB.':'This file is not compatible. Choose another image or MP4 video.');
       prepared.current.set(key,asset);setKnown(current=>[...new Map([...current,asset].map(a=>[a.id,a])).values()]);
      }
      id=asset.id;
+    }
+    if(entry.id){
+     const original=known.find(asset=>asset.id===entry.id);
+     if(original&&!attachments&&instagramPngPreparation(original,format,mediaChannel)){const asset=await driveService.prepareMedia(brand.organization_id,brand.id,original,mediaChannel,format);if(activeScope.current!==expectedScope)return;
+      if(!publishingMediaEligible(asset,format,mediaChannel))throw new Error('Image preparation did not produce compatible media. Your selection is kept.');
+      id=asset.id;prepared.current.set(`asset:${entry.id}`,asset);setKnown(current=>[...new Map([...current,asset].map(a=>[a.id,a])).values()]);
+     }
     }
     if(!ids.includes(id))ids.push(id);
    }
@@ -95,16 +102,17 @@ export default function MarketingMediaPicker({brand,format,channel,values=[],ass
  <div className="media-selection-actions"><button type="button" className="btn-secondary" disabled={disabled||busy} onClick={()=>{setPending(values.map(id=>({id})));setOpen(true);setError('')}}><Plus size={15}/>{values.length&&!attachments&&format!=='carousel'?'Replace media':'Add media'}</button>{renderActions?.({disabled:disabled||busy})}</div>
 
  {!open&&error?<div><p role="alert" className="text-sm text-danger">{error}</p><button type="button" className="btn-secondary" disabled={disabled||busy} onClick={()=>confirm(pending,false)}>Retry media save</button></div>:null}
- {open?<Modal title={format==='reel_cover'?'Select Reel cover':'Select media'} size="xl" onClose={()=>{if(!busy)setOpen(false)}} footer={<><span className="mr-auto text-sm text-text-secondary">{busy?'Saving media…':`${pending.length} selected`}</span><button className="btn-primary" type="button" disabled={busy||disabled} onClick={()=>confirm()}>{busy?'Saving…':'Done'}</button></>}>
+ {open?<Modal title={format==='reel_cover'?'Select Reel cover':'Select media'} size="xl" onClose={()=>{if(!busy)setOpen(false)}} footer={<><span role="status" aria-live="polite" className="mr-auto text-sm text-text-secondary">{busy?'Preparing and verifying media…':`${pending.length} selected`}</span><button className="btn-primary" type="button" disabled={busy||disabled} onClick={()=>confirm()}>{busy?'Saving…':'Done'}</button></>}>
+ {!attachments&&channel==='instagram'&&['image','carousel'].includes(format)?<p className="text-sm text-text-secondary mb-3">PNG images are prepared as JPEG. Transparency and any required padding use white; originals stay unchanged.</p>:null}
  {attachments?<p className="text-sm text-text-secondary mb-3">Working files and references for any task type · up to 10 files. Publishing formats are checked separately.</p>:null}
  <AdminSegmentedControl label="Media source" value={tab} onChange={value=>{if(!busy){setTab(value);setError('')}}} options={[{value:'drive',label:'Google Drive'},{value:'upload',label:'Upload from device'},{value:'existing',label:'Existing FeedX media'}]}/>
  {error?<p role="alert" className="text-sm text-danger mt-3">{error}</p>:null}
  <div inert={busy||disabled} className={`mt-4 ${busy||disabled?'pointer-events-none opacity-60':''}`}>
  {tab==='drive'?<DriveMediaBrowser organizationId={brand.organization_id} brandId={brand.id} selectOnClick includeDocuments={attachments} isSelected={file=>pending.some(entry=>matchesDrive(entry,file))} onSelect={file=>{
-  if(attachments?!attachmentTypes.includes(file.mimeType):!publishingMimeTypes(format,channel).includes(file.mimeType)){setError(attachments?'Choose a JPG, PNG, WebP, MP4 or PDF attachment.':'Choose an image, or MP4 for a Reel.');return;}
+  if(attachments?!attachmentTypes.includes(file.mimeType):!publishingSelectionMimeTypes(format,channel).includes(file.mimeType)){setError(attachments?'Choose a JPG, PNG, WebP, MP4 or PDF attachment.':'Choose an image, or MP4 for a Reel.');return;}
   toggle({file},entry=>matchesDrive(entry,file));
  }}/>:null}
- {tab==='upload'?<div className="media-upload-zone"><Upload size={28}/><strong>{attachments?'Choose a task attachment':format==='reel_cover'?'Choose a Reel cover':'Choose an image or video'}</strong><span>{attachments?'JPG, PNG, WebP, MP4 or PDF':format==='reel_cover'?'9:16 JPEG · up to 8 MB':'JPG, PNG, WebP or MP4'}{format==='reel_cover'?'':' · up to 100 MB'}</span><label className="btn-primary">Choose file<input className="sr-only" aria-label={attachments?'Upload task attachment':'Upload post media'} type="file" accept={attachments?attachmentTypes.join(','):publishingMimeTypes(format,channel).join(',')} disabled={busy} onChange={event=>{const file=event.target.files?.[0];event.target.value='';if(file)upload(file)}}/></label></div>:null}
+ {tab==='upload'?<div className="media-upload-zone"><Upload size={28}/><strong>{attachments?'Choose a task attachment':format==='reel_cover'?'Choose a Reel cover':'Choose an image or video'}</strong><span>{attachments?'JPG, PNG, WebP, MP4 or PDF':format==='reel_cover'?'9:16 JPEG · up to 8 MB':'JPG, PNG, WebP or MP4'}{format==='reel_cover'?'':' · up to 100 MB'}</span><label className="btn-primary">Choose file<input className="sr-only" aria-label={attachments?'Upload task attachment':'Upload post media'} type="file" accept={attachments?attachmentTypes.join(','):publishingSelectionMimeTypes(format,channel).join(',')} disabled={busy} onChange={event=>{const file=event.target.files?.[0];event.target.value='';if(file)upload(file)}}/></label></div>:null}
  {tab==='existing'?<><AsyncDataSurface loading={loading} error={null} isEmpty={!loading&&!rows.length} emptyTitle="No eligible saved media"><div className="drive-grid">{rows.filter(asset=>eligible(asset,format,mediaChannel,attachments)).map(asset=>{const selected=pending.some(entry=>matchesAsset(entry,asset));return <article className={`drive-tile p-3 ${selected?'is-selected':''}`} key={asset.id}><MarketingMediaPreview asset={asset}/><button className="btn-secondary" type="button" onClick={()=>select(asset)} aria-pressed={selected} aria-label={`${selected?'Remove':'Select'} ${asset.filename}`}>{selected?'Selected':'Select media'}</button></article>})}</div></AsyncDataSurface><AdminPagination page={page} pageSize={20} total={total} onPageChange={setPage} onPageSizeChange={()=>{}}/></>:null}
  </div></Modal>:null}</div>;
 }

@@ -1,7 +1,9 @@
 import {useState} from 'react';
 import {beforeEach,it,expect,vi} from 'vitest';
-import {render,screen,fireEvent,waitFor,cleanup,within} from '@testing-library/react';
+import {render,screen,fireEvent,waitFor,cleanup,within,act} from '@testing-library/react';
 import PostEditor from '../PostEditor.jsx';
+const {prepareMedia}=vi.hoisted(()=>({prepareMedia:vi.fn()}));
+vi.mock('../driveService.js',()=>({driveService:{prepareMedia}}));
 const {service}=vi.hoisted(()=>({service:{metaConfiguration:vi.fn(),integrations:vi.fn(),assetUrl:vi.fn(),captionLibrary:vi.fn()}}));
 vi.mock('../marketingService.js',()=>({marketingService:service}));
 const brand={id:'brand',organization_id:'org',name:'Real Brand',outlet_ids:[]};
@@ -81,4 +83,20 @@ it('reports incompatible Facebook selections without dropping items, replacing m
  const initial={...mediaSeed,variants:mediaSeed.variants.map(v=>v.channel==='instagram'?{...v,format:'image',asset_ids:[]}:v)},onPayload=vi.fn();
  render(<CopyHarness initial={initial} onPayload={onPayload}/>);await screen.findByText(/No currently eligible account/);fireEvent.click(screen.getByRole('tab',{name:'Instagram',exact:true}));fireEvent.click(screen.getByRole('button',{name:'Copy media from Facebook'}));expect(screen.getByRole('alert').textContent).toContain('Choose one');expect(onPayload).not.toHaveBeenCalled();expect(screen.getByRole('button',{name:'Instagram format'}).textContent).toContain('Image');
  fireEvent.click(screen.getByRole('button',{name:'Instagram format'}));fireEvent.click(screen.getByRole('option',{name:'Carousel',exact:true}));await waitFor(()=>expect(screen.queryByRole('alert')).toBeNull());
+});
+
+it('prepares copied PNGs once and preserves Facebook originals, captions, and cover configuration',async()=>{
+ const png={...assets[0],id:'png',filename:'Sponsor Pickleball.png',mime_type:'image/png'},jpeg={...assets[0],id:'jpeg',filename:'Sponsor Pickleball - Instagram.jpg'};
+ let complete;prepareMedia.mockImplementation(()=>new Promise(resolve=>{complete=resolve}));const onPayload=vi.fn();
+ render(<CopyHarness initial={{...seed,variants:[{channel:'facebook',format:'image',caption:'Keep FB',asset_ids:['png']},{channel:'instagram',format:'image',caption:'Keep IG',asset_ids:[]}]}} records={[png]} onPayload={onPayload}/>);
+ fireEvent.click(screen.getByRole('tab',{name:'Instagram',exact:true}));fireEvent.click(screen.getByRole('button',{name:'Copy media from Facebook'}));
+ expect(screen.getByRole('button',{name:'Copy media from Facebook'}).disabled).toBe(true);expect(onPayload).not.toHaveBeenCalled();
+ await act(async()=>complete(jpeg));await waitFor(()=>expect(onPayload).toHaveBeenCalledTimes(1));
+ expect(onPayload.mock.lastCall[0].variants).toEqual([{channel:'facebook',format:'image',caption:'Keep FB',asset_ids:['png']},{channel:'instagram',format:'image',caption:'Keep IG',asset_ids:['jpeg']}]);
+ expect(prepareMedia).toHaveBeenCalledExactlyOnceWith('org','brand',png,'instagram','image');
+});
+it('retains both channel selections if conversion fails',async()=>{
+ const png={...assets[0],id:'png',mime_type:'image/png'};prepareMedia.mockRejectedValue(new Error('Image preparation failed. Retry selection.'));const onPayload=vi.fn();
+ render(<CopyHarness initial={{...seed,variants:[{channel:'facebook',format:'image',caption:'FB',asset_ids:['png']},{channel:'instagram',format:'image',caption:'IG',asset_ids:[]}]}} records={[png]} onPayload={onPayload}/>);
+ fireEvent.click(screen.getByRole('tab',{name:'Instagram',exact:true}));fireEvent.click(screen.getByRole('button',{name:'Copy media from Facebook'}));await screen.findByText('Image preparation failed. Retry selection.');expect(onPayload).not.toHaveBeenCalled();
 });
