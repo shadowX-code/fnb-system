@@ -50,6 +50,7 @@ const data = {
       definition,
     },
   ],
+  active_template_ids: ["template"],
   published: null,
   draft: null,
   history: [],
@@ -142,6 +143,7 @@ it("derives editable fields and dimensions from the selected pinned template", a
   factoryLabelService.editor.mockResolvedValue({
     ...data,
     published: { version: 2, template_id: "template", storage_instructions: "Keep frozen" },
+    active_template_ids: ["template", "second"],
     templates: [
       ...data.templates,
       { id: "second", template_key: "second", name: "Second layout", version: 3, definition: {
@@ -212,4 +214,32 @@ it("preserves edits and reports the specific save error through FeedX notificati
   fireEvent.click(screen.getByRole("button", { name: "Open Shared Template" }));
   await waitFor(() => expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ title: "Leave Label Editor?" })));
   expect(name.value).toBe("My pending edit");
+});
+
+it("lists only active versions and updates an older pin only in the working draft", async () => {
+  const older = { ...data.templates[0], id: "old", name: "Old layout", version: 1 };
+  const latest = { ...older, id: "new", name: "Current layout", version: 3 };
+  factoryLabelService.editor.mockResolvedValue({
+    ...data,
+    templates: [latest, older],
+    active_template_ids: ["new"],
+    published: { version: 5, template_id: "old", storage_instructions: "Keep frozen" },
+  });
+  render(<FactoryLabelEditorPage kind="product" entityKey="sku" canEdit />);
+  await screen.findByText("Using v1 · Latest v3 available");
+  const heading = screen.getByRole("heading", { name: "Product Label Editor" });
+  const back = screen.getByRole("button", { name: "Back to Label Management" });
+  expect(back.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  const select = screen.getByRole("button", { name: "Template version" });
+  fireEvent.click(select);
+  const options = await screen.findAllByRole("option");
+  expect(options.map((option) => option.textContent)).toEqual(["Current layout · v3"]);
+  fireEvent.click(select);
+  fireEvent.click(screen.getByRole("button", { name: "Update to Latest" }));
+  expect(screen.getByText("Active label uses Old layout · v1")).toBeTruthy();
+  expect(screen.getByText("Active version v5")).toBeTruthy();
+  expect(select.textContent).toContain("Current layout · v3");
+  expect(screen.getByRole("button", { name: "Activate Version" }).disabled).toBe(true);
+  expect(factoryLabelService.saveDraft).not.toHaveBeenCalled();
+  expect(factoryLabelService.publish).not.toHaveBeenCalled();
 });

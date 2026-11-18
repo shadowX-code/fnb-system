@@ -3,7 +3,7 @@ do $$
 declare
  actor uuid; readonly_actor uuid; p public.factory_productions; editor jsonb; payload jsonb; draft jsonb; bad jsonb;
  template public.factory_label_templates; base integer; request uuid:=gen_random_uuid(); publish_request uuid:=gen_random_uuid();
- v_template_key text:='qa-label-'||gen_random_uuid()::text; template_draft jsonb; version2 uuid; job uuid; device uuid:=gen_random_uuid(); claim uuid:=gen_random_uuid();
+ latest_template_id uuid; v_template_key text:='qa-label-'||gen_random_uuid()::text; template_draft jsonb; version2 uuid; job uuid; device uuid:=gen_random_uuid(); claim uuid:=gen_random_uuid();
  listing_row jsonb; sku_code text; candidate jsonb; frozen jsonb; raster jsonb; denied boolean; checks integer:=0; before_data text; after_data text;
 begin
  select md5(jsonb_build_object('production',(select jsonb_agg(to_jsonb(x) order by id) from public.factory_productions x),'products',(select jsonb_agg(to_jsonb(x) order by id) from public.factory_finished_goods x))::text) into before_data;
@@ -48,7 +48,22 @@ begin
   assert (select count(*)=2 from public.factory_label_templates where factory_label_templates.template_key=v_template_key),'template versions overwritten';checks:=checks+1;
   assert public.factory_label_candidate(p.id)->>'template_id'=template.id::text,'shared template publication silently reassigned SKU';checks:=checks+1;
   draft:=public.factory_label_save_draft('product',p.finished_good_id::text,payload||jsonb_build_object('template_id',version2),(draft->>'revision')::integer,base+1,gen_random_uuid());
-  assert exists(select 1 from jsonb_array_elements(public.factory_label_editor('product',p.finished_good_id::text)->'templates') t where t->>'id'=version2::text),'draft lost its pinned historical template';checks:=checks+1;
+  latest_template_id:=(template_draft->>'published_id')::uuid;
+  perform public.factory_label_save_draft('template','qa-draft-only-'||gen_random_uuid()::text,
+   jsonb_build_object('name','QA unactivated', 'definition',template.definition),0,0,gen_random_uuid());
+  perform public.factory_label_save_draft('template',v_template_key,
+   jsonb_build_object('name','QA unactivated edit','definition',template.definition),(template_draft->>'revision')::integer,2,gen_random_uuid());
+  -- Push the assigned lineage outside the bounded catalog and verify its true latest version still resolves.
+  insert into public.factory_label_templates(template_key,version,name,definition)
+  select '0-qa-catalog-'||gen_random_uuid()::text,1,'QA catalog filler','{}'::jsonb from generate_series(1,100);
+  editor:=public.factory_label_editor('product',p.finished_good_id::text);
+  assert exists(select 1 from jsonb_array_elements(editor->'templates') t where t->>'id'=version2::text),'draft lost its pinned historical template';
+  assert (editor->'active_template_ids') ? latest_template_id::text,'latest layout missing for pinned lineage';
+  assert not ((editor->'active_template_ids') ? version2::text),'historical pin incorrectly selectable';
+  assert (select count(*)=1 from jsonb_array_elements(editor->'templates') t where t->>'template_key'=v_template_key and (editor->'active_template_ids') ? (t->>'id')),'multiple selectable versions of one template';
+  assert not exists(select 1 from jsonb_array_elements(editor->'templates') t where t->>'name' like 'QA unactivated%'),'unactivated templates present in catalog';
+  assert public.factory_label_editor('template',v_template_key)->'published'->>'id'=latest_template_id::text,'active preview resolved the unpublished draft';
+  checks:=checks+6;
   perform public.factory_label_device(device,'QA Management bridge','No physical printer','spooler','Ready','[]');
   raster:=jsonb_build_object('format','mono1','width',639,'height',719,'data',encode(decode(repeat('00',80*719),'hex'),'base64'));
   job:=public.factory_label_enqueue(gen_random_uuid(),p.id,device,1,candidate,raster);frozen:=public.factory_label_candidate(p.id);
@@ -77,6 +92,7 @@ begin
   denied:=false;begin perform public.factory_label_set_device_enabled(device,false,'Unauthorized device change');exception when insufficient_privilege then denied:=true;end;assert denied,'read-only employee changed device';checks:=checks+1;
   perform set_config('request.jwt.claim.sub','',true);perform set_config('request.jwt.claims','{}',true);
   denied:=false;begin perform public.factory_label_management();exception when insufficient_privilege then denied:=true;end;assert denied,'anonymous management read allowed';checks:=checks+1;
+  denied:=false;begin perform public.factory_label_editor('template',v_template_key);exception when insufficient_privilege then denied:=true;end;assert denied,'anonymous preview read allowed';checks:=checks+1;
   assert not has_function_privilege('anon','public.factory_label_publish(uuid,integer,uuid,text,boolean)','EXECUTE'),'anonymous publish exposed';checks:=checks+1;
   assert not has_table_privilege('authenticated','public.factory_label_drafts','UPDATE'),'direct draft writes granted';checks:=checks+1;
   raise exception using errcode='FX001',message='Rollback label management fixtures';

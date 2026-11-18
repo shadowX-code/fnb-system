@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Pencil, Plus, Printer } from "lucide-react";
+import { Eye, Pencil, Plus, Printer } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
 import {
@@ -18,6 +18,7 @@ import {
 } from "../../../services/factoryLabelService.js";
 import PrinterSetupWizard, { printerSetupStatus } from "../labels/PrinterSetupWizard.jsx";
 import FactoryLabelEditorPage from "../labels/FactoryLabelEditorPage.jsx";
+import ActiveTemplatePreview from "../labels/ActiveTemplatePreview.jsx";
 import {
   openLabelManagement,
   readLabelManagementLocation,
@@ -32,6 +33,7 @@ export default function FactoryLabelManagementPage({ onConfirm, onNotify }) {
     [data, setData] = useState({ rows: [], total: 0 }),
     [loading, setLoading] = useState(true),
     [error, setError] = useState(""),
+    [previewTemplate, setPreviewTemplate] = useState(null),
     [printer, setPrinter] = useState(null),
     [wizard, setWizard] = useState(null),
     [reason, setReason] = useState(""),
@@ -45,6 +47,7 @@ export default function FactoryLabelManagementPage({ onConfirm, onNotify }) {
       setLocation(readLabelManagementLocation());
       setPage(1);
       setSearch("");
+      setPreviewTemplate(null);
     };
     window.addEventListener("popstate", change);
     return () => window.removeEventListener("popstate", change);
@@ -197,14 +200,19 @@ export default function FactoryLabelManagementPage({ onConfirm, onNotify }) {
             { key: "name", label: "Template" },
             {
               key: "version",
-              label: "Approved version",
-              render: (r) => r.version || "—",
+              label: "Active Version",
+              render: (r) => r.version ? `v${r.version}` : "—",
             },
             {
               key: "configuration_status",
               label: "Status",
               render: (r) => (
-                <FactoryStatusBadge status={r.configuration_status} />
+                <>
+                  <FactoryStatusBadge status={r.version ? "Active" : "Draft"} />
+                  {r.version && r.configuration_status === "Draft" && (
+                    <p className="text-xs text-text-secondary">Saved draft</p>
+                  )}
+                </>
               ),
             },
             { key: "assignments", label: "SKU assignments" },
@@ -212,18 +220,30 @@ export default function FactoryLabelManagementPage({ onConfirm, onNotify }) {
               key: "actions",
               label: "Actions",
               render: (r) => (
-                <button
-                  className="btn-secondary"
-                  onClick={() =>
-                    openLabelManagement({
+                <div className="flex flex-wrap items-center gap-2">
+                  {r.version && (
+                    <button
+                      type="button"
+                      className="icon-btn"
+                      aria-label={`View active template: ${r.name}`}
+                      title="View active template"
+                      onClick={() => setPreviewTemplate(r)}
+                    >
+                      <Eye size={16} aria-hidden="true" />
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() => openLabelManagement({
                       section: "templates",
                       template: r.template_key,
-                    })
-                  }
-                >
-                  <Pencil size={14} />
-                  {canEdit ? "Edit Template" : "View Template"}
-                </button>
+                    })}
+                  >
+                    {canEdit && <Pencil size={14} aria-hidden="true" />}
+                    {canEdit ? "Edit Template" : r.version ? "Template Details" : "View Draft"}
+                  </button>
+                </div>
               ),
             },
           ]
@@ -343,6 +363,7 @@ export default function FactoryLabelManagementPage({ onConfirm, onNotify }) {
         <FactoryTable
           columns={columns}
           rows={data.section === location.section ? data.rows : []}
+          rowKey={(row) => row.template_key ?? row.id}
           emptyTitle={
             loading
               ? "Loading…"
@@ -365,6 +386,14 @@ export default function FactoryLabelManagementPage({ onConfirm, onNotify }) {
           onPageSizeChange={() => {}}
         />
       </FactoryDataSurface>
+      {previewTemplate && (
+        <ActiveTemplatePreview
+          key={previewTemplate.template_key}
+          templateKey={previewTemplate.template_key}
+          name={previewTemplate.name}
+          onClose={() => setPreviewTemplate(null)}
+        />
+      )}
       {wizard && (
         <PrinterSetupWizard
           onClose={() => setWizard(null)}

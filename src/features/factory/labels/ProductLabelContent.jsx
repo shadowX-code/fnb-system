@@ -14,6 +14,8 @@ export default function ProductLabelContent({
   payload,
   baseline,
   templates,
+  template,
+  activeTemplate,
   definition,
   disabled,
   update,
@@ -21,6 +23,8 @@ export default function ProductLabelContent({
   onAssign,
   onOpenTemplate,
 }) {
+  const latest = templates.find((candidate) => candidate.template_key === template?.template_key);
+  const upgrade = template && latest && latest.version > template.version ? latest : null;
   const fields = boundLabelContentFields(definition);
   const setupFields = definition ? labelPrintFields.filter(([key]) =>
     !fields.some(([field]) => field === key) && (!baseline[key]?.trim() || !payload[key]?.trim()),
@@ -56,12 +60,15 @@ export default function ProductLabelContent({
           <h2>Template</h2>
           {definition && <span>{payload.width_mm} × {payload.height_mm} mm</span>}
         </div>
+        {activeTemplate && activeTemplate.id !== template?.id && (
+          <p className="label-studio-hint">Active label uses {activeTemplate.name} · v{activeTemplate.version}</p>
+        )}
         <Field label="Template version">
           <SearchableSelect
             value={payload.template_id}
-            disabled={disabled}
+            disabled={disabled || !templates.length}
             ariaLabel="Template version"
-            placeholder="Select a template"
+            placeholder={template ? `${template.name} · v${template.version}` : "Select an active template"}
             options={templates.map((template) => ({
               value: template.id,
               label: `${template.name} · v${template.version}`,
@@ -69,6 +76,14 @@ export default function ProductLabelContent({
             onChange={onAssign}
           />
         </Field>
+        {upgrade && (
+          <div className="label-studio-section-heading">
+            <p className="label-studio-hint">Using v{template.version} · Latest v{upgrade.version} available</p>
+            <button type="button" className="btn-secondary" disabled={disabled} onClick={() => onAssign(upgrade.id)}>
+              Update to Latest
+            </button>
+          </div>
+        )}
         {definition && <div className="label-studio-section-heading">
           <p className="label-studio-hint">Saving a new assignment leaves the active label in use until you activate the draft.</p>
           <button type="button" className="btn-ghost" disabled={disabled} onClick={onOpenTemplate}>

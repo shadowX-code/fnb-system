@@ -5,6 +5,17 @@
   min-width: 0;
   container-type: inline-size;
 }
+.label-studio-header {
+  display: grid;
+  gap: 6px;
+}
+.label-studio-header > .btn-ghost {
+  justify-self: start;
+  margin-inline-start: -8px;
+}
+.label-studio-history-button {
+  font-size: var(--type-caption, 12px);
+}
 .label-studio [data-page-header] h1 {
   font-size: 22px;
   line-height: 1.3;

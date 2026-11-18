@@ -10,6 +10,8 @@ import {
   templateLabelDraft,
   editableLabelDefinition,
   labelTemplateDimensions,
+  selectableLabelTemplates,
+  templatePreviewSnapshot,
 } from "./labelManagementModel.js";
 import LabelLayoutEditor from "./LabelLayoutEditor.jsx";
 import useLabelPreview from "./useLabelPreview.js";
@@ -84,23 +86,9 @@ export default function FactoryLabelEditorPage({
     kind === "product" ? template?.definition : payload?.definition;
   const preview = useLabelPreview(
     payload && definition
-      ? labelPreviewSnapshot(
-          kind === "template"
-            ? {
-                ...payload,
-                content: {
-                  product_name: "Product name",
-                  product_name_cn: "中文名称",
-                  product_name_bm: "Nama produk",
-                  ingredients: "Ingredients from SKU",
-                  manufacturer_name: "Manufacturer from SKU",
-                  manufacturer_address: "Address from SKU",
-                },
-              }
-            : payload,
-          definition,
-          data?.sku,
-        )
+      ? kind === "template"
+        ? templatePreviewSnapshot(payload, definition)
+        : labelPreviewSnapshot(payload, definition, data?.sku)
       : { width_mm: 80, height_mm: 90, definition: { elements: [] } },
   );
   const update = (key, value) => {
@@ -208,19 +196,18 @@ export default function FactoryLabelEditorPage({
   }
   const disabled = busy || needsRefresh || !canEdit;
   const heading = kind === "template" ? "Template Designer" : "Product Label Editor";
+  const backButton = (
+    <button type="button" className="btn-ghost" disabled={busy} onClick={() => leave(onBack)}>
+      <ArrowLeft size={14} aria-hidden="true" /> Back to Label Management
+    </button>
+  );
   if (!payload)
     return (
       <div className="space-y-4">
-        <PageHeader
-          title={heading}
-          description="Loading label configuration."
-          actions={
-            <button className="btn-secondary" onClick={onBack}>
-              <ArrowLeft size={14} />
-              Label Management
-            </button>
-          }
-        />
+        <div className="label-studio-header">
+          {backButton}
+          <PageHeader title={heading} description="Loading label configuration." />
+        </div>
         {error ? (
           <p role="alert">
             {error}{" "}
@@ -235,72 +222,64 @@ export default function FactoryLabelEditorPage({
     );
   return (
     <div className="label-studio">
-      <PageHeader
-        title={heading}
-        wrapTitle
-        metadata={
-          <>
-            <FactoryStatusBadge
-              status={data.published ? "Ready" : draft?.state === "draft" || dirty ? "Draft" : "Not Configured"}
-            />
-            <span>Active version {data.published?.version ? `v${data.published.version}` : "—"}</span>
-            {data.published && draft?.state === "draft" && <FactoryStatusBadge status="Draft" />}
-            <span role="status">
-              {action
-                ? action
-                : dirty
-                  ? "Unsaved changes"
-                  : draft?.state === "draft"
-                    ? `Draft saved · revision ${draft.revision}`
-                    : "No unsaved edits"}
-            </span>
-          </>
-        }
-        description={
-          kind === "product"
-            ? `${data.sku.product_code || ""} · ${data.sku.product_name}`
-            : <span className="label-studio-template-name">{payload.name || "Untitled template"}</span>
-        }
-        secondaryActions={
-          <>
-            <button
-              type="button"
-              className="btn-secondary"
-              disabled={busy}
-              onClick={() => leave(onBack)}
-            >
-              <ArrowLeft size={14} />
-              Label Management
-            </button>
-            <button type="button" className="btn-ghost" disabled={busy || needsRefresh} onClick={() => setHistoryOpen(true)}>
-              <History size={14} /> Version History
-            </button>
-          </>
-        }
-        primaryActions={
-          canEdit ? (
+      <div className="label-studio-header">
+        {backButton}
+        <PageHeader
+          title={heading}
+          wrapTitle
+          metadata={
             <>
-              <button
-                type="button"
-                className="btn-secondary"
-                disabled={disabled || (!dirty && Boolean(draft || data.published))}
-                onClick={save}
-              >
-                <Save size={14} />
-                {action === "Saving…" ? "Saving…" : "Save"}
-              </button>
-              <button
-                type="button"
-                className="btn-primary"
-                disabled={!canActivate}
-                onClick={activate}
-              >
-                <CheckCircle2 size={14} /> {action === "Activating…" ? "Activating…" : "Activate Version"}
-              </button>
+              <FactoryStatusBadge
+                status={data.published ? (kind === "template" ? "Active" : "Ready") : draft?.state === "draft" || dirty ? "Draft" : "Not Configured"}
+              />
+              <span>Active version {data.published?.version ? `v${data.published.version}` : "—"}</span>
+              {data.published && draft?.state === "draft" && <FactoryStatusBadge status="Draft" />}
+              <span role="status">
+                {action
+                  ? action
+                  : dirty
+                    ? "Unsaved changes"
+                    : draft?.state === "draft"
+                      ? `Draft saved · revision ${draft.revision}`
+                      : "No unsaved edits"}
+              </span>
             </>
-          ) : null
-        }
-      />
+          }
+          description={
+            kind === "product"
+              ? `${data.sku.product_code || ""} · ${data.sku.product_name}`
+              : <span className="label-studio-template-name">{payload.name || "Untitled template"}</span>
+          }
+          secondaryActions={
+            <button type="button" className="btn-secondary label-studio-history-button" disabled={busy || needsRefresh} onClick={() => setHistoryOpen(true)}>
+              <History size={14} aria-hidden="true" /> Version History
+            </button>
+          }
+          primaryActions={
+            canEdit ? (
+              <>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  disabled={disabled || (!dirty && Boolean(draft || data.published))}
+                  onClick={save}
+                >
+                  <Save size={14} />
+                  {action === "Saving…" ? "Saving…" : "Save"}
+                </button>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  disabled={!canActivate}
+                  onClick={activate}
+                >
+                  <CheckCircle2 size={14} /> {action === "Activating…" ? "Activating…" : "Activate Version"}
+                </button>
+              </>
+            ) : null
+          }
+        />
+      </div>
       {error && (
         <p role="alert" className="text-sm text-text-primary">
           {error}
@@ -317,7 +296,9 @@ export default function FactoryLabelEditorPage({
           <ProductLabelContent
             payload={payload}
             baseline={draft?.state === "draft" ? draft.payload : productLabelDraft(data)}
-            templates={data.templates}
+            templates={selectableLabelTemplates(data)}
+            template={template}
+            activeTemplate={data.templates.find((t) => t.id === data.published?.template_id)}
             definition={definition}
             disabled={disabled}
             update={update}

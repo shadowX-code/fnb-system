@@ -46,13 +46,18 @@ export function boundLabelContentFields(definition) {
   ));
   return [...labelContentFields, ...labelPrintFields].filter(([key]) => bound.has(key));
 }
+export function selectableLabelTemplates(data) {
+  const active = new Set(data.active_template_ids);
+  return data.templates.filter((template) => active.has(template.id));
+}
+
 export function productLabelDraft(data) {
   const config = data.published,
     sku = data.sku || {};
   return data.draft?.state === "draft"
     ? data.draft.payload
     : {
-        template_id: config?.template_id || data.templates[0]?.id || "",
+        template_id: config?.template_id || selectableLabelTemplates(data)[0]?.id || "",
         width_mm: config?.width_mm || 80,
         height_mm: config?.height_mm || 90,
         net_weight:
@@ -99,6 +104,20 @@ export function templateLabelDraft(data) {
             },
       };
 }
+export function templatePreviewSnapshot(payload, definition = payload.definition) {
+  return labelPreviewSnapshot({
+    ...payload,
+    content: {
+      product_name: "Product name",
+      product_name_cn: "中文名称",
+      product_name_bm: "Nama produk",
+      ingredients: "Ingredients from SKU",
+      manufacturer_name: "Manufacturer from SKU",
+      manufacturer_address: "Address from SKU",
+    },
+  }, definition);
+}
+
 export function labelPreviewSnapshot(payload, definition, sku = {}) {
   sku ||= {};
   const content = payload.content || {};
