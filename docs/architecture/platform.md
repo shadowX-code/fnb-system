@@ -7,7 +7,7 @@ Business behavior belongs in the canonical domain documents listed in `docs/READ
 
 Environment identities, authorization requirements, dirty-worktree safeguards, and risk-based QA levels remain governed by `FEEDX_CODEX_CONTEXT.md`.
 
-The Admin header's Network and Assistant destinations share `SystemNavigationChip`: explicit labels/badges, `aria-current` selection, keyboard focus, and bounded Cyan/Mint interaction feedback. Motion runs only on hover/focus, is suppressed for reduced motion, and never represents service activity. Visible labels replace redundant native tooltips; navigation and environment visibility remain shell-owned.
+The Admin header's Network and Assistant destinations share `SystemNavigationChip` with explicit labels, badges and `aria-current` selection. The chip and shared underline tabs use the Admin brand-green tokens for active, hover and focus states. Jarvis keeps its own dark HUD palette. Motion runs only on hover/focus, is suppressed for reduced motion, and never represents service activity. Visible labels replace redundant native tooltips; navigation and environment visibility remain shell-owned.
 
 ## Admin Notification Audio
 

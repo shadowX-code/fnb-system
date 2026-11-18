@@ -53,5 +53,22 @@ it('nests existing enable/test intents only in the registered Factory READ detai
  await waitFor(()=>expect(assistantCall).toHaveBeenCalledWith('capability_connection',{operation:'read_factory_finished_goods',expected_revision:1,enabled:false}));
  expect(screen.queryByRole('button',{name:'Test Connection'})).toBeNull();
  expect(screen.queryByText(/285|Other module coverage/)).toBeNull();
- expect(screen.getByLabelText('Registered capability coverage').textContent).toBe('1 enabled READ · 0 enabled ACTION');
+ expect(screen.getByLabelText('Registered capability coverage').textContent).toBe('1 enabled READ · 0 of 2 ACTION policies ready');
+});
+
+it('opens the canonical ACTION owner and presents two separately controlled operations',async()=>{
+ assistantCall.mockResolvedValue(data);
+ render(<NativeAssistantSettings auth={{user:{id:'admin'},hasPermission:()=>true}}/>);
+ await screen.findByText('native-assistant-openai');
+ fireEvent.click(screen.getByRole('tab',{name:'AI Capabilities'}));
+ fireEvent.click(screen.getByRole('button',{name:'Content Management actions'}));
+ const drawer=within(screen.getByRole('dialog',{name:'Content Management'}));
+ const actions=within(drawer.getByRole('region',{name:'AI Actions'}));
+ for(const name of ['Prepare text-only content draft','Prepare inactive caption template']){
+  expect(actions.getByRole('heading',{name})).toBeTruthy();
+  expect(actions.getByRole('button',{name:`Enable AI Access: ${name}`})).toBeTruthy();
+  expect(actions.getByRole('button',{name:`Enable execution authorization: ${name}`})).toBeTruthy();
+ }
+ expect(actions.getAllByText('Disabled')).toHaveLength(4);
+ expect(assistantCall.mock.calls).toEqual([['configuration']]);
 });

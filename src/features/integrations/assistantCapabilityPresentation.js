@@ -4,16 +4,35 @@ import {assistantCoverageReview} from './assistantCoverageReview.js';
 import {assistantKnowledgeSources} from './assistantKnowledgeSources.js';
 
 export const capabilityStatuses={connected:'Enabled',disabled:'Disabled',partial:'Partially enabled',unsupported:'Not supported',unavailable:'Unavailable'};
-// Normalized business inventory. Navigation and machine grants never grant Native execution.
-export function capabilityInventory(capabilities=[]){
- return reconcileBusinessModules().business.map(module=>{
-  const operations=capabilities.filter(operation=>operation.module_id===module.id||operation.related_module_ids?.includes(module.id));
-  const sources=assistantKnowledgeSources.filter(source=>source.module_ids.some(id=>id===module.id||module.linkedEntries.some(entry=>entry.kind!=='external'&&entry.module.id===id)));
-  const workspace=module.workspace,domain=module.section;
-  const enabled=operations.filter(operation=>operation.connection_enabled===true&&(operation.kind!=='ACTION'||operation.ai_execution_enabled===true)).length;
-  const unknown=operations.some(operation=>typeof operation.connection_enabled!=='boolean');
-  return {id:module.id,label:module.label,module,workspace,workspaceLabel:workspaceLabels[workspace],domain,domainKey:`${workspace}:${domain}`,operations,sources,coverage:assistantCoverageReview[module.id]||{classification:operations.some(o=>o.kind==='READ'&&o.module_id!==module.id)?'shared':operations.length?'partial':'missing',available:operations.map(o=>o.scope).join(' '),missing:'Only listed operations and their stated scope are covered; no blanket module access or unlisted workflow is implied.',reads:[],evidence:[]},coverageReads:(assistantCoverageReview[module.id]?.reads||[]).map(id=>capabilities.find(o=>o.id===id&&o.kind==='READ')).filter(Boolean),status:!operations.length?'unsupported':unknown?'unavailable':enabled===operations.length?'connected':enabled?'partial':'disabled'};
- }).sort((a,b)=>Object.keys(workspaceLabels).indexOf(a.workspace)-Object.keys(workspaceLabels).indexOf(b.workspace)||(moduleSectionOrder.includes(a.domain)?moduleSectionOrder.indexOf(a.domain):999)-(moduleSectionOrder.includes(b.domain)?moduleSectionOrder.indexOf(b.domain):999)||a.label.localeCompare(b.label));
+const businessModules = reconcileBusinessModules().business;
+const moduleLabels = new Map(businessModules.map(module => [module.id, module.label]));
+
+export function capabilityOwnerLabel(moduleId) {
+ return moduleLabels.get(moduleId);
+}
+
+// A READ can be exposed by several modules, but its policy belongs to one owner.
+export function capabilityInventory(capabilities = []) {
+ return businessModules.map(module => {
+  const owned = capabilities.filter(operation => operation.module_id === module.id);
+  const shared = capabilities.filter(operation => operation.kind === 'READ' && operation.module_id !== module.id && operation.related_module_ids?.includes(module.id));
+  const operations = [...owned, ...shared];
+  const sources = assistantKnowledgeSources.filter(source => source.module_ids.some(id => id === module.id || module.linkedEntries.some(entry => entry.kind !== 'external' && entry.module.id === id)));
+  const enabled = operations.filter(operation => operation.connection_enabled === true && (operation.kind !== 'ACTION' || operation.ai_execution_enabled === true)).length;
+  const unknown = operations.some(operation => typeof operation.connection_enabled !== 'boolean' || (operation.kind === 'ACTION' && operation.connection_enabled && typeof operation.ai_execution_enabled !== 'boolean'));
+  const status = !operations.length ? 'unsupported' : unknown ? 'unavailable' : enabled === operations.length ? 'connected' : enabled ? 'partial' : 'disabled';
+  const sharedOwners = [...new Set(shared.map(operation => capabilityOwnerLabel(operation.module_id) || 'owner unavailable'))];
+  const statusLabel = !owned.length && shared.length ? `${capabilityStatuses[status]} via ${sharedOwners.join(', ')}` : capabilityStatuses[status];
+  const review = assistantCoverageReview[module.id];
+  const workspace = module.workspace, domain = module.section;
+  return {
+   id: module.id, label: module.label, module, workspace, workspaceLabel: workspaceLabels[workspace], domain, domainKey: `${workspace}:${domain}`,
+   operations, sources, sharedReadCount: shared.length, status, statusLabel,
+   coverage: review || (operations.length ? {classification: shared.length ? 'shared' : 'partial'} : {classification: 'missing', missing: 'No Assistant operations are available for this module.'}),
+   // Reviewed references add context in the drawer. They cannot confer module access.
+   coverageReads: (review?.reads || []).map(id => capabilities.find(operation => operation.id === id && operation.kind === 'READ')).filter(Boolean),
+  };
+ }).sort((a,b) => Object.keys(workspaceLabels).indexOf(a.workspace)-Object.keys(workspaceLabels).indexOf(b.workspace)||(moduleSectionOrder.includes(a.domain)?moduleSectionOrder.indexOf(a.domain):999)-(moduleSectionOrder.includes(b.domain)?moduleSectionOrder.indexOf(b.domain):999)||a.label.localeCompare(b.label));
 }
 export function filterCapabilityInventory(rows,{query='',workspace='all',domain='all',status='all'}={}){
  const term=query.trim().toLocaleLowerCase();

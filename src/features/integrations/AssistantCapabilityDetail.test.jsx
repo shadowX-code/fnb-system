@@ -27,7 +27,7 @@ it('keeps ACTION access and execution authorization independent',()=>{
  const onFeature=vi.fn(async()=>({ok:true}));
  render(<AssistantCapabilityDetail row={{...row,status:'disabled',operations:[{...read,id:'draft',kind:'ACTION',availability:'disabled',ai_execution_enabled:false}]}} data={{config:{revision:4}}} canEdit onFeature={onFeature} onClose={()=>{}}/>);
  expect(screen.getByText('AI Actions')).toBeTruthy();
- fireEvent.click(screen.getByRole('button',{name:'Enable AI action authorization'}));
+ fireEvent.click(screen.getByRole('button',{name:'Enable execution authorization: Roster information'}));
  expect(onFeature).toHaveBeenCalledExactlyOnceWith('action_policy',{operation:'draft',enabled:true,expected_revision:4});
  expect(screen.getByText(/confirmation of a current preview/)).toBeTruthy();
 });
@@ -44,6 +44,8 @@ it('explains partial coverage without granting module access and navigates to th
  expect(screen.getByText(/Partial coverage/)).toBeTruthy();
  expect(screen.getByText(/Not integrated coverage|Partial coverage/)).toBeTruthy();
  expect(screen.queryByRole('button',{name:/Enable AI Access|Disable AI Access/})).toBeNull();
+ expect(screen.getByText('policy at')).toBeTruthy();
+ expect(screen.queryByRole('region',{name:'Shared READ access'})).toBeNull();
  fireEvent.click(screen.getByRole('button',{name:/Manage .* access/}));expect(onSelect).toHaveBeenCalledWith('factory_finished_goods');expect(onFeature).not.toHaveBeenCalled();
 });
 
@@ -58,7 +60,9 @@ it('deduplicates shared reads and leaves control with the actual owner',()=>{
  const shared={...read,module_id:'factory_finished_goods'};
  render(<AssistantCapabilityDetail row={{...row,operations:[shared],coverageReads:[shared]}} data={{config:{revision:4}}} canEdit onFeature={vi.fn()} onClose={()=>{}} onSelect={()=>{}}/>);
  expect(screen.getAllByText('Roster information')).toHaveLength(1);
- expect(screen.getByRole('region',{name:'Related Data'})).toBeTruthy();
+ expect(screen.getByRole('region',{name:'Shared READ access'})).toBeTruthy();
+ expect(screen.queryByRole('region',{name:'AI Read Access'})).toBeNull();
+ expect(screen.queryByRole('region',{name:'Related Data'})).toBeNull();
  expect(screen.queryByRole('button',{name:/Enable AI Access:|Disable AI Access:/})).toBeNull();
 });
 it('shows refreshed server policy after a save and preserves exact revision ownership',async()=>{
@@ -79,4 +83,12 @@ it('ordinary module policy explicitly groups reviewed reads without hiding mixed
  expect(screen.getByText(/Mixed access/)).toBeTruthy();
  fireEvent.click(screen.getByRole('button',{name:'Enable ordinary reads'}));
  expect(onFeature).toHaveBeenCalledExactlyOnceWith('capability_connection',{operation:'module:employees',enabled:true,expected_revision:24});
+});
+
+it('explains an unsupported module without showing an empty access-control section',()=>{
+ const module=capabilityInventory().find(row=>row.id==='space_station');
+ render(<AssistantCapabilityDetail row={module} data={{config:{revision:4}}} canEdit onFeature={vi.fn()} onClose={()=>{}}/>);
+ expect(screen.getByText('No Assistant operations are available for this module.')).toBeTruthy();
+ expect(screen.queryByRole('region',{name:'AI Read Access'})).toBeNull();
+ expect(screen.queryByRole('region',{name:'AI Actions'})).toBeNull();
 });
