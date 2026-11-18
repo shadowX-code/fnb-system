@@ -4,8 +4,6 @@ import {
   Trash2,
   Copy,
   ChevronDown,
-  ArrowUp,
-  ArrowDown,
   Type,
   Square,
   Minus,
@@ -26,6 +24,7 @@ import {
 } from "./labelManagementModel.js";
 import "./labelManagement.css";
 import ActionMenu from "../../../components/ui/ActionMenu.jsx";
+import AdminSortableList from "../../../components/ui/AdminSortableList.jsx";
 import LabelStudioCanvas from "./LabelStudioCanvas.jsx";
 
 export default function LabelLayoutEditor({
@@ -42,10 +41,13 @@ export default function LabelLayoutEditor({
 }) {
   const [selected, setSelected] = useState(0),
     [uploadError, setUploadError] = useState(""),
-    [addOpen, setAddOpen] = useState(false);
+    [addOpen, setAddOpen] = useState(false),
+    [layerIds, setLayerIds] = useState(() => definition.elements.map(() => crypto.randomUUID())),
+    [orderMessage, setOrderMessage] = useState("");
   const surface = useRef(null),
     drag = useRef(null),
-    uploadInput = useRef(null);
+    uploadInput = useRef(null),
+    latestAppend = useRef(null);
   const elements = definition.elements,
     element = elements[selected];
   const patch = (changes) =>
@@ -86,6 +88,27 @@ export default function LabelLayoutEditor({
   const stop = () => {
     drag.current = null;
   };
+  function placeLayer(id, targetId, position) {
+    const from = layerIds.indexOf(id);
+    const target = layerIds.indexOf(targetId);
+    if (from < 0 || target < 0 || from === target) return;
+    const destination = target + (position === "after" ? 1 : 0) - (from < target ? 1 : 0);
+    if (destination === from) return;
+    const next = reorderLabelElement(definition, from, destination);
+    setLayerIds(reorderLabelElement({ elements: layerIds }, from, destination).elements);
+    setSelected(destination);
+    setOrderMessage(`${labelElementName(elements[from])} moved to layer ${destination + 1} of ${elements.length}.`);
+    onChange(next);
+  }
+  function append(element) {
+    if (disabled || elements.length >= 50) return;
+    const id = crypto.randomUUID();
+    setLayerIds((ids) => [...ids, id]);
+    onChange({ ...definition, elements: [...elements, element] });
+    setSelected(elements.length);
+  }
+  latestAppend.current = append;
+
   function add(type) {
     if (elements.length >= 50) return;
     const e = {
@@ -103,8 +126,7 @@ export default function LabelLayoutEditor({
             : {}),
     };
     if (type === "qr") e.w = e.h;
-    onChange({ ...definition, elements: [...elements, e] });
-    setSelected(elements.length);
+    append(e);
   }
   async function upload(event) {
     setUploadError("");
@@ -124,8 +146,7 @@ export default function LabelLayoutEditor({
         w: Math.min(20, width - 10),
         h: Math.min(20, height - 10),
       };
-      onChange({ ...definition, elements: [...elements, e] });
-      setSelected(elements.length);
+      latestAppend.current(e);
     };
     reader.onerror = () => setUploadError("Unable to read this PNG.");
     reader.readAsDataURL(file);
@@ -191,73 +212,41 @@ export default function LabelLayoutEditor({
             onChange={upload}
           />
         </div>
-        <div
+        <AdminSortableList
           className="label-studio-layer-list"
-          role="list"
-          aria-label="Label elements"
+          items={layerIds}
+          getId={(id) => id}
+          getLabel={(_, index) => `Reorder ${labelElementName(elements[index])}, layer ${index + 1}`}
+          disabled={disabled || elements.length < 2}
+          onMove={placeLayer}
         >
-          {elements.map((e, i) => (
-            <button
-              type="button"
-              key={i}
-              className={`label-layer ${selected === i ? "label-layer-selected" : ""}`}
-              aria-label={`Layer ${i + 1}: ${labelElementName(e, i, elements)}`}
-              aria-pressed={selected === i}
-              onClick={() => setSelected(i)}
-            >
-              <span className="label-layer-number">{i + 1}</span>
-              <span>
-                <strong>{labelElementName(e, i, elements)}</strong>
-                <small>
-                  {e.field
-                    ? labelElementSource(e) === "production"
-                      ? "Production Field"
-                      : "SKU Field"
-                    : e.type === "text"
-                      ? "Static Text"
-                      : {
-                          rect: "Border",
-                          line: "Line",
-                          image: "Image",
-                          qr: "QR code",
-                          barcode: "Barcode",
-                        }[e.type]}
-                </small>
-              </span>
-            </button>
-          ))}
-        </div>
-        <div
-          className="label-studio-layer-order"
-          role="group"
-          aria-label="Layer order"
-        >
-          <button
-            type="button"
-            className="btn-ghost"
-            disabled={disabled || selected <= 0}
-            onClick={() => {
-              onChange(reorderLabelElement(definition, selected, selected - 1));
-              setSelected(selected - 1);
-            }}
-          >
-            <ArrowUp size={14} /> Send backward
-          </button>
-          <button
-            type="button"
-            className="btn-ghost"
-            disabled={disabled || selected >= elements.length - 1}
-            onClick={() => {
-              onChange(reorderLabelElement(definition, selected, selected + 1));
-              setSelected(selected + 1);
-            }}
-          >
-            <ArrowDown size={14} /> Bring forward
-          </button>
-        </div>
-        <p className="label-studio-hint">
-          Layers print in this order, from back to front.
-        </p>
+          {({ index, handle }) => {
+            const layer = elements[index];
+            const name = labelElementName(layer);
+            return (
+              <div className={`label-layer-row ${selected === index ? "label-layer-selected" : ""}`}>
+                {handle}
+                <button
+                  type="button"
+                  className="label-layer"
+                  aria-label={`Layer ${index + 1}: ${name}`}
+                  aria-pressed={selected === index}
+                  onClick={() => setSelected(index)}
+                >
+                  <span className="label-layer-number">{index + 1}</span>
+                  <span>
+                    <strong>{name}</strong>
+                    <small>{layer.field
+                      ? labelElementSource(layer) === "production" ? "Production Field" : "SKU Field"
+                      : { text: "Static Text", rect: "Border", line: "Line", image: "Image", qr: "QR code", barcode: "Barcode" }[layer.type]}</small>
+                  </span>
+                </button>
+              </div>
+            );
+          }}
+        </AdminSortableList>
+        <span className="sr-only" aria-live="polite">{orderMessage}</span>
+        <p className="label-studio-hint">Drag a handle or use ↑ and ↓. Layers print from back to front.</p>
         {uploadError && <p role="alert">{uploadError}</p>}
       </aside>
       <LabelStudioCanvas
@@ -327,11 +316,9 @@ export default function LabelLayoutEditor({
         )}
       </LabelStudioCanvas>
       <aside className="label-studio-properties" aria-label="Properties">
-        <div className="label-studio-panel-heading">
-          <h2>Properties</h2>
-        </div>
         {configuration}
         <div className="label-studio-property-group">
+          <h2>Layer Properties</h2>
           <h3>
             {element
               ? labelElementName(element, selected, elements)
@@ -495,13 +482,7 @@ export default function LabelLayoutEditor({
                   type="button"
                   className="btn-secondary"
                   disabled={disabled || elements.length >= 50}
-                  onClick={() => {
-                    onChange({
-                      ...definition,
-                      elements: [...elements, { ...element }],
-                    });
-                    setSelected(elements.length);
-                  }}
+                  onClick={() => append({ ...element })}
                 >
                   <Copy size={14} />
                   Duplicate
@@ -511,6 +492,7 @@ export default function LabelLayoutEditor({
                   className="btn-secondary"
                   disabled={disabled || elements.length <= 1}
                   onClick={() => {
+                    setLayerIds((ids) => ids.filter((_, index) => index !== selected));
                     onChange({
                       ...definition,
                       elements: elements.filter((_, i) => i !== selected),

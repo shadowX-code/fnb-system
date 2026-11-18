@@ -35,18 +35,16 @@ it("can replace a dynamic field with shared static text without retaining its bi
 });
 it("moves elements by keyboard and supports adding and removing text", () => {
   const change = vi.fn();
-  render(
-    <LabelLayoutEditor
-      definition={{
-        elements: [
-          { type: "text", text: "Existing", x: 5, y: 5, w: 30, h: 10, size: 3 },
-        ],
-      }}
-      width={80}
-      height={90}
-      onChange={change}
-    />,
-  );
+  function Fixture() {
+    const [definition, set] = useState({
+      elements: [{ type: "text", text: "Existing", x: 5, y: 5, w: 30, h: 10, size: 3 }],
+    });
+    return (
+      <LabelLayoutEditor definition={definition} width={80} height={90}
+        onChange={(next) => { change(next); set(next); }} />
+    );
+  }
+  render(<Fixture />);
   fireEvent.keyDown(screen.getByRole("button", { name: "Select element 1" }), {
     key: "ArrowRight",
   });
@@ -54,6 +52,8 @@ it("moves elements by keyboard and supports adding and removing text", () => {
   fireEvent.click(screen.getByRole("button", { name: /Add Element/ }));
   fireEvent.click(screen.getByRole("menuitem", { name: "Text", exact: true }));
   expect(change.mock.calls[1][0].elements).toHaveLength(2);
+  fireEvent.click(screen.getByRole("button", { name: "Remove" }));
+  expect(change.mock.calls[2][0].elements).toHaveLength(1);
 });
 
 it("orders layers without mutating the published definition", () => {
@@ -64,16 +64,16 @@ it("orders layers without mutating the published definition", () => {
     ],
   };
   const change = vi.fn();
-  render(
-    <LabelLayoutEditor
-      definition={definition}
-      width={80}
-      height={90}
-      onChange={change}
-    />,
-  );
-  fireEvent.click(screen.getByRole("button", { name: "Layer 2: Ingredients" }));
-  fireEvent.click(screen.getByRole("button", { name: "Send backward" }));
+  const view = render(<LabelLayoutEditor definition={definition} width={80} height={90} onChange={change} />);
+  const [first, second] = view.container.querySelectorAll("[data-sortable-item-id]");
+  vi.spyOn(first, "getBoundingClientRect").mockReturnValue({ top: 60, height: 36 });
+  vi.spyOn(second, "getBoundingClientRect").mockReturnValue({ top: 100, height: 36 });
+  fireEvent.pointerDown(screen.getByRole("button", { name: /Reorder Ingredients/ }), {
+    pointerId: 8, button: 0, clientY: 116,
+  });
+  fireEvent.pointerMove(window, { pointerId: 8, clientY: 68 });
+  expect(first.dataset.dropPosition).toBe("before");
+  fireEvent.pointerUp(window, { pointerId: 8, clientY: 68 });
   expect(change.mock.calls[0][0].elements[0].field).toBe("ingredients");
   expect(definition.elements[0].type).toBe("rect");
 });

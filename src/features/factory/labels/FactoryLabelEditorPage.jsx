@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, Save, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Save, CheckCircle2, History } from "lucide-react";
+import Modal from "../../../components/feedback/Modal.jsx";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import { Field, inputClass } from "../components/FactoryBulkSelectionModal.jsx";
 import { factoryLabelService } from "../../../services/factoryLabelService.js";
@@ -8,6 +9,7 @@ import {
   productLabelDraft,
   templateLabelDraft,
   editableLabelDefinition,
+  labelTemplateDimensions,
 } from "./labelManagementModel.js";
 import LabelLayoutEditor from "./LabelLayoutEditor.jsx";
 import useLabelPreview from "./useLabelPreview.js";
@@ -15,9 +17,7 @@ import { openLabelManagement } from "./labelManagementNavigation.js";
 import { formatFactoryDate } from "../utils/factoryDates.js";
 import ProductLabelContent from "./ProductLabelContent.jsx";
 import LabelStudioCanvas from "./LabelStudioCanvas.jsx";
-import FactorySegmentedControl from "../components/FactorySegmentedControl.jsx";
 import FactoryStatusBadge from "../components/FactoryStatusBadge.jsx";
-import { LockKeyhole, History } from "lucide-react";
 import "./labelManagement.css";
 
 export default function FactoryLabelEditorPage({
@@ -26,54 +26,44 @@ export default function FactoryLabelEditorPage({
   canEdit,
   onBack,
   onConfirm,
+  onNotify,
 }) {
   const [data, setData] = useState(null),
     [payload, setPayload] = useState(null),
     [draft, setDraft] = useState(null),
     [error, setError] = useState(""),
-    [busy, setBusy] = useState(false),
-    [notice, setNotice] = useState(""),
-    [tab, setTab] = useState("content");
+    [action, setAction] = useState(""),
+    [historyOpen, setHistoryOpen] = useState(false),
+    [needsRefresh, setNeedsRefresh] = useState(false);
   const saved = useRef(""),
     lock = useRef(false),
     request = useRef(null),
     publication = useRef(null);
-  const load = () =>
-    factoryLabelService
-      .editor(kind, entityKey)
-      .then((result) => {
-        const value =
-          kind === "product"
-            ? productLabelDraft(result)
-            : templateLabelDraft(result);
-        setData(result);
-        setPayload(value);
-        setDraft(result.draft);
-        saved.current = JSON.stringify(value);
-        setError("");
-      })
-      .catch((e) => setError(e.message));
+  const busy = Boolean(action);
+
+  function applyEditor(result) {
+    const value = kind === "product" ? productLabelDraft(result) : templateLabelDraft(result);
+    const pinned = kind === "product" && result.templates.find((t) => t.id === value.template_id);
+    const working = pinned ? { ...value, ...labelTemplateDimensions(pinned) } : value;
+    const savedDraft = result.draft?.state === "draft";
+    setPayload(working);
+    setData(result);
+    setDraft(result.draft);
+    saved.current = JSON.stringify(savedDraft ? value : working);
+    setNeedsRefresh(false);
+    setError("");
+  }
+
+  async function load() {
+    applyEditor(await factoryLabelService.editor(kind, entityKey));
+  }
+
   useEffect(() => {
     let active = true;
-    factoryLabelService
-      .editor(kind, entityKey)
-      .then((result) => {
-        if (!active) return;
-        const value =
-          kind === "product"
-            ? productLabelDraft(result)
-            : templateLabelDraft(result);
-        setData(result);
-        setPayload(value);
-        setDraft(result.draft);
-        saved.current = JSON.stringify(value);
-      })
-      .catch((e) => {
-        if (active) setError(e.message);
-      });
-    return () => {
-      active = false;
-    };
+    factoryLabelService.editor(kind, entityKey)
+      .then((result) => { if (active) applyEditor(result); })
+      .catch((e) => { if (active) setError(e.message); });
+    return () => { active = false; };
   }, [kind, entityKey]);
   const dirty = payload && JSON.stringify(payload) !== saved.current;
   useEffect(() => {
@@ -120,7 +110,7 @@ export default function FactoryLabelEditorPage({
   };
   const updateContent = (key, value) =>
     update("content", { ...payload.content, [key]: value });
-  async function back() {
+  async function leave(navigate) {
     if (
       dirty &&
       !(await onConfirm?.({
@@ -132,12 +122,12 @@ export default function FactoryLabelEditorPage({
       }))
     )
       return;
-    onBack();
+    navigate();
   }
   async function save() {
     if (lock.current) return;
     lock.current = true;
-    setBusy(true);
+    setAction("Saving…");
     setError("");
     try {
       const hash = JSON.stringify(payload);
@@ -153,23 +143,27 @@ export default function FactoryLabelEditorPage({
       );
       setDraft(result);
       saved.current = hash;
-      setNotice(
-        "Saved as a draft. Activate the saved version when it is ready.",
-      );
+      onNotify?.({ title: "Draft saved", message: `Revision ${result.revision} is ready to review.` });
       return result;
     } catch (e) {
-      setError(e.message || "Unable to save label draft.");
+      showError("Unable to save draft", e);
     } finally {
       lock.current = false;
-      setBusy(false);
+      setAction("");
     }
   }
-  const canActivate = canEdit && !busy && !dirty && draft?.state === "draft" &&
+  function showError(title, e) {
+    const message = e.message || title;
+    setError(message);
+    onNotify?.({ title, message, tone: "error" });
+  }
+
+  const canActivate = canEdit && !busy && !dirty && !needsRefresh && draft?.state === "draft" &&
     Boolean(definition) && !preview.error && !preview.loading;
   async function activate() {
     if (lock.current || !canActivate || !onConfirm) return;
     lock.current = true;
-    setBusy(true);
+    setAction("Awaiting confirmation");
     setError("");
     try {
       const confirmed = await onConfirm({
@@ -181,27 +175,39 @@ export default function FactoryLabelEditorPage({
       });
       if (!confirmed) return;
       publication.current ||= crypto.randomUUID();
-      await factoryLabelService.publish(
+      setAction("Activating…");
+      const publishedDraft = await factoryLabelService.publish(
         draft.id,
         draft.revision,
         publication.current,
         "Saved version reviewed and activated in Label Studio.",
         true,
       );
-      setNotice(
-        "Version activated. Historical batches retain their saved labels.",
-      );
-      await load();
+      const version = publishedDraft.base_version + 1;
+      setDraft(publishedDraft);
+      setData((current) => ({
+        ...current,
+        published: { id: publishedDraft.published_id, version, template_id: payload.template_id },
+      }));
       publication.current = null;
+      onNotify?.({ title: `Version ${version} activated`, message: kind === "template"
+        ? "Existing SKU assignments stay pinned."
+        : "Historical batches retain their saved labels." });
+      try {
+        await load();
+      } catch (e) {
+        setNeedsRefresh(true);
+        showError("Version activated · refresh needed", e);
+      }
     } catch (e) {
-      setError(e.message || "Unable to activate label version.");
+      showError("Unable to activate version", e);
     } finally {
       lock.current = false;
-      setBusy(false);
+      setAction("");
     }
   }
-  const disabled = busy || !canEdit;
-  const heading = "Label Studio";
+  const disabled = busy || needsRefresh || !canEdit;
+  const heading = kind === "template" ? "Template Designer" : "Product Label Editor";
   if (!payload)
     return (
       <div className="space-y-4">
@@ -218,7 +224,7 @@ export default function FactoryLabelEditorPage({
         {error ? (
           <p role="alert">
             {error}{" "}
-            <button className="btn-secondary" onClick={load}>
+            <button className="btn-secondary" onClick={() => load().catch((e) => setError(e.message))}>
               Retry
             </button>
           </p>
@@ -238,9 +244,10 @@ export default function FactoryLabelEditorPage({
               status={data.published ? "Ready" : draft?.state === "draft" || dirty ? "Draft" : "Not Configured"}
             />
             <span>Active version {data.published?.version ? `v${data.published.version}` : "—"}</span>
-            <span aria-live="polite">
-              {busy
-                ? "Saving…"
+            {data.published && draft?.state === "draft" && <FactoryStatusBadge status="Draft" />}
+            <span role="status">
+              {action
+                ? action
                 : dirty
                   ? "Unsaved changes"
                   : draft?.state === "draft"
@@ -252,41 +259,46 @@ export default function FactoryLabelEditorPage({
         description={
           kind === "product"
             ? `${data.sku.product_code || ""} · ${data.sku.product_name}`
-            : `Template · ${payload.name}`
+            : <span className="label-studio-template-name">{payload.name || "Untitled template"}</span>
         }
-        actions={
-          <div className="flex flex-wrap gap-2">
+        secondaryActions={
+          <>
             <button
               type="button"
               className="btn-secondary"
               disabled={busy}
-              onClick={back}
+              onClick={() => leave(onBack)}
             >
               <ArrowLeft size={14} />
               Label Management
             </button>
-            {canEdit ? (
-              <>
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  disabled={busy || (!dirty && Boolean(draft || data.published))}
-                  onClick={save}
-                >
-                  <Save size={14} />
-                  Save
-                </button>
-                <button
-                  type="button"
-                  className="btn-primary"
-                  disabled={!canActivate}
-                  onClick={activate}
-                >
-                  <CheckCircle2 size={14} /> Activate Version
-                </button>
-              </>
-            ) : null}
-          </div>
+            <button type="button" className="btn-ghost" disabled={busy || needsRefresh} onClick={() => setHistoryOpen(true)}>
+              <History size={14} /> Version History
+            </button>
+          </>
+        }
+        primaryActions={
+          canEdit ? (
+            <>
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled={disabled || (!dirty && Boolean(draft || data.published))}
+                onClick={save}
+              >
+                <Save size={14} />
+                {action === "Saving…" ? "Saving…" : "Save"}
+              </button>
+              <button
+                type="button"
+                className="btn-primary"
+                disabled={!canActivate}
+                onClick={activate}
+              >
+                <CheckCircle2 size={14} /> {action === "Activating…" ? "Activating…" : "Activate Version"}
+              </button>
+            </>
+          ) : null
         }
       />
       {error && (
@@ -294,86 +306,39 @@ export default function FactoryLabelEditorPage({
           {error}
         </p>
       )}
-      {notice && (
-        <p role="status" className="text-sm text-text-primary">
-          {notice}
-        </p>
+      {needsRefresh && (
+        <button type="button" className="btn-secondary justify-self-start"
+          onClick={() => load().catch((e) => showError("Unable to refresh label version", e))}>
+          Refresh version
+        </button>
       )}
       {kind === "product" ? (
         <div className="label-studio-product-grid">
-          <div className="label-studio-product-content">
-            <FactorySegmentedControl
-              label="Product label sections"
-              value={tab}
-              onChange={setTab}
-              options={[
-                { value: "content", label: "Product Content" },
-                { value: "settings", label: "Print Settings" },
-                { value: "additional", label: "Additional Content" },
-              ]}
-            />
-            <ProductLabelContent
-                section={tab}
-                payload={payload}
-                data={data}
-                template={template}
-                definition={definition}
-                disabled={disabled}
-                dirty={dirty}
-                update={update}
-                updateContent={updateContent}
-                onAssign={(id) => {
-                  const next = data.templates.find((t) => t.id === id);
-                  update("template_id", id);
-                  setPayload((p) => ({
-                    ...p,
-                    template_id: id,
-                    width_mm: next?.definition.width_mm || p.width_mm,
-                    height_mm: next?.definition.height_mm || p.height_mm,
-                    content: { ...p.content, text_overrides: {} },
-                  }));
-                }}
-            />
-            {tab === "settings" && (
-              <section className="label-studio-form-section">
-                <div className="label-studio-section-heading">
-                  <h2>Production fields</h2>
-                  <span>
-                    <LockKeyhole size={14} /> Read-only
-                  </span>
-                </div>
-                <p className="label-studio-hint">
-                  Resolved from the completed Production batch in Job Order →
-                  Print Labels. No dates, batch references or quantities can be
-                  entered here.
-                </p>
-                <dl className="label-studio-production-fields">
-                  {[
-                    ["MFG", "Manufacturing date"],
-                    ["EXP", "Expiry date"],
-                    ["Batch No.", "Production batch reference"],
-                    ["Actual packaged units", "Confirmed packaged quantity"],
-                  ].map(([name, description]) => (
-                    <div key={name}>
-                      <dt>
-                        <strong>{name}</strong>
-                        <span>{description}</span>
-                      </dt>
-                      <dd>
-                        <LockKeyhole size={13} /> From Production
-                      </dd>
-                    </div>
-                  ))}
-                </dl>
-                <p className="label-studio-hint">
-                  Recorded Production expiry takes priority over approved
-                  fallback rules. Printing uses confirmed units, never estimated
-                  output.
-                </p>
-              </section>
-            )}
-            {tab === "additional" && <details className="label-studio-history"><summary>Version History</summary>{versionHistory(data)}</details>}
-          </div>
+          <ProductLabelContent
+            payload={payload}
+            baseline={draft?.state === "draft" ? draft.payload : productLabelDraft(data)}
+            templates={data.templates}
+            definition={definition}
+            disabled={disabled}
+            update={update}
+            updateContent={updateContent}
+            onAssign={(id) => {
+              if (id === payload.template_id) return;
+              const next = data.templates.find((t) => t.id === id);
+              request.current = null;
+              publication.current = null;
+              setPayload((p) => ({
+                ...p,
+                template_id: id,
+                ...labelTemplateDimensions(next),
+                content: { ...p.content, text_overrides: {} },
+              }));
+            }}
+            onOpenTemplate={() => leave(() => openLabelManagement({
+              section: "templates",
+              template: template.template_key,
+            }))}
+          />
           <div className="label-studio-product-preview">
             <LabelStudioCanvas
               width={Number(payload.width_mm)}
@@ -387,75 +352,64 @@ export default function FactoryLabelEditorPage({
               }
               title="Live label preview"
             />
-            <p className="label-studio-hint">
-              <LockKeyhole size={13} /> MFG, EXP, batch and quantities come from
-              Production at print time.
-            </p>
           </div>
         </div>
       ) : (
-        <>
-          <LabelLayoutEditor
-            definition={payload.definition}
-            width={Number(payload.width_mm)}
-            height={Number(payload.height_mm)}
-            image={preview.image}
-            error={preview.error}
-            issues={preview.issues}
-            loading={preview.loading}
-            onChange={(value) => update("definition", value)}
-            disabled={disabled}
-            configuration={
-              <details className="label-studio-template-settings">
-                <summary>
-                  Template settings{" "}
-                  <span>
-                    {payload.width_mm} × {payload.height_mm} mm
-                  </span>
-                </summary>
-                <Field label="Template name">
-                  <input
-                    aria-label="Template name"
-                    className={inputClass()}
-                    disabled={disabled}
-                    value={payload.name}
-                    onChange={(e) => update("name", e.target.value)}
-                  />
-                </Field>
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    ["width_mm", "Label width (mm)"],
-                    ["height_mm", "Label height (mm)"],
-                  ].map(([key, label]) => (
-                    <Field key={key} label={label}>
-                      <input
-                        aria-label={label}
-                        type="number"
-                        min="20"
-                        step="0.1"
-                        className={inputClass()}
-                        disabled={disabled}
-                        value={payload[key]}
-                        onChange={(e) => update(key, Number(e.target.value))}
-                      />
-                    </Field>
-                  ))}
-                </div>
-                <p className="label-studio-hint">
-                  Editing the next version. Published layouts and product
-                  assignments stay pinned.
-                </p>
-              </details>
-            }
-          />
-          <details className="label-studio-history">
-            <summary>
-              <History size={14} /> Version History{" "}
-              <span>{data.history.length} versions</span>
-            </summary>
-            {versionHistory(data)}
-          </details>
-        </>
+        <LabelLayoutEditor
+          key={data.published?.id || entityKey}
+          definition={payload.definition}
+          width={Number(payload.width_mm)}
+          height={Number(payload.height_mm)}
+          image={preview.image}
+          error={preview.error}
+          issues={preview.issues}
+          loading={preview.loading}
+          onChange={(value) => update("definition", value)}
+          disabled={disabled}
+          configuration={
+            <section className="label-studio-template-settings" aria-labelledby="label-template-settings">
+              <h2 id="label-template-settings">Template Settings</h2>
+              <Field label="Template name">
+                <input
+                  aria-label="Template name"
+                  className={inputClass()}
+                  disabled={disabled}
+                  value={payload.name}
+                  maxLength={120}
+                  onChange={(e) => update("name", e.target.value)}
+                />
+              </Field>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  ["width_mm", "Label width (mm)"],
+                  ["height_mm", "Label height (mm)"],
+                ].map(([key, label]) => (
+                  <Field key={key} label={label}>
+                    <input
+                      aria-label={label}
+                      type="number"
+                      min="20"
+                      step="0.1"
+                      className={inputClass()}
+                      disabled={disabled}
+                      value={payload[key]}
+                      onChange={(e) => update(key, Number(e.target.value))}
+                    />
+                  </Field>
+                ))}
+              </div>
+              <p className="label-studio-hint">
+                Editing the next version. Published layouts and product
+                assignments stay pinned.
+              </p>
+            </section>
+          }
+        />
+      )}
+      {historyOpen && (
+        <Modal title="Version History" onClose={() => setHistoryOpen(false)}>
+          {versionHistory(data)}
+        </Modal>
       )}
     </div>
   );

@@ -13,13 +13,16 @@ export const productionLabelFields = [
   "batch_no",
   "packaged_units",
 ];
+export const labelPrintFields = [
+  ["net_weight", "Net weight"],
+  ["storage_instructions", "Storage instructions"],
+];
 export const labelFieldOptions = [
   ...labelContentFields.map(([value, label]) => ({ value, label })),
   ...[
     ["product_code", "SKU code"],
     ["variant_name", "Packaging size"],
-    ["net_weight", "Net weight"],
-    ["storage_instructions", "Storage instructions"],
+    ...labelPrintFields,
   ].map(([value, label]) => ({ value, label })),
   ...[
     ["manufacturing_date", "MFG — from Production"],
@@ -28,6 +31,21 @@ export const labelFieldOptions = [
     ["packaged_units", "Actual packaged units — from Production"],
   ].map(([value, label]) => ({ value, label })),
 ];
+export function labelTemplateDimensions(template) {
+  return {
+    width_mm: Number(template?.definition.width_mm ?? 80),
+    height_mm: Number(template?.definition.height_mm ?? 90),
+  };
+}
+
+export function boundLabelContentFields(definition) {
+  const bound = new Set((definition?.elements || []).flatMap((element, index) =>
+    ["text", "barcode", "qr"].includes(element.type)
+      ? [element.field || legacyLabelContentField(definition, index)]
+      : [],
+  ));
+  return [...labelContentFields, ...labelPrintFields].filter(([key]) => bound.has(key));
+}
 export function productLabelDraft(data) {
   const config = data.published,
     sku = data.sku || {};
@@ -97,7 +115,10 @@ export function labelPreviewSnapshot(payload, definition, sku = {}) {
     width_mm: Number(payload.width_mm),
     height_mm: Number(payload.height_mm),
     definition,
-    content,
+    content: {
+      ...Object.fromEntries(labelContentFields.map(([key]) => [key, content[key] ?? sku[key] ?? ""])),
+      ...content,
+    },
     manufacturing_date: "DD/MM/YYYY",
     expiry_date: "DD/MM/YYYY",
     batch_no: "BATCH",
@@ -180,14 +201,8 @@ export function reorderLabelElement(definition, index, destination) {
   return { ...definition, elements };
 }
 export function labelContentWarnings(payload, definition) {
-  const fields = new Set(
-    definition.elements.map(
-      (element, index) =>
-        element.field || legacyLabelContentField(definition, index),
-    ),
-  );
-  return labelContentFields
-    .filter(([key]) => fields.has(key) && !payload.content?.[key]?.trim())
+  return boundLabelContentFields(definition)
+    .filter(([key]) => !labelPrintFields.some(([printKey]) => printKey === key) && !payload.content?.[key]?.trim())
     .map(
       ([, label]) =>
         `${label} is empty for this SKU. Template sample content is not used.`,

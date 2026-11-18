@@ -23,7 +23,7 @@ import {
   readLabelManagementLocation,
 } from "../labels/labelManagementNavigation.js";
 
-export default function FactoryLabelManagementPage({ onConfirm }) {
+export default function FactoryLabelManagementPage({ onConfirm, onNotify }) {
   const { can } = useFactoryPermissions(),
     canEdit = can("factory_finished_goods.edit");
   const [location, setLocation] = useState(readLabelManagementLocation),
@@ -101,6 +101,7 @@ export default function FactoryLabelManagementPage({ onConfirm }) {
         entityKey={location.sku || location.template}
         canEdit={canEdit}
         onConfirm={onConfirm}
+        onNotify={onNotify}
         onBack={() =>
           openLabelManagement({
             section: location.sku ? "products" : "templates",
