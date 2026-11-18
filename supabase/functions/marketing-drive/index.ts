@@ -45,6 +45,36 @@ Deno.serve(async req=>{
   if(Number(req.headers.get('content-length')||0)>(action==='browse'?524288:32000))throw new Error('Request too large.');const body=await req.json();org=body.organizationId;brand=body.brandId||null;
   if(!org||typeof org!=='string')throw new Error('Select an organization.');
   if(action==='context')return reply(await call('context'));
+  if(['image-source','prepare-image-upload','finalize-image-upload'].includes(action)){
+   const imageCall=async(name:string,extra:any={})=>{const {data,error}=await db.rpc('marketing_prepare_image',{p_action:name,p_user:user,p_org:org,p_brand:brand,p_source:body.assetId,p_data:extra});if(error)throw new Error(error.message);return data;};
+   const source=await imageCall('source');
+   const original=await db.storage.from('marketing-media').download(source.object_path);
+   if(original.error||!original.data||original.data.size!==Number(source.size_bytes))throw new Error('The original image is unavailable. Reopen the Media Library and try again.');
+   const bytes=new Uint8Array(await original.data.arrayBuffer());verifySnapshot(bytes,'image/png');
+   const source_sha256=await byteHash(bytes);
+   if(source.sha256&&source.sha256!==source_sha256)throw new Error('The original image changed. Select it again.');
+   if(action==='image-source'){
+    const prepared=await imageCall('lookup',{source_sha256});if(prepared)return reply({prepared});
+    const signed=await db.storage.from('marketing-media').createSignedUrl(source.object_path,120);
+    if(signed.error||!signed.data)throw new Error('Original image access is unavailable. Retry selection.');
+    return reply({url:signed.data.signedUrl});
+   }
+   if(action==='prepare-image-upload'){
+    const asset=await imageCall('prepare',{source_sha256,output_sha256:body.sha256,size_bytes:body.size});
+    if(asset.state==='ready')return reply(asset);
+    const signed=await db.storage.from('marketing-media').createSignedUploadUrl(asset.object_path,{upsert:false});
+    if(signed.error||!signed.data)throw new Error('Prepared image upload could not start. Retry selection.');
+    return reply({...asset,upload_token:signed.data.token});
+   }
+   const {data:asset,error}=await db.from('marketing_assets').select('*').eq('id',body.preparedId).single();
+   if(error||!asset||asset.organization_id!==org||asset.brand_id!==brand||asset.source_kind!=='prepared'||asset.state!=='pending'&&asset.state!=='ready'||asset.source_metadata?.source_asset_id!==source.id||asset.source_metadata?.source_sha256!==source_sha256||asset.source_metadata?.recipe!=='instagram-feed-jpeg-white-v1')throw new Error('Prepared image is unavailable for this Brand.');
+   const stored=await db.storage.from('marketing-media').download(asset.object_path);
+   if(stored.error||!stored.data||stored.data.size!==Number(asset.size_bytes))throw new Error('Prepared image upload is incomplete. Retry selection.');
+   const jpeg=new Uint8Array(await stored.data.arrayBuffer());verifyPublishingMedia(jpeg,'image/jpeg','instagram','image');
+   const output_sha256=await byteHash(jpeg);
+   return reply(await imageCall('finalize',{source_sha256,output_sha256,prepared_id:asset.id}));
+  }
+
   if(action==='prepare-upload')return reply(await call('prepare',{source_kind:'device',filename:body.filename,mime_type:body.mime,size_bytes:body.size}));
   if(action==='finalize-upload'){
    // Material is not required for device uploads; use the canonical scoped asset read model.

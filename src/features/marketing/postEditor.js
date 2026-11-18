@@ -1,6 +1,6 @@
-import {publishingMediaEligible,isVideoFormat} from './publishingMedia.js';
+import {publishingMediaEligible,publishingMediaSelectable,isVideoFormat} from './publishingMedia.js';
 export const POST_FORMATS={facebook:['text','image','carousel','video','reel'],instagram:['image','carousel','reel','story']};
-export function variantMediaIssues(variant,assets,brand) {
+export function variantMediaIssues(variant,assets,brand,selectable=false) {
  const issues=[],ids=variant.asset_ids||[];
  if(!POST_FORMATS[variant.channel]?.includes(variant.format))issues.push('This format is not supported for publishing on this channel. Choose another format.');
  if(variant.format==='text'&&ids.length)issues.push('Remove media from this text post.');
@@ -8,7 +8,7 @@ export function variantMediaIssues(variant,assets,brand) {
  if(variant.format==='carousel'&&(ids.length<2||ids.length>10))issues.push('Choose 2–10 compatible items for the carousel.');
  for(const id of ids){const asset=assets.find(a=>a.id===id);
   if(!asset){issues.push(`Media ${ids.indexOf(id)+1}: selected media details are unavailable. Reopen the Media Library to verify the selection.`);continue;}
-  if(asset.brand_id!==brand.id||asset.organization_id!==brand.organization_id||!publishingMediaEligible(asset,variant.format,variant.channel)){issues.push(`${asset.filename||'Selected media'}: replace incompatible media. Use ready Brand images up to 8 MB (JPEG for Instagram), or an MP4 video up to 50 MB.`);}
+  if(asset.brand_id!==brand.id||asset.organization_id!==brand.organization_id||!(selectable?publishingMediaSelectable:publishingMediaEligible)(asset,variant.format,variant.channel)){issues.push(`${asset.filename||'Selected media'}: replace incompatible media. Use ready Brand images up to 8 MB (JPEG for Instagram), or an MP4 video up to 50 MB.`);}
  }
  const cover=variant.reel_cover;
  if(cover&&cover.mode!=='automatic'){
@@ -44,5 +44,5 @@ export function mediaCopyIssues(source,target,assets,brand,observations={}) {
  if(target?.channel!=='instagram'||!['image','carousel','reel'].includes(target.format))return ['Choose a supported Instagram image, carousel or Reel format first.'];
  if(new Set(source.asset_ids).size!==source.asset_ids.length)return ['Facebook contains duplicate media. Review its selection before copying.'];
  const candidate={...target,asset_ids:source.asset_ids};
- return [...variantMediaIssues(candidate,assets,brand),...mediaMetadataIssues(candidate,assets,observations)];
+ return [...variantMediaIssues(candidate,assets,brand,true),...mediaMetadataIssues(candidate,assets,observations)];
 }
