@@ -51,12 +51,14 @@ export function selectableLabelTemplates(data) {
   return data.templates.filter((template) => active.has(template.id));
 }
 
-export function productLabelDraft(data) {
+export function productLabelDraft(data, labelKey = "product") {
   const config = data.published,
     sku = data.sku || {};
   return data.draft?.state === "draft"
     ? data.draft.payload
     : {
+        label_name: config?.label_name ?? (labelKey === "product" ? "Product Label" : ""),
+        quantity_basis: config?.quantity_basis ?? (labelKey === "product" ? "packaged_units" : ""),
         template_id: config?.template_id || selectableLabelTemplates(data)[0]?.id || "",
         width_mm: config?.width_mm || 80,
         height_mm: config?.height_mm || 90,

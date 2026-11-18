@@ -63,6 +63,25 @@ export default function ProductLabelContent({
         {activeTemplate && activeTemplate.id !== template?.id && (
           <p className="label-studio-hint">Active label uses {activeTemplate.name} · v{activeTemplate.version}</p>
         )}
+        <div className="label-studio-fields">
+          <Field label="Label name">
+            <input aria-label="Label name" className={inputClass()} maxLength={80} disabled={disabled}
+              value={payload.label_name ?? "Product Label"} onChange={(event) => update("label_name", event.target.value)} />
+          </Field>
+          <Field label="Print one label per">
+            <SearchableSelect ariaLabel="Print one label per" disabled={disabled}
+              value={payload.quantity_basis ?? "packaged_units"} placeholder="Select a quantity rule"
+              options={[
+                { value: "packaged_units", label: "Confirmed packaged unit" },
+                { value: "batch", label: "Confirmed batch" },
+                { value: "verified_cartons", label: "Verified carton" },
+              ]}
+              onChange={(value) => update("quantity_basis", value)} />
+          </Field>
+        </div>
+        {payload.quantity_basis === "verified_cartons" && (
+          <p className="label-studio-hint">The operator must verify the actual carton count from packaging evidence after completion.</p>
+        )}
         <Field label="Template version">
           <SearchableSelect
             value={payload.template_id}

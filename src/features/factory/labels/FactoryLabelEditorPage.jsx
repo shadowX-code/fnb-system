@@ -25,6 +25,7 @@ import "./labelManagement.css";
 export default function FactoryLabelEditorPage({
   kind,
   entityKey,
+  labelKey = "product",
   canEdit,
   onBack,
   onConfirm,
@@ -44,7 +45,7 @@ export default function FactoryLabelEditorPage({
   const busy = Boolean(action);
 
   function applyEditor(result) {
-    const value = kind === "product" ? productLabelDraft(result) : templateLabelDraft(result);
+    const value = kind === "product" ? productLabelDraft(result, labelKey) : templateLabelDraft(result);
     const pinned = kind === "product" && result.templates.find((t) => t.id === value.template_id);
     const working = pinned ? { ...value, ...labelTemplateDimensions(pinned) } : value;
     const savedDraft = result.draft?.state === "draft";
@@ -195,6 +196,7 @@ export default function FactoryLabelEditorPage({
     }
   }
   const disabled = busy || needsRefresh || !canEdit;
+  const labelName = payload?.label_name ?? "Product Label";
   const heading = kind === "template" ? "Template Designer" : "Product Label Editor";
   const backButton = (
     <button
@@ -256,7 +258,7 @@ export default function FactoryLabelEditorPage({
           }
           description={
             kind === "product"
-              ? `${data.sku.product_code || ""} · ${data.sku.product_name}`
+              ? `${data.sku.product_code || ""} · ${data.sku.product_name} · ${labelName || "New label"}`
               : <span className="label-studio-template-name">{payload.name || "Untitled template"}</span>
           }
           secondaryActions={
@@ -270,7 +272,7 @@ export default function FactoryLabelEditorPage({
                 <button
                   type="button"
                   className="btn-secondary"
-                  disabled={disabled || (!dirty && Boolean(draft || data.published))}
+                  disabled={disabled || (!dirty && Boolean(draft || data.published)) || (kind === "product" && (!labelName.trim() || !(payload.quantity_basis ?? "packaged_units")))}
                   onClick={save}
                 >
                   <Save size={14} />
@@ -304,7 +306,7 @@ export default function FactoryLabelEditorPage({
         <div className="label-studio-product-grid">
           <ProductLabelContent
             payload={payload}
-            baseline={draft?.state === "draft" ? draft.payload : productLabelDraft(data)}
+            baseline={draft?.state === "draft" ? draft.payload : productLabelDraft(data, labelKey)}
             templates={selectableLabelTemplates(data)}
             template={template}
             activeTemplate={data.templates.find((t) => t.id === data.published?.template_id)}

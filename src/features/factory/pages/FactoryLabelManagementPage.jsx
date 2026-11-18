@@ -99,9 +99,10 @@ export default function FactoryLabelManagementPage({ onConfirm, onNotify }) {
   if (location.sku || location.template)
     return (
       <FactoryLabelEditorPage
-        key={location.sku || location.template}
+        key={location.sku ? [location.sku, location.label].join(":") : location.template}
         kind={location.sku ? "product" : "template"}
-        entityKey={location.sku || location.template}
+        entityKey={location.sku && location.label ? `${location.sku}:${location.label}` : location.sku || location.template}
+        labelKey={location.label || "product"}
         canEdit={canEdit}
         onConfirm={onConfirm}
         onNotify={onNotify}
@@ -148,49 +149,48 @@ export default function FactoryLabelManagementPage({ onConfirm, onNotify }) {
           },
           { key: "product_name", label: "Product" },
           {
-            key: "configuration_status",
-            label: "Label status",
-            render: (r) => (
-              <>
-                <FactoryStatusBadge status={r.configuration_status} />
-                {r.configuration_status === "Ready" && r.draft_revision && (
-                  <p className="text-xs text-text-secondary">Saved draft</p>
-                )}
-              </>
-            ),
-          },
-          {
-            key: "template",
-            label: "Assigned template",
-            render: (r) => (
-              <div className="space-y-1">
-                {r.template_name && <p>Active · {r.template_name} · v{r.template_version}</p>}
-                {r.draft_revision && (
-                  <p className="text-text-secondary">
-                    Draft · {r.draft_template_name ? `${r.draft_template_name} · v${r.draft_template_version}` : "Not assigned"}
-                  </p>
-                )}
-                {!r.template_name && !r.draft_revision && "Not assigned"}
+            key: "labels",
+            label: "Label configurations",
+            render: (sku) => (
+              <div className="space-y-2">
+                {(sku.labels || []).map((label) => (
+                  <div key={label.label_key} className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <strong>{label.name}</strong>
+                        <FactoryStatusBadge status={label.status} />
+                      </div>
+                      {label.active_version && (
+                        <p className="text-xs text-text-secondary">Active v{label.active_version} · {label.template_name} · template v{label.template_version}</p>
+                      )}
+                      {label.draft_revision && (
+                        <p className="text-xs text-text-secondary">
+                          Draft{label.draft_name && label.draft_name !== label.name ? ` · ${label.draft_name}` : ""} · {label.draft_template_name ? `${label.draft_template_name} · template v${label.draft_template_version}` : "No template assigned"}
+                        </p>
+                      )}
+                    </div>
+                    <button type="button" className="btn-secondary"
+                      aria-label={`${canEdit ? "Edit" : "View"} ${label.name} for ${sku.product_code || sku.product_name}`}
+                      onClick={() => openLabelManagement({
+                        section: "products",
+                        sku: sku.id,
+                        ...(label.label_key !== "product" ? { label: label.label_key } : {}),
+                      })}>
+                      <Pencil size={14} aria-hidden="true" /> {canEdit ? "Edit Label" : "View Label"}
+                    </button>
+                  </div>
+                ))}
               </div>
             ),
           },
           {
-            key: "version",
-            label: "Active Version",
-            render: (r) => r.config_version ? `v${r.config_version}` : "—",
-          },
-          {
             key: "actions",
             label: "Actions",
-            render: (r) => (
-              <button
-                className="btn-secondary"
-                onClick={() =>
-                  openLabelManagement({ section: "products", sku: r.id })
-                }
-              >
-                <Pencil size={14} />
-                {canEdit ? "Edit Label" : "View Label"}
+            render: (sku) => canEdit && (
+              <button type="button" className="btn-secondary"
+                aria-label={`Add label for ${sku.product_code || sku.product_name}`}
+                onClick={() => openLabelManagement({ section: "products", sku: sku.id, label: crypto.randomUUID() })}>
+                <Plus size={14} aria-hidden="true" /> Add Label
               </button>
             ),
           },

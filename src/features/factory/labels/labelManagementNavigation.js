@@ -11,6 +11,7 @@ export function readLabelManagementLocation() {
       ? query.get("section")
       : "products",
     sku: query.get("sku"),
+    label: query.get("sku") && query.get("label") !== "product" ? query.get("label") : null,
     template: query.get("template"),
   };
 }

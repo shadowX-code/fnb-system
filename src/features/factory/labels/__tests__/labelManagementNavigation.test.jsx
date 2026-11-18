@@ -17,7 +17,7 @@ vi.mock("../../../../services/factoryLabelService.js", () => ({
   factoryLabelService: { management: vi.fn().mockResolvedValue({ rows: [], total: 0 }), editor: vi.fn() },
 }));
 vi.mock("../FactoryLabelEditorPage.jsx", () => ({
-  default: ({ kind }) => <p>{kind} editor opened</p>,
+  default: ({ kind, entityKey, labelKey }) => <p data-label-key={labelKey} data-entity-key={entityKey}>{kind} editor opened</p>,
 }));
 afterEach(() => {
   cleanup();
@@ -76,4 +76,21 @@ it("opens the active layout separately from edit and omits preview for draft-onl
   expect(within(dialog).getByText("Shared layout · v2")).toBeTruthy();
   expect(within(dialog).queryByRole("button", { name: "Save" })).toBeNull();
   expect(factoryLabelService.editor).toHaveBeenCalledWith("template", "shared");
+});
+
+it("keeps multiple label configurations under one SKU and opens the selected editor", async () => {
+  window.history.replaceState({}, "", "/factory/settings/labels?section=products");
+  factoryLabelService.management.mockResolvedValueOnce({ total: 1, rows: [{
+    id: "sku-1", product_code: "S01", product_name: "Sambal", labels: [
+      { label_key: "product", name: "Product Label", status: "Ready", active_version: 2, template_name: "Default", template_version: 1 },
+      { label_key: "carton-1", name: "Carton Label", status: "Draft", draft_revision: 1 },
+    ],
+  }] });
+  render(<FactoryLabelManagementPage />);
+  const rows = await screen.findAllByRole("row", { name: /S01.*Product Label.*Carton Label/ });
+  expect(rows).toHaveLength(1);
+  fireEvent.click(within(rows[0]).getByRole("button", { name: "Edit Carton Label for S01" }));
+  const editor = screen.getByText("product editor opened");
+  expect(editor.dataset.entityKey).toBe("sku-1:carton-1");
+  expect(editor.dataset.labelKey).toBe("carton-1");
 });

@@ -233,3 +233,33 @@ describe("Factory label workflow", () => {
     ).toBe(true);
   });
 });
+
+it("previews an alternate active configuration in progress without exposing queue controls", async () => {
+  const labels = [{ label_key: "product", name: "Product Label" }, { label_key: "carton", name: "Carton Label" }];
+  factoryLabelService.context.mockImplementation(async (_job, batch, selection) => ({
+    ...context,
+    labels,
+    preview_only: true,
+    batches: [],
+    candidate: {
+      ...candidate,
+      product_name: selection?.label_key === "carton" ? "Carton layout" : "Product layout",
+      production_id: null,
+      batch_no: null,
+      packaged_units: null,
+      manufacturing_date: null,
+      expiry_date: null,
+      missing: ["batch_no", "manufacturing_date", "expiry_date", "packaged_units"],
+    },
+  }));
+  render(<LabelPrintModal {...props} job={{ ...props.job, status: "in_progress" }} />);
+  expect(await screen.findByAltText(/Product layout/)).toBeTruthy();
+  expect(screen.getByText(/Printing is locked until Production is completed/)).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Label configuration" }));
+  fireEvent.click(await screen.findByRole("option", { name: "Carton Label" }));
+  expect(await screen.findByAltText(/Carton layout/)).toBeTruthy();
+  expect(factoryLabelService.context).toHaveBeenCalledWith("job", null, { label_key: "carton" }, 1);
+  expect(screen.queryByRole("button", { name: "Print Labels", exact: true })).toBeNull();
+  expect(screen.queryByLabelText("Label quantity")).toBeNull();
+  expect(factoryLabelService.enqueue).not.toHaveBeenCalled();
+});

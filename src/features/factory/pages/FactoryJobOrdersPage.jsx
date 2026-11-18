@@ -79,7 +79,7 @@ export default function FactoryJobOrdersPage({
         onView={() => row.status === "in_progress" ? onViewProcess(row, !can("factory_production.complete")) : row.status === "completed" ? onViewResult(row) : onView(row)}
         viewLabel={row.status === "in_progress" ? "View process" : row.status === "completed" ? "View result" : "View details"}
         primaryAction={row.status === "released" && can("factory_production.complete") ? { label: "Start Production", onClick: () => onStart(row) } : row.status === "in_progress" && can("factory_production.complete") ? { label: "Complete", onClick: () => onComplete(row) } : ["draft", "planned"].includes(row.status) && can("factory_job_orders.edit") ? { label: "Release", onClick: () => onRelease(row) } : null}
-        directActions={factoryLabelsEnabled && row.status === "completed" && can("factory_production.view") ? [{ label: "Print Labels", icon: Printer, variant: "button", onClick: () => setLabelJob(row) }] : []}
+        directActions={factoryLabelsEnabled && ["in_progress", "completed"].includes(row.status) && can("factory_production.view") ? [{ label: "Print Labels", icon: Printer, variant: "button", beforePrimary: row.status === "in_progress", onClick: () => setLabelJob(row) }] : []}
         secondaryActions={[
           ["draft", "planned"].includes(row.status) && can("factory_job_orders.edit") ? { label: "Edit", onClick: () => onEdit(row) } : null,
           ["planned", "released"].includes(row.status) && can("factory_job_orders.cancel") ? { label: "Cancel", destructive: true, onClick: () => onCancel(row) } : null,

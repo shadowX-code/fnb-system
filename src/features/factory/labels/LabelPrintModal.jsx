@@ -20,12 +20,14 @@ const missingLabels = {
   expiry_date: "Expiry date",
   batch_no: "Batch reference",
   packaged_units: "Confirmed packaged units",
+  confirmed_cartons: "Verified actual cartons",
 };
 export default function LabelPrintModal({ job, can, actorId, onClose }) {
   const storageKey = pendingRequestKey(actorId, job.id);
   const [initialRequest] = useState(() => readPendingRequest(storageKey));
   const [data, setData] = useState(null),
     [batch, setBatch] = useState(initialRequest?.p_production || ""),
+    [labelKey, setLabelKey] = useState(initialRequest ? initialRequest.p_overrides?.label_key || "product" : ""),
     [device, setDevice] = useState(initialRequest?.p_device || ""),
     [quantity, setQuantity] = useState(
       initialRequest ? String(initialRequest.p_quantity) : "",
@@ -58,7 +60,8 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
   const canRecordOutcome = resolve?.state === "Confirmed" ||
     (resolve?.reason.trim().length >= 3 &&
       (!issue || (usableCount !== null && usableCount <= resolve.job.quantity && resolve.cleared)));
-  const canPrint = can("factory_production.complete"),
+  const previewOnly = job.status === "in_progress" || data?.preview_only;
+  const canPrint = !previewOnly && can("factory_production.complete"),
     canRecover = can("factory_production.verify");
   const load = useCallback(async () => {
     const current = ++generation.current;
@@ -67,22 +70,26 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
       const result = await factoryLabelService.context(
         job.id,
         batch || null,
-        overrides,
+        labelKey && labelKey !== "product" ? { ...overrides, label_key: labelKey } : overrides,
         page,
       );
       if (current !== generation.current) return;
       setData(result);
       setError("");
-      if (!batch && result.batches.length) {
+      if (!request.current && result.labels?.length && !result.labels.some((label) => label.label_key === labelKey)) {
+        setLabelKey(result.labels[0].label_key);
+      }
+      if (job.status !== "in_progress" && !batch && result.batches.length) {
         setBatch(result.batches[0].id);
         return;
       }
+      const limit = result.candidate?.quantity_limit ?? (result.candidate?.quantity_basis ? null : result.candidate?.packaged_units);
       setQuantity((q) =>
-        q === "" && result.candidate?.packaged_units
+        q === "" && limit && result.candidate?.missing?.length === 0
           ? String(
               Math.min(
                 10000,
-                Math.max(0, result.candidate.packaged_units - result.allocated),
+                Math.max(0, limit - result.allocated),
               ),
             )
           : q,
@@ -93,7 +100,7 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
     } finally {
       if (current === generation.current) setLoading(false);
     }
-  }, [job.id, batch, overrides, page]);
+  }, [job.id, job.status, batch, labelKey, overrides, page]);
   useEffect(() => {
     load();
     return () => {
@@ -107,16 +114,22 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
     return () => clearInterval(timer);
   }, [load]);
   const candidate = data?.candidate,
-    candidateKey = JSON.stringify([candidate, data?.saved_raster]);
+    candidateKey = JSON.stringify([candidate, data?.saved_raster, previewOnly]);
   useEffect(() => {
     let active = true;
     setImage(null);
     setRenderError("");
     if (!request.current) setConfirmed(false);
-    if (candidate?.definition && candidate.missing?.length === 0)
+    if (candidate?.definition && (previewOnly || candidate.missing?.length === 0))
       (data?.saved_raster
         ? Promise.resolve().then(() => previewFrozenRaster(data.saved_raster))
-        : renderLabel(candidate)
+        : renderLabel(previewOnly ? {
+          ...candidate,
+          batch_no: candidate.batch_no ?? "BATCH",
+          manufacturing_date: candidate.manufacturing_date ?? "DD/MM/YYYY",
+          expiry_date: candidate.expiry_date ?? "DD/MM/YYYY",
+          packaged_units: candidate.packaged_units ?? "PACKS",
+        } : candidate)
       )
         .then((result) => {
           if (active) setImage(result);
@@ -134,7 +147,7 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
     setConfirmed(false);
   };
   async function submit() {
-    if (flight.current || (!request.current && (!confirmed || !image))) return;
+    if (!canPrint || flight.current || (!request.current && (!confirmed || !image || !usable || quantityExceedsLimit))) return;
     flight.current = true;
     setBusy(true);
     setError("");
@@ -148,7 +161,7 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
           p_quantity: Number(quantity),
           p_expected_snapshot: candidate,
           p_raster: reprint ? null : image.raster,
-          p_overrides: overrides,
+          p_overrides: labelKey && labelKey !== "product" ? { ...overrides, label_key: labelKey } : overrides,
           p_reprint_of: reprint?.id || null,
           p_reason: reprint ? reason : null,
         };
@@ -204,8 +217,11 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
       setBusy(false);
     }
   }
+  const labelLimit = candidate?.quantity_limit ?? (candidate?.quantity_basis ? null : candidate?.packaged_units);
+  const remainingQuantity = labelLimit == null ? null : Math.max(0, Number(labelLimit) - (data?.allocated || 0));
+  const quantityExceedsLimit = !reprint && remainingQuantity != null && Number(quantity) > remainingQuantity;
   const usable = Boolean(
-    image &&
+    !previewOnly && image &&
       !renderError &&
       !error &&
       !loading &&
@@ -214,7 +230,7 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
   return (
     <Modal
       title="Print Labels"
-      description={`${job.job_order_no} · Completed packaged output`}
+      description={`${job.job_order_no} · ${previewOnly ? "Preview only" : "Completed packaged output"}`}
       size="2xl"
       onClose={busy ? undefined : onClose}
       footer={
@@ -222,7 +238,7 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
           <button className="btn-secondary" disabled={busy} onClick={onClose}>
             Close
           </button>
-          <button
+          {!previewOnly && <button
             className="btn-primary"
             disabled={
               busy ||
@@ -233,6 +249,7 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
                   !device ||
                   Number(quantity) < 1 ||
                   Number(quantity) > 10000 ||
+                  !Number.isInteger(Number(quantity)) || quantityExceedsLimit ||
                   (reprint && reason.trim().length < 3)))
             }
             onClick={submit}
@@ -245,7 +262,7 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
                 : reprint
                   ? "Queue Reprint"
                   : "Print Labels"}
-          </button>
+          </button>}
         </>
       }
     >
@@ -269,9 +286,36 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
             {notice}
           </p>
         )}
+        {previewOnly && (
+          <p role="status" className="rounded-lg border border-border bg-surface-muted p-3 text-sm">
+            Printing is locked until Production is completed and the batch reference, dates and actual packaging quantities are confirmed. Unconfirmed values appear as placeholders. Reopen Print Labels after completion.
+          </p>
+        )}
         <div className="grid items-start gap-6 lg:grid-cols-2">
           <div className="space-y-4">
-            <Field label="Production batch">
+            <Field label="Label configuration">
+              <SearchableSelect ariaLabel="Label configuration" value={labelKey}
+                options={(data?.labels || []).map((label) => ({
+                  value: label.label_key,
+                  label: label.name,
+                }))}
+                disabled={busy || pendingRequest || !data?.labels?.length}
+                onChange={(value) => {
+                  setLabelKey(value);
+                  setDraft({});
+                  setOverrides({});
+                  setQuantity("");
+                  setReprint(null);
+                  setReason("");
+                  setResolve(null);
+                  setPage(1);
+                  resetRequest();
+                }} />
+            </Field>
+            {data?.labels?.length === 0 && (
+              <p>No active labels for this Packaging SKU. Activate a label in Factory Settings → Label Management.</p>
+            )}
+            {!previewOnly && <Field label="Production batch">
               <SearchableSelect
                 value={batch}
                 disabled={busy || pendingRequest}
@@ -289,19 +333,19 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
                   resetRequest();
                 }}
               />
-            </Field>
+            </Field>}
             {loading && !data && <p role="status">Loading batch evidence…</p>}
-            {data && !data.batches.length && (
+            {!previewOnly && data && !data.batches.length && (
               <p>
                 No completed Production batch is available for this Job Order.
               </p>
             )}
-            {candidate?.missing?.includes("label_configuration") ? (
+            {candidate?.missing?.includes("label_configuration") && !data?.labels ? (
               <p role="alert">
                 Configure this Packaging SKU’s approved label in Factory Settings → Label Management before printing.
               </p>
             ) : null}
-            {candidate?.missing?.some(
+            {!previewOnly && !pendingRequest && candidate?.missing?.some(
               (key) => key !== "label_configuration",
             ) && (
               <div className="space-y-3 rounded-xl border border-border p-4">
@@ -310,7 +354,7 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
                 </h3>
                 <p className="text-sm text-text-secondary">
                   These values are saved with the label only. Check the original
-                  production and packaging evidence.
+                  production and packaging evidence. For cartons, confirm the actual counted cartons from packaging evidence.
                 </p>
                 {candidate.missing
                   .filter((key) => missingLabels[key])
@@ -327,7 +371,7 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
                         <input
                           aria-label={missingLabels[key]}
                           className={inputClass()}
-                          type={key === "packaged_units" ? "number" : "text"}
+                          type={key === "batch_no" ? "text" : "number"}
                           min="1"
                           step="1"
                           value={draft[key] || ""}
@@ -379,10 +423,12 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
                   {candidate.config_version} · Template{" "}
                   {candidate.template_version}
                 </dd>
-                <dt className="text-text-secondary">
-                  Initial labels allocated
-                </dt>
-                <dd>{data.allocated}</dd>
+                {!previewOnly && <>
+                  <dt className="text-text-secondary">Label limit for this batch</dt>
+                  <dd>{labelLimit ?? "Missing"}</dd>
+                  <dt className="text-text-secondary">Initial labels allocated</dt>
+                  <dd>{data.allocated}</dd>
+                </>}
               </dl>
             )}
             {candidate?.sources &&
@@ -396,6 +442,7 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
                     : ""}
                 </p>
               )}
+            {!previewOnly && <>
             <Field label="Print bridge">
               <SearchableSelect
                 value={device}
@@ -442,7 +489,7 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
                 className={inputClass()}
                 type="number"
                 min="1"
-                max="10000"
+                max={reprint || remainingQuantity == null ? 10000 : Math.min(10000, remainingQuantity)}
                 step="1"
                 disabled={busy || pendingRequest || !canPrint}
                 value={quantity}
@@ -452,6 +499,11 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
                 }}
               />
             </Field>
+            {quantityExceedsLimit && (
+              <p role="alert" className="text-sm text-text-secondary">
+                {remainingQuantity} labels remain available for this configuration and batch.
+              </p>
+            )}
             {reprint && (
               <div className="space-y-2">
                 <p className="text-sm font-semibold">
@@ -499,6 +551,7 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
                   : ""}
               </span>
             </label>
+            </>}
           </div>
           <div className="min-w-0 space-y-3">
             <h3 className="font-semibold text-text-primary">Label preview</h3>
@@ -510,12 +563,12 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
             {image ? (
               <img
                 src={image.preview}
-                alt={`Label preview for ${candidate.product_name}, batch ${candidate.batch_no}`}
+                alt={`Label preview for ${candidate.product_name}, batch ${candidate.batch_no || "unconfirmed"}`}
                 className="mx-auto h-auto w-full max-w-80 border border-border bg-white"
               />
             ) : (
               <p className="text-sm text-text-secondary">
-                Complete the batch evidence and label configuration to preview.
+                {previewOnly ? "Select an active label to preview its layout." : "Complete the batch evidence and label configuration to preview."}
               </p>
             )}
             {image && (
@@ -531,7 +584,7 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
             </p>
           </div>
         </div>
-        <div ref={historyRef} className="space-y-3 border-t border-border pt-4">
+        {!previewOnly && <div ref={historyRef} className="space-y-3 border-t border-border pt-4">
           <div className="flex items-center justify-between">
             <h3 className="font-semibold text-text-primary">Print history</h3>
             <button
@@ -545,7 +598,7 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
           </div>
           {!data?.history?.length && (
             <p className="text-sm text-text-secondary">
-              No print requests for this batch.
+              No print requests for the selected label and batch.
             </p>
           )}
           {(data?.history || []).map((h) => {
@@ -565,7 +618,7 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
                     <p className="text-text-secondary">
                       {h.operator_name || "Recorded operator"} ·{" "}
                       {formatFactoryDate(h.created_at)} · Template{" "}
-                      {h.template_version}
+                      {h.template_version}{h.label_name ? ` · ${h.label_name}` : ""}
                       {h.reprint_of ? " · Reprint" : ""}
                     </p>
                   </div>
@@ -719,7 +772,7 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
               onPageSizeChange={() => {}}
             />
           )}
-        </div>
+        </div>}
       </div>
     </Modal>
   );
