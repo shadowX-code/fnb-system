@@ -85,7 +85,7 @@ export type AppModule = {
   // Consumer routes may reuse an existing permission without introducing a second grant.
   readPermission?: string;
   requiresRestaurantOutletScope?: boolean;
-  workspace?: "restaurant" | "factory" | "crew" | "guest_ai" | "finance" | "marketing" | "hr";
+  workspace?: WorkspaceKey;
   permissions: Partial<Record<ModuleAction, boolean>>;
 };
 
@@ -212,7 +212,7 @@ export const permissionActionLabels: Record<ModuleAction, string> = {
   export: "Export",
 };
 
-export type WorkspaceKey = "restaurant" | "factory" | "crew" | "guest_ai" | "finance" | "marketing" | "hr";
+export type WorkspaceKey = "restaurant" | "factory" | "crew" | "guest_ai" | "finance" | "marketing" | "hr" | "space_station";
 
 export const workspaceLabels: Record<WorkspaceKey, string> = {
   restaurant: "Restaurant",
@@ -222,6 +222,7 @@ export const workspaceLabels: Record<WorkspaceKey, string> = {
   factory: "Factory",
   crew: "Crew",
   guest_ai: "Guest AI",
+  space_station: "Space Station",
 };
 
 // Workspace ownership stays separate from the module registry.  A workspace
@@ -243,6 +244,7 @@ export const workspaceSwitcherOptions: Array<{
   { id: "factory", label: "Factory", detail: "Production Operations" },
   { id: "crew", label: "Crew", detail: "People, learning & workforce" },
   { id: "guest_ai", label: "Guest AI", detail: "AI Guest Experience", permission: "guest_ai.access" },
+  { id: "space_station", label: "Space Station", detail: "Virtual operations workspace" },
 ];
 
 export const moduleSectionOrder = [
@@ -1327,6 +1329,7 @@ export const moduleRegistry: AppModule[] = [
     permissions: {},
   },
   { id: "ai_assistant", section: "System", label: "AI Assistant", route: "/system/ai-assistant", sidebar: false, permissions: {}, readPermission: "" },
+  { id: "space_station", section: "Overview", label: "Space Station", route: "/space-station", sidebar: true, workspace: "space_station", readPermission: "", permissions: {} },
   { id: "operations_network", section: "System", label: "Smart Operations Network", route: "/system/operations-network", sidebar: false, permissions: {}, readPermission: "" },
 ];
 

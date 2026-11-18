@@ -45,6 +45,7 @@ import { GuestAiDeveloperPage, GuestAiDevicesPage, GuestAiInteractionsPage, Gues
 import { getSidebarSections, moduleRegistry, viewPermission } from "../../config/modules.ts";
 
 // Keep one component identity per feature, including all of its route aliases.
+const SpaceStationPage = lazy(() => import("../features/space-station/SpaceStationPage.jsx"));
 const FinanceCashPage = lazy(() => import("../features/finance/FinanceCashPage.jsx"));
 const FinanceCostsPage = lazy(() => import("../features/finance/FinanceCostsPage.jsx"));
 const FinanceAnalysisPage = lazy(() => import("../features/finance/FinanceAnalysisPage.jsx"));
@@ -107,6 +108,7 @@ export const routeDetails = {
   marketing_knowledge: { component: MarketingSettingsPage, props: { section: "knowledge" }, permission: "marketing_workspace.access AND marketing_settings.view", description: "Brand identity, guidance and evidence." },
   marketing_brand_access: { component: MarketingSettingsPage, props: { section: "access" }, permission: "marketing_workspace.access AND marketing_settings.view", description: "Authorized Brand access and team role scopes." },
   finance_data_sources: { description: "Financial source connection, authority, mapping, reconciliation and readiness.", component: FinanceDataSourcesPage },
+  space_station: { description: "Explore the virtual operations workspace.", component: SpaceStationPage },
   finance_overview: { description: "Finance overview foundation.", component: FinanceWorkspacePage, props: { section: "overview" } },
   finance_analysis: { description: "Business performance and evidence-backed profit drivers.", component: FinanceAnalysisPage },
   finance_costs: { description: "Cost flow, margin pressure and evidence-backed cost drivers.", component: FinanceCostsPage },

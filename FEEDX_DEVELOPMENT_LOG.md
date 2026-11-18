@@ -1,5 +1,9 @@
 # FeedX Development Log
 
+## 2026-11-18 — Space Station
+
+Added an optional animated Admin workspace with four explorable cabins, locally simulated crew and permission-filtered links into Finance, Factory and Marketing. The renderer and assets load on demand. Platform owns the [workspace contract](docs/architecture/platform.md#space-station).
+
 ## 2026-11-12 — WhatsApp Templates in Marketing CRM
 
 Added the Brand-scoped Meta template catalog and text template submissions on Staging. The module shares the live catalog with Chat, Campaign Message and the read-only AI Flows reference. Connection and send authority stay with their existing server checks.

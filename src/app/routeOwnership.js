@@ -104,6 +104,7 @@ function routeDomain(module) {
   if (["roles", "external_agents", "operations_network", "ai_assistant"].includes(module.id)) return "system";
   if (moduleWorkspace(module) === "hr") return "people";
   if (moduleWorkspace(module) === "marketing") return "marketing";
+  if (moduleWorkspace(module) === "space_station") return "space_station";
   if (moduleWorkspace(module) === "finance") return "finance";
   if (moduleWorkspace(module) === "crew") return "crew";
   const path = canonicalPathByModuleId[module.id] ?? module.route;
@@ -118,7 +119,7 @@ function canonicalPathForModule(module) {
   if (override) return override;
   const sourcePath = module.route.replace(/\/+$/, "") || "/";
   const domain = routeDomain(module);
-  if (domain === "people" || domain === "system" || domain === "factory" || domain === "finance" || domain === "marketing") return sourcePath;
+  if (domain === "space_station" || domain === "people" || domain === "system" || domain === "factory" || domain === "finance" || domain === "marketing") return sourcePath;
   if (sourcePath === "/overview/dashboard") return "/restaurant/dashboard";
   if (sourcePath.startsWith("/overview/")) return `/restaurant/${sourcePath.slice("/overview/".length)}`;
   return `/restaurant${sourcePath}`;
@@ -209,7 +210,7 @@ function crewMobileRouteDefinition({ id, screen, path, legacyPath, growthInitial
 const contractModules = moduleRegistry.filter((module) => {
   const workspace = moduleWorkspace(module);
   return module.routable !== false
-    && (workspace === "restaurant" || workspace === "factory" || workspace === "crew" || workspace === "finance" || workspace === "marketing" || workspace === "hr")
+    && (workspace === "restaurant" || workspace === "factory" || workspace === "crew" || workspace === "finance" || workspace === "marketing" || workspace === "hr" || workspace === "space_station")
     && !legacyRouteRedirects[module.id];
 });
 

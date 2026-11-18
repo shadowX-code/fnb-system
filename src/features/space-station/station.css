@@ -1,0 +1,34 @@
+.station-page{color:#eff3f3;background:#101d2b;border:1px solid #283b49;border-radius:18px;overflow:hidden;box-shadow:0 10px 30px #0e203022}
+.station-heading{display:flex;align-items:center;gap:12px;padding:15px 22px;background:#152635;border-bottom:1px solid #314454}
+.station-insignia{display:grid;place-items:center;width:43px;height:43px;color:#95e8e3;border-radius:13px;background:#203b49;border:1px solid #3b626b}
+.station-heading h1,.station-view-info h2,.station-directory h2{margin:0;font-weight:710;letter-spacing:-.035em;line-height:1.12}
+.station-heading h1{font-size:clamp(20px,2vw,25px)}.station-heading p{font-size:12px;color:#bbcbcf;margin:2px 0 0}
+.station-page button,.station-page select{font:inherit;cursor:pointer}.station-page button:focus-visible,.station-page select:focus-visible{outline:3px solid #8eeae4;outline-offset:3px}
+.station-page .station-mode,.station-inspector>button,.station-directory article button{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid #486070;background:#213545;color:#edf8f9;padding:8px 12px;border-radius:8px;font-size:12px;font-weight:650}.station-mode{margin-left:auto}
+.station-viewport{position:relative;isolation:isolate;min-height:370px;height:clamp(425px,calc(100svh - 289px),900px);background:#071226 url("./assets/orbital-sky.webp") center center/cover;overflow:hidden}
+.station-canvas-host,.station-canvas-host canvas{position:absolute;inset:0;width:100%;height:100%}.station-canvas-host canvas{display:block;touch-action:none;cursor:grab}
+.station-view-info{pointer-events:none;position:absolute;top:17px;left:22px;text-shadow:0 2px 5px #071222}
+.station-eyebrow{display:flex;align-items:center;gap:7px;text-transform:uppercase;letter-spacing:.14em;font-size:10px;font-weight:700;color:#b6d5dc}
+.station-eyebrow i,.station-simulation i{background:#91e0d4;border-radius:50%;width:6px;height:6px;display:inline-block}
+.station-view-info h2{font-size:clamp(18px,2vw,26px);margin-top:5px}
+.station-tools{position:absolute;right:16px;top:16px;display:flex;align-items:center;gap:1px;padding:3px;background:#142536ed;border:1px solid #405463;border-radius:9px}
+.station-tools button{display:grid;place-items:center;width:31px;height:31px;color:#dbe7eb;background:none;border:0;border-radius:5px}.station-tools svg{width:15px;height:15px}
+.station-tools button:hover,.station-mode:hover,.station-decks button:hover,.station-directory article button:hover,.station-inspector>button:hover{background:#304a5b}
+.station-simulation{display:flex;align-items:center;gap:7px;position:absolute;bottom:12px;left:17px;font-size:10px;letter-spacing:.04em;border:1px solid #355063;background:#102132e6;border-radius:20px;color:#dce7ea;padding:4px 9px;pointer-events:none}
+.station-page .station-callout{position:absolute;transform:translate(-50%,-5%);white-space:nowrap;border:1px solid #7c929e;border-left:3px solid var(--cabin-color);border-radius:5px;color:#fff5df;background:#142534f0;box-shadow:0 2px 5px #020b15a6;padding:3px 8px 4px;font-size:clamp(10px,.9vw,13px);font-weight:680;letter-spacing:-.01em}
+.station-page .station-callout:hover{background:#304c60;border-color:var(--cabin-color)}.station-callout[hidden]{display:none}
+.station-loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:10px;background:#112237e6;font-size:14px}
+.station-decks{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border-block:1px solid #314454}
+.station-decks button{display:flex;align-items:center;gap:9px;padding:16px 15px;color:#ecf1ee;border:0;border-right:1px solid #314454;background:#182936;text-align:left}
+.station-decks button:last-child{border:0}.station-decks button b{font-size:13px;font-weight:650}.station-decks button>svg{color:#9ab0bb;margin-left:auto}
+.station-back{pointer-events:auto;display:flex;align-items:center;gap:6px;background:#142536eb;border:1px solid #526779;border-radius:7px;padding:5px 8px;color:#e4f1f1}.station-page .station-back{font-size:11px}
+.station-inspector{display:flex;align-items:center;gap:18px;padding:12px 18px;background:#192b38;border-block:1px solid #314454;min-height:78px}
+.station-inspector label{display:grid;gap:3px}.station-inspector label>span,.station-inspection small{font-size:10px;color:#b5cfd2;font-weight:650}
+.station-inspector select{border:1px solid #4c6475;border-radius:7px;background:#1d3445;color:#fff;padding:5px 6px;font-size:12px}
+.station-inspection{flex:1;min-width:0}.station-inspection strong{font-size:14px;display:flex;align-items:center;gap:9px}.station-inspection p,.station-directory p{font-size:12px;color:#c2d2d7;margin:2px 0}
+.station-inspector>small,.station-directory article>span{font-size:12px;color:#c4d2d6}
+.station-footer{display:flex;align-items:center;gap:8px;padding:9px 18px;color:#afc2cb;font-size:11px}.station-footer span:last-child{margin-left:auto}
+.station-directory{min-height:320px;padding:30px clamp(18px,4vw,55px)}.station-directory h2{font-size:25px;margin:6px 0}
+.station-directory article{display:flex;align-items:center;gap:13px;padding:16px 0;border-bottom:1px solid #364752}.station-directory article>svg{color:#b0ddd7}.station-directory article h3{font-size:15px;margin:0}.station-directory article>button,.station-directory article>span{margin-left:auto}
+@media(max-width:900px){.station-decks button{padding:12px 8px;gap:5px}.station-decks button b{font-size:12px}.station-inspector{flex-wrap:wrap;gap:9px}.station-inspection{min-width:180px}}
+@media(max-width:650px){.station-heading{padding:10px 12px}.station-viewport{height:55svh;min-height:340px}.station-tools{top:auto;bottom:10px;right:9px}.station-tools button{width:28px;height:30px}.station-view-info{top:12px;left:12px}.station-simulation{bottom:50px;left:9px}.station-decks{grid-template-columns:repeat(2,1fr)}.station-decks button{border-bottom:1px solid #314454}.station-page .station-callout{font-size:9px;padding:2px 4px}.station-footer{flex-wrap:wrap;padding:8px 10px}.station-footer span:last-child{margin-left:0}.station-directory article{flex-wrap:wrap}.station-inspector label{width:100%}.station-inspection{min-width:150px}}
