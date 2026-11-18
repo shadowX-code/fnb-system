@@ -1,10 +1,15 @@
 import * as T from "three";
 import { rooms, roomById } from "./departments.js";
 import { createKit, group, color as C } from "./modelKit.js";
-import { buildCabin, buildInfrastructure, mountFactoryJunction, serviceShuttle } from "./architecture.js";
-import { furnish, bindFactoryWorkcell } from "./fittings.js";
+import { buildInfrastructure, mountFactoryJunction, mountOrbitalKit, serviceShuttle } from "./architecture.js";
+import { orbitalProjector, mountDepartmentCabins, bindFactoryWorkcell } from "./fittings.js";
 import { populate } from "./crew.js";
 import { stationArt } from "./stationArt.js";
+import { applyFactoryOcclusion } from "./factoryLight.js";
+import occlusionUrl from "./assets/factory-occlusion.png?url";
+import cabinsUrl from "./assets/departments.glb?url";
+import orbitalUrl from "./assets/orbital-kit.glb?url";
+import crewUrl from "./assets/crew.glb?url";
 import junctionUrl from "./assets/factory-junction.glb?url";
 import workcellUrl from "./assets/factory-workcell.glb?url";
 import technicianUrl from "./assets/technician.glb?url";
@@ -12,7 +17,7 @@ import technicianUrl from "./assets/technician.glb?url";
 const clamp=T.MathUtils.clamp;
 const OVERVIEW=[0,1.65,-1.35];
 const POSITIONS={
-  command:[.15,1.07,.03],finance:[1.55,.9,-1.36],factory:[1.7,1.22,-.84],marketing:[1.75,.9,-.40],
+  command:[.15,1.45,.03],finance:[1.55,.9,-1.36],factory:[1.7,1.22,-.84],marketing:[1.75,.9,-.40],
 };
 
 export function createStation(host, events) {
@@ -65,28 +70,24 @@ export function createStation(host, events) {
     renderer.setPixelRatio(ratio); renderer.setClearColor(0,0);
     renderer.shadowMap.enabled=true; renderer.shadowMap.type=T.PCFShadowMap;
     renderer.shadowMap.autoUpdate=false; renderer.shadowMap.needsUpdate=true;
-    fill=new T.HemisphereLight("#fff2de","#9da9b5",1.76); scene.add(fill);
+    fill=new T.HemisphereLight("#f8efe4","#ad8b76",1.44); scene.add(fill);
     const key=new T.DirectionalLight("#fff0d7",2.18); key.position.set(-8,15,8); key.castShadow=true;
     key.shadow.mapSize.set(2048,2048);
     Object.assign(key.shadow.camera,{left:-15,right:15,top:14,bottom:-14,near:.1,far:48});
     key.shadow.camera.updateProjectionMatrix(); key.shadow.normalBias=.024; key.shadow.bias=-.00025;
     scene.add(key);
-    const rim=new T.DirectionalLight("#add9fc",1.06); rim.position.set(6,6,-9); scene.add(rim);
-    const orbit=group(scene); buildInfrastructure(kit,orbit,rooms); kit.bake(orbit);
+    const rim=new T.DirectionalLight("#add9fc",1.15); rim.position.set(6,6,-9); scene.add(rim);
+    const orbit=group(scene); buildInfrastructure(kit,orbit); kit.bake(orbit);
     shuttle=serviceShuttle(kit,scene); shuttle(0);
 
     for(const [index, room] of rooms.entries()) {
       const root=group(scene,...room.at); root.name=room.id; roomRoots.set(room.id,root);
-      if(room.id!=="factory") {
-        buildCabin(kit,room,root);
-        motions.push({root,updates:furnish(kit,root,room)});
-      }
+      if(room.id==="command") motions.push({root,updates:[orbitalProjector(kit,root)]});
       const figures=populate(kit,root,room,index); crew.push({root,figures});
       const [sx,sy,sz]=room.hullScale;
       const factoryBay=room.id==="factory";
       target(root,room.id,null,[0,1.45*sy,0],[(factoryBay ? 7.85 : 7.2)*sx,(factoryBay ? 4.45 : 3.9)*sy,4.5*sz]);
-      target(root,room.id,"equipment",POSITIONS[room.id],room.id==="finance" ? [1.83,1.64,1.04] : [1.56,2.2,1.31]);
-      if(!factoryBay) target(root,room.id,"screen",[0,1.70,-1.98],[3.12,1.35,.22]);
+      target(root,room.id,"equipment",POSITIONS[room.id],room.id==="command" ? [1.90,2.76,1.90] : room.id==="finance" ? [1.83,1.64,1.04] : [1.56,2.2,1.31]);
       for (const fig of figures) target(fig.anchor,room.id,fig.id,[0,.71,0],[.58,1.53,.54]);
       kit.bake(root);
       const label=document.createElement("button"); label.type="button"; label.className="station-callout";
@@ -101,6 +102,12 @@ export function createStation(host, events) {
     factory.add(workLight);
     const specialist=crew.find(({root})=>root===factory).figures.find(figure=>figure.id==="specialist");
     Promise.all([
+      art.loadTexture(occlusionUrl),
+      art.load(cabinsUrl,({scene})=>mountDepartmentCabins(scene,roomRoots,target,motions,remove)),
+      art.load(orbitalUrl,({scene})=>mountOrbitalKit(scene,orbit,rooms)),
+      art.load(crewUrl,model=>{
+        for(const {figures} of crew) for(const figure of figures) figure.attachCrew?.(model);
+      }),
       art.load(junctionUrl,model=>{
         mountFactoryJunction(model.scene,factory,orbit);
         const switchFace=factory.getObjectByName("InspectContact");
@@ -113,8 +120,9 @@ export function createStation(host, events) {
         remove.push(rig.dispose);
       }),
       art.load(technicianUrl,model=>specialist.attachPilot(model)),
-    ]).then(()=>{
+    ]).then(([occlusion])=>{
       if(!alive) return;
+      applyFactoryOcclusion(factory.getObjectByName("FactoryCorner"),occlusion);
       artReady=true;
       renderer.shadowMap.needsUpdate=true;
       schedule();
@@ -199,7 +207,7 @@ export function createStation(host, events) {
         events.quality();
       }
       const dt=Math.min(elapsed,.065), weight=paused ? 1 : 1-Math.exp(-dt*5.8);
-      if(!paused) time+=dt;
+      if(!paused && artReady) time+=dt;
       center.lerp(toCenter,weight); yaw+=(desiredYaw-yaw)*weight; pitch+=(desiredPitch-pitch)*weight;
       zoom+=(desiredZoom-zoom)*weight; view+=((focused ? 1 : 0)-view)*weight;
       // Retain adjoining cabins and bridge endpoints while throttling their occupants.
@@ -225,8 +233,8 @@ export function createStation(host, events) {
       camera.lookAt(center); camera.updateMatrixWorld();
       if(!paused || !ready) {
         for(const {root,updates} of motions) if(!settled || root.name===focused) for(const animate of updates) animate(time);
-        for(const {root,figures} of crew) if(!settled || root.name===focused) for(const actor of figures) actor.tick(time,dt);
-        shuttle(time); fill.intensity=1.76+.045*Math.sin(time*.73);
+        for(const {root,figures} of crew) if(!settled || root.name===focused) for(const actor of figures) actor.tick(time,artReady ? dt : 0);
+        shuttle(time); fill.intensity=1.44+.045*Math.sin(time*.73);
         stars.rotation.y=.018*Math.sin(time*.08); stars.material.opacity=.62+.12*Math.sin(time*.63);
         for(const root of roomRoots.values()) if(!settled || root.name===focused) root.updateMatrixWorld(true);
         kit.update(settled ? focused : null);

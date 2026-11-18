@@ -1,3 +1,4 @@
+import { Texture } from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 
 // Capture ownership before the junction is split among its three station sockets.
@@ -21,7 +22,10 @@ function ownModel(root) {
     node.receiveShadow = true;
   });
   return () => {
-    for (const mesh of meshes) mesh.removeFromParent();
+    for (const mesh of meshes) {
+      mesh.removeFromParent();
+      if (mesh.isInstancedMesh) mesh.dispose();
+    }
     for (const skeleton of skeletons) skeleton.dispose();
     for (const geometry of geometries) geometry.dispose();
     for (const material of materials) material.dispose();
@@ -49,8 +53,22 @@ export function stationArt() {
     releases.push(release);
     mount(model);
   }
+  async function loadTexture(url) {
+    const response = await fetch(url, { signal: controller.signal });
+    if (!response.ok) throw new Error("Could not load station lighting.");
+    const bitmap = await createImageBitmap(await response.blob(), { colorSpaceConversion: "none" });
+    if (controller.signal.aborted) {
+      bitmap.close();
+      return;
+    }
+    const texture = new Texture(bitmap);
+    texture.flipY = false;
+    texture.needsUpdate = true;
+    releases.push(() => { texture.dispose(); bitmap.close(); });
+    return texture;
+  }
   return {
-    load,
+    load, loadTexture,
     dispose() {
       controller.abort();
       for (const release of releases.splice(0)) release();

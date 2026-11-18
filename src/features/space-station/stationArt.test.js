@@ -34,3 +34,18 @@ it("releases a decoded GLB when the station closed during parsing", async () => 
   expect(textureDisposed).toHaveBeenCalledOnce();
   expect(image.close).toHaveBeenCalledOnce();
 });
+
+it("closes the baked lightmap if its decode finishes after leaving the station", async () => {
+  const bitmap = { close: vi.fn() };
+  let finish;
+  const decode = vi.fn(() => new Promise(resolve => { finish = resolve; }));
+  vi.stubGlobal("createImageBitmap", decode);
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, blob: async () => new Blob() }));
+  const art = stationArt();
+  const loading = art.loadTexture("factory-occlusion.png");
+  await vi.waitFor(() => expect(decode).toHaveBeenCalledOnce());
+  art.dispose();
+  finish(bitmap);
+  expect(await loading).toBeUndefined();
+  expect(bitmap.close).toHaveBeenCalledOnce();
+});
