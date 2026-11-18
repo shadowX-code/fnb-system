@@ -197,8 +197,17 @@ export default function FactoryLabelEditorPage({
   const disabled = busy || needsRefresh || !canEdit;
   const heading = kind === "template" ? "Template Designer" : "Product Label Editor";
   const backButton = (
-    <button type="button" className="btn-ghost" disabled={busy} onClick={() => leave(onBack)}>
-      <ArrowLeft size={14} aria-hidden="true" /> Back to Label Management
+    <button
+      type="button"
+      className="btn-ghost inline-flex items-center gap-2 justify-self-start rounded-control pr-2 type-body-sm font-medium text-text-secondary transition enabled:hover:bg-[var(--theme-hover)] enabled:hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
+      aria-label="Back to Label Management"
+      disabled={busy}
+      onClick={() => leave(onBack)}
+    >
+      <span className="icon-btn size-9 shrink-0 pointer-events-none" aria-hidden="true">
+        <ArrowLeft size={16} />
+      </span>
+      <span>Label Management</span>
     </button>
   );
   if (!payload)

@@ -9,10 +9,6 @@
   display: grid;
   gap: 6px;
 }
-.label-studio-header > .btn-ghost {
-  justify-self: start;
-  margin-inline-start: -8px;
-}
 .label-studio-history-button {
   font-size: var(--type-caption, 12px);
 }
