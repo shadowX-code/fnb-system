@@ -9,6 +9,7 @@ const destructiveMenuItemClass = "flex w-full items-center rounded-lg px-3 py-2 
 export default function FactoryRowActions({ onView, viewLabel = "View details", primaryAction, directActions = [], secondaryActions = [], directSingleSecondary = false }) {
   const [open, setOpen] = useState(false);
   const visibleActions = directActions.filter(Boolean);
+  const leadingActions = visibleActions.filter((action) => action.beforePrimary);
   const actions = secondaryActions.filter(Boolean);
   const overflowOnlyOnSmallScreens = actions.length > 0 && actions.every((action) => action.mobileOnly);
   const renderAction = (action) => {
@@ -19,8 +20,8 @@ export default function FactoryRowActions({ onView, viewLabel = "View details", 
       ? <button key={action.key || action.label} className={`${buttonClass} ${responsiveClass}`} type="button" disabled={action.disabled} onClick={action.onClick}>{action.icon ? <Icon size={14} /> : null}{action.label}</button>
       : <button key={action.key || action.label} className={`icon-btn h-8 w-8 ${responsiveClass}`} type="button" aria-label={action.label} title={action.label} disabled={action.disabled} onClick={action.onClick}><Icon size={16} /></button>;
   };
-  return <div className="flex h-8 items-center justify-end gap-1.5 whitespace-nowrap" onClick={(event) => event.stopPropagation()}>
-    {visibleActions.filter((action) => action.beforePrimary).map(renderAction)}
+  return <div className={`flex h-8 items-center justify-end gap-1.5 whitespace-nowrap ${leadingActions.length ? "w-max min-w-full" : ""}`} onClick={(event) => event.stopPropagation()}>
+    {leadingActions.map(renderAction)}
     {primaryAction ? <button className="btn-primary h-8 px-3 text-xs" type="button" disabled={primaryAction.disabled} onClick={primaryAction.onClick}>{primaryAction.label}</button> : null}
     {onView ? <FactoryRowAction label={viewLabel} onClick={onView} /> : null}
     {visibleActions.filter((action) => !action.beforePrimary).map(renderAction)}
