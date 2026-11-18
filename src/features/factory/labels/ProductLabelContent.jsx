@@ -9,6 +9,7 @@ import { legacyLabelContentField } from "./labelRenderer.js";
 import { openLabelManagement } from "./labelManagementNavigation.js";
 
 export default function ProductLabelContent({
+  section,
   payload,
   data,
   template,
@@ -28,7 +29,7 @@ export default function ProductLabelContent({
   });
   return (
     <div className="label-studio-content-form">
-      <section className="label-studio-form-section">
+      {section === "content" && <section className="label-studio-form-section">
         <div className="label-studio-section-heading">
           <h2>Product content</h2>
           <span>Editable · this Packaging SKU</span>
@@ -99,8 +100,8 @@ export default function ProductLabelContent({
             )}
           </details>
         )}
-      </section>
-      <section className="label-studio-form-section">
+      </section>}
+      {section === "additional" && <section className="label-studio-form-section">
         <div className="label-studio-section-heading">
           <h2>Manufacturer</h2>
           <span>Editable · label wording</span>
@@ -120,10 +121,10 @@ export default function ProductLabelContent({
             </Field>
           ))}
         </div>
-      </section>
-      <details className="label-studio-form-section" open>
+      </section>}
+      {section === "settings" && <details className="label-studio-form-section" open>
         <summary>
-          Label configuration{" "}
+          Label settings{" "}
           <span>
             {payload.width_mm} × {payload.height_mm} mm
           </span>
@@ -203,8 +204,8 @@ export default function ProductLabelContent({
             onChange={(value) => update("expiry_rule", value)}
           />
         </Field>
-      </details>
-      {definition?.elements.some(
+      </details>}
+      {section === "additional" && definition?.elements.some(
         (e, i) =>
           e.type === "text" &&
           !e.field &&

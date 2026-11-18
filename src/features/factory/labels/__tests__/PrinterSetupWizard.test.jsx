@@ -51,3 +51,9 @@ it("offers a direct path for already installed bridges", () => {
   fireEvent.click(screen.getByRole("button", { name: "Bridge already installed" }));
   expect(screen.getByRole("link", { name: "Open Bridge Setup" })).toBeTruthy();
 });
+
+
+it("keeps the last reported calibration visible when the device stops discovering its printer", () => {
+  expect(printerSetupStatus({ ...device, status: "Offline", printers: [], calibration_status: "Passed" }))
+    .toMatchObject({ bridge: "Online", connection: "Unavailable", calibration: "Passed" });
+});

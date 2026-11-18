@@ -4,7 +4,7 @@ declare
  actor uuid; readonly_actor uuid; p public.factory_productions; editor jsonb; payload jsonb; draft jsonb; bad jsonb;
  template public.factory_label_templates; base integer; request uuid:=gen_random_uuid(); publish_request uuid:=gen_random_uuid();
  v_template_key text:='qa-label-'||gen_random_uuid()::text; template_draft jsonb; version2 uuid; job uuid; device uuid:=gen_random_uuid(); claim uuid:=gen_random_uuid();
- candidate jsonb; frozen jsonb; raster jsonb; denied boolean; checks integer:=0; before_data text; after_data text;
+ listing_row jsonb; sku_code text; candidate jsonb; frozen jsonb; raster jsonb; denied boolean; checks integer:=0; before_data text; after_data text;
 begin
  select md5(jsonb_build_object('production',(select jsonb_agg(to_jsonb(x) order by id) from public.factory_productions x),'products',(select jsonb_agg(to_jsonb(x) order by id) from public.factory_finished_goods x))::text) into before_data;
  begin
@@ -16,6 +16,11 @@ begin
   payload:=jsonb_build_object('template_id',template.id,'width_mm',80,'height_mm',90,'net_weight','QA weight','storage_instructions','QA freezer','shelf_life_days',180,'expiry_rule','production','content',jsonb_build_object('product_name','QA label-only name','ingredients','QA ingredients'));
   draft:=public.factory_label_save_draft('product',p.finished_good_id::text,payload,coalesce((editor->'draft'->>'revision')::integer,0),base,request);
   assert draft->>'state'='draft','draft not persisted';checks:=checks+1;
+  select product_code into sku_code from public.factory_finished_goods where id=p.finished_good_id;
+  select row into listing_row from jsonb_array_elements(public.factory_label_management('products',1,sku_code)->'rows') row where row->>'id'=p.finished_good_id::text;
+  assert listing_row->>'draft_template_name'=template.name and (listing_row->>'draft_template_version')::int=template.version,'saved draft assignment missing from list';
+  assert listing_row->>'configuration_status'=case when base=0 then 'Draft' else 'Ready' end,'draft masked active print eligibility';
+  assert coalesce((listing_row->>'config_version')::int,0)=base,'draft mistaken for active version';checks:=checks+3;
   assert public.factory_label_save_draft('product',p.finished_good_id::text,payload,coalesce((editor->'draft'->>'revision')::integer,0),base,request)=draft,'draft retry differs';checks:=checks+1;
   assert coalesce((public.factory_label_editor('product',p.finished_good_id::text)->'published'->>'version')::int,0)=base,'draft changed approved label';checks:=checks+1;
   denied:=false;begin perform public.factory_label_save_draft('product',p.finished_good_id::text,payload||'{"net_weight":"changed"}',0,base,request);exception when others then denied:=true;end;assert denied,'changed draft request accepted';checks:=checks+1;
@@ -58,6 +63,12 @@ begin
   perform public.factory_label_report(device,job,claim,'Sent','QA simulated submission');perform public.factory_label_resolve(job,'Confirmed','QA simulated inspection');
   assert (public.factory_label_management('products')->>'total')::integer=(select count(*) from public.factory_finished_goods),'Product Labels omitted SKUs';checks:=checks+1;
   assert (public.factory_label_management('printers',1,'QA Management')->>'total')::integer>=1,'bridge missing from management';checks:=checks+1;
+  perform public.factory_label_device(device,'QA Management','Fixture queue','spooler','Ready','[{"Name":"Fixture queue","Calibration":"Passed"}]');
+  perform public.factory_label_device(device,'QA Management','Fixture queue','spooler','Offline','[]');
+  select row into listing_row from jsonb_array_elements(public.factory_label_management('printers',1,'QA Management')->'rows') row where row->>'id'=device::text;
+  assert listing_row->>'status'='Offline' and listing_row->>'calibration_status'='Passed','offline discovery discarded calibration';
+  perform public.factory_label_device(device,'QA Management','Different queue','spooler','Offline','[]');
+  assert (select last_reported_calibration is null from public.factory_label_devices where id=device),'old calibration inherited by new printer';checks:=checks+2;
   assert (select count(*)>=4 from public.factory_label_management_events where action='published'),'publication audit missing';checks:=checks+1;
   select e.auth_user_id into strict readonly_actor from public.employees e join public.roles r on r.id=e.role_id where r.name='factory_read_only_test' and lower(e.employment_status)='active' limit 1;
   perform set_config('request.jwt.claim.sub',readonly_actor::text,true);perform set_config('request.jwt.claims',jsonb_build_object('sub',readonly_actor,'role','authenticated')::text,true);

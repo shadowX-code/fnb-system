@@ -67,49 +67,25 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 describe("dedicated Factory Label Editor", () => {
-  it("edits label-only content, saves a draft, and requires explicit review before publishing", async () => {
-    render(
-      <FactoryLabelEditorPage
-        kind="product"
-        entityKey="sku"
-        canEdit
-        onBack={() => {}}
-      />,
-    );
-    await screen.findByRole("heading", { name: "Label Studio" });
-    fireEvent.change(screen.getByLabelText("English name"), {
-      target: { value: "Approved label name" },
-    });
-    fireEvent.change(screen.getByLabelText("Storage instructions"), {
-      target: { value: "Freezer" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Review & Publish" }));
-    await screen.findByRole("heading", {
-      name: "Approve and publish version 1",
-    });
-    expect(
-      factoryLabelService.saveDraft.mock.calls[0][2].content.product_name,
-    ).toBe("Approved label name");
-    expect(
-      screen.getByRole("button", { name: "Approve & Publish" }).disabled,
-    ).toBe(true);
+  it("activates only a saved revision after explicit confirmation", async () => {
+    const confirm = vi.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+    render(<FactoryLabelEditorPage kind="product" entityKey="sku" canEdit onConfirm={confirm} />);
+    const name = await screen.findByLabelText("English name");
+    const activate = screen.getByRole("button", { name: "Activate Version" });
+    fireEvent.change(name, { target: { value: "Reviewed label name" } });
+    expect(activate.disabled).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Save", exact: true }));
+    await waitFor(() => expect(activate.disabled).toBe(false));
+    expect(factoryLabelService.saveDraft.mock.calls[0][2].content.product_name).toBe("Reviewed label name");
     expect(factoryLabelService.publish).not.toHaveBeenCalled();
-    fireEvent.change(screen.getByLabelText("Approval / publication reason"), {
-      target: { value: "Reviewed reference content" },
-    });
-    fireEvent.click(screen.getByRole("checkbox"));
-    fireEvent.click(screen.getByRole("button", { name: "Approve & Publish" }));
-    await waitFor(() =>
-      expect(factoryLabelService.publish).toHaveBeenCalledWith(
-        "draft",
-        1,
-        expect.any(String),
-        "Reviewed reference content",
-        true,
-      ),
-    );
+    fireEvent.click(activate);
+    await waitFor(() => expect(activate.disabled).toBe(false));
+    expect(factoryLabelService.publish).not.toHaveBeenCalled();
+    fireEvent.click(activate);
+    await waitFor(() => expect(factoryLabelService.publish).toHaveBeenCalledWith(
+      "draft", 1, expect.any(String), "Saved version reviewed and activated in Label Studio.", true,
+    ));
     expect(data.sku.product_name).toBe("Sambal");
-    expect(screen.queryByLabelText("Manufacturing date")).toBeNull();
   });
   it("leaves approved printing untouched while drafts are edited and prevents duplicate saves", async () => {
     let finish;
@@ -128,7 +104,7 @@ describe("dedicated Factory Label Editor", () => {
       />,
     );
     await screen.findByLabelText("English name");
-    const button = screen.getByRole("button", { name: "Save Draft" });
+    const button = screen.getByRole("button", { name: "Save", exact: true });
     fireEvent.click(button);
     fireEvent.click(button);
     expect(factoryLabelService.saveDraft).toHaveBeenCalledTimes(1);
@@ -147,7 +123,7 @@ describe("dedicated Factory Label Editor", () => {
     );
     await screen.findByLabelText("English name");
     expect(screen.getByLabelText("English name").disabled).toBe(true);
-    expect(screen.queryByRole("button", { name: "Save Draft" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Save", exact: true })).toBeNull();
   });
 });
 
@@ -161,12 +137,12 @@ it("separates Production and history from editable SKU content while keeping the
     />,
   );
   await screen.findByLabelText("English name");
-  fireEvent.click(screen.getByRole("tab", { name: "Production Fields" }));
+  fireEvent.click(screen.getByRole("tab", { name: "Print Settings" }));
   expect(screen.queryByLabelText("English name")).toBeNull();
   expect(screen.getAllByText("From Production")).toHaveLength(4);
   expect(
     screen.getByRole("img", { name: "Product label live preview" }),
   ).toBeTruthy();
-  fireEvent.click(screen.getByRole("tab", { name: "Version History" }));
+  fireEvent.click(screen.getByRole("tab", { name: "Additional Content" }));
   expect(screen.getByText("No published versions yet.")).toBeTruthy();
 });

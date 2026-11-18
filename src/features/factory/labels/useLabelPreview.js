@@ -21,6 +21,7 @@ export default function useLabelPreview(snapshot) {
         .then((rendered) => {
           if (active)
             setResult({
+              key,
               image: rendered.preview,
               issues: rendered.issues,
               error:
@@ -32,6 +33,7 @@ export default function useLabelPreview(snapshot) {
         .catch((error) => {
           if (active)
             setResult({
+              key,
               image: null,
               error: error.message,
               loading: false,
@@ -44,5 +46,5 @@ export default function useLabelPreview(snapshot) {
       clearTimeout(timer);
     };
   }, [key]);
-  return result;
+  return result.key === key ? result : { ...result, loading: true };
 }

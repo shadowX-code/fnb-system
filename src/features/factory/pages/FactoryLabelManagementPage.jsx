@@ -36,6 +36,7 @@ export default function FactoryLabelManagementPage({ onConfirm }) {
     [wizard, setWizard] = useState(null),
     [reason, setReason] = useState(""),
     [saving, setSaving] = useState(false);
+  const selectedPrinter = data.rows.find((row) => row.id === printer?.id) || printer;
   const canSetup = can("factory_production.complete");
   const generation = useRef(0),
     lock = useRef(false);
@@ -115,7 +116,7 @@ export default function FactoryLabelManagementPage({ onConfirm }) {
     try {
       await factoryLabelService.setDeviceEnabled(
         printer.id,
-        !printer.enabled,
+        !selectedPrinter.enabled,
         reason,
       );
       setPrinter(null);
@@ -146,21 +147,33 @@ export default function FactoryLabelManagementPage({ onConfirm }) {
             key: "configuration_status",
             label: "Label status",
             render: (r) => (
-              <FactoryStatusBadge status={r.configuration_status} />
+              <>
+                <FactoryStatusBadge status={r.configuration_status} />
+                {r.configuration_status === "Ready" && r.draft_revision && (
+                  <p className="text-xs text-text-secondary">Saved draft</p>
+                )}
+              </>
             ),
           },
           {
             key: "template",
             label: "Assigned template",
-            render: (r) =>
-              r.template_name
-                ? `${r.template_name} · v${r.template_version}`
-                : "Not assigned",
+            render: (r) => (
+              <div className="space-y-1">
+                {r.template_name && <p>Active · {r.template_name} · v{r.template_version}</p>}
+                {r.draft_revision && (
+                  <p className="text-text-secondary">
+                    Draft · {r.draft_template_name ? `${r.draft_template_name} · v${r.draft_template_version}` : "Not assigned"}
+                  </p>
+                )}
+                {!r.template_name && !r.draft_revision && "Not assigned"}
+              </div>
+            ),
           },
           {
             key: "version",
-            label: "Approved version",
-            render: (r) => r.config_version || "—",
+            label: "Active Version",
+            render: (r) => r.config_version ? `v${r.config_version}` : "—",
           },
           {
             key: "actions",
@@ -214,21 +227,25 @@ export default function FactoryLabelManagementPage({ onConfirm }) {
             },
           ]
         : [
-            { key: "name", label: "Print bridge" },
-            { key: "printer_name", label: "Configured printer" },
             {
-              key: "transport",
-              label: "Transport",
-              render: (r) => r.printers?.find((p) => p.Name === r.printer_name)?.Connection || r.transport,
+              key: "printer",
+              label: "Printer / bridge",
+              render: (r) => <div><strong>{r.printer_name}</strong><p className="text-xs text-text-secondary">{r.name}</p></div>,
             },
-            { key: "bridge", label: "Bridge", render: (r) => <FactoryStatusBadge status={printerSetupStatus(r).bridge} /> },
-            { key: "connection", label: "Printer connection", render: (r) => <FactoryStatusBadge status={printerSetupStatus(r).connection} /> },
+            {
+              key: "connection",
+              label: "Connection",
+              render: (r) => {
+                const status = printerSetupStatus(r);
+                return <div><FactoryStatusBadge status={status.bridge} /><p className="text-xs text-text-secondary">Printer · {status.connection}</p></div>;
+              },
+            },
             { key: "calibration", label: "Calibration", render: (r) => <FactoryStatusBadge status={printerSetupStatus(r).calibration} /> },
             { key: "unresolved", label: "Unresolved jobs", render: (r) => r.unresolved_jobs ?? "—" },
             {
               key: "last_seen",
-              label: "Last connected",
-              render: (r) => new Date(r.last_seen).toLocaleString(),
+              label: "Last seen",
+              render: (r) => r.last_seen ? new Date(r.last_seen).toLocaleString() : "—",
             },
             {
               key: "actions",
@@ -242,7 +259,7 @@ export default function FactoryLabelManagementPage({ onConfirm }) {
                   }}
                 >
                   <Printer size={14} />
-                  Configuration
+                  Manage
                 </button>
               ),
             },
@@ -371,52 +388,54 @@ export default function FactoryLabelManagementPage({ onConfirm }) {
               >
                 Close
               </button>
-              {canEdit && (
-                <button
-                  className="btn-primary"
-                  disabled={saving || reason.trim().length < 3}
-                  onClick={togglePrinter}
-                >
-                  {printer.enabled ? "Disable Bridge" : "Enable Bridge"}
-                </button>
-              )}
             </>
           }
         >
           <div className="space-y-4">
-            <dl className="grid grid-cols-2 gap-3 text-sm">
-              <dt>Printer</dt>
-              <dd>{printer.printer_name}</dd>
-              <dt>Transport</dt>
-              <dd>{printer.printers?.find((p) => p.Name === printer.printer_name)?.Connection || printer.transport}</dd>
-              <dt>Availability</dt>
-              <dd>{printer.enabled ? "Enabled" : "Disabled"}</dd>
+            <dl className="grid grid-cols-2 gap-2 text-sm">
+              <dt>Printer</dt><dd>{selectedPrinter.printer_name}</dd>
+              <dt>Bridge / printer connection</dt>
+              <dd>{printerSetupStatus(selectedPrinter).bridge} / {printerSetupStatus(selectedPrinter).connection}</dd>
+              <dt>Last reported calibration</dt><dd>{printerSetupStatus(selectedPrinter).calibration}</dd>
+              <dt>Unresolved jobs</dt><dd>{selectedPrinter.unresolved_jobs ?? "—"}</dd>
             </dl>
-            <h3 className="font-semibold">Discovered printers</h3>
-            {(printer.printers || []).map((p) => (
-              <p className="text-sm" key={p.Name}>
-                {p.Name} · {p.WorkOffline ? "Offline" : "Available"}{p.Connection ? ` · ${p.Connection}` : ""}
-              </p>
-            ))}
-            <p className="text-sm text-text-secondary">
-              Disabling pauses new claims. Resolve any active print before disabling. Uncertain Job Order output must be reviewed in Print History.
-            </p>
-            {canSetup && (
-              <button className="btn-secondary" onClick={() => {
-                setWizard({ step: 1, printer }); setPrinter(null);
-              }}>Reconnect, Reauthorize or Troubleshoot</button>
+            {selectedPrinter.unresolved_jobs > 0 && (
+              <p className="text-sm text-text-secondary">Review held output in the affected Job Order’s Print History.</p>
             )}
+            {canSetup && (
+              <div className="flex flex-wrap gap-2">
+                {selectedPrinter.enabled && <a className="btn-secondary" href="feedx-printer-staging://setup">Reconnect / Reauthorize</a>}
+                <button className="btn-secondary" onClick={() => {
+                  setWizard({ step: 1, printer: selectedPrinter }); setPrinter(null);
+                }}>Troubleshoot</button>
+              </div>
+            )}
+            <details className="text-sm">
+              <summary className="cursor-pointer font-medium">Discovered printers ({selectedPrinter.printers?.length || 0})</summary>
+              <ul className="mt-2 space-y-1">
+                {(selectedPrinter.printers || []).map((p) => (
+                  <li key={p.Name}>{p.Name}{p.Connection ? ` · ${p.Connection}` : ""}</li>
+                ))}
+              </ul>
+            </details>
             {canEdit && (
-              <Field label="Configuration change reason">
-                <input
-                  aria-label="Configuration change reason"
-                  className={inputClass()}
-                  disabled={saving}
-                  value={reason}
-                  onChange={(e) => setReason(e.target.value)}
-                  maxLength={1000}
-                />
-              </Field>
+              <details className="space-y-3 text-sm">
+                <summary className="cursor-pointer font-medium">Manage bridge availability</summary>
+                <p className="text-text-secondary">Disabling pauses new claims. Resolve active printing before disabling.</p>
+                <Field label="Reason for availability change">
+                  <input
+                    aria-label="Reason for availability change"
+                    className={inputClass()}
+                    disabled={saving}
+                    value={reason}
+                    onChange={(e) => setReason(e.target.value)}
+                    maxLength={1000}
+                  />
+                </Field>
+                <button className="btn-secondary" disabled={saving || reason.trim().length < 3} onClick={togglePrinter}>
+                  {selectedPrinter.enabled ? "Disable Bridge" : "Enable Bridge"}
+                </button>
+              </details>
             )}
             {error && <p role="alert">{error}</p>}
           </div>

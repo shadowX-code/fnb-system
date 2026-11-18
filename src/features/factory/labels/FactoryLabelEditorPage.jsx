@@ -32,13 +32,9 @@ export default function FactoryLabelEditorPage({
     [draft, setDraft] = useState(null),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
-    [review, setReview] = useState(false),
-    [approval, setApproval] = useState(false),
-    [note, setNote] = useState(""),
     [notice, setNotice] = useState(""),
     [tab, setTab] = useState("content");
   const saved = useRef(""),
-    reviewHeading = useRef(null),
     lock = useRef(false),
     request = useRef(null),
     publication = useRef(null);
@@ -54,8 +50,6 @@ export default function FactoryLabelEditorPage({
         setPayload(value);
         setDraft(result.draft);
         saved.current = JSON.stringify(value);
-        setReview(false);
-        setApproval(false);
         setError("");
       })
       .catch((e) => setError(e.message));
@@ -82,15 +76,6 @@ export default function FactoryLabelEditorPage({
     };
   }, [kind, entityKey]);
   const dirty = payload && JSON.stringify(payload) !== saved.current;
-  useEffect(() => {
-    if (review) {
-      reviewHeading.current?.scrollIntoView?.({
-        block: "start",
-        behavior: "smooth",
-      });
-      reviewHeading.current?.focus();
-    }
-  }, [review]);
   useEffect(() => {
     const guard = (e) => {
       if (dirty) {
@@ -132,8 +117,6 @@ export default function FactoryLabelEditorPage({
     setPayload((p) => ({ ...p, [key]: value }));
     request.current = null;
     publication.current = null;
-    setApproval(false);
-    setReview(false);
   };
   const updateContent = (key, value) =>
     update("content", { ...payload.content, [key]: value });
@@ -151,7 +134,7 @@ export default function FactoryLabelEditorPage({
       return;
     onBack();
   }
-  async function save(asReview = false) {
+  async function save() {
     if (lock.current) return;
     lock.current = true;
     setBusy(true);
@@ -171,9 +154,8 @@ export default function FactoryLabelEditorPage({
       setDraft(result);
       saved.current = hash;
       setNotice(
-        "Draft saved. Operational printing continues to use the approved version.",
+        "Saved as a draft. Activate the saved version when it is ready.",
       );
-      if (asReview) setReview(true);
       return result;
     } catch (e) {
       setError(e.message || "Unable to save label draft.");
@@ -182,39 +164,43 @@ export default function FactoryLabelEditorPage({
       setBusy(false);
     }
   }
-  async function beginReview() {
-    if (preview.error || preview.loading) return;
-    if (dirty || draft?.state !== "draft") await save(true);
-    else setReview(true);
-  }
-  async function publish() {
-    if (lock.current || !approval || preview.error || preview.loading) return;
+  const canActivate = canEdit && !busy && !dirty && draft?.state === "draft" &&
+    Boolean(definition) && !preview.error && !preview.loading;
+  async function activate() {
+    if (lock.current || !canActivate || !onConfirm) return;
     lock.current = true;
     setBusy(true);
     setError("");
     try {
+      const confirmed = await onConfirm({
+        title: "Activate saved version?",
+        message: kind === "product"
+          ? "Confirm you reviewed the saved preview, label content, and applicable regulatory wording. New batches without a saved label snapshot will use this version."
+          : "Confirm you reviewed the saved layout and preview. Existing SKU assignments stay pinned to their selected template versions.",
+        confirmLabel: "Activate Version",
+      });
+      if (!confirmed) return;
       publication.current ||= crypto.randomUUID();
       await factoryLabelService.publish(
         draft.id,
         draft.revision,
         publication.current,
-        note,
+        "Saved version reviewed and activated in Label Studio.",
         true,
       );
       setNotice(
-        "Approved version published. Historical labels retain their original snapshot.",
+        "Version activated. Historical batches retain their saved labels.",
       );
       await load();
-      setNote("");
       publication.current = null;
     } catch (e) {
-      setError(e.message || "Unable to publish label version.");
+      setError(e.message || "Unable to activate label version.");
     } finally {
       lock.current = false;
       setBusy(false);
     }
   }
-  const disabled = busy || !canEdit || review;
+  const disabled = busy || !canEdit;
   const heading = "Label Studio";
   if (!payload)
     return (
@@ -249,15 +235,9 @@ export default function FactoryLabelEditorPage({
         metadata={
           <>
             <FactoryStatusBadge
-              status={
-                draft?.state === "draft" || dirty
-                  ? "Draft"
-                  : data.published
-                    ? "Published"
-                    : "Not configured"
-              }
+              status={data.published ? "Ready" : draft?.state === "draft" || dirty ? "Draft" : "Not Configured"}
             />
-            <span>Published v{data.published?.version || "—"}</span>
+            <span>Active version {data.published?.version ? `v${data.published.version}` : "—"}</span>
             <span aria-live="polite">
               {busy
                 ? "Saving…"
@@ -285,24 +265,24 @@ export default function FactoryLabelEditorPage({
               <ArrowLeft size={14} />
               Label Management
             </button>
-            {canEdit && !review ? (
+            {canEdit ? (
               <>
                 <button
                   type="button"
                   className="btn-secondary"
-                  disabled={busy}
-                  onClick={() => save()}
+                  disabled={busy || (!dirty && Boolean(draft || data.published))}
+                  onClick={save}
                 >
                   <Save size={14} />
-                  {busy ? "Saving…" : "Save Draft"}
+                  Save
                 </button>
                 <button
                   type="button"
                   className="btn-primary"
-                  disabled={busy || preview.loading || !!preview.error}
-                  onClick={beginReview}
+                  disabled={!canActivate}
+                  onClick={activate}
                 >
-                  Review & Publish
+                  <CheckCircle2 size={14} /> Activate Version
                 </button>
               </>
             ) : null}
@@ -328,12 +308,12 @@ export default function FactoryLabelEditorPage({
               onChange={setTab}
               options={[
                 { value: "content", label: "Product Content" },
-                { value: "production", label: "Production Fields" },
-                { value: "history", label: "Version History" },
+                { value: "settings", label: "Print Settings" },
+                { value: "additional", label: "Additional Content" },
               ]}
             />
-            {tab === "content" && (
-              <ProductLabelContent
+            <ProductLabelContent
+                section={tab}
                 payload={payload}
                 data={data}
                 template={template}
@@ -353,9 +333,8 @@ export default function FactoryLabelEditorPage({
                     content: { ...p.content, text_overrides: {} },
                   }));
                 }}
-              />
-            )}
-            {tab === "production" && (
+            />
+            {tab === "settings" && (
               <section className="label-studio-form-section">
                 <div className="label-studio-section-heading">
                   <h2>Production fields</h2>
@@ -393,7 +372,7 @@ export default function FactoryLabelEditorPage({
                 </p>
               </section>
             )}
-            {tab === "history" && versionHistory(data)}
+            {tab === "additional" && <details className="label-studio-history"><summary>Version History</summary>{versionHistory(data)}</details>}
           </div>
           <div className="label-studio-product-preview">
             <LabelStudioCanvas
@@ -477,70 +456,6 @@ export default function FactoryLabelEditorPage({
             {versionHistory(data)}
           </details>
         </>
-      )}
-      {review && (
-        <div className="space-y-4 rounded-xl border border-border p-5">
-          <h2 ref={reviewHeading} tabIndex={-1} className="font-semibold">
-            Approve and publish version {(data.published?.version || 0) + 1}
-          </h2>
-          <p className="text-sm text-text-secondary">
-            Review the complete preview and all text. Historical snapshots and
-            approved versions stay unchanged.{" "}
-            {kind === "product"
-              ? "New, unsnapshotted batches use this version after publication."
-              : "Products continue using their assigned approved template version."}
-          </p>
-          <Field label="Approval / publication reason">
-            <textarea
-              aria-label="Approval / publication reason"
-              className={inputClass()}
-              value={note}
-              disabled={busy}
-              onChange={(e) => {
-                setNote(e.target.value);
-                publication.current = null;
-              }}
-              maxLength={1000}
-            />
-          </Field>
-          <label className="flex items-start gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={approval}
-              disabled={busy}
-              onChange={(e) => setApproval(e.target.checked)}
-            />
-            I reviewed the preview and approve the label content, layout and
-            applicable regulatory wording. Production-owned fields remain
-            dynamic.
-          </label>
-          <div className="flex flex-wrap gap-2">
-            <button
-              className="btn-secondary"
-              disabled={busy}
-              onClick={() => {
-                setReview(false);
-                setApproval(false);
-              }}
-            >
-              Continue Editing
-            </button>
-            <button
-              className="btn-primary"
-              disabled={
-                busy ||
-                !approval ||
-                note.trim().length < 3 ||
-                !!preview.error ||
-                preview.loading
-              }
-              onClick={publish}
-            >
-              <CheckCircle2 size={14} />
-              {busy ? "Publishing…" : "Approve & Publish"}
-            </button>
-          </div>
-        </div>
       )}
     </div>
   );
