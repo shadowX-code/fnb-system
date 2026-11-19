@@ -1,3 +1,7 @@
+export function formatFactoryBatchNo(batchNo) {
+  return String(batchNo ?? "").trim() || "Batch number missing";
+}
+
 export function money(value) {
   return `RM${Number(value || 0).toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }

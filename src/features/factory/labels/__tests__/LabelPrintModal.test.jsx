@@ -157,7 +157,7 @@ describe("Factory label workflow", () => {
       submitted: null,
       blocking: { ...uncertain.history[0], job_order_no: "JO0", batch_no: "B0", printer_name: "D520" },
     });
-    expect(await screen.findByText(/Job Order JO0 · batch B0 · Print unknown-/)).toBeTruthy();
+    expect(await screen.findByText(/Job Order JO0 · Batch No. B0 · Print unknown-/)).toBeTruthy();
     expect(screen.getByRole("button", { name: "Review Previous Print" })).toBeTruthy();
     await expandHistory();
     expect(screen.getAllByRole("button", { name: "Confirm Printed" })).toHaveLength(1);

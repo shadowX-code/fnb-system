@@ -7,6 +7,7 @@ import FeedXDatePicker from "../components/FeedXDatePicker.jsx";
 import FactoryPagination from "../components/FactoryPagination.jsx";
 import FactoryStatusBadge from "../components/FactoryStatusBadge.jsx";
 import { formatFactoryDate } from "../utils/factoryDates.js";
+import { formatFactoryBatchNo } from "../utils/factoryFormatters.js";
 import { factoryLabelService } from "../../../services/factoryLabelService.js";
 import { renderLabel, previewFrozenRaster } from "./labelRenderer.js";
 import { PrintJobDetails, PrintJobActions, PrintOutcomeForm, inspectPrint } from "./PrintJobReview.jsx";
@@ -26,7 +27,7 @@ function printerStatus(printer) {
 const missingLabels = {
   manufacturing_date: "Manufacturing date",
   expiry_date: "Expiry date",
-  batch_no: "Batch reference",
+  batch_no: "Batch No.",
   packaged_units: "Confirmed packaged units",
   confirmed_cartons: "Verified actual cartons",
 };
@@ -390,7 +391,7 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
                 <>
                   <p className="font-medium">
                     {reviewJob.quantity} requested · Job Order {reviewJob.job_order_no || job.job_order_no}
-                    {reviewJob.batch_no && ` · batch ${reviewJob.batch_no}`}
+                    {` · Batch No. ${formatFactoryBatchNo(reviewJob.batch_no)}`}
                     {" · "}Print {reviewJob.id.slice(0, 8)}
                   </p>
                   <p className="text-text-secondary">{lifecycleMessage[reviewJob.state]}</p>
@@ -400,7 +401,7 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
                 </>
               ) : selectedHold ? (
                 <p>Review the print in Job Order {selectedHold.job_order_no}
-                  {selectedHold.batch_no && ` · batch ${selectedHold.batch_no}`}. Loading the blocking print details…</p>
+                  {` · Batch No. ${formatFactoryBatchNo(selectedHold.batch_no)}`}. Loading the blocking print details…</p>
               ) : <p>Checking the submitted print status…</p>}
             </div>
             {reviewJob && <PrintJobDetails job={reviewJob} printer={selectedPrinter?.printer_name} />}
@@ -443,13 +444,13 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
             {data?.labels?.length === 0 && (
               <p>No active labels for this Packaging SKU. Activate a label in Factory Settings → Label Management.</p>
             )}
-            {!previewOnly && <Field label="Batch">
+            {!previewOnly && <Field label="Batch No.">
               <SearchableSelect
                 value={batch}
                 disabled={busy || pendingRequest}
                 options={(data?.batches || []).map((b) => ({
                   value: b.id,
-                  label: `${b.batch_no || "Batch reference missing"} · ${b.packaged_units ?? "Unconfirmed"} packs`,
+                  label: `${formatFactoryBatchNo(b.batch_no)} · ${b.packaged_units ?? "Unconfirmed"} packs`,
                 }))}
                 onChange={(v) => {
                   setBatch(v);
@@ -550,7 +551,7 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
             {candidate?.definition && (
               <dl className="flex flex-wrap gap-x-4 gap-y-2 text-xs">
                 {(previewOnly || candidate.batch_no !== data?.batches?.find((item) => item.id === batch)?.batch_no) &&
-                  <div className="min-w-0"><dt className="text-text-secondary">Batch</dt><dd className="break-words font-semibold">{candidate.batch_no || "Unconfirmed"}</dd></div>}
+                  <div className="min-w-0"><dt className="text-text-secondary">Batch No.</dt><dd className="break-words font-semibold">{formatFactoryBatchNo(candidate.batch_no)}</dd></div>}
                 <div><dt className="text-text-secondary">MFG</dt><dd>{formatFactoryDate(candidate.manufacturing_date)}</dd></div>
                 <div><dt className="text-text-secondary">EXP</dt><dd>{formatFactoryDate(candidate.expiry_date)}</dd></div>
               </dl>
@@ -635,7 +636,7 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
             {image ? (
               <img
                 src={image.preview}
-                alt={`Label preview for ${candidate.product_name}, batch ${candidate.batch_no || "unconfirmed"}`}
+                alt={`Label preview for ${candidate.product_name}, batch ${formatFactoryBatchNo(candidate.batch_no)}`}
                 className="mx-auto h-auto max-h-[55dvh] w-auto max-w-full border border-border bg-white"
               />
             ) : (

@@ -72,7 +72,7 @@ export default function FactoryBatchTraceabilityPage({ onNotify }) {
     return filtersForDisplay;
   }, [filters, finishedGoodOptions, storageOptions]);
   const columns = [
-    { key: "batch_no", label: "Batch no.", className: "min-w-44", render: (row) => <FactoryCellEntity name={traceBatchNo(row)} code={batchTypeLabel(row.batch_type)} /> },
+    { key: "batch_no", label: "Batch No.", className: "min-w-44", render: (row) => <FactoryCellEntity name={traceBatchNo(row)} code={batchTypeLabel(row.batch_type)} /> },
     { key: "sku", label: "Packaging SKU", className: "min-w-52", render: (row) => <FactoryCellEntity name={row.packaging_sku_code || "No SKU"} code={row.finished_good_name || row.packaging_sku_name || "—"} /> },
     { key: "original", label: "Produced / adjusted", className: "hidden 2xl:table-cell whitespace-nowrap", align: "right", render: (row) => tracePackQuantity(row.original_qty) },
     { key: "dispatched", label: "Dispatched", className: "hidden 2xl:table-cell whitespace-nowrap", align: "right", render: (row) => tracePackQuantity(row.completed_dispatch_qty) },

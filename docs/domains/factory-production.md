@@ -68,9 +68,13 @@ Productivity is eligible actual kg divided by summed valid recorded JO-hours fro
 
 The trend averages the latest seven days with completed production, carrying up to six prior production days across month boundaries. Limited history uses the available days; a window with unresolved output is unavailable. Past dates without production are zero, future dates are unmeasured, and missing output is explicitly incomplete. Records without a complete Production End are disclosed as unattributed historical runs and are not assigned an invented date. Existing operational KPIs, pipeline and Recent Activity are independent and unchanged.
 
-All three chart modes open the same Daily Production drill-down. Each day includes the exact deduplicated completed runs contributing to its totals in the monthly snapshot, with canonical output, recorded pack quantity, Production start/end and valid JO duration. Detail identity joins retain source-table RLS; the projection does not elevate access or recalculate dates in the client. Closing detail preserves the selected month and chart mode, and existing completed Job Order result navigation remains the detail owner.
+All three chart modes open the same Daily Production drill-down. Each day includes the exact deduplicated completed runs contributing to its totals in the monthly snapshot, with the saved Production Batch No., Job Order No., canonical output, recorded pack quantity, Production start/end and valid JO duration. Detail identity joins retain source-table RLS; the projection does not elevate access or recalculate dates in the client. Closing detail preserves the selected month and chart mode, and existing completed Job Order result navigation remains the detail owner.
 
 The monthly Dashboard operational wrapper materializes its inherited base analytics snapshot once per call before projecting operational completion overlays. It remains a security-invoker read under source RLS, with the existing permission checks, reporting definitions and Malaysia-time attribution. Reusing the snapshot avoids repeated analytics evaluation; it does not cache data across calls or extend API timeouts.
+
+### Production identifiers
+
+The database assigns new Production batches as `PBYYMMDD-NN` from the saved Production start date, using the Malaysia business date if no date is supplied. The sequence starts at `01` for each date and can exceed two digits. Existing saved values remain authoritative regardless of their format. The separate `production_no` (normally `PRD-YYYYMMDD-XXXX` from the completion client) is an internal record reference retained for integrations and traceability. Operational views display the saved batch and identify the Job Order separately. Missing batches are explicit, and print history continues to show the immutable snapshot value.
 
 ## External Agent read projections
 

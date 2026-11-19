@@ -1,13 +1,12 @@
 // @vitest-environment node
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-const sql = readFileSync(new URL("../../../../../supabase/migrations/20261009043918_factory_production_daily_drilldown_uom_owner.sql", import.meta.url), "utf8");
+const sql = readFileSync(new URL("../../../../../supabase/migrations/20261119092747_factory_daily_production_batch_no.sql", import.meta.url), "utf8");
 describe("Daily drill-down uses the monthly read authority", () => {
   it("extends the one snapshot without bypassing RLS or mutating records", () => {
-    expect(sql).toContain("create or replace function public.factory_get_production_monthly_performance");
-    expect(sql).toContain("security invoker");
-    expect(sql).toContain("current_user_has_permission('factory_production.view')");
-    expect(sql).toContain("from public, anon");
+    expect(sql.toLowerCase()).toContain("create or replace function feedx_integrations.factory_get_production_monthly_performance_core");
+    expect(sql.toLowerCase()).toContain("security invoker");
+    expect(sql).toContain("read_permission(p_gateway_token,'factory_production.view')");
     expect(sql).not.toMatch(/\b(insert into|update public|delete from|security definer)\b/i);
   });
   it("projects details from the exact measured/deduplicated aggregate input", () => {
@@ -15,6 +14,9 @@ describe("Daily drill-down uses the monthly read authority", () => {
     expect(sql).toContain("distinct on (coalesce(job_order_id, id))");
     expect(sql).toContain("factory_production_operational_completion_at(p.end_date, p.end_time)");
     expect(sql).toContain("'actual_pack_qty', actual_pack_qty");
+    expect(sql).toContain("p.production_no, p.batch_no");
+    expect(sql).toContain("when p_gateway_token is null then jsonb_build_object('batch_no', batch_no)");
+    expect(sql).toContain("'production_no', production_no");
     expect(sql).toContain("'output_kg', output_kg");
     expect(sql).toContain("'jo_hours', jo_hours");
     expect(sql).toContain("order by end_at, id");

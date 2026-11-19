@@ -4,6 +4,7 @@ import Modal from "../../../components/feedback/Modal.jsx";
 import EmptyState from "../../../components/feedback/EmptyState.jsx";
 import { FactoryCellEntity, FactoryCellText } from "./FactoryTableCell.jsx";
 import { formatFactoryAuditDateTime, formatFactoryReadableDate } from "../utils/factoryDates.js";
+import { formatFactoryBatchNo } from "../utils/factoryFormatters.js";
 import { performanceNumber as number } from "../utils/productionMonthlyPerformance.js";
 
 function quantity(value, unit) {
@@ -50,9 +51,9 @@ export default function FactoryDailyProductionModal({ day, onClose, onViewResult
           <div className="min-w-0 space-y-1">
             <FactoryCellEntity name={run.finished_good_name || "Finished Good"} code={run.finished_good_name_cn} />
             <div className="text-xs text-text-secondary">{[run.sku_code, run.variant_name || quantity(run.pack_size_qty, run.pack_size_uom)].filter(value => value && value !== "—").join(" · ") || "Packaging SKU unavailable"}</div>
-            <FactoryCellText primary={run.job_order_no || "Job Order unavailable"} secondary={run.production_no} />
+            <FactoryCellText primary={run.job_order_no || "Job Order unavailable"} secondary={`Batch No. · ${formatFactoryBatchNo(run.batch_no)}`} />
           </div>
-          {onViewResult && run.job_order_id ? <button type="button" className="btn-icon shrink-0" disabled={openingResult} title="View Production result" aria-label={`View Production result for ${run.job_order_no || run.production_no}`} onClick={() => viewResult(run)}><Eye size={16} /></button> : null}
+          {onViewResult && run.job_order_id ? <button type="button" className="btn-icon shrink-0" disabled={openingResult} title="View Production result" aria-label={`View Production result for ${run.job_order_no || run.finished_good_name || "this run"}`} onClick={() => viewResult(run)}><Eye size={16} /></button> : null}
         </div>
         <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
           {[{ label: "Actual Output", value: run.output_kg == null ? quantity(run.output_qty, run.output_uom) : quantity(run.output_kg, "kg") }, { label: "Actual Pack Qty", value: quantity(run.actual_pack_qty, "packs") }, { label: "Duration", value: run.jo_hours == null ? "—" : quantity(run.jo_hours, "JO-hours") }, { label: "Production Start", value: formatFactoryAuditDateTime(run.start_at) }, { label: "Production End", value: formatFactoryAuditDateTime(run.end_at) }].map(item => <div key={item.label} className="min-w-0"><dt className="text-xs text-text-secondary">{item.label}</dt><dd className="mt-0.5 break-words text-sm tabular-nums text-text-primary">{item.value}</dd></div>)}
