@@ -16,7 +16,7 @@ import {
   factoryLabelService,
   factoryLabelsEnabled,
 } from "../../../services/factoryLabelService.js";
-import PrinterSetupWizard, { printerSetupStatus } from "../labels/PrinterSetupWizard.jsx";
+import PrinterSetupWizard, { livePrinterReport, printerSetupStatus } from "../labels/PrinterSetupWizard.jsx";
 import { formatFactoryAuditDateTime } from "../utils/factoryDates.js";
 import FactoryLabelEditorPage from "../labels/FactoryLabelEditorPage.jsx";
 import ActiveTemplatePreview from "../labels/ActiveTemplatePreview.jsx";
@@ -56,6 +56,7 @@ export default function FactoryLabelManagementPage({ onConfirm, onNotify }) {
     [saving, setSaving] = useState(false);
   const selectedPrinter = data.rows.find((row) => row.id === printer?.id) || printer;
   const selectedStatus = selectedPrinter && printerSetupStatus(selectedPrinter);
+  const selectedProbe = selectedPrinter && livePrinterReport(selectedPrinter, selectedStatus.bridge === "Online");
   const canSetup = can("factory_production.complete");
   const generation = useRef(0),
     lock = useRef(false);
@@ -437,6 +438,9 @@ export default function FactoryLabelManagementPage({ onConfirm, onNotify }) {
               <dt>Printer</dt><dd>{selectedPrinter.printer_name}</dd>
               <dt>Bridge</dt><dd><FactoryStatusBadge status={selectedStatus.bridge} /></dd>
               <dt>Printer connection</dt><dd><FactoryStatusBadge status={selectedStatus.connection} /></dd>
+              {selectedProbe?.ConnectionCheckedAt && <>
+                <dt>Printer checked</dt><dd><BridgeLastSeen value={selectedProbe.ConnectionCheckedAt} /></dd>
+              </>}
               <dt>Readiness</dt><dd><FactoryStatusBadge status={selectedStatus.readiness} /></dd>
               <dt>Last seen</dt><dd><BridgeLastSeen value={selectedPrinter.last_seen} /></dd>
               <dt>Last reported calibration</dt><dd><FactoryStatusBadge status={selectedStatus.calibration} /></dd>
@@ -448,7 +452,10 @@ export default function FactoryLabelManagementPage({ onConfirm, onNotify }) {
             {selectedStatus.bridge === "Offline" && (
               <p className="text-sm text-text-secondary">On the registered computer, open FeedX Print Bridge and choose Reconnect. If sign-in has expired, choose Reauthorize and use the original operator account.</p>
             )}
-            {selectedStatus.bridge === "Online" && selectedStatus.connection !== "Available" && (
+            {selectedProbe?.ConnectionDetail && (
+              <p className="text-sm text-text-secondary">{selectedProbe.ConnectionDetail}</p>
+            )}
+            {selectedStatus.bridge === "Online" && selectedStatus.connection !== "Available" && !selectedProbe?.ConnectionDetail && (
               <p className="text-sm text-text-secondary">The Bridge is reporting. Check printer power and run Connection Check on the registered computer. Bluetooth pairing alone does not confirm a connection.</p>
             )}
             {canSetup && (

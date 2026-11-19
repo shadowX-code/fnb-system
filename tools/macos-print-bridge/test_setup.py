@@ -52,20 +52,26 @@ class SetupTest(unittest.TestCase):
 
     def test_reconnect_reuses_existing_device_and_reports_current_status(self):
         bridge.save(bridge.CONFIG, self.config)
-        printers = [{"Name": bridge.BLUETOOTH, "WorkOffline": True}]
         with patch.object(setup.sys, "argv", ["setup"]), \
              patch.object(setup, "choose", return_value="Reconnect"), \
-             patch.object(setup, "existing_session", return_value={"user": "original-operator"}), \
-             patch.object(setup, "dialog"), patch.object(setup, "launch_agent") as launch, \
-             patch.object(bridge, "store_session"), patch.object(bridge, "inventory", return_value=printers), \
-             patch.object(bridge, "device_status") as status, patch.object(bridge, "prepare") as print_job:
+             patch.object(setup, "wait_for_connection", return_value={"available": False, "detail": "Bluetooth busy"}) as wait, \
+             patch.object(setup, "dialog") as dialog, patch.object(setup, "setup_lock") as lock, \
+             patch.object(bridge, "bluetooth_probe") as probe:
             setup.main()
-        config = bridge.load(bridge.CONFIG)
-        self.assertEqual((config["device"], config["calibrated_labels"]), ("existing-device", 3))
-        self.assertTrue(config["guided_setup"])
-        self.assertEqual(status.call_args.args[3], "Offline")
-        launch.assert_called_once()
-        print_job.assert_not_called()
+        self.assertEqual(bridge.load(bridge.CONFIG), self.config)
+        wait.assert_called_once_with(self.config)
+        self.assertIn("Bluetooth busy", dialog.call_args.args[0])
+        lock.assert_not_called()
+        probe.assert_not_called()
+
+    def test_connection_check_waits_for_fresh_report_without_pausing(self):
+        with patch.object(setup, "launch_agent"), patch.object(setup.time, "time", return_value=10), \
+             patch.object(setup.time, "sleep"), patch.object(bridge, "load", side_effect=[
+                 {"device": self.config["device"], "time": 9},
+                 {"device": self.config["device"], "time": 11, "reported": True, "available": True},
+             ]):
+            self.assertTrue(setup.wait_for_connection(self.config)["available"])
+        self.assertFalse(setup.PAUSE.exists())
 
     def test_reauthorization_rejects_another_owner(self):
         response = {"access_token": "fixture", "refresh_token": "fixture",

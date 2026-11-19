@@ -8,14 +8,26 @@ export const printerInstallers = {
   windows: "/downloads/FeedX-Print-Bridge-Staging-Windows.exe",
 };
 
+export function livePrinterReport(row, online) {
+  if (!online) return null;
+  const printer = row.printers?.find((entry) => entry.Name === row.printer_name);
+  if (!printer) return null;
+  if ("ConnectionCheckedAt" in printer) {
+    const age = Date.now() - Date.parse(printer.ConnectionCheckedAt);
+    if (!Number.isFinite(age) || age < -10000 || age > 90000) return null;
+  }
+  return printer;
+}
+
 export function printerSetupStatus(row) {
   const latest = Date.parse(row.last_seen);
   const online = row.enabled && Number.isFinite(latest) && Date.now() - latest <= 90000;
   const printer = row.printers?.find((entry) => entry.Name === row.printer_name);
-  const available = printer && !printer.WorkOffline && ![6, 7].includes(printer.PrinterStatus);
+  const report = livePrinterReport(row, online);
+  const available = report && !report.WorkOffline && ![6, 7].includes(report.PrinterStatus);
   return {
     bridge: !row.enabled ? "Disabled" : online ? "Online" : "Offline",
-    connection: !online ? "Not reported" : available ? "Available" : printer || row.status === "Offline" ? "Unavailable" : "Not reported",
+    connection: !online ? "Not reported" : available ? "Available" : report || (!printer && row.status === "Offline") ? "Unavailable" : "Not reported",
     readiness: !online || !available ? "Unavailable"
       : row.unresolved_jobs > 0 ? "Held for review"
       : row.status === "Ready" ? "Ready" : "Not ready",

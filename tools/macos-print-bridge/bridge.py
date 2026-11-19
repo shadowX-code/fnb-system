@@ -15,8 +15,9 @@ import subprocess
 import sys
 import time
 import urllib.request
+import urllib.error
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from zlib import compress
 
@@ -180,18 +181,45 @@ def bluetooth_probe(address=None):
     return reported
 
 
+BLUETOOTH_CHECK_ERRORS = {
+    2: "D520 pairing was not found. Check that D520 is paired in macOS.",
+    3: "D520 did not expose its Bluetooth serial service. Check power and range.",
+    4: "D520 Bluetooth serial connection is busy or unavailable. Close Labelife or other printer apps, check power, then try Connection Check again.",
+    5: "D520 opened the Bluetooth channel but did not answer the bitmap-mode check.",
+    10: "D520 did not release the Bridge channel cleanly. Wait a moment and run Connection Check again.",
+}
+
+
+def record_connection(config, *, available=False, detail=None, reported=False):
+    if not config.get("guided_worker"):
+        return
+    with contextlib.suppress(OSError):
+        save(ROOT / "connection-status.json", {
+            "device": config["device"], "time": time.time(), "available": available,
+            "detail": detail, "reported": reported,
+        })
+
+
 def inventory(config=None, probe_bluetooth=True):
     printers = cups_printers()[:75]
     address = config.get("bluetooth_address") if config else None
     if config and config["transport"] == "tspl":
         offline = True
+        detail = None
         if address and probe_bluetooth:
             try:
                 offline = bluetooth_probe(address) != address
-            except (OSError, BridgeError, subprocess.SubprocessError):
-                pass
-        printers.append({"Name": config["printer"], "WorkOffline": offline, "Platform": "macOS",
-                         "Connection": "Bluetooth Classic SPP"})
+            except subprocess.CalledProcessError as error:
+                detail = BLUETOOTH_CHECK_ERRORS.get(error.returncode, "D520 connection check failed.")
+            except subprocess.TimeoutExpired:
+                detail = "D520 did not respond in time. Check power, range and other printer apps."
+            except (OSError, BridgeError):
+                detail = "D520 could not be checked. Check its pairing and Bridge installation."
+        row = {"Name": config["printer"], "WorkOffline": offline, "Platform": "macOS",
+               "Connection": "Bluetooth Classic SPP"}
+        if address and probe_bluetooth:
+            row.update(ConnectionCheckedAt=datetime.now(timezone.utc).isoformat(), ConnectionDetail=detail)
+        printers.append(row)
     return printers
 
 
@@ -341,9 +369,14 @@ def cycle(config, session):
         config["transport"] == "tspl"
         and (not config.get("bluetooth_address") or config.get("calibrated_labels") != 3)
     ) or (config.get("require_calibration") and calibration_status(config) != "Passed")
-    printers = inventory(config, probe_bluetooth=not calibrating or config.get("guided_setup", False))
-    ready = not calibrating and any(p["Name"] == config["printer"] and not p["WorkOffline"] for p in printers)
+    printers = inventory(config, probe_bluetooth=not calibrating or config.get("guided_setup", False) or config.get("guided_worker", False))
+    selected = next((p for p in printers if p["Name"] == config["printer"]), None)
+    available = bool(selected and not selected["WorkOffline"])
+    ready = not calibrating and available
     device_status(config, session, printers, "Error" if calibrating else "Ready" if ready else "Offline")
+    record_connection(config, available=available, reported=True,
+                      detail=(selected or {}).get("ConnectionDetail") or (
+                          None if available else "Printer unavailable. Check the configured printer and its connection."))
     if not ready:
         return
     if state is None:
@@ -484,7 +517,15 @@ def run(config, paused=lambda: False):
                 pending_session = False
             cycle(config, session)
             backoff = 5
+        except urllib.error.HTTPError as error:
+            auth_failed = error.code in (400, 401, 403)
+            record_connection(config, detail="FeedX sign-in or Bridge authorization failed. Reauthorize with the original operator."
+                              if auth_failed else "FeedX did not accept the status update. Check the network and retry.")
+            if auth_failed and not pending_session:
+                session = None
+            backoff = min(60, backoff * 2)
         except (OSError, ValueError, KeyError, BridgeError, subprocess.SubprocessError):
+            record_connection(config, detail="The Bridge could not report to FeedX. Check the network and Keychain sign-in.")
             print("Bridge connection or printer error. Check FeedX history, printer and sign-in.", file=sys.stderr)
             backoff = min(60, backoff * 2)
         time.sleep(backoff)

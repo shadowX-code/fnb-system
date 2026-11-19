@@ -57,3 +57,10 @@ it("keeps the last reported calibration visible when the device stops discoverin
   expect(printerSetupStatus({ ...device, status: "Offline", printers: [], calibration_status: "Passed" }))
     .toMatchObject({ bridge: "Online", connection: "Unavailable", calibration: "Passed" });
 });
+
+it("expires Bluetooth evidence independently of a fresh heartbeat and preserved calibration", () => {
+  const status = printerSetupStatus({ ...device, calibration_status: "Passed", printers: [
+    { ...device.printers[0], ConnectionCheckedAt: new Date(Date.now() - 100000).toISOString() },
+  ] });
+  expect(status).toMatchObject({ bridge: "Online", connection: "Not reported", readiness: "Unavailable", calibration: "Passed" });
+});

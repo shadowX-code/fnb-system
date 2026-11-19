@@ -220,6 +220,21 @@ def existing_session(config):
         raise bridge.BridgeError("FeedX sign-in is unavailable in Keychain. Choose Reauthorize to restore it.") from None
 
 
+def wait_for_connection(config):
+    # The worker owns Keychain refresh, Bluetooth and print recovery. Setup only waits for its next report.
+    started = time.time()
+    deadline = time.monotonic() + 45
+    launch_agent()
+    while time.monotonic() < deadline:
+        report = bridge.load(bridge.ROOT / "connection-status.json")
+        if report and report["device"] == config["device"] and report["time"] >= started:
+            if not report["reported"]:
+                raise bridge.BridgeError(report["detail"])
+            return report
+        time.sleep(0.5)
+    raise bridge.BridgeError("No fresh Bridge report arrived. Finish any active print, confirm the latest Bridge is installed, and try again.")
+
+
 def main():
     if getattr(sys, "frozen", False):
         bridge.NATIVE = Path(sys.executable).parents[1] / "Resources/d520-rfcomm"
@@ -234,21 +249,23 @@ def main():
         with bridge.lock():
             config = bridge.load(bridge.CONFIG)
             if config:
-                bridge.run(config, paused=is_paused)
+                bridge.run(dict(config, guided_worker=True), paused=is_paused)
+        return
+    config = bridge.load(bridge.CONFIG)
+    actions = (("Reconnect", "Connection Check") if config else ()) + (
+        "Connect / Configure", "Test / Review Calibration", "Reauthorize", "Open FeedX")
+    action = choose("Manage this computer’s FeedX Staging printer.", actions)
+    if action == "Open FeedX":
+        subprocess.run(["/usr/bin/open", PRINTERS], check=False)
+        return
+    if action in ("Reconnect", "Connection Check") and config:
+        report = wait_for_connection(config)
+        dialog("Connection check passed and FeedX status was refreshed." if report["available"] else
+               f"FeedX status was refreshed. {report['detail']}")
         return
     with setup_lock():
         config = bridge.load(bridge.CONFIG)
-        actions = (("Reconnect",) if config else ()) + (
-            "Connect / Configure", "Connection Check", "Test / Review Calibration", "Reauthorize", "Open FeedX")
-        action = choose("Manage this computer’s FeedX Staging printer.", actions)
-        if action == "Open FeedX":
-            subprocess.run(["/usr/bin/open", PRINTERS], check=False)
-        elif action == "Reconnect":
-            session = existing_session(config)
-            config["guided_setup"] = True
-            register(config, session)
-            dialog("Bridge reconnected. Review its printer connection and any pending print outcomes in FeedX.")
-        elif action == "Reauthorize":
+        if action == "Reauthorize":
             if not config:
                 raise bridge.BridgeError("Run Connect / Configure first.")
             config, session = authorize(config)
@@ -267,9 +284,7 @@ def main():
             raise bridge.BridgeError("Run Connect / Configure first.")
         elif action == "Test / Review Calibration":
             calibrate(config, existing_session(config))
-        else:
-            online = report_connection(config, existing_session(config))
-            dialog("Connection check passed and FeedX status was refreshed." if online else "FeedX status was refreshed. Printer unavailable. Check power, pairing or the CUPS queue, then check again.")
+
 
 
 if __name__ == "__main__":

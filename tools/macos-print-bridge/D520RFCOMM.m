@@ -3,12 +3,14 @@
 
 @interface D520Reply : NSObject
 @property NSMutableData *bytes;
+@property BOOL channelClosed;
 @end
 
 @implementation D520Reply
 - (void)rfcommChannelData:(IOBluetoothRFCOMMChannel *)channel data:(void *)data length:(size_t)length {
     if (self.bytes.length + length <= 4096) [self.bytes appendBytes:data length:length];
 }
+- (void)rfcommChannelClosed:(IOBluetoothRFCOMMChannel *)channel { self.channelClosed = YES; }
 - (void)sdpQueryComplete:(IOBluetoothDevice *)device status:(IOReturn)status {}
 @end
 
@@ -84,8 +86,13 @@ int main(int argc, const char *argv[]) {
         }
         if (!port) return 3;
         IOBluetoothRFCOMMChannel *channel = nil;
-        if ([device openRFCOMMChannelSync:&channel withChannelID:port delegate:reply] != kIOReturnSuccess || !channel)
+        BOOL connectedBefore = [device isConnected];
+        IOReturn opened = [device openRFCOMMChannelSync:&channel withChannelID:port delegate:reply];
+        if (opened != kIOReturnSuccess || !channel) {
+            if (probe) fprintf(stderr, "RFCOMM open failed (0x%08x); existing Bluetooth link: %s\n",
+                               (unsigned int)opened, connectedBefore ? "yes" : "no");
             return 4;
+        }
 
         int result = 5;
         if (probe) {
@@ -109,7 +116,16 @@ int main(int argc, const char *argv[]) {
                 result = receipt == 1 ? 0 : receipt == -1 ? 7 : 8;
             }
         }
-        [channel closeChannel];
+        // Close and drain this helper's channel only. An ACL link may belong to another app.
+        IOReturn closed = [channel closeChannel];
+        NSDate *closeDeadline = [NSDate dateWithTimeIntervalSinceNow:1];
+        while ([channel isOpen] && !reply.channelClosed && closeDeadline.timeIntervalSinceNow > 0) tick();
+        if (probe && (closed != kIOReturnSuccess || [channel isOpen])) {
+            fprintf(stderr, "RFCOMM owned channel did not close cleanly (0x%08x).\n", (unsigned int)closed);
+            return 10;
+        }
+        if (probe) fprintf(stderr, "RFCOMM owned channel closed; existing Bluetooth link: %s\n",
+                           connectedBefore ? "yes" : "no");
         return result;
     }
 }
