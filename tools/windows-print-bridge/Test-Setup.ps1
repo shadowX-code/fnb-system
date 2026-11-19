@@ -13,7 +13,12 @@ $definitions=$setup.FindAll({
     $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $setupFunctions -contains $node.Name
 },$false)
 if($definitions.Count -ne $setupFunctions.Count){throw 'Could not load the installed setup functions for simulation.'}
-foreach($definition in $definitions){. ([scriptblock]::Create($definition.Extent.Text))}
+# Recreated script blocks have no script-file location of their own.
+$setupRoot=$PSScriptRoot
+foreach($definition in $definitions){
+    $source=$definition.Extent.Text.Replace('$PSScriptRoot','$setupRoot')
+    . ([scriptblock]::Create($source))
+}
 
 $module=Get-Module Bridge
 $session=& $module {
