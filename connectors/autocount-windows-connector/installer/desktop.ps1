@@ -8,7 +8,7 @@ Add-Type -AssemblyName System.Drawing
 . (Join-Path $PSScriptRoot 'scheduler.ps1')
 
 $form = [Windows.Forms.Form]::new()
-$form.Text = 'FeedX AutoCount Connector'
+$form.Text = 'FeedX AutoCount Connector 3.1.2'
 $form.ClientSize = [Drawing.Size]::new(640,650)
 $form.FormBorderStyle = 'FixedDialog'
 $form.MaximizeBox = $false
@@ -100,13 +100,15 @@ $codeBox.ReadOnly = $true
 $open = Add-Control ([Windows.Forms.Button]::new()) 420 248 195 32 'Open FeedX Staging'
 $null = Add-Label 290 'Enter the code in FeedX and confirm this computer. Codes expire in 15 minutes.'
 $null = Add-Label 320 '3. Match the book to a Legal Entity in FeedX.'
-$unattended = Add-Control ([Windows.Forms.Button]::new()) 420 311 195 32 'Enable unattended sync'
-$test = Add-Control ([Windows.Forms.Button]::new()) 20 355 185 32 'Test Connection'
-$syncNow = Add-Control ([Windows.Forms.Button]::new()) 220 355 185 32 'Sync Now'
-$copyDiagnostics = Add-Control ([Windows.Forms.Button]::new()) 420 355 195 32 'Copy diagnostics'
-$message = Add-Label 395 'Authorize and connect a book before running its connection test or sync.' 55
-$null = Add-Label 450 'Diagnostics'
-$diagnostics = Add-Control ([Windows.Forms.TextBox]::new()) 20 477 595 150 ''
+$backgroundStatus = Add-Control ([Windows.Forms.Label]::new()) 20 355 380 32 'Background sync: checking Windows task'
+$backgroundStatus.TextAlign = 'MiddleLeft'
+$unattended = Add-Control ([Windows.Forms.Button]::new()) 420 355 195 32 'Enable unattended sync'
+$test = Add-Control ([Windows.Forms.Button]::new()) 20 395 185 32 'Test Connection'
+$syncNow = Add-Control ([Windows.Forms.Button]::new()) 220 395 185 32 'Sync Now'
+$copyDiagnostics = Add-Control ([Windows.Forms.Button]::new()) 420 395 195 32 'Copy diagnostics'
+$message = Add-Label 433 'Authorize and connect a book before running its connection test or sync.' 48
+$null = Add-Label 482 'Diagnostics'
+$diagnostics = Add-Control ([Windows.Forms.TextBox]::new()) 20 509 595 118 ''
 $diagnostics.AccessibleName = 'Connector diagnostics'
 $diagnostics.Multiline = $true
 $diagnostics.ReadOnly = $true
@@ -158,6 +160,14 @@ function Refresh-Diagnostics {
         try { $script:localSchedule = Get-ConnectorSchedule } catch { $script:localSchedule = @{mode='unavailable'} }
     }
     $schedule = $script:localSchedule
+    $backgroundStatus.Text = switch ($schedule.mode) {
+        'signed_in' { 'Background sync: requires Windows sign-in' }
+        'unattended' { 'Background sync: runs while signed out' }
+        'disabled' { 'Background sync: Windows task disabled' }
+        'missing' { 'Background sync: Windows task not set up' }
+        default { 'Background sync: check Windows task diagnostics' }
+    }
+    $unattended.Text = if ($schedule.mode -eq 'unattended') { 'Update unattended sign-in' } else { 'Enable unattended sync' }
     $lines += "Windows background task: $($schedule.mode) $($schedule.state)"
     if ($schedule.lastRunAt) { $lines += "Last task run: $(Format-ConnectorTime $schedule.lastRunAt). Windows result: $($schedule.lastResult). Missed runs: $($schedule.missedRuns)." }
     if ($schedule.nextPollAt) { $lines += "Next task run: $(Format-ConnectorTime $schedule.nextPollAt)." }
@@ -364,7 +374,7 @@ $unattended.Add_Click({
     Run-UiAction {
         if (-not (Test-Path -LiteralPath $deviceCredentialPath)) { Stop-ReadPoc 'DEVICE_NOT_PAIRED' }
         $windowsUser = [Security.Principal.WindowsIdentity]::GetCurrent().Name
-        $windowsCredential = Get-Credential -UserName $windowsUser -Message 'Allow Windows Task Scheduler to sync while this account is signed out. Enter this Windows account password.'
+        $windowsCredential = Get-Credential -UserName $windowsUser -Message 'Allow Windows Task Scheduler to sync while this account is signed out. Enter the Windows account password you use to sign in. A Windows Hello PIN will not work.'
         if (-not $windowsCredential) { return }
         try {
             Register-ConnectorSchedule $windowsCredential

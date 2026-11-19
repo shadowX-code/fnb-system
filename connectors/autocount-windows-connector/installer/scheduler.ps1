@@ -1,6 +1,6 @@
 #requires -Version 5.1
 $connectorTaskName = 'FeedX AutoCount Connector'
-$connectorTaskDescription = 'FeedX accounting check-in every 5 minutes (3.1.1)'
+$connectorTaskDescription = 'FeedX accounting check-in every 5 minutes'
 
 function Get-ConnectorTaskOwnerSid([string]$Account) {
     if ($Account -match '^S-1-') { return $Account }
@@ -35,7 +35,8 @@ function Register-ConnectorSchedule([Management.Automation.PSCredential]$Credent
         if ((Get-ConnectorTaskOwnerSid $existing.Principal.UserId) -cne $identity.User.Value) {
             Stop-ReadPoc 'SCHEDULE_OWNED_BY_ANOTHER_USER'
         }
-        if (-not $Credential -and ($existing.State -eq 'Disabled' -or $existing.Principal.LogonType -eq 'Password' -or $existing.Description -ceq $connectorTaskDescription)) { return }
+        # Setup and upgrades leave an existing task intact until the user submits Windows credentials.
+        if (-not $Credential) { return }
     }
     if ($Credential -and (Get-ConnectorTaskOwnerSid $Credential.UserName) -cne $identity.User.Value) {
         Stop-ReadPoc 'SCHEDULE_REQUIRES_INSTALLING_WINDOWS_USER'
