@@ -10,7 +10,7 @@ import { Field, inputClass } from "../components/FactoryBulkSelectionModal.jsx";
 import FeedXDatePicker from "../components/FeedXDatePicker.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
 import { formatFactoryDate, formatFactoryDateTime } from "../utils/factoryDates.js";
-import { pluralizePackagingType, quantity } from "../utils/factoryFormatters.js";
+import { formatFactoryBatchNo, pluralizePackagingType, quantity } from "../utils/factoryFormatters.js";
 import { isFactoryPermissionError } from "../utils/factoryPermissions.js";
 import { factoryTimeAmPmLabel } from "../components/productionExecution/productionExecutionHelpers.js";
 
@@ -70,7 +70,7 @@ export default function FactoryMestiFinishedProductStorageControlPage({ onNotify
     { key: "packaging_sku", label: "Packaging SKU", render: (row) => <div><div className="font-semibold text-text-primary">{row.packaging_sku_code || "—"}</div><div className="text-xs text-text-secondary">{row.packaging_sku_name || "—"}</div></div> },
     { key: "completed_qty", label: "Qty", align: "right", render: (row) => <span className="font-semibold text-text-primary">{completedQuantity(row)}</span> },
     { key: "storage_location_name", label: "Storage", render: (row) => row.storage_location_name || "—" },
-    { key: "batch_no", label: "Batch", render: (row) => <span className="font-semibold text-text-primary">{row.batch_no || "—"}</span> },
+    { key: "batch_no", label: "Batch No.", render: (row) => <span className="font-semibold text-text-primary">{formatFactoryBatchNo(row.batch_no)}</span> },
     { key: "expiry_date", label: "Expiry", render: (row) => formatFactoryDate(row.expiry_date) },
     { key: "completed_by_name", label: "Completed By", render: (row) => row.completed_by_name || "—" },
     { key: "actions", label: "Actions", align: "right", render: (row) => <FactoryRowAction label="View storage record" onClick={() => setDetail(row)} /> },
@@ -92,8 +92,7 @@ export default function FactoryMestiFinishedProductStorageControlPage({ onNotify
     {detail ? <Modal title="Finished Product Storage Record" description="Canonical completed-Production and Finished Goods batch evidence." size="md" onClose={() => setDetail(null)}>
       <div className="grid gap-x-6 md:grid-cols-2">
         {detailRow("Job Order", detail.job_order_no)}
-        {detailRow("Production", detail.production_no)}
-        {detailRow("Production Batch", detail.batch_no)}
+        {detailRow("Batch No.", formatFactoryBatchNo(detail.batch_no))}
         {detailRow("Finished Good", detail.finished_good_name)}
         {detailRow("Packaging SKU", [detail.packaging_sku_code, detail.packaging_sku_name].filter(Boolean).join(" · "))}
         {detailRow("Completed Quantity", completedQuantity(detail))}

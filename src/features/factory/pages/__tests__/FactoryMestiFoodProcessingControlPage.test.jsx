@@ -53,6 +53,8 @@ describe("Factory MeSTI Food Processing Control", () => {
     fireEvent.click(screen.getByRole("button", { name: "View Black Pepper Sauce - 1kg Pack" }));
     expect(await screen.findByText("Food Processing Evidence")).toBeTruthy();
     expect(screen.getByText("QC Evidence")).toBeTruthy();
+    expect(screen.getByText("Batch No.")).toBeTruthy();
+    expect(screen.queryByText(/PRD-1/)).toBeNull();
     expect(screen.getByText("Recorded At")).toBeTruthy();
     expect(screen.getByText("Temperature")).toBeTruthy();
     expect(screen.getByText("72 C")).toBeTruthy();
