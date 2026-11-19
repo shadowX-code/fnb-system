@@ -37,14 +37,15 @@ export function printerSetupStatus(row) {
 }
 
 export default function PrinterSetupWizard({ onClose, onRefresh, devices, selected, initialStep = 0 }) {
-  const [platform, setPlatform] = useState(() => navigator.platform.startsWith("Win") ? "windows" : "macos");
+  const [platform, setPlatform] = useState(() =>
+    selected?.printers?.some((printer) => printer.Connection === "Windows spooler") ||
+    navigator.platform.startsWith("Win") ? "windows" : "macos");
   const [step, setStep] = useState(initialStep);
   const [deviceId, setDeviceId] = useState(selected?.id || "");
   const [checking, setChecking] = useState(false);
   const row = devices.find((device) => device.id === deviceId);
   const status = row && printerSetupStatus(row);
-  const ready = status?.bridge === "Online" && status.connection === "Available" &&
-    status.calibration === "Passed" && status.unresolved === 0;
+  const ready = status?.readiness === "Ready" && status.calibration === "Passed" && status.unresolved === 0;
   async function refresh() {
     setChecking(true);
     try {
@@ -87,6 +88,7 @@ export default function PrinterSetupWizard({ onClose, onRefresh, devices, select
             <p>{platform === "macos"
               ? "Install the package on the Mac connected to the printer, then open FeedX Print Bridge Staging from Applications."
               : "Run the installer on the Windows printer computer, then open FeedX Print Bridge Staging from the Start menu."}</p>
+            {platform === "windows" && <p>Install the printer driver and confirm the printer appears in <strong>Windows Printers &amp; scanners</strong>. For the first D520 test, use USB and the vendor driver. Bluetooth pairing or a printer visible only in Labelife does not provide a Windows print queue.</p>}
             <a className="btn-secondary inline-flex" href={printerInstallers[platform]} download>Download Bridge installer</a>
             <button className="btn-secondary" onClick={() => setStep(1)}>Bridge already installed</button>
           </>
@@ -99,8 +101,12 @@ export default function PrinterSetupWizard({ onClose, onRefresh, devices, select
               <li>{selected
                 ? <>Choose <strong>Reconnect</strong> to resume this computer’s bridge using its saved printer and calibration. Use <strong>Connect / Configure</strong> when changing the printer or stock.</>
                 : <>Choose <strong>Connect / Configure</strong>. Sign in with your authorized FeedX Staging account, then select the local printer and enter its stock dimensions. A returning computer reuses its saved configuration.</>}</li>
-              <li>Run <strong>Connection Check</strong>. For D520 Bluetooth, power on and pair the D520 in macOS, then close Labelife so it releases the connection.</li>
-              <li>When approved to print, open <strong>Test / Review Calibration</strong> and explicitly approve the copy count. Check the output before recording the result. macOS D520 Bluetooth requires the one-label test followed by a separate three-label test.</li>
+              {platform === "windows" ? (
+                <li>Choose the installed Windows label printer queue and <strong>Windows Driver</strong>. For the D520, set the driver’s gap stock to 80 × 90 mm in portrait and enter 80 × 90 mm in the Bridge. Run <strong>Connection Check</strong> to verify Windows reports the queue available.</li>
+              ) : (
+                <li>Run <strong>Connection Check</strong>. For D520 Bluetooth, power on and pair the D520 in macOS, then close Labelife so it releases the connection.</li>
+              )}
+              <li>When approved to print, open <strong>Test / Review Calibration</strong> and confirm {platform === "windows" ? "one TEST label" : "the copy count"}. Inspect the physical output before recording the result.{platform === "macos" && " macOS D520 Bluetooth requires a separate three-label test after the first label passes."}</li>
             </ol>
             <p>To restore a signed-out bridge, choose <strong>Reauthorize</strong> and sign in with its original FeedX operator. Report uncertain Job Order output in that order’s Print History.</p>
           </>
@@ -119,17 +125,18 @@ export default function PrinterSetupWizard({ onClose, onRefresh, devices, select
               <dl className="grid grid-cols-[1fr_auto] gap-2">
                 <dt>Bridge</dt><dd><FactoryStatusBadge status={status.bridge} /></dd>
                 <dt>Printer connection</dt><dd><FactoryStatusBadge status={status.connection} /></dd>
+                <dt>Readiness</dt><dd><FactoryStatusBadge status={status.readiness} /></dd>
                 <dt>Calibration</dt><dd><FactoryStatusBadge status={status.calibration} /></dd>
                 <dt>Unresolved print jobs</dt><dd>{status.unresolved ?? "Not reported"}</dd>
               </dl>
             )}
             {status?.bridge === "Offline" && <p>Open Bridge Setup on the registered computer and choose <strong>Reconnect</strong>. If sign-in expired, choose <strong>Reauthorize</strong> with the original operator’s account.</p>}
-            {status?.connection === "Unavailable" && <p>The bridge is online. Check printer power and its local queue or Bluetooth pairing, then run <strong>Connection Check</strong>.</p>}
+            {status?.connection === "Unavailable" && <p>The bridge is online. Check printer power and {platform === "windows" ? "the Windows print queue" : "the local queue or Bluetooth pairing"}, then run <strong>Connection Check</strong>.</p>}
             {status?.calibration === "Needs review" && <p>Open <strong>Test / Review Calibration</strong> to inspect the previous attempt before another test.</p>}
             {status?.unresolved > 0 && <p role="alert">This computer is paused for print review. In the affected Job Order, open Print Labels → History and choose Confirm Printed or Report Issue after inspecting the output and clearing any held work. Reprints require a separate reviewed request. <a className="underline" href="/factory/job-orders">Open Job Orders</a></p>}
             <p role="status">{ready
               ? "Setup complete. This printer is ready for Job Order labels."
-              : "Setup is verified when the bridge is online, the printer is available, calibration has passed, and no job awaits review."}</p>
+              : "Setup is verified when the bridge is online, the printer reports Ready, calibration has passed, and no job awaits review."}</p>
           </>
         )}
       </div>

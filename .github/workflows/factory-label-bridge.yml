@@ -1,7 +1,7 @@
 name: Factory Print Bridge
 on:
   push:
-    branches: [dev, codex/factory-label-printing]
+    branches: [dev, codex/factory-label-printing, codex/windows-print-bridge-acceptance]
     paths:
       - tools/windows-print-bridge/**
       - tools/macos-print-bridge/**
@@ -19,6 +19,9 @@ jobs:
       - name: Verify Windows PowerShell 5.1, DPAPI, transport and recovery
         shell: powershell
         run: ./tools/windows-print-bridge/Test-Bridge.ps1
+      - name: Simulate guided sign-in, calibration and status without printing
+        shell: powershell
+        run: ./tools/windows-print-bridge/Test-Setup.ps1
       - name: Install and upgrade the exact Windows download
         shell: powershell
         run: ./tools/windows-print-bridge/Test-Installer.ps1 -Package public/downloads/FeedX-Print-Bridge-Staging-Windows.exe

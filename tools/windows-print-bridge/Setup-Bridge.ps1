@@ -8,6 +8,7 @@ $configPath=Join-Path $root 'config.json'
 $sessionPath=Join-Path $root 'session.xml'
 $calibrationPath=Join-Path $root 'calibration.xml'
 $pausePath=Join-Path $root 'setup.pause'
+$pendingDevicePath=Join-Path $root 'pending-device.xml'
 $taskName='FeedX Print Bridge Staging'
 $web='https://fnb-system-staging.vercel.app'
 $title='FeedX Print Bridge Staging'
@@ -82,6 +83,27 @@ function Register-Computer($Config,$Session) {
         p_status='Error';p_printers=@(Get-BridgePrinters | Select-Object -First 75)
     }
 }
+function Get-PendingDeviceId {
+    # Reserve the same ID across an interrupted registration without binding a local owner on denial.
+    $pending=Read-BridgeState $pendingDevicePath
+    if($pending){return ([guid]$pending.id).ToString()}
+    $id=[guid]::NewGuid().ToString()
+    Save-BridgeState $pendingDevicePath @{id=$id}
+    return $id
+}
+function Save-RegisteredConfiguration($Config,$Session) {
+    Register-Computer $Config $Session
+    Save-BridgeState $sessionPath $Session
+    Save-Configuration $Config
+    if(Test-Path -LiteralPath $pendingDevicePath){Remove-Item -LiteralPath $pendingDevicePath}
+}
+function Submit-CalibrationLabel($Config,$Raster,$Command,$WidthDots,$HeightDots,$WidthMm,$HeightMm) {
+    if($Config.Transport -eq 'tspl'){
+        [void][FeedXTransport]::Raw($Config.Printer,[byte[]]$Command,'FeedX TEST Calibration')
+    } else {
+        [FeedXTransport]::Spool($Config.Printer,$Raster,$WidthDots,$HeightDots,$WidthMm,$HeightMm,1,'FeedX TEST Calibration')
+    }
+}
 function Run-Calibration($Config,$Session) {
     $record=Read-BridgeState $calibrationPath
     if(!$record) {
@@ -98,8 +120,7 @@ function Run-Calibration($Config,$Session) {
         $record=@{stage='submitting';quantity=1}
         Save-BridgeState $calibrationPath $record
         try {
-            if($Config.Transport -eq 'tspl'){[void][FeedXTransport]::Raw($Config.Printer,[byte[]]$command,'FeedX TEST Calibration')}
-            else {[FeedXTransport]::Spool($Config.Printer,$raster,$x,$y,$w,$h,1,'FeedX TEST Calibration')}
+            Submit-CalibrationLabel $Config $raster $command $x $y $w $h
             $record.stage='sent'
         } catch { $record.stage='unknown' }
         Save-BridgeState $calibrationPath $record
@@ -133,7 +154,7 @@ try {
         $printer=Get-BridgePrinters | Where-Object {$_.Name -ceq $config.Printer -and !$_.WorkOffline -and $_.PrinterStatus -notin @(6,7)}
         if($printer){
             if(Confirm-Action 'Windows reports the queue available. Reconnect the background bridge?'){Start-Worker}
-        } else {Show-Notice 'Check printer power, pairing and the Windows print queue.'}
+        } else {Show-Notice 'Power on the printer and check the selected queue in Windows Printers & scanners. Bluetooth pairing alone does not create a print queue.'}
         return
     }
     if(!$config -and $action -ne 'Connect / Configure'){Show-Notice 'Run Connect / Configure first.';return}
@@ -163,7 +184,7 @@ try {
         }
         $session=$newSession
         $session|Add-Member -NotePropertyName expires_at -NotePropertyValue ([DateTimeOffset]::UtcNow.ToUnixTimeSeconds()+$session.expires_in) -Force
-        if(!$config){$config=[pscustomobject]@{ProjectRef='ujkzdaaadnvcfayuldmh';DeviceId=[guid]::NewGuid().ToString();Name=$env:COMPUTERNAME}}
+        if(!$config){$config=[pscustomobject]@{ProjectRef='ujkzdaaadnvcfayuldmh';DeviceId=(Get-PendingDeviceId);Name=$env:COMPUTERNAME}}
         $config|Add-Member -NotePropertyName PublicKey -NotePropertyValue $key -Force
         $config|Add-Member -NotePropertyName Owner -NotePropertyValue $session.user.id -Force
     }
@@ -180,12 +201,12 @@ try {
         if(Test-Path -LiteralPath $calibrationPath){Show-Notice 'Review the previous calibration before changing printer or media.';return}
         if($config.PSObject.Properties['Printer']){Confirm-Idle $config $session}
         $discovered=@(Get-BridgePrinters | Select-Object -First 75)
-        if(!$discovered.Count){Show-Notice 'Install a supported Windows printer queue first.';return}
+        if(!$discovered.Count){Show-Notice 'Install the supported printer driver and confirm the printer appears in Windows Printers & scanners. For the first D520 test, use the vendor USB driver.';return}
         $legacy=$config.PSObject.Properties['Printer']
         $prior=if($legacy){$config.Printer}else{''}
-        $name=Read-Field 'Choose a Windows printer queue.' $prior -Options @($discovered.Name)
+        $name=Read-Field 'Choose the label printer queue from Windows Printers & scanners.' $prior -Options @($discovered.Name)
         $priorTransport=if($legacy -and $config.Transport -eq 'tspl'){'RAW TSPL'}else{'Windows Driver'}
-        $transport=Read-Field 'Choose Windows Driver, or RAW TSPL for a verified compatible queue.' $priorTransport -Options @('Windows Driver','RAW TSPL')
+        $transport=Read-Field 'Choose Windows Driver for the D520. RAW TSPL requires a verified queue.' $priorTransport -Options @('Windows Driver','RAW TSPL')
         $transport=if($transport -eq 'RAW TSPL'){'tspl'}else{'spooler'}
         $printer=$discovered | Where-Object {$_.Name -ceq $name} | Select-Object -First 1
         if($printer.WorkOffline -or $printer.PrinterStatus -in @(6,7)){Show-Notice 'Selected printer is offline. Check its connection and retry.';return}
@@ -202,14 +223,10 @@ try {
         foreach($k in $settings.Keys){if(!$config.PSObject.Properties[$k] -or $config.$k -ne $settings[$k]){$same=$false}}
         foreach($k in $settings.Keys){$config|Add-Member -NotePropertyName $k -NotePropertyValue $settings[$k] -Force}
         $config|Add-Member -NotePropertyName Calibrated -NotePropertyValue ([bool]$same) -Force
-        Save-BridgeState $sessionPath $session
-        Save-Configuration $config
-        Register-Computer $config $session
+        Save-RegisteredConfiguration $config $session
         Show-Notice 'Printer registered. Open Test / Review Calibration when ready to send a test.'
     } else {
-        Register-Computer $config $session
-        Save-BridgeState $sessionPath $session
-        Save-Configuration $config
+        Save-RegisteredConfiguration $config $session
         Show-Notice 'Computer reauthorized. Printer, device identity and recovery evidence were preserved.'
     }
 } catch [OperationCanceledException] {

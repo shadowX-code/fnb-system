@@ -9,7 +9,11 @@ function Install-TestPackage {
 }
 Install-TestPackage
 foreach($name in @('Bridge.psm1','Transport.cs','Setup-Bridge.ps1','Start-Bridge.ps1')) {
-    if(!(Test-Path (Join-Path $dest $name))){throw "Missing installed component: $name"}
+    $installed=Join-Path $dest $name
+    if(!(Test-Path $installed)){throw "Missing installed component: $name"}
+    $source=(Get-Content -LiteralPath (Join-Path $PSScriptRoot $name) -Raw) -replace "`r`n","`n"
+    $payload=(Get-Content -LiteralPath $installed -Raw) -replace "`r`n","`n"
+    if($source -cne $payload){throw "Hosted installer has a stale component: $name"}
 }
 $handler=(Get-Item 'HKCU:\Software\Classes\feedx-printer-staging\shell\open\command').GetValue('')
 if(!$handler.Contains($dest) -or $handler.Contains('%1')){throw 'Setup launcher must open the installed app without passing URI arguments.'}
@@ -17,6 +21,7 @@ Import-Module (Join-Path $dest 'Bridge.psm1') -Force
 New-Item -ItemType Directory $root | Out-Null
 $config=[pscustomobject]@{ProjectRef='ujkzdaaadnvcfayuldmh';DeviceId=[guid]::NewGuid().ToString();Printer='Fixture only';Calibrated=$true;GuidedSetup=$true}
 $config|ConvertTo-Json|Set-Content (Join-Path $root 'config.json')
+Save-BridgeState (Join-Path $root 'session.xml') @{refresh_token='fixture-only';expires_at=0}
 Save-BridgeState (Join-Path $root 'journal.xml') @{stage='submitting';claim='existing-claim';job='existing-job'}
 Save-BridgeState (Join-Path $root 'calibration.xml') @{stage='unknown';quantity=1}
 $before=@(Get-ChildItem $root | Get-FileHash | ForEach-Object Hash)

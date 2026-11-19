@@ -47,6 +47,38 @@ if((Get-BridgeRecovery ([pscustomobject]@{stage='claiming'})) -ne 'ResumeClaim')
  $script:offline=$false;$script:serverState='Sent';$script:calls.Clear();Invoke-BridgeCycle $config ([pscustomobject]@{}) 'mock'
  if($script:calls.Contains('journal:submitting')){throw 'Completed claim submitted again'}
 }
+# Report the Windows queue and calibration separately, and never claim while blocked.
+& $module {
+ $script:offline=$false;$script:calibration='Pending';$script:reports=@();$script:claims=0
+ function Get-BridgePrinters {
+  [pscustomobject]@{Name='D520 USB fixture';WorkOffline=$script:offline;PrinterStatus=3}
+ }
+ function Get-BridgeCalibration($Config,$Root){return $script:calibration}
+ function Read-BridgeState($Path){return $null}
+ function Save-BridgeState($Path,$Value){}
+ function Remove-Item {param($LiteralPath)}
+ function Invoke-BridgeRpc($Config,$Session,$Name,$Body){
+  if($Name -eq 'device'){$script:reports+=,$Body;return}
+  if($Name -eq 'claim'){$script:claims++;return}
+  throw 'Unexpected RPC in status test.'
+ }
+ $config=[pscustomobject]@{DeviceId='device';Name='QA';Printer='D520 USB fixture';Transport='spooler'}
+ $session=[pscustomobject]@{}
+ Invoke-BridgeCycle $config $session 'fixture-root\journal.xml'
+ if($script:reports[-1].p_status -ne 'Error' -or $script:reports[-1].p_printers[0].Calibration -ne 'Pending' -or $script:claims){
+  throw 'An available uncalibrated Windows queue must not claim work.'
+ }
+ $script:offline=$true;$script:calibration='Passed'
+ Invoke-BridgeCycle $config $session 'fixture-root\journal.xml'
+ if($script:reports[-1].p_status -ne 'Offline' -or $script:reports[-1].p_printers[0].Calibration -ne 'Passed' -or $script:claims){
+  throw 'An offline queue must preserve its calibration and skip claims.'
+ }
+ $script:offline=$false
+ Invoke-BridgeCycle $config $session 'fixture-root\journal.xml'
+ if($script:reports[-1].p_status -ne 'Ready' -or $script:reports[-1].p_printers[0].Connection -ne 'Windows spooler' -or $script:claims -ne 1){
+  throw 'The calibrated online queue did not report ready and resume claims.'
+ }
+}
 # Simulate startup/session-store, refresh, durable persistence and network recovery.
 & $module {
  $script:reads=0;$script:auths=0;$script:saves=0;$script:cycles=0;$script:checks=0

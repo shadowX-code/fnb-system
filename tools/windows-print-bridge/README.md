@@ -1,5 +1,15 @@
 # FeedX Windows Print Bridge — Staging
 
+## First D520 hardware acceptance on Staging
+
+Bring a Windows 10/11 computer, the D520 and its power supply, a USB data cable, 80 × 90 mm gap stock, and an active FeedX Staging operator account allowed to complete Production. Install the vendor driver for your Windows architecture and confirm the D520 appears in **Windows Printers & scanners**. Set the queue’s media to **80 × 90 mm, portrait, gap stock**. Use the vendor-documented USB path for the first test. [D520 vendor setup guide](https://omezizy.com/pages/d520-setup-guide)
+
+1. Download [FeedX Print Bridge Staging for Windows](https://fnb-system-staging.vercel.app/downloads/FeedX-Print-Bridge-Staging-Windows.exe) on the printer computer. This unsigned Staging test package requires a Windows computer whose software policy permits it. Open the app from Start.
+2. Choose **Connect / Configure** and sign in with the authorized Staging account. Select the exact D520 Windows queue, choose **Windows Driver**, and enter **80 × 90 mm**.
+3. Run **Connection Check**. In Staging **Factory Settings → Label Management → Printers**, locate the registered computer with a fresh heartbeat and an available queue. Calibration should be **Pending** until physical inspection. Check that the Windows queue has no held or pending job.
+4. Wait for separate approval before opening **Test / Review Calibration** and confirming **one TEST label**. Inspect the count, upright black text on white, complete frame, margins, clipping, and whether the stock stopped at the next gap.
+5. Choose **All Passed** only after seeing one usable label. For uncertain, missing or incorrect output, inspect the printer, clear held Windows output, then choose **Inspected / Issue**. Keep the recovery evidence and obtain renewed approval before another label. For uncertain Job Order jobs, use **Confirm Printed** or **Report Issue** in FeedX Print History.
+
 ## Guided installer
 
 1. In FeedX Staging, open **Factory Settings → Label Management → Printers → Set Up Printer**. Run the Windows installer on the printer computer. It installs per user and uses the Windows 10/11 inbox PowerShell 5.1 and .NET Framework runtime. The Windows printer driver must already expose a local print queue.
@@ -43,7 +53,7 @@ Before reprinting Unknown/Sent work, stop and clear any held Windows spooler job
 
 Default `spooler` uses .NET `PrintDocument` and the vendor Windows driver. `tspl` sends a bounded bitmap TSPL command through `WritePrinter` RAW to the same queue: install using `-Transport tspl` only after verifying the D520 firmware and driver accept uncompressed TSPL BITMAP. All Chinese, logos, QR and barcode content is rasterized by FeedX, avoiding printer font dependencies. `TsplInvert` defaults true (TSPL zero-bit = dark); `GapMm` defaults 2 and must match actual stock. Both are local calibration values. No untrusted cloud TSPL, shell commands or remote URLs are executed. Future transports belong in `Transport.cs` with the same exclusive claim/journal protocol.
 
-**Pending physical D520 checks:** actual Bluetooth queue availability and reconnect behavior, driver support on Windows 10 and 11, exact DPI/paper orientation/hard margins, gap calibration, RAW TSPL capability and bitmap polarity, long bulk jobs, paper-out recovery, Chinese legibility, QR/barcode scanner readability and physical output count. A BLE-only D520 without a usable Windows queue requires a vendor-specific transport implementation; it cannot be assumed TSPL-compatible. Software simulation does not establish hardware compatibility.
+**Pending physical D520 checks:** actual Bluetooth queue availability and reconnect behavior, driver support on Windows 10 and 11, exact DPI/paper orientation/hard margins, gap calibration, RAW TSPL capability and bitmap polarity, long bulk jobs, paper-out recovery, Chinese legibility, QR/barcode scanner readability and physical output count. FeedX Windows sends output through a Windows print queue. Windows Driver uses the installed printer driver and supports a vendor USB queue or another compatible installed queue. A Bluetooth printer can be selected only if its driver exposes a usable Windows print queue. The D520 vendor documents Bluetooth through Labelife, while its Windows driver instructions cover USB. The Bridge has no direct SPP/BLE transport. RAW TSPL also requires a queue and verified TSPL support. Software simulation does not establish physical compatibility.
 
 ## Remove
 
