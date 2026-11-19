@@ -21,7 +21,7 @@
 .admin-shell-analytical .admin-shell-navigation { padding:12px 10px; }
 .admin-shell-analytical .admin-shell-navigation > div > button { color:var(--workspace-secondary); font-size:11px; letter-spacing:.02em; padding:4px 10px; }
 .admin-shell-analytical .admin-shell-navigation button[aria-current] { min-height:36px; height:auto; border-radius:6px; background-image:none; box-shadow:none; }
-.admin-shell-analytical .admin-shell-navigation button[aria-current=page] { background:var(--theme-primary-soft); color:var(--workspace-ink); font-weight:650; }
+.admin-shell-analytical .admin-shell-navigation button[aria-current=page] { background:var(--theme-primary-soft); color:var(--theme-primary-ink); font-weight:650; }
 .admin-shell-analytical .admin-shell-navigation button[aria-current=page] > span.absolute { display:none; }
 .admin-shell-analytical .admin-shell-navigation button[aria-current] svg { opacity:1; width:15px; height:15px; }
 .admin-shell-analytical .admin-shell-workspace-picker { padding-inline:10px; }

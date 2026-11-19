@@ -2,11 +2,11 @@ import { CheckCircle2, Clock3, Info, MinusCircle, XCircle } from "lucide-react";
 import { semanticStatusTone } from "./semanticStatus.js";
 
 const toneClasses = {
-  green: "border-emerald-200 bg-emerald-50 text-emerald-700",
-  amber: "border-amber-200 bg-amber-50 text-amber-700",
-  red: "border-rose-200 bg-rose-50 text-rose-700",
-  blue: "border-blue-200 bg-blue-50 text-blue-700",
-  gray: "border-slate-200 bg-slate-50 text-slate-600",
+  green: "badge-success",
+  amber: "badge-warning",
+  red: "badge-danger",
+  blue: "badge-info",
+  gray: "badge-neutral border-slate-200 bg-slate-50 text-slate-600",
 };
 
 const toneIcons = {

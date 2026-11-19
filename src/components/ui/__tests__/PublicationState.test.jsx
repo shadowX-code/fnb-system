@@ -8,10 +8,10 @@ describe("PublicationState", () => {
     const { rerender } = render(<PublicationState status="draft" version={2} />);
     expect(screen.getByText("Draft").closest(".badge").className).toContain("slate");
     rerender(<PublicationState status="published" unpublishedChanges lastPublishedLabel="14 Sep, 10:00" />);
-    expect(screen.getByText("Published · Unpublished changes").closest(".badge").className).toContain("amber");
+    expect(screen.getByText("Published · Unpublished changes").closest(".badge").className).toContain("badge-warning");
     expect(screen.getByText("Last published 14 Sep, 10:00")).toBeTruthy();
     rerender(<PublicationState status="finalized" />);
-    expect(screen.getByText("Finalized").closest(".badge").className).toContain("emerald");
+    expect(screen.getByText("Finalized").closest(".badge").className).toContain("badge-success");
   });
 
   it("maps shared operational states consistently", () => {

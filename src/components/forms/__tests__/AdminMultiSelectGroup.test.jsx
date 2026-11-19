@@ -81,8 +81,8 @@ it("owns theme-aware chip/tile/focus styling in the reusable selector, not MeSTI
   expect(css).toContain("grid-template-columns:repeat(4,minmax(0,1fr))");
   expect(css).toContain("input:checked + .admin-multi-select-surface");
   expect(css).toContain("var(--theme-primary-soft)");
-  expect(css).toContain("var(--factory-success-border)");
-  expect(css).toContain("color:var(--factory-success-text); font-weight:600");
+  expect(css).toContain("var(--theme-primary-ink)");
+  expect(css).toContain("color:var(--theme-primary-ink); font-weight:600");
   expect(css).toContain("input:focus-visible + .admin-multi-select-surface");
   expect(css).not.toMatch(/#[a-f0-9]{3,8}\b/i);
 });

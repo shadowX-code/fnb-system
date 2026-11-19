@@ -41,7 +41,7 @@ export default function AssistantCapabilityDetail({row,data,canEdit,busy,onFeatu
      <h4 className="text-sm font-semibold">{o.label}</h4>
      <div className="flex flex-wrap items-center gap-2 text-xs text-text-secondary">
       <AccessState enabled={o.connection_enabled}/><span>{ownerPrefix}</span>
-      {onSelect&&owner?<button type="button" className="min-h-10 font-medium text-primary underline underline-offset-4" aria-label={`Manage ${owner} access`} onClick={()=>onSelect(o.module_id)}>{owner}</button>:<span>{owner||'Owner unavailable'}</span>}
+      {onSelect&&owner?<button type="button" className="min-h-10 font-medium text-primary-ink underline underline-offset-4" aria-label={`Manage ${owner} access`} onClick={()=>onSelect(o.module_id)}>{owner}</button>:<span>{owner||'Owner unavailable'}</span>}
      </div>
      <p className="text-sm text-text-secondary">{o.scope}</p>{permission(o)}
     </article>;
@@ -50,7 +50,7 @@ export default function AssistantCapabilityDetail({row,data,canEdit,busy,onFeatu
  }
  return <Drawer title={row.label} eyebrow={`${row.workspaceLabel} / ${row.domain}`} description={<Badge tone="neutral">{coverage} coverage</Badge>} width="md" onClose={onClose}>
   <div className="space-y-6">
-   {feedback&&<p role={failed?'alert':'status'} className={failed?'text-sm text-red-700':'text-sm text-primary'}>{feedback}</p>}
+   {feedback&&<p role={failed?'alert':'status'} className={failed?'text-sm text-red-700':'text-sm text-primary-ink'}>{feedback}</p>}
    {!!reads.length&&<section aria-label="AI Read Access" className={sectionClass}>
     <h3 className="text-sm font-semibold text-text-primary">AI Read Access</h3>
     <p className="text-xs text-text-secondary">Existing permissions and data scope apply to every request.</p>

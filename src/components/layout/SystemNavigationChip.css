@@ -21,17 +21,17 @@
   position: absolute;
   inset: auto 5px 3px;
   height: 1px;
-  background: linear-gradient(90deg, var(--factory-success-text), var(--theme-primary), transparent);
+  background: linear-gradient(90deg, var(--theme-primary-ink), transparent);
   transform: scaleX(0);
   transform-origin: left;
   transition: transform 240ms ease-out;
   pointer-events: none;
 }
-.system-nav-chip[aria-current=page], .system-nav-chip:focus-visible { color: var(--factory-success-text); }
+.system-nav-chip[aria-current=page], .system-nav-chip:focus-visible { color: var(--theme-primary-ink); }
 .system-nav-chip[aria-current=page]::after { transform: scaleX(.24); }
 .system-nav-chip:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; border-radius: 4px; }
 .system-nav-chip:focus-visible::after { transform: scaleX(1); }
-.system-nav-chip__icon { position: relative; display: inline-flex; flex: none; color: var(--factory-success-text); }
+.system-nav-chip__icon { position: relative; display: inline-flex; flex: none; color: var(--theme-primary-ink); }
 .system-nav-chip__status { display: inline-flex; align-items: center; gap: 4px; color: var(--factory-success-text); font-size: 10px; }
 .system-nav-chip__status[aria-hidden=true] { visibility: hidden; }
 .system-nav-chip__status:not([aria-hidden=true]) i { animation: ambient-nav-breathe 3s ease-in-out 2; }
@@ -43,7 +43,7 @@
 .system-nav-chip[data-kind=assistant]:focus-visible .system-nav-chip__icon svg { animation: ambient-nav-breathe 700ms ease-in-out 1; }
 .system-nav-chip[data-kind=assistant]:focus-visible .system-nav-chip__icon::after { animation: ambient-nav-orbit 540ms ease-out 1; }
 @media (hover:hover) {
-  .system-nav-chip:hover { color: var(--factory-success-text); }
+  .system-nav-chip:hover { color: var(--theme-primary-ink); }
   .system-nav-chip:hover::after { transform: scaleX(1); }
   .system-nav-chip[data-kind=network]:hover .system-nav-chip__icon line { animation: ambient-nav-breathe 700ms ease-in-out 1; }
   .system-nav-chip[data-kind=assistant]:hover .system-nav-chip__icon svg { animation: ambient-nav-breathe 700ms ease-in-out 1; }

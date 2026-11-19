@@ -74,7 +74,7 @@ export default function PageHeader({
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div className="min-w-0">
           {section ? (
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary-ink">
               {section}
             </p>
           ) : null}

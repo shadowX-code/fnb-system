@@ -516,7 +516,7 @@ function NotificationPopover({ sound, items, unreadCount, activeTab, onTabChange
           return (
             <button
               key={tab}
-              className={`rounded-full px-3 py-1 text-xs font-black transition ${activeTab === tab ? "bg-primary/10 text-primary" : "text-text-secondary hover:bg-slate-50 hover:text-text-primary"}`}
+              className={`rounded-full px-3 py-1 text-xs font-black transition ${activeTab === tab ? "bg-primary/10 text-primary-ink" : "text-text-secondary hover:bg-[var(--theme-hover)] hover:text-primary-ink"}`}
               type="button"
               onClick={() => onTabChange(tab)}
             >
@@ -543,13 +543,13 @@ function NotificationPopover({ sound, items, unreadCount, activeTab, onTabChange
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-1.5">
                       {item.outletName ? <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">{item.outletName}</span> : null}
-                      <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">{item.moduleLabel}</span>
+                      <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary-ink">{item.moduleLabel}</span>
                       {!item.isRead ? <span className="h-1.5 w-1.5 rounded-full bg-primary" /> : null}
                     </div>
                     <div className="mt-1 text-sm font-bold text-text-primary">{item.title}</div>
                     <p className="mt-1 text-xs leading-5 text-text-secondary">{item.description}</p>
                     {item.actionRoute ? (
-                      <button className="mt-2 text-xs font-black text-primary hover:underline" type="button" onClick={() => onAction(item)}>
+                      <button className="mt-2 text-xs font-black text-primary-ink hover:underline" type="button" onClick={() => onAction(item)}>
                         {item.actionLabel}
                       </button>
                     ) : null}
@@ -595,7 +595,7 @@ function ThemeMenu({ onRoles, themeChoice, resolvedTheme, onThemeChange, onLogou
             <button
               key={option.value}
               className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold transition ${
-                active ? "bg-primary/10 text-primary" : "text-text-secondary hover:bg-slate-50 hover:text-text-primary"
+                active ? "bg-primary/10 text-primary-ink" : "text-text-secondary hover:bg-[var(--theme-hover)] hover:text-primary-ink"
               }`}
               type="button"
               onClick={() => onThemeChange(option.value)}
@@ -612,7 +612,7 @@ function ThemeMenu({ onRoles, themeChoice, resolvedTheme, onThemeChange, onLogou
       <div className="mt-2 border-t border-border pt-2">
         {onRoles ? <button type="button" className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-text-secondary hover:bg-slate-50" onClick={onRoles}><Shield size={15} />Roles & Permissions</button> : null}
         <button
-          className="pointer-events-auto flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-text-secondary transition hover:bg-slate-50 hover:text-text-primary"
+          className="pointer-events-auto flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-text-secondary transition hover:bg-[var(--theme-hover)] hover:text-primary-ink"
           type="button"
           onPointerDown={(event) => event.stopPropagation()}
           onMouseDown={(event) => event.stopPropagation()}
@@ -672,7 +672,7 @@ function ProfileSection({ title, icon: Icon, children }) {
   return (
     <section className="rounded-2xl border border-border bg-slate-50/70 p-4">
       <div className="mb-3 flex items-center gap-2 text-sm font-bold text-text-primary">
-        {Icon ? <Icon size={16} className="text-primary" /> : null}
+        {Icon ? <Icon size={16} className="text-primary-ink" /> : null}
         {title}
       </div>
       <div className="grid gap-3 sm:grid-cols-2">{children}</div>
@@ -695,7 +695,7 @@ function MyProfileModal({ auth, onClose }) {
     >
       <div className="space-y-4">
         <div className="flex items-center gap-4 rounded-2xl border border-border bg-surface p-4">
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-primary/15 text-base font-bold text-primary">
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-primary/15 text-base font-bold text-primary-ink">
             {getProfileInitials(profile, auth?.user)}
           </div>
           <div className="min-w-0">
@@ -912,7 +912,7 @@ function SidebarProfilePopover({ auth, onViewProfile, onChangePassword, onSignOu
   return (
     <div>
       <div className="flex items-start gap-3 border-b border-border pb-3">
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary/15 text-sm font-bold text-primary">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary/15 text-sm font-bold text-primary-ink">
           {getProfileInitials(profile, auth?.user)}
         </div>
         <div className="min-w-0">
@@ -936,7 +936,7 @@ function SidebarProfilePopover({ auth, onViewProfile, onChangePassword, onSignOu
       </div>
       <div className="pt-2">
         <button
-          className="pointer-events-auto flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-text-secondary transition hover:bg-slate-50 hover:text-text-primary"
+          className="pointer-events-auto flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-text-secondary transition hover:bg-[var(--theme-hover)] hover:text-primary-ink"
           type="button"
           onPointerDown={(event) => event.stopPropagation()}
           onMouseDown={(event) => event.stopPropagation()}
@@ -946,7 +946,7 @@ function SidebarProfilePopover({ auth, onViewProfile, onChangePassword, onSignOu
           View My Profile
         </button>
         <button
-          className="pointer-events-auto flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-text-secondary transition hover:bg-slate-50 hover:text-text-primary"
+          className="pointer-events-auto flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-text-secondary transition hover:bg-[var(--theme-hover)] hover:text-primary-ink"
           type="button"
           onPointerDown={(event) => event.stopPropagation()}
           onMouseDown={(event) => event.stopPropagation()}
@@ -1293,7 +1293,7 @@ export default function AppShell({ presentation = "standard", activeRoute, activ
   const sidebarContent = (isMobile = false) => (
     <>
       <div className="flex h-14 items-center gap-2.5 px-4">
-        <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-xl bg-primary text-white shadow-sm">
+        <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-xl bg-action-primary text-white shadow-sm">
           <img
             src="/logo-icon.jpg"
             alt=""
@@ -1316,7 +1316,7 @@ export default function AppShell({ presentation = "standard", activeRoute, activ
           </button>
         ) : (
           <button
-            className="ml-auto flex h-8 w-8 items-center justify-center rounded-xl border border-transparent text-text-muted transition hover:border-primary/20 hover:bg-primary/10 hover:text-primary"
+            className="ml-auto flex h-8 w-8 items-center justify-center rounded-xl border border-transparent text-text-muted transition hover:border-primary/20 hover:bg-primary/10 hover:text-primary-ink"
             type="button"
             title={allSectionsExpanded ? "Collapse Navigation" : "Expand Navigation"}
             aria-label={allSectionsExpanded ? "Collapse Navigation" : "Expand Navigation"}
@@ -1329,10 +1329,10 @@ export default function AppShell({ presentation = "standard", activeRoute, activ
       </div>
 
       <div className="admin-shell-workspace-picker relative px-3 pb-2">
-        <button className="flex w-full items-center justify-between rounded-xl border border-border bg-slate-50 px-3 py-2.5 text-left transition hover:border-primary/30 hover:bg-white" type="button" aria-expanded={workspaceMenuOpen} onClick={() => setWorkspaceMenuOpen((value) => !value)}>
+        <button className="flex w-full items-center justify-between rounded-xl border border-border bg-[var(--theme-subtle)] px-3 py-2.5 text-left motion-safe:transition hover:border-primary-ink hover:bg-surface focus-visible:outline-2 focus-visible:outline-primary-ink" type="button" aria-expanded={workspaceMenuOpen} onClick={() => setWorkspaceMenuOpen((value) => !value)}>
           <span><span className="block text-[10px] font-semibold uppercase tracking-[0.12em] text-text-muted">Workspace</span><span className="mt-0.5 block text-sm font-bold text-text-primary">{workspaceOptions.find((option) => option.id === workspace)?.label ?? "Restaurant"}</span></span><ChevronDown size={16} className={`text-text-muted transition-transform ${workspaceMenuOpen ? "rotate-180" : ""}`} />
         </button>
-        {workspaceMenuOpen ? <div className="absolute inset-x-3 top-[76px] z-20 rounded-xl border border-border bg-surface p-1.5 shadow-lg">{workspaceOptions.map((option) => { const Icon = option.id === "space_station" ? Orbit : option.id === "marketing" ? Sparkles : option.id === "finance" ? Wallet : option.id === "guest_ai" ? Sparkles : ["crew", "hr"].includes(option.id) ? Users : option.id === "factory" ? Factory : Building2; const active = workspace === option.id; return <button key={option.id} className={`flex w-full items-center gap-3 rounded-lg px-2.5 py-2.5 text-left transition ${active ? "bg-primary/10 text-primary" : "text-text-secondary hover:bg-slate-50 hover:text-text-primary"}`} type="button" onClick={() => { setWorkspaceMenuOpen(false); onWorkspaceChange?.(option.id); }}><Icon size={16} /><span><span className="block text-sm font-bold">{option.label}</span><span className="block text-xs font-medium opacity-75">{option.detail}</span></span>{active ? <Check className="ml-auto" size={15} /> : null}</button>; })}</div> : null}
+        {workspaceMenuOpen ? <div className="absolute inset-x-3 top-[76px] z-20 rounded-xl border border-border bg-surface p-1.5 shadow-lg">{workspaceOptions.map((option) => { const Icon = option.id === "space_station" ? Orbit : option.id === "marketing" ? Sparkles : option.id === "finance" ? Wallet : option.id === "guest_ai" ? Sparkles : ["crew", "hr"].includes(option.id) ? Users : option.id === "factory" ? Factory : Building2; const active = workspace === option.id; return <button key={option.id} className={`flex w-full items-center gap-3 rounded-lg px-2.5 py-2.5 text-left motion-safe:transition focus-visible:outline-2 focus-visible:outline-primary-ink ${active ? "bg-primary/10 text-primary-ink" : "text-text-secondary hover:bg-[var(--theme-hover)] hover:text-primary-ink"}`} type="button" onClick={() => { setWorkspaceMenuOpen(false); onWorkspaceChange?.(option.id); }}><Icon size={16} /><span><span className="block text-sm font-bold">{option.label}</span><span className="block text-xs font-medium opacity-75">{option.detail}</span></span>{active ? <Check className="ml-auto" size={15} /> : null}</button>; })}</div> : null}
       </div>
 
       <nav aria-label="Workspace navigation" className="admin-shell-navigation flex-1 space-y-2 overflow-y-auto px-3 py-2.5">
@@ -1369,16 +1369,16 @@ export default function AppShell({ presentation = "standard", activeRoute, activ
                       type="button"
                       aria-current={active ? "page" : undefined}
                       onClick={() => handleNavigate(item.id)}
-                      className={`relative flex h-9 w-full items-center gap-2.5 rounded-xl px-2.5 text-left text-[13px] font-medium leading-5 transition duration-150 ${
+                      className={`relative flex h-9 w-full items-center gap-2.5 rounded-xl px-2.5 text-left text-[13px] font-medium leading-5 motion-safe:transition duration-150 focus-visible:outline-2 focus-visible:outline-primary-ink ${
                         active
-                          ? "bg-gradient-to-r from-primary/9 to-primary/4 text-primary shadow-[inset_0_0_0_1px_rgba(34,197,94,0.08)]"
-                          : "text-text-secondary hover:bg-slate-50 hover:text-text-primary"
+                          ? "bg-primary-soft text-primary-ink"
+                          : "text-text-secondary hover:bg-[var(--theme-hover)] hover:text-primary-ink"
                       } ${item.indent ? "pl-7" : ""}`}
                     >
-                      {active ? <span className="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-r-full bg-primary/80 shadow-[0_0_8px_rgba(34,197,94,0.22)]" /> : null}
+                      {active ? <span className="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-r-full bg-primary-ink" /> : null}
                       <Icon size={16} className={active ? "opacity-100" : "opacity-70"} />
                       <span className="truncate">{item.label}</span>
-                      {conversationReplyCount > 0 ? <span className="ml-auto rounded-full bg-primary/10 px-2 text-xs font-semibold text-primary" aria-label={`${conversationReplyCount} ${conversationReplyCount===1 ? "conversation needs" : "conversations need"} a staff reply`}>{conversationReplyCount > 99 ? "99+" : conversationReplyCount}</span> : null}
+                      {conversationReplyCount > 0 ? <span className="ml-auto rounded-full bg-primary/10 px-2 text-xs font-semibold text-primary-ink" aria-label={`${conversationReplyCount} ${conversationReplyCount===1 ? "conversation needs" : "conversations need"} a staff reply`}>{conversationReplyCount > 99 ? "99+" : conversationReplyCount}</span> : null}
                     </button>
                   );
                 })}
@@ -1403,7 +1403,7 @@ export default function AppShell({ presentation = "standard", activeRoute, activ
             setSidebarProfileOpen((value) => !value);
           }}
         >
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/15 type-caption font-bold text-primary">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/15 type-caption font-bold text-primary-ink">
             {getProfileInitials(auth?.profile, auth?.user)}
           </div>
           <div className="min-w-0">
@@ -1487,7 +1487,7 @@ export default function AppShell({ presentation = "standard", activeRoute, activ
             <div className="relative ml-auto flex items-center gap-2">
               <button
                 ref={notificationButtonRef}
-                className={`icon-btn relative ${notificationsOpen ? "border-primary/30 bg-primary/5 text-primary" : ""}`}
+                className={`icon-btn relative ${notificationsOpen ? "border-primary/30 bg-primary/5 text-primary-ink" : ""}`}
                 type="button"
                 aria-label="Notifications"
                 aria-expanded={notificationsOpen}
@@ -1506,7 +1506,7 @@ export default function AppShell({ presentation = "standard", activeRoute, activ
               </button>
               <button
                 ref={profileButtonRef}
-                className={`h-8 w-8 rounded-full text-xs font-bold transition ${profileMenuOpen ? "bg-primary text-white" : "bg-primary/15 text-primary hover:bg-primary/20"}`}
+                className={`h-8 w-8 rounded-full text-xs font-bold transition ${profileMenuOpen ? "bg-action-primary text-white" : "bg-primary/15 text-primary-ink hover:bg-primary/20"}`}
                 type="button"
                 title={auth?.profile?.full_name ?? auth?.user?.email ?? "Profile"}
                 onClick={() => {

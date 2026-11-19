@@ -86,7 +86,7 @@ function PageSizeSelect({ value, loading, onChange }) {
     <div ref={anchorRef} className="relative w-[72px] shrink-0">
       <button
         ref={triggerRef}
-        className={`flex h-9 w-full items-center justify-between gap-1.5 rounded-lg border bg-surface px-2.5 text-xs font-bold text-text-primary transition focus:outline-none focus:ring-2 focus:ring-primary/15 disabled:cursor-not-allowed disabled:opacity-70 disabled:text-text-muted ${open ? "border-primary/40 shadow-sm" : "border-border hover:border-slate-300 hover:bg-slate-50"}`}
+        className={`flex h-9 w-full items-center justify-between gap-1.5 rounded-lg border bg-surface px-2.5 text-xs font-bold text-text-primary transition focus-visible:outline-2 focus-visible:outline-primary-ink disabled:cursor-not-allowed disabled:opacity-70 disabled:text-text-muted ${open ? "border-primary/40 shadow-sm" : "border-border hover:border-slate-300 hover:bg-slate-50"}`}
         type="button"
         aria-label="Rows per page"
         aria-haspopup="listbox"
@@ -116,7 +116,7 @@ function PageSizeSelect({ value, loading, onChange }) {
               <button
                 key={size}
                 ref={(node) => { optionRefs.current[index] = node; }}
-                className={`flex h-8 w-full items-center justify-between gap-3 rounded-lg px-2.5 text-left text-xs font-bold transition focus:outline-none focus:ring-2 focus:ring-primary/15 ${selected ? "bg-emerald-50 text-emerald-800" : "text-text-secondary hover:bg-emerald-50/60 hover:text-text-primary"}`}
+                className={`flex h-8 w-full items-center justify-between gap-3 rounded-lg px-2.5 text-left text-xs font-bold transition focus-visible:outline-2 focus-visible:outline-primary-ink ${selected ? "bg-primary-soft text-primary-ink" : "text-text-secondary hover:bg-primary-soft hover:text-primary-ink"}`}
                 type="button"
                 role="option"
                 aria-selected={selected}
@@ -125,7 +125,7 @@ function PageSizeSelect({ value, loading, onChange }) {
                 onClick={() => selectPageSize(size)}
               >
                 <span>{size}</span>
-                {selected ? <Check className="text-emerald-600" size={13} strokeWidth={3} /> : null}
+                {selected ? <Check className="text-primary-ink" size={13} strokeWidth={3} /> : null}
               </button>
             );
           })}
@@ -517,7 +517,7 @@ export default function AdminPagination({ page = 1, pageSize = 20, total = 0, lo
           <div className={compact ? "flex items-center gap-1" : "hidden items-center gap-1 md:flex"}>
             <button className={`btn-secondary ${compact ? "p-2" : "px-3 py-2"} text-xs`} type="button" aria-label="Previous" disabled={loading || safePage <= 1} onClick={() => onPageChange?.(safePage - 1)}>{compact ? <ChevronLeft size={14}/> : "Previous"}</button>
             {compact ? <span className="px-1 text-xs text-text-secondary" aria-label={`Page ${safePage} of ${totalPages}`}>{safePage}/{totalPages}</span> : items.map((item) => typeof item === "number" ? (
-              <button key={item} className={`h-9 min-w-9 rounded-lg border px-2 text-xs font-bold transition ${item === safePage ? "border-primary bg-primary text-white" : "border-border bg-surface text-text-secondary hover:border-primary hover:text-primary"}`} type="button" disabled={loading} aria-current={item === safePage ? "page" : undefined} onClick={() => onPageChange?.(item)}>{item}</button>
+              <button key={item} className={`h-9 min-w-9 rounded-lg border px-2 text-xs font-bold transition ${item === safePage ? "border-action-primary bg-action-primary text-white" : "border-border bg-surface text-text-secondary hover:border-primary-ink hover:text-primary-ink"}`} type="button" disabled={loading} aria-current={item === safePage ? "page" : undefined} onClick={() => onPageChange?.(item)}>{item}</button>
             ) : <span key={item} className="px-1 text-sm font-bold text-text-muted">…</span>)}
             <button className={`btn-secondary ${compact ? "p-2" : "px-3 py-2"} text-xs`} type="button" aria-label="Next" disabled={loading || safePage >= totalPages} onClick={() => onPageChange?.(safePage + 1)}>{compact ? <ChevronRight size={14}/> : "Next"}</button>
           </div>

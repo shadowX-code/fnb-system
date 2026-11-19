@@ -7,7 +7,9 @@ Business behavior belongs in the canonical domain documents listed in `docs/READ
 
 Environment identities, authorization requirements, dirty-worktree safeguards, and risk-based QA levels remain governed by `FEEDX_CODEX_CONTEXT.md`.
 
-The Admin header's Network and Assistant destinations share `SystemNavigationChip` with explicit labels, badges and `aria-current` selection. The chip and shared underline tabs use the Admin brand-green tokens for active, hover and focus states. Jarvis keeps its own dark HUD palette. Motion runs only on hover/focus, is suppressed for reduced motion, and never represents service activity. Visible labels replace redundant native tooltips; navigation and environment visibility remain shell-owned.
+The Admin logo is `public/logo-icon.jpg`. The Admin interaction palette is owned by `src/styles/index.css`, including its Tailwind theme mappings. Use primary ink for brand text, selection indicators and keyboard focus, primary soft for selection surfaces, and the primary action fill for white-label buttons. Shared table workspace and domain headers use neutral surfaces and typography for hierarchy. Status badges and the Network Live indicator use semantic status colors. Drawer surfaces follow the Admin theme, while Jarvis retains its own HUD palette.
+
+The Admin header's Network and Assistant destinations share `SystemNavigationChip` with explicit labels, badges and `aria-current` selection. Bounded interaction and Live animations respect reduced-motion preferences. Visible labels replace redundant native tooltips. Navigation and environment visibility remain shell-owned.
 
 ## Admin Notification Audio
 

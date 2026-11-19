@@ -64,12 +64,12 @@ export default function Drawer({
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 {onBack ? (
-                  <button className="mb-2 inline-flex items-center gap-1.5 type-caption font-bold text-text-secondary transition hover:text-primary" type="button" onClick={onBack}>
+                  <button className="mb-2 inline-flex items-center gap-1.5 type-caption font-bold text-text-secondary transition hover:text-primary-ink" type="button" onClick={onBack}>
                     <ArrowLeft size={14} />
                     {backLabel}
                   </button>
                 ) : null}
-                {eyebrow ? <div className="type-micro font-black uppercase tracking-[0.14em] text-primary">{eyebrow}</div> : null}
+                {eyebrow ? <div className="type-micro font-black uppercase tracking-[0.14em] text-primary-ink">{eyebrow}</div> : null}
                 {title ? <h2 className="mt-0.5 truncate type-section-title font-bold text-text-primary">{title}</h2> : null}
                 {description ? <p className="mt-1 type-body-sm text-text-secondary">{description}</p> : null}
               </div>
