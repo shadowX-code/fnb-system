@@ -28,7 +28,7 @@ export function PrintJobDetails({ job, printer, audit = false }) {
         <p><strong>Usable labels {inspection.usable_quantity} of {job.quantity}.</strong>{" "}
           {inspection.state === "Confirmed" ? "Physically confirmed." : inspection.detail}
         </p>
-      ) : ["Sent", "Unknown"].includes(job.state) && <p>Physical output awaiting inspection.</p>}
+      ) : null}
       {job.detail && job.detail !== submissionDetail && job.detail !== inspection?.detail && <p>{job.detail}</p>}
       {job.reprint_reason && <p>Reprint reason · {job.reprint_reason}</p>}
       {audit && events.length > 0 && (
