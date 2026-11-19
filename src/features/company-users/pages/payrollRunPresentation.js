@@ -174,11 +174,15 @@ export function payrollIssueLabel(issue, context = {}) {
 }
 
 
-// Scheme cells consume persisted contribution lines and period-resolved setup.
+// Editable runs can display scoped PCB evidence before statutory totals resolve.
 // Overall totals stay unavailable until every required component is ready.
-export function payrollStatutoryCell(row, scheme) {
+export function payrollStatutoryCell(row, scheme, { showPcbEvidence = true } = {}) {
   const setup = row.preparation?.statutory_setup?.schemes?.[scheme];
   const line = row.statutory?.lines?.find(item => item.scheme === scheme);
+  const confirmation = scheme === 'pcb' && showPcbEvidence ? row.pcb?.confirmation : null;
+  if (confirmation?.amount != null && setup?.applicable !== false && row.pcb?.applicable !== false) {
+    return { state: 'confirmed', employee: confirmation.amount };
+  }
   if (!setup || !['confirmed', 'not_applicable'].includes(setup.state)) return { state: 'Review' };
   if (setup.applicable === false) return { state: 'N/A' };
   if (scheme === 'pcb' && !row.pcb?.confirmation) return { state: 'Review' };

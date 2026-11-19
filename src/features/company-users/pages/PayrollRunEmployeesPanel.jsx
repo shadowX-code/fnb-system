@@ -110,6 +110,7 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, p
   const selected = rows.find((row) => row.id === employeeId);
   const adjustmentComponent = (data.components || []).find((item) => item.id === adjustment?.componentId);
   const active = ["draft", "review_required"].includes(run.status);
+  const showPcbEvidence = active || run.status === "ready";
   const adjustmentActions = (item) => active && permissions.adjust && <span className="ml-3 inline-flex gap-3">
     {["edit", "remove"].map(action => <button key={action} type="button" className="font-semibold text-primary" disabled={busy}
       onClick={() => setAdjustment({ requestId: crypto.randomUUID(), action, adjustmentId: item.id, componentId: item.component_id, amount: String(item.amount), reason: "" })}>{human(action)}</button>)}
@@ -201,10 +202,11 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, p
     requestAnimationFrame(() => syncButton.current?.focus());
   };
   const statutoryCell = (row, scheme) => {
-    const value = payrollStatutoryCell(row, scheme);
-    return value.state === 'calculated' ? <div className="whitespace-nowrap tabular-nums">
+    const value = payrollStatutoryCell(row, scheme, { showPcbEvidence });
+    return ['calculated', 'confirmed'].includes(value.state) ? <div className="whitespace-nowrap tabular-nums">
       <div>{scheme !== 'pcb' && 'EE '}{money(value.employee)}</div>
       {scheme !== 'pcb' && <small className="block text-text-secondary">ER {money(value.employer)}</small>}
+      {value.state === 'confirmed' && <small className="block text-text-secondary">Confirmed</small>}
     </div> : value.state;
   };
   const reviewColumns = [
@@ -213,8 +215,8 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, p
     { key: "basic", header: "Basic / Hours", render: row => row.pay?.pay_basis === "monthly" ? money(row.pay.basic_salary) : <span>{row.calculation?.basic_or_hours || "—"}<small className="block text-text-secondary">{row.pay ? `${money(row.pay.hourly_rate)} / hour` : "Pay setup required"}</small></span> },
     { key: "gross", header: "Gross", align: "right", render: row => <span className="tabular-nums">{money(row.result.gross)}</span> },
     ...statutorySchemes.map(scheme => ({key:scheme,header:scheme === "pcb" ? "PCB" : statutoryName(scheme),align:"right",render:row=>statutoryCell(row,scheme)})),
-    { key: "deductions", header: "Deductions", align: "right", render: row => <span className="tabular-nums">{money(row.result.deductions)}</span> },
-    { key: "net", header: "Net Pay", align: "right", render: row => <strong className="tabular-nums">{money(row.result.net)}</strong> },
+    { key: "deductions", header: "Deductions", align: "right", render: row => <span className="tabular-nums">{row.result.deductions == null ? "Pending" : money(row.result.deductions)}</span> },
+    { key: "net", header: "Net Pay", align: "right", render: row => <strong className="tabular-nums">{row.result.net == null ? "Pending" : money(row.result.net)}</strong> },
     { key: "employer", header: "Employer Cost", align: "right", render: row => <span className="tabular-nums">{row.result.statutoryCurrent ? money(row.statutory.total_employer_cost) : 'Pending'}</span> },
     { key: "bank", header: "Bank", render: row => <PayrollEmployeeBankInfo result={bankFor(row)} employeeName={row.name} canEdit={canEditEmployee} onRetry={bankAuthority.refresh} /> },
     { key: "status", header: "Status", render: row => <Badge tone={row.needsReview ? "warning" : "success"}>{row.needsReview ? "Pending Review" : "Ready"}</Badge> },
@@ -299,22 +301,25 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, p
         <section className="border-t border-border pt-4"><div className="flex items-center justify-between"><h4 className="font-bold">Time & Attendance — {selected.timeNeedsReview ? "Review Required" : "Ready"}</h4><button type="button" className="font-semibold text-primary" onClick={openTimeReview}>{selected.timeNeedsReview ? "Review Time" : "View Time"}</button></div><p className="mt-1 text-text-secondary">{selected.timeNeedsReview ? `${selected.timeExceptionCount} pay-impacting exception${selected.timeExceptionCount === 1 ? "" : "s"} require review.` : selected.pay?.pay_basis === "monthly" ? "Normal attendance does not require daily hours approval. Approved leave and period employment use their canonical pay rules." : "Approved payable hours determine Regular Pay."} Public Holiday treatment is reviewed separately.</p></section>
         <PayrollPhStatutory runId={run.id} employeeId={selected.id} canManage={active && permissions.treat_ph} canReviewTime={active && permissions.review_time} onChanged={refresh} />
         <section className="border-t border-border pt-4"><div className="flex justify-between gap-3"><h4 className="text-base font-bold">Employee Deductions</h4>{active && permissions.statutory && selected.pcb?.applicable && <button className="font-semibold text-primary" type="button"
-          onClick={() => setPcbDraft({ requestId: crypto.randomUUID(), employeeId: selected.id, amount: selected.pcb?.confirmation?.amount == null ? "" : String(selected.pcb.confirmation.amount), sourceReference: "", note: "", reason: "" })}>{selected.pcb.confirmation ? "Correct PCB" : "Confirm PCB"}</button>}</div>
+          onClick={() => setPcbDraft({ requestId: crypto.randomUUID(), employeeId: selected.id, correcting: Boolean(selected.pcb?.confirmation), amount: selected.pcb?.confirmation?.amount == null ? "" : String(selected.pcb.confirmation.amount), sourceReference: "", note: "", reason: "" })}>{selected.pcb.confirmation ? "Correct PCB" : "Confirm PCB"}</button>}</div>
           <div className="mt-2 divide-y divide-border">{statutorySchemes.filter(scheme => active || scheme !== "lindung" || selected.statutory?.lines?.some(line => line.scheme === scheme)).map((scheme) => {
             const line = selected.statutory?.lines?.find((item) => item.scheme === scheme);
             const setup = scheme === "lindung" && !active ? line && { ...line, state: line.applicable ? "confirmed" : "not_applicable", status: line.participation_status } : selected.preparation?.statutory_setup?.schemes?.[scheme];
             const notApplicable = setup?.applicable === false;
+            const pcbEvidence = scheme === "pcb" && payrollStatutoryCell(selected, scheme, { showPcbEvidence });
+            const employeeAmount = pcbEvidence?.state === "confirmed" ? pcbEvidence.employee
+              : selected.result.statutoryCurrent ? line?.employee_amount : null;
             return <div key={scheme} className="flex items-center justify-between gap-4 py-2"><span><strong>{scheme === "pcb" ? "PCB / MTD" : statutoryName(scheme)}</strong>
               <small className="block text-text-secondary">{notApplicable ? "Not Applicable" : scheme === "pcb" ? selected.pcb?.confirmation ? "Confirmed" : "Confirmation required"
                 : setup ? statutorySchemeLabel(scheme, setup) : "Period setup required"}</small></span>
-              <strong className="tabular-nums">{notApplicable ? "N/A" : selected.result.statutoryCurrent && line?.employee_amount != null ? money(line.employee_amount) : "Pending review"}</strong></div>;
+              <strong className="tabular-nums">{notApplicable ? "N/A" : employeeAmount != null ? money(employeeAmount) : "Pending review"}</strong></div>;
           })}</div>
           <h5 className="mt-4 text-xs font-semibold text-text-secondary">Other Deductions</h5><div className="mt-2 divide-y divide-border">{(selected.calculation?.lines || []).filter(line => line.kind === "deduction").map((line,index) => financialLine(line,index))}</div>
-          <div className="flex justify-between border-t border-border pt-3 font-bold"><span>Total Deductions</span><span className="tabular-nums">{money(selected.result.deductions)}</span></div>
+          <div className="flex justify-between border-t border-border pt-3 font-bold"><span>Total Deductions</span><span className="tabular-nums">{selected.result.deductions == null ? "Pending" : money(selected.result.deductions)}</span></div>
         </section>
         <section className="rounded-xl bg-primary/5 p-4"><h4 className="text-lg font-bold">Net Pay</h4><div className="mt-2 divide-y divide-border">
           <div className="flex justify-between py-2"><span>Gross Earnings</span><strong className="tabular-nums">{money(selected.result.gross)}</strong></div>
-          <div className="flex justify-between py-2"><span>− Total Deductions</span><strong className="tabular-nums">{money(selected.result.deductions)}</strong></div>
+          <div className="flex justify-between py-2"><span>− Total Deductions</span><strong className="tabular-nums">{selected.result.deductions == null ? "Pending" : money(selected.result.deductions)}</strong></div>
           {Number(selected.calculation?.reimbursements) > 0 && <div className="flex justify-between py-2"><span>+ Reimbursements · outside gross</span><span className="tabular-nums">{selected.result.earningsCurrent ? money(selected.calculation.reimbursements) : "Pending review"}</span></div>}
           <div className="flex justify-between py-3 text-xl font-bold"><span>= Net Pay</span><span className="tabular-nums">{selected.result.net == null ? "Pending review" : money(selected.result.net)}</span></div>
         </div></section>
@@ -334,8 +339,8 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, p
         {error && <p role="alert" className="text-rose-700">{error}</p>}
       </div></Modal>}
     {selected && reviewHours && <PayrollPayableTimeReview employee={selected} runId={run.id} month={month} canManage={active && permissions.review_time} canViewLeave={canViewLeave} onClose={closeTimeReview} onDecisionSaved={timeDecisionSaved} onOpenSynchronization={active && permissions.syncTime && unsynchronizedDays > 0 ? openEvidenceSync : undefined} />}
-    {pcbDraft && <Modal title="Confirm PCB / MTD" description="The confirmed amount is statutory evidence for this employee and period." onClose={() => !busy && setPcbDraft(null)}
-      footer={<><button className="btn-secondary" type="button" onClick={() => setPcbDraft(null)}>Cancel</button><button className="btn-primary" type="button" disabled={busy || pcbDraft.amount === "" || Number(pcbDraft.amount) < 0 || !pcbDraft.reason.trim()} onClick={savePcb}>Confirm PCB</button></>}>
+    {pcbDraft && <Modal title={pcbDraft.correcting ? "Correct PCB / MTD" : "Confirm PCB / MTD"} description="The confirmed amount is statutory evidence for this employee and period." onClose={() => !busy && setPcbDraft(null)}
+      footer={<><button className="btn-secondary" type="button" onClick={() => setPcbDraft(null)}>Cancel</button><button className="btn-primary" type="button" disabled={busy || pcbDraft.amount === "" || Number(pcbDraft.amount) < 0 || !pcbDraft.reason.trim()} onClick={savePcb}>{pcbDraft.correcting ? "Save correction" : "Confirm PCB"}</button></>}>
       <div className="space-y-3"><AdminFormField label="Confirmed PCB (RM)" required><input className="control" type="number" min="0" step="0.01" value={pcbDraft.amount} onChange={(event) => setPcbDraft((old) => ({ ...old, amount: event.target.value }))} /></AdminFormField>
         <AdminFormField label="Source / reference"><input className="control" value={pcbDraft.sourceReference} onChange={(event) => setPcbDraft((old) => ({ ...old, sourceReference: event.target.value }))} /></AdminFormField>
         <AdminFormField label="Reason" required><input className="control" value={pcbDraft.reason} onChange={(event) => setPcbDraft((old) => ({ ...old, reason: event.target.value }))} /></AdminFormField></div></Modal>}

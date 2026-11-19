@@ -31,3 +31,20 @@ it('presents LINDUNG EE/ER, N/A, Review and Pending through the shared statutory
  expect(payrollStatutoryCell({...lindungRow,statutory:{...lindungRow.statutory,is_stale:true}},'lindung')).toEqual({state:'Pending'});
  expect(payrollStatutoryCell({...lindungRow,statutory:{...lindungRow.statutory,issues:['lindung_wage_treatment_unresolved']}},'lindung')).toEqual({state:'Review'});
 });
+
+it.each([207.15, 0])('displays confirmed PCB %s without resolving aggregate deductions or net pay', (amount) => {
+  const result = payrollEmployeeResult(
+    { status: 'review_required', issues: ['mid_period_employment_change'] },
+    null,
+  );
+  const blocked = {
+    ...row,
+    result,
+    preparation: {},
+    statutory: null,
+    pcb: { confirmation: { id: 'saved', amount } },
+  };
+  expect(payrollStatutoryCell(blocked, 'pcb')).toEqual({ state: 'confirmed', employee: amount });
+  expect(payrollStatutoryCell(blocked, 'pcb', { showPcbEvidence: false }).state).toBe('Review');
+  expect(result).toMatchObject({ deductions: null, net: null });
+});
