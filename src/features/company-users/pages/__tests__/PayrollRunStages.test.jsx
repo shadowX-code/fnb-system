@@ -6,6 +6,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 const mocks=vi.hoisted(()=>({bank:vi.fn(),history:vi.fn(),readRunEvidence:vi.fn(),recalculateEmployee:vi.fn()}));
 vi.mock("../../../../services/employeeService.js",()=>({employeeService:{readBankInfo:mocks.bank}}));
 vi.mock("../../../../services/payrollService.js",()=>({payrollService:{readRunHistory:mocks.history,readRunEvidence:mocks.readRunEvidence,recalculateEmployee:mocks.recalculateEmployee}}));
+vi.mock("../PayrollPhStatutory.jsx", () => ({ default: () => null }));
 import { RunsTab } from "../PayrollPage.jsx";
 afterEach(()=>{cleanup();vi.resetAllMocks();});
 it("reuses run evidence and bank batch through Prepare, Review, Finalize and Resolve",async()=>{
@@ -95,4 +96,34 @@ it("keeps Prepare exceptions concise, detailed guidance in Review and recovery c
  await waitFor(()=>expect(refresh).toHaveBeenCalledTimes(1));
  rerender(<RunsTab {...props}/>);
  expect(screen.queryByRole('button',{name:'Retry Evidence Sync'})).toBeNull();
+});
+
+it("shows saved PCB in Review and employee deductions while the assignment blocks totals", async () => {
+ mocks.bank.mockResolvedValue([]);
+ const employee = { id: 'employee', name: 'QA Employee' };
+ const issue = 'mid_period_employment_change';
+ const evidence = {
+   time: [],
+   pcb: { results: [{ employee_id: employee.id, applicable: true, confirmation: { id: 'saved', amount: 207.15 } }] },
+   preparation: { results: [{ employee_id: employee.id, projection: { status: 'review_required', issues: [issue] } }] },
+   calculation: { results: [] },
+   statutory: { results: [] },
+ };
+ render(<RunsTab
+   data={{ legal_entities: [{ id: 'entity', name: 'QA' }], employees: [employee],
+     periods: [{ legal_entity_id: 'entity', period_start: '2026-10-01', runs: [{ id: 'run', status: 'draft' }] }] }}
+   entityId="entity" month="2026-10" openRunId="run" step={1}
+   permissions={allPayroll} runRead={{ data: evidence }} />);
+ const view = await screen.findByRole('button', { name: 'View Payroll for QA Employee' });
+ const cells = within(view.closest('tr')).getAllByRole('cell');
+ expect(cells[8].textContent).toMatch(/RM\s*207.15Confirmed/);
+ expect(cells[9].textContent).toBe('Pending');
+ expect(cells[10].textContent).toBe('Pending');
+ fireEvent.click(view);
+ const detail = screen.getByRole('dialog', { name: 'QA Employee' });
+ expect(within(detail).getByText(/Employment assignment changes/)).toBeTruthy();
+ expect(within(detail).getByText(/RM\s*207.15/)).toBeTruthy();
+ expect(within(detail).getByRole('button', { name: 'Correct PCB' })).toBeTruthy();
+ expect(within(detail).queryByText('PCB amount required')).toBeNull();
+ expect(mocks.recalculateEmployee).not.toHaveBeenCalled();
 });
