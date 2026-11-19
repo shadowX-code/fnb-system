@@ -31,6 +31,8 @@ CONFIG = ROOT / "config.json"
 JOURNAL = ROOT / "journal.json"
 CALIBRATION = ROOT / "calibration.json"
 LANG = dict(os.environ, LC_ALL="C")
+BLUETOOTH_PROBE_INTERVAL = 60
+BLUETOOTH_PROBE_FRESHNESS = 90
 
 
 class BridgeError(Exception):
@@ -60,9 +62,9 @@ def rpc(config, session, name, **body):
     return post("/rest/v1/rpc/factory_label_" + name, config["key"], body, session["access_token"])
 
 
-def command(args, data=None, timeout=10):
+def command(args, data=None, timeout=10, *, pass_fds=()):
     child = subprocess.Popen(args, stdin=subprocess.PIPE if data is not None else subprocess.DEVNULL,
-                             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, env=LANG)
+                             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, env=LANG, pass_fds=pass_fds)
     try:
         stdout, _ = child.communicate(data, timeout=timeout)
     except subprocess.TimeoutExpired:
@@ -173,9 +175,19 @@ def build_bluetooth():
         raise BridgeError("Could not build the Bluetooth helper. Install Apple's Command Line Tools.") from None
 
 
+def native_command(args, data=None, timeout=18):
+    with (ROOT / "bluetooth.lock").open("a") as channel:
+        try:
+            fcntl.flock(channel, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise BridgeError("The previous Bluetooth session is still closing. Check the printer again shortly.") from None
+        # A timed-out helper retains the lock until the OS actually releases the process.
+        return command([str(NATIVE), *args], data, timeout, pass_fds=(channel.fileno(),))
+
+
 def bluetooth_probe(address=None):
-    args = [str(NATIVE), "probe"] + ([address] if address else [])
-    reported = command(args, timeout=18).decode().strip()
+    args = ["probe"] + ([address] if address else [])
+    reported = native_command(args).decode().strip()
     if not re.fullmatch(r"[0-9a-fA-F]{2}([-:][0-9a-fA-F]{2}){5}", reported):
         raise BridgeError("The Bluetooth helper returned an invalid device identity.")
     return reported
@@ -190,12 +202,12 @@ BLUETOOTH_CHECK_ERRORS = {
 }
 
 
-def record_connection(config, *, available=False, detail=None, reported=False):
+def record_connection(config, *, available=False, detail=None, reported=False, observed_at=None):
     if not config.get("guided_worker"):
         return
     with contextlib.suppress(OSError):
         save(ROOT / "connection-status.json", {
-            "device": config["device"], "time": time.time(), "available": available,
+            "device": config["device"], "time": time.time() if observed_at is None else observed_at, "available": available,
             "detail": detail, "reported": reported,
         })
 
@@ -213,7 +225,9 @@ def inventory(config=None, probe_bluetooth=True):
                 detail = BLUETOOTH_CHECK_ERRORS.get(error.returncode, "D520 connection check failed.")
             except subprocess.TimeoutExpired:
                 detail = "D520 did not respond in time. Check power, range and other printer apps."
-            except (OSError, BridgeError):
+            except BridgeError as error:
+                detail = str(error)
+            except OSError:
                 detail = "D520 could not be checked. Check its pairing and Bridge installation."
         row = {"Name": config["printer"], "WorkOffline": offline, "Platform": "macOS",
                "Connection": "Bluetooth Classic SPP"}
@@ -221,6 +235,36 @@ def inventory(config=None, probe_bluetooth=True):
             row.update(ConnectionCheckedAt=datetime.now(timezone.utc).isoformat(), ConnectionDetail=detail)
         printers.append(row)
     return printers
+
+
+class BluetoothStatus:
+    def __init__(self):
+        self.printer = None
+        self.checked = float("-inf")
+        self.observed_at = 0
+        self.interval = BLUETOOTH_PROBE_INTERVAL
+        self.failures = 0
+        self.published = None
+
+    def inventory(self, config):
+        now = time.monotonic()
+        try:
+            requested = (ROOT / "connection-request").stat().st_mtime > self.observed_at
+        except FileNotFoundError:
+            requested = False
+        probe_due = now - self.checked >= (min(self.interval, 10) if requested else self.interval)
+        printers = inventory(config, probe_bluetooth=probe_due)
+        # The configured Bluetooth row follows the CUPS inventory.
+        if probe_due:
+            self.printer = printers[-1]
+            self.checked = time.monotonic()
+            self.observed_at = datetime.fromisoformat(self.printer["ConnectionCheckedAt"]).timestamp()
+            self.failures = min(3, self.failures + 1) if self.printer["WorkOffline"] else 0
+            self.interval = (BLUETOOTH_PROBE_INTERVAL, 15, 30, BLUETOOTH_PROBE_INTERVAL)[self.failures]
+        if self.printer:
+            printers[-1] = dict(self.printer, WorkOffline=self.printer["WorkOffline"]
+                                or time.monotonic() - self.checked > BLUETOOTH_PROBE_FRESHNESS)
+        return printers
 
 
 def device_status(config, session, printers, status):
@@ -338,7 +382,7 @@ def send_cups(args, payload):
 
 def send_bluetooth(address, payload):
     try:
-        command([str(NATIVE), "print", address], payload, 45)
+        native_command(["print", address], payload, 45)
     except subprocess.CalledProcessError as error:
         detail = {
             4: "D520 RFCOMM channel could not open.",
@@ -356,7 +400,7 @@ def outcome(state, status, detail):
     save(JOURNAL, state)
 
 
-def cycle(config, session):
+def cycle(config, session, bluetooth_status=None):
     state = load(JOURNAL)
     if state and state["stage"] == "submitting":
         outcome(state, "Unknown", "Bridge restarted during submission. Inspect the printer and any CUPS job.")
@@ -369,14 +413,21 @@ def cycle(config, session):
         config["transport"] == "tspl"
         and (not config.get("bluetooth_address") or config.get("calibrated_labels") != 3)
     ) or (config.get("require_calibration") and calibration_status(config) != "Passed")
-    printers = inventory(config, probe_bluetooth=not calibrating or config.get("guided_setup", False) or config.get("guided_worker", False))
+    if bluetooth_status is not None:
+        printers = bluetooth_status.inventory(config)
+    else:
+        printers = inventory(config, probe_bluetooth=not calibrating or config.get("guided_setup", False) or config.get("guided_worker", False))
     selected = next((p for p in printers if p["Name"] == config["printer"]), None)
     available = bool(selected and not selected["WorkOffline"])
     ready = not calibrating and available
     device_status(config, session, printers, "Error" if calibrating else "Ready" if ready else "Offline")
-    record_connection(config, available=available, reported=True,
-                      detail=(selected or {}).get("ConnectionDetail") or (
-                          None if available else "Printer unavailable. Check the configured printer and its connection."))
+    if bluetooth_status is None or bluetooth_status.published != bluetooth_status.checked:
+        record_connection(config, available=available, reported=True,
+                          detail=(selected or {}).get("ConnectionDetail") or (
+                              None if available else "Printer unavailable. Check the configured printer and its connection."),
+                          observed_at=bluetooth_status.observed_at if bluetooth_status is not None else None)
+        if bluetooth_status is not None:
+            bluetooth_status.published = bluetooth_status.checked
     if not ready:
         return
     if state is None:
@@ -502,6 +553,7 @@ def run(config, paused=lambda: False):
     session = None
     pending_session = False
     backoff = 5
+    bluetooth_status = BluetoothStatus() if config.get("transport") == "tspl" and config.get("bluetooth_address") else None
     print("FeedX Staging bridge running. Ctrl-C stops it.")
     while not paused():
         try:
@@ -515,7 +567,10 @@ def run(config, paused=lambda: False):
                 pending_session = True
                 store_session(config, session)
                 pending_session = False
-            cycle(config, session)
+            if bluetooth_status is None:
+                cycle(config, session)
+            else:
+                cycle(config, session, bluetooth_status)
             backoff = 5
         except urllib.error.HTTPError as error:
             auth_failed = error.code in (400, 401, 403)

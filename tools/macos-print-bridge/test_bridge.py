@@ -112,7 +112,7 @@ class RecoveryTest(unittest.TestCase):
     def test_full_d520_write_without_ack_reports_unknown_without_resending(self):
         self.config.update(transport="tspl", bluetooth_address="test-address", calibrated_labels=3, gap=2, invert=True)
         with patch.object(
-            bridge, "command", side_effect=subprocess.CalledProcessError(8, "print")
+            bridge, "native_command", side_effect=subprocess.CalledProcessError(8, "print")
         ) as command:
             bridge.cycle(self.config, {})
             self.assertEqual(bridge.load(self.journal)["outcome"], "Unknown")
@@ -124,6 +124,52 @@ class RecoveryTest(unittest.TestCase):
 
 
 class TransportTest(unittest.TestCase):
+    def test_bluetooth_heartbeats_use_last_probe_time_and_back_off_after_failure(self):
+        clock = [0]
+        config = {"transport": "tspl", "bluetooth_address": "paired", "printer": bridge.BLUETOOTH}
+        with tempfile.TemporaryDirectory() as root, patch.object(bridge, "ROOT", Path(root)), \
+             patch.object(bridge.time, "monotonic", side_effect=lambda: clock[0]), \
+             patch.object(bridge, "cups_printers", return_value=[]), \
+             patch.object(bridge, "bluetooth_probe", side_effect=[
+                 "paired", subprocess.CalledProcessError(4, "probe"), subprocess.CalledProcessError(4, "probe"), "paired",
+             ]) as probe:
+            status = bridge.BluetoothStatus()
+            first = status.inventory(config)[0]
+            for clock[0] in (5, 10, 59):
+                self.assertEqual(status.inventory(config)[0], first)
+            probe.assert_called_once()
+            for clock[0], calls, unavailable in ((60, 2, True), (74, 2, True), (75, 3, True),
+                                                  (104, 3, True), (105, 4, False)):
+                self.assertEqual(status.inventory(config)[0]["WorkOffline"], unavailable)
+                self.assertEqual(probe.call_count, calls)
+
+    def test_requested_probe_waits_for_bounded_gap(self):
+        config = {"transport": "tspl", "bluetooth_address": "paired", "printer": bridge.BLUETOOTH}
+        with tempfile.TemporaryDirectory() as root, patch.object(bridge, "ROOT", Path(root)), \
+             patch.object(bridge.time, "monotonic", side_effect=[0, 0, 0, 5, 5, 10, 10, 10]), \
+             patch.object(bridge, "cups_printers", return_value=[]), \
+             patch.object(bridge, "bluetooth_probe", return_value="paired") as probe:
+            status = bridge.BluetoothStatus()
+            status.inventory(config)
+            request = Path(root) / "connection-request"
+            request.touch()
+            status.observed_at = request.stat().st_mtime - 1
+            status.inventory(config)
+            probe.assert_called_once()
+            status.inventory(config)
+            self.assertEqual(probe.call_count, 2)
+
+    def test_native_channel_lock_blocks_submission_while_helper_still_owns_it(self):
+        with tempfile.TemporaryDirectory() as root, patch.object(bridge, "ROOT", Path(root)):
+            def during_probe(*args, pass_fds, **kwargs):
+                self.assertEqual(len(pass_fds), 1)
+                with self.assertRaisesRegex(bridge.BridgeError, "still closing"):
+                    bridge.native_command(["print", "paired"])
+                return b""
+            with patch.object(bridge, "command", side_effect=during_probe) as command:
+                bridge.native_command(["probe", "paired"])
+            command.assert_called_once()
+
     def test_native_timeout_kills_without_waiting_for_a_stalled_driver(self):
         child = Mock(stdin=None, stdout=None)
         child.communicate.side_effect = subprocess.TimeoutExpired("print", 1)
@@ -165,7 +211,7 @@ class TransportTest(unittest.TestCase):
     def test_native_receipt_errors_distinguish_no_ack_and_nak_without_retry(self):
         for code, detail in [(6, "write failed"), (7, "negative acknowledgment"), (8, "write completed")]:
             with self.subTest(code=code), patch.object(
-                bridge, "command", side_effect=subprocess.CalledProcessError(code, "print")
+                bridge, "native_command", side_effect=subprocess.CalledProcessError(code, "print")
             ) as command:
                 with self.assertRaisesRegex(bridge.BridgeError, detail):
                     bridge.send_bluetooth("test-address", b"raster")

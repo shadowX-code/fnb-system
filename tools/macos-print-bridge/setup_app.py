@@ -224,6 +224,8 @@ def wait_for_connection(config):
     # The worker owns Keychain refresh, Bluetooth and print recovery. Setup only waits for its next report.
     started = time.time()
     deadline = time.monotonic() + 45
+    if config["transport"] == "tspl":
+        (bridge.ROOT / "connection-request").touch()
     launch_agent()
     while time.monotonic() < deadline:
         report = bridge.load(bridge.ROOT / "connection-status.json")

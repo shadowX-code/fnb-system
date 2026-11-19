@@ -35,4 +35,4 @@ codesign --verify --deep --strict "$app"
 # The PyInstaller onedir sibling is build output. Only the Finder app is installed.
 rm -rf "$work/payload/$name"
 pkgbuild --root "$work/payload" --install-location /Applications --identifier my.feedx.staging.print-bridge \
-  --version 1.1.3 "$out/FeedX-Print-Bridge-Staging-macOS-arm64.pkg"
+  --version 1.1.4 "$out/FeedX-Print-Bridge-Staging-macOS-arm64.pkg"
