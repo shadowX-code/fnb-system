@@ -42,7 +42,7 @@ begin
 
   if running.finished_good_id<>p.finished_good_id then
    draft:=public.factory_label_save_draft('product',running.finished_good_id::text||':'||batch_key,
-    payload||jsonb_build_object('label_name','QA Batch','quantity_basis','batch'),0,0,gen_random_uuid());
+    payload||jsonb_build_object('label_name','QA Batch'),0,0,gen_random_uuid());
    perform public.factory_label_publish((draft->>'id')::uuid,1,gen_random_uuid(),'QA in-progress preview',true);
   end if;
   batch_choice:=jsonb_build_object('label_key',batch_key);
@@ -57,14 +57,27 @@ begin
   assert denied,'An in-progress preview could enqueue';checks:=checks+1;
 
   product:=public.factory_label_candidate(p.id);
+  assert (product->>'quantity_limit')::numeric=p.actual_pack_qty,'Default suggestion did not use confirmed packaged units';
+  assert (public.factory_label_candidate(p.id,'{"carton_evidence":true}')->'missing') ? 'confirmed_cartons','Switching a standard label to cartons did not require a verified count';
+  assert public.factory_label_candidate(p.id,'{"carton_evidence":true,"confirmed":true,"confirmed_cartons":2,"reason":"Matched actual carton tally"}')->>'quantity_limit'='2','Print-time verified cartons did not set the limit';
+  checks:=checks+3;
   original:=product - array['label_key','label_name','quantity_basis','quantity_limit','confirmed_cartons','preview_only'];
   insert into public.factory_label_snapshots(production_id,snapshot,created_by)
    values(p.id,original,(select id from public.employees where auth_user_id=actor limit 1));
   batch_label:=public.factory_label_candidate(p.id,batch_choice);
   assert batch_label->>'quantity_limit'='1' and (batch_label->>'packaged_units')::numeric=p.actual_pack_qty,'Batch quantity or evidence is wrong';
   assert public.factory_label_candidate(p.id)=original,'Historical default snapshot JSON was changed';
+  denied:=false;begin
+   perform public.factory_label_candidate(p.id,'{"carton_evidence":true}');
+  exception when others then denied:=sqlerrm like 'Quantity evidence is already fixed%';end;
+  assert denied,'A frozen packaged-unit limit could be switched to cartons';checks:=checks+1;
   checks:=checks+2;
 
+  assert (public.factory_label_candidate(p.id,jsonb_build_object('label_key',carton_key,'carton_evidence',true))->'missing') ? 'confirmed_cartons','Carton evidence needed on preview';
+  draft:=public.factory_label_save_draft('product',sku_key||':'||carton_key,
+    payload||jsonb_build_object('label_name','Revised carton label'),1,1,gen_random_uuid());
+  perform public.factory_label_publish((draft->>'id')::uuid,2,gen_random_uuid(),'QA revised without quantity setting',true);
+  checks:=checks+2;
   carton_choice:=jsonb_build_object('label_key',carton_key);
   carton:=public.factory_label_candidate(p.id,carton_choice);
   assert (carton->'missing') ? 'confirmed_cartons' and carton->>'quantity_limit' is null,'Carton quantity was inferred';
@@ -83,12 +96,17 @@ begin
    perform public.factory_label_enqueue(gen_random_uuid(),p.id,device,1,batch_label,raster,batch_choice);
   exception when others then denied:=sqlerrm like 'Label quantity exceeds%';end;
   assert denied,'Batch allocation did not enforce the one-label rule';checks:=checks+1;
-  carton_job:=public.factory_label_enqueue(gen_random_uuid(),p.id,device,2,carton,raster,carton_choice);
+  perform public.factory_label_enqueue(gen_random_uuid(),p.id,device,1,carton,raster,carton_choice);
+  carton_job:=public.factory_label_enqueue(gen_random_uuid(),p.id,device,1,carton,raster,carton_choice);
+  denied:=false;begin
+   perform public.factory_label_enqueue(gen_random_uuid(),p.id,device,1,carton,raster,carton_choice);
+  exception when others then denied:=sqlerrm like 'Label quantity exceeds%';end;
+  assert denied,'A later carton submission exceeded the verified cumulative limit';checks:=checks+1;
   assert (select count(*)=3 from public.factory_label_snapshots where production_id=p.id),'Snapshots did not remain separate';
   assert (public.factory_label_context(p.job_order_id,p.id,batch_choice)->>'allocated')::int=1
    and (public.factory_label_context(p.job_order_id,p.id,carton_choice)->>'allocated')::int=2,'Allocations leaked between labels';
   assert public.factory_label_context(p.job_order_id,p.id,batch_choice)->'history'->0->>'id'=batch_job::text
-   and public.factory_label_context(p.job_order_id,p.id,carton_choice)->'history'->0->>'id'=carton_job::text,'History leaked between labels';
+   and exists(select 1 from jsonb_array_elements(public.factory_label_context(p.job_order_id,p.id,carton_choice)->'history') h where h->>'id'=carton_job::text),'History leaked between labels';
   checks:=checks+3;
   perform public.factory_label_resolve(batch_job,'Failed','QA cancelled before bridge pickup',null::integer);
   denied:=false;begin

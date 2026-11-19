@@ -58,7 +58,6 @@ export function productLabelDraft(data, labelKey = "product") {
     ? data.draft.payload
     : {
         label_name: config?.label_name ?? (labelKey === "product" ? "Product Label" : ""),
-        quantity_basis: config?.quantity_basis ?? (labelKey === "product" ? "packaged_units" : ""),
         template_id: config?.template_id || selectableLabelTemplates(data)[0]?.id || "",
         width_mm: config?.width_mm || 80,
         height_mm: config?.height_mm || 90,

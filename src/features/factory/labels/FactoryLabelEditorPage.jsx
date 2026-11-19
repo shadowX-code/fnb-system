@@ -272,7 +272,7 @@ export default function FactoryLabelEditorPage({
                 <button
                   type="button"
                   className="btn-secondary"
-                  disabled={disabled || (!dirty && Boolean(draft || data.published)) || (kind === "product" && (!labelName.trim() || !(payload.quantity_basis ?? "packaged_units")))}
+                  disabled={disabled || (!dirty && Boolean(draft || data.published)) || (kind === "product" && !labelName.trim())}
                   onClick={save}
                 >
                   <Save size={14} />

@@ -345,6 +345,19 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
                 Configure this Packaging SKU’s approved label in Factory Settings → Label Management before printing.
               </p>
             ) : null}
+            {!previewOnly && !pendingRequest && canPrint && !busy && !reprint && candidate?.definition &&
+              !data?.saved_raster && (candidate.quantity_basis === "packaged_units" || overrides.carton_evidence) && (
+              <button type="button" className="btn-secondary" disabled={loading}
+                onClick={() => {
+                  setOverrides(({ carton_evidence, confirmed_cartons, ...rest }) =>
+                    carton_evidence ? rest : { ...rest, carton_evidence: true });
+                  setDraft(({ confirmed_cartons, ...rest }) => rest);
+                  setQuantity("");
+                  resetRequest();
+                }}>
+                {overrides.carton_evidence ? "Use confirmed packaged units" : "Use verified carton count"}
+              </button>
+            )}
             {!previewOnly && !pendingRequest && candidate?.missing?.some(
               (key) => key !== "label_configuration",
             ) && (
@@ -398,7 +411,7 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
                     busy || !canPrint || (draft.reason || "").trim().length < 3
                   }
                   onClick={() => {
-                    setOverrides({ ...draft, confirmed: true });
+                    setOverrides({ ...overrides, ...draft, confirmed: true });
                     resetRequest();
                   }}
                 >
@@ -424,7 +437,7 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
                   {candidate.template_version}
                 </dd>
                 {!previewOnly && <>
-                  <dt className="text-text-secondary">Label limit for this batch</dt>
+                  <dt className="text-text-secondary">{candidate.quantity_basis === "verified_cartons" ? "Verified carton limit" : "Label limit for this batch"}</dt>
                   <dd>{labelLimit ?? "Missing"}</dd>
                   <dt className="text-text-secondary">Initial labels allocated</dt>
                   <dd>{data.allocated}</dd>
