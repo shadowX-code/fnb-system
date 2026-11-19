@@ -45,7 +45,7 @@ describe("FactoryMestiFinishedProductStorageControlPage", () => {
   it("passes Finished Good, Packaging SKU, Storage, date and search filters to the canonical read model", async () => {
     render(<FactoryMestiFinishedProductStorageControlPage onNotify={vi.fn()} />);
     await screen.findAllByText("QA After Operation Sauce");
-    fireEvent.change(screen.getByPlaceholderText("Batch, production, product"), { target: { value: "PB260903-02" } });
+    fireEvent.change(screen.getByPlaceholderText("Batch, Job Order, product"), { target: { value: "PB260903-02" } });
     await waitFor(() => expect(factoryService.listMestiFinishedProductStorageControl).toHaveBeenLastCalledWith(expect.objectContaining({ filters: expect.objectContaining({ search: "PB260903-02" }) })));
     fireEvent.click(screen.getByRole("button", { name: "Clear all" }));
     await waitFor(() => expect(factoryService.listMestiFinishedProductStorageControl).toHaveBeenLastCalledWith(expect.objectContaining({ filters: expect.objectContaining({ search: "" }) })));

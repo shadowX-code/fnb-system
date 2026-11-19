@@ -82,7 +82,7 @@ export default function FactoryMestiFinishedProductStorageControlPage({ onNotify
       <Field label="Date"><FeedXDatePicker value={filters.dateFrom} placeholder="From" onChange={(dateFrom) => updateFilters({ dateFrom })} /></Field>
       <Field label="To"><FeedXDatePicker value={filters.dateTo} placeholder="To" onChange={(dateTo) => updateFilters({ dateTo })} /></Field>
       <Field label="Finished Good"><SearchableSelect value={filters.finishedGood} options={finishedGoodOptions} placeholder="All" onChange={(finishedGood) => updateFilters({ finishedGood })} /></Field>
-      <Field label="Search"><input className={inputClass()} value={filters.search} onChange={(event) => updateFilters({ search: event.target.value })} placeholder="Batch, production, product" /></Field>
+      <Field label="Search"><input className={inputClass()} value={filters.search} onChange={(event) => updateFilters({ search: event.target.value })} placeholder="Batch, Job Order, product" /></Field>
     </FactoryFilterBar>
     <FactoryDataSurface>
       <FactoryTableLoadState state={listing} label="Finished Product Storage Control" onRetry={listingActions.retry} permissionMessage="Finished Product Storage Control is hidden by your current role." />

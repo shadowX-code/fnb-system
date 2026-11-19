@@ -6,7 +6,7 @@ export function equipmentCleaningMonthlyHierarchy(rows) {
       const used = new Map();
       for (const occurrence of [...(day.occurrences || [])].sort((a,b)=>a.id.localeCompare(b.id))) {
         const source = occurrence.source_type || "scheduled";
-        const lineage = source === "after_production" ? occurrence.production_id || occurrence.production_snapshot?.production_no || occurrence.id : occurrence.requirement_id || occurrence.logical_requirement_id || occurrence.task_name;
+        const lineage = source === "after_production" ? occurrence.production_id || occurrence.id : occurrence.requirement_id || occurrence.logical_requirement_id || occurrence.task_name;
         const group = JSON.stringify([source,lineage,occurrence.task_name]);
         const lane = used.get(group) || 0;
         used.set(group,lane+1);

@@ -74,7 +74,6 @@ export default function ProductionExecutionModal({ job, rawMaterials = [], recei
   const [form, setForm] = useState(() => ({
     job_order_id: job.id,
     finished_good_id: matchingFinishedGood?.id || job.finished_good_id || "",
-    production_no: "",
     product_name: matchingFinishedGood?.product_name || job.product_name || "",
     batch_no: "",
     production_date: defaultEndDate,

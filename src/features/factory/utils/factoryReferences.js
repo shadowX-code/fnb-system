@@ -1,3 +1,5 @@
+import { formatFactoryBatchNo } from "./factoryFormatters.js";
+
 export function productionJobOrderReference(production) {
   return production?.job_order_no
     || production?.job?.job_order_no
@@ -6,7 +8,7 @@ export function productionJobOrderReference(production) {
 }
 
 export function productionBatchReference(production) {
-  return production?.batch_no || productionJobOrderReference(production);
+  return formatFactoryBatchNo(production?.batch_no);
 }
 
 export function operatorFinishedGoodBatchNo(batch) {
