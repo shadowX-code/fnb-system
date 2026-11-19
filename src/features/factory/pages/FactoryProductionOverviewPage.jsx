@@ -82,15 +82,17 @@ export default function FactoryProductionOverviewPage({ route = "production-over
     if (job.status === "released") return <FactoryRowActions onView={() => openJob(job, { readOnly: true })} primaryAction={can("factory_production.complete") ? { label: "Start Production", onClick: () => startJob(job) } : null} secondaryActions={[can("factory_job_orders.cancel") ? { label: "Cancel", destructive: true, onClick: () => cancelJob(job) } : null]} />;
     if (job.status === "in_progress" && (can("factory_production.complete") || can("factory_production.view"))) {
       const canComplete = can("factory_production.complete");
-      const canPreview = factoryLabelsEnabled && can("factory_job_orders.view") && can("factory_production.view");
       return <FactoryRowActions
         onView={() => completeProduction(job, { processOnly: true, ...(!canComplete ? { readOnly: true } : {}) })}
         viewLabel="View process"
         primaryAction={canComplete ? { label: "Complete Production", onClick: () => completeProduction(job) } : null}
-        directActions={canPreview ? [{ label: "Print Labels", icon: Printer, variant: "button", beforePrimary: true, onClick: () => setLabelJob(job) }] : []}
       />;
     }
-    if (job.status === "completed") return <FactoryRowActions onView={() => viewCompletedResult(job)} viewLabel="View result" />;
+    if (job.status === "completed") {
+      const canViewLabels = factoryLabelsEnabled && can("factory_job_orders.view") && can("factory_production.view");
+      return <FactoryRowActions onView={() => viewCompletedResult(job)} viewLabel="View details"
+        directActions={canViewLabels ? [{ label: "Print Labels", icon: Printer, variant: "button", onClick: () => setLabelJob(job) }] : []} />;
+    }
     return null;
   }
   function card(job, column) {

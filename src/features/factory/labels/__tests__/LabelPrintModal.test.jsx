@@ -164,7 +164,7 @@ describe("Factory label workflow", () => {
     render(<LabelPrintModal {...props} />);
     await confirmPrint();
     const print = screen.getByRole("button", {
-      name: "Print Labels",
+      name: "Queue Labels",
       exact: true,
     });
     fireEvent.click(print);
@@ -189,7 +189,7 @@ describe("Factory label workflow", () => {
     const view = render(<LabelPrintModal {...props} />);
     await confirmPrint();
     fireEvent.click(
-      screen.getByRole("button", { name: "Print Labels", exact: true }),
+      screen.getByRole("button", { name: "Queue Labels", exact: true }),
     );
     await screen.findByRole("button", { name: "Retry Submitted Request" });
     const original = factoryLabelService.enqueue.mock.calls[0][0];
@@ -214,7 +214,7 @@ describe("Factory label workflow", () => {
     render(<LabelPrintModal {...props} />);
     await screen.findByText("Confirm missing batch evidence");
     expect(
-      screen.getByRole("button", { name: "Print Labels", exact: true })
+      screen.getByRole("button", { name: "Queue Labels", exact: true })
         .disabled,
     ).toBe(true);
     expect(factoryLabelService.enqueue).not.toHaveBeenCalled();
@@ -228,7 +228,7 @@ describe("Factory label workflow", () => {
     );
     await screen.findByAltText(/Label preview/);
     expect(
-      screen.getByRole("button", { name: "Print Labels", exact: true })
+      screen.getByRole("button", { name: "Queue Labels", exact: true })
         .disabled,
     ).toBe(true);
   });
@@ -254,12 +254,35 @@ it("previews an alternate active configuration in progress without exposing queu
   }));
   render(<LabelPrintModal {...props} job={{ ...props.job, status: "in_progress" }} />);
   expect(await screen.findByAltText(/Product layout/)).toBeTruthy();
-  expect(screen.getByText(/Printing is locked until Production is completed/)).toBeTruthy();
+  expect(screen.getByText(/Preview only. Printing is available after Production is complete/)).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Label configuration" }));
   fireEvent.click(await screen.findByRole("option", { name: "Carton Label" }));
   expect(await screen.findByAltText(/Carton layout/)).toBeTruthy();
   expect(factoryLabelService.context).toHaveBeenCalledWith("job", null, { label_key: "carton" }, 1);
-  expect(screen.queryByRole("button", { name: "Print Labels", exact: true })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Queue Labels", exact: true })).toBeNull();
   expect(screen.queryByLabelText("Label quantity")).toBeNull();
   expect(factoryLabelService.enqueue).not.toHaveBeenCalled();
+});
+
+it("requires an explicit quantity for a confirmed reprint even after refresh", async () => {
+  factoryLabelService.context.mockResolvedValue({
+    ...context,
+    history: [{ id: "confirmed-job", state: "Confirmed", quantity: 6, events: [] }],
+  });
+  render(<LabelPrintModal {...props} />);
+  fireEvent.click(await screen.findByRole("button", { name: "Reprint", exact: true }));
+  const quantityField = screen.getByRole("spinbutton", { name: "Label quantity" });
+  expect(quantityField.value).toBe("");
+  fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+  await waitFor(() => expect(screen.getByRole("button", { name: "Refresh" }).disabled).toBe(false));
+  expect(quantityField.value).toBe("");
+  expect(screen.getByRole("button", { name: "Queue Reprint" }).disabled).toBe(true);
+  expect(factoryLabelService.enqueue).not.toHaveBeenCalled();
+  fireEvent.change(quantityField, { target: { value: "2" } });
+  fireEvent.change(screen.getByRole("textbox", { name: "Reprint reason" }), { target: { value: "Operator-approved replacement" } });
+  await confirmPrint();
+  fireEvent.click(screen.getByRole("button", { name: "Queue Reprint" }));
+  await waitFor(() => expect(factoryLabelService.enqueue).toHaveBeenCalledWith(expect.objectContaining({
+    p_quantity: 2, p_reprint_of: "confirmed-job", p_reason: "Operator-approved replacement",
+  })));
 });

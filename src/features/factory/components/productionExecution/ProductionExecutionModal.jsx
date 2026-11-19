@@ -27,6 +27,8 @@ import {
   productionQcEditableSignature,
   productionQcTone,
 } from "./productionExecutionHelpers.js";
+import LabelPrintModal from "../../labels/LabelPrintModal.jsx";
+import { factoryLabelsEnabled } from "../../../../services/factoryLabelService.js";
 import RawMaterialBatchAllocationModal from "./RawMaterialBatchAllocationModal.jsx";
 
 const varianceReasonTolerance = 0.000001;
@@ -44,6 +46,7 @@ function varianceFor(standardUsage, actualUsage) {
 }
 
 export default function ProductionExecutionModal({ job, rawMaterials = [], receivings = [], recipes = [], sops = [], finishedGoods = [], storageLocations = [], auth, readOnly = false, processOnly = false, notify, onViewProcess, onClose, onSave }) {
+  const [showLabelPreview, setShowLabelPreview] = useState(false);
   const activeFinishedGoods = finishedGoods.filter((product) => product.status === "active");
   const matchingFinishedGood = activeFinishedGoods.find((product) => product.id === job.finished_good_id) || activeFinishedGoods.find((product) => product.product_name.toLowerCase() === String(job.product_name || "").toLowerCase());
   const matchingRecipe = activeRecipeForSku(recipes, matchingFinishedGood || job, job.product_name);
@@ -483,6 +486,12 @@ export default function ProductionExecutionModal({ job, rawMaterials = [], recei
     });
   }
 
+  const canPreviewLabels = processOnly && job.status === "in_progress" && factoryLabelsEnabled &&
+    auth?.hasPermission?.("factory_job_orders.view") && auth?.hasPermission?.("factory_production.view");
+  if (showLabelPreview && canPreviewLabels) {
+    return <LabelPrintModal job={job} can={auth.hasPermission} actorId={auth.profile?.id}
+      onClose={() => setShowLabelPreview(false)} />;
+  }
   if (processOnly) {
     return (
       <Modal
@@ -497,6 +506,7 @@ export default function ProductionExecutionModal({ job, rawMaterials = [], recei
             </div>
             <div className="flex flex-wrap gap-2">
               <button className="btn-secondary" type="button" disabled={savingQc} onClick={onClose}>Close</button>
+              {canPreviewLabels && <button className="btn-secondary" type="button" disabled={savingQc} onClick={() => setShowLabelPreview(true)}>Preview Labels</button>}
               {!readOnly && execution.snapshotCreatedAt ? <button className="btn-primary" type="button" disabled={savingQc || !qcDirty} onClick={() => saveQcProgress().catch(() => {})}>{savingQc ? "Saving..." : qcDirty ? "Save Changes" : qcSaveFeedback === "saved" ? "Saved ✓" : "Save Process"}</button> : null}
             </div>
           </div>

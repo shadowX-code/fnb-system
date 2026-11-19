@@ -1,10 +1,15 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { factoryService } from "../../../../services/factoryService.js";
 import { malaysiaBusinessDateInput } from "../../utils/factoryDates.js";
 import { FactoryOperationalJobsProvider } from "../../context/FactoryOperationalJobsContext.jsx";
 import FactoryProductionOverviewPage from "../FactoryProductionOverviewPage.jsx";
 import FactoryWorkspacePage from "../FactoryWorkspacePage.jsx";
+
+vi.mock("../../../../services/factoryLabelService.js", () => ({
+  factoryLabelsEnabled: true,
+  factoryLabelService: { context: vi.fn().mockResolvedValue({ batches: [], labels: [], history: [], devices: [] }) },
+}));
 
 const permissions = [
   "factory_job_orders.view", "factory_job_orders.create", "factory_job_orders.edit", "factory_job_orders.cancel",
@@ -253,7 +258,7 @@ describe("FactoryWorkspacePage operational route smoke", () => {
     expect(await screen.findByRole("heading", { name: "Complete Production" })).not.toBeNull();
     fireEvent.click(screen.getAllByRole("button", { name: "Close modal" }).at(-1));
 
-    fireEvent.click(screen.getAllByRole("button", { name: "View result" })[0]);
+    fireEvent.click(within(document.querySelector('[data-stage="completed"]')).getAllByRole("button", { name: "View details" })[0]);
     await waitFor(() => expect(factoryService.getProductionByJobOrder).toHaveBeenCalledWith(completedJob.id));
     expect(await screen.findByRole("heading", { name: "Completed Job Order Result" })).not.toBeNull();
     fireEvent.click(screen.getAllByRole("button", { name: "Close modal" }).at(-1));
@@ -291,8 +296,12 @@ describe("FactoryWorkspacePage operational route smoke", () => {
     expect(startJob).toHaveBeenCalledWith(job);
     fireEvent.click(screen.getByRole("button", { name: "Complete Production" }));
     expect(completeProduction).toHaveBeenCalledWith(inProgressJob);
-    fireEvent.click(screen.getByRole("button", { name: "View result" }));
+    fireEvent.click(within(document.querySelector('[data-stage="completed"]')).getByRole("button", { name: "View details" }));
     expect(viewCompletedResult).toHaveBeenCalledWith(completedJob);
+    expect(within(document.querySelector('[data-stage="in_progress"]')).queryByRole("button", { name: "Print Labels" })).toBeNull();
+    fireEvent.click(within(document.querySelector('[data-stage="completed"]')).getByRole("button", { name: "Print Labels" }));
+    expect(await screen.findByRole("dialog", { name: "Print Labels" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     fireEvent.click(screen.getAllByRole("button", { name: "View details" })[0]);
     expect(openJob).toHaveBeenCalledWith(plannedJob, { readOnly: true });
   });
