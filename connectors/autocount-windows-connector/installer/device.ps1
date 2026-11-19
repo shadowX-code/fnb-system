@@ -85,6 +85,74 @@ function Get-LocalConnectorBooks {
     }
 }
 
+function Get-ConnectorFailure($Record) {
+    $failure=$Record.Exception
+    while ($failure.InnerException -and $failure -isnot [Data.SqlClient.SqlException]) { $failure=$failure.InnerException }
+    $code=if ($failure -is [Data.SqlClient.SqlException]) { 'SQL_ERROR_'+$failure.Number }
+        elseif ($failure.Message -cmatch '^[A-Z][A-Z0-9_]{4,95}$') { $failure.Message }
+        else { 'LOCAL_WORKER_ERROR' }
+    return @{code=$code;failureType=$failure.GetType().FullName;line=$Record.InvocationInfo.ScriptLineNumber
+        sql=if ($failure -is [Data.SqlClient.SqlException]) { @($failure.Errors | ForEach-Object { @{number=$_.Number;state=$_.State;severity=$_.Class} }) } else { @() }}
+}
+
+function Resolve-LocalConnectorBooks([array]$Books) {
+    $result=@{books=@();historical=@();failures=@()}
+    foreach ($group in @($Books | Group-Object { ([string]$_.instance).ToUpperInvariant()+'|'+([string]$_.database).ToUpperInvariant() })) {
+        $observed=@()
+        $verified=@{}
+        $failures=@{}
+        foreach ($candidate in $group.Group) {
+            if (-not $candidate.authorized) { continue }
+            $connection=$null; $reader=$null; $lock=$null
+            try {
+                $root=Get-RunLocalPath $candidate.key -BaseDirectory $deviceRoot
+                $lock=[IO.File]::Open((Join-Path $root 'authorization.lock'),[IO.FileMode]::Open,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)
+                try { $reader=Import-Clixml -LiteralPath (Join-Path $root 'reader.credential.xml') }
+                catch { Stop-ReadPoc 'SAVED_READER_CREDENTIAL_UNREADABLE' }
+                if ($reader -isnot [Management.Automation.PSCredential] -or $reader.UserName -cnotmatch '^feedx_ro_[a-f0-9]{32}$') {
+                    Stop-ReadPoc 'READER_CREDENTIAL_PRINCIPAL_MISMATCH'
+                }
+                $connection=Open-LocalBook $candidate.instance $candidate.database $reader
+                $identity=Assert-ReadIdentity $connection $candidate.database (Get-InstanceIdentity $candidate.instance)
+                if ($identity.login -cne $reader.UserName -or $identity.dbUser -cne $reader.UserName) { Stop-ReadPoc 'READER_CREDENTIAL_PRINCIPAL_MISMATCH' }
+                Assert-ReadPermissions $connection $identity
+                $company=Read-BookCompany $connection $candidate.database
+                if ($company.key -cnotmatch '^[a-f0-9]{64}$') { Stop-ReadPoc 'BOOK_COMPANY_IDENTITY_UNVERIFIED' }
+                $observed+=$company.key
+                if ($company.key -ceq $candidate.key) { $verified[$candidate.key]=$true }
+            } catch { $failures[$candidate.key]=Get-ConnectorFailure $_ }
+            finally {
+                if ($connection) { $connection.Dispose() }
+                if ($reader -is [Management.Automation.PSCredential]) { $reader.Password.Dispose() }
+                if ($lock) { $lock.Dispose() }
+            }
+        }
+        $keys=@($observed | Sort-Object -Unique)
+        if ($keys.Count -eq 1) {
+            foreach ($candidate in $group.Group) {
+                if ($candidate.key -cne $keys[0]) {
+                    $result.historical+=@{key=$candidate.key;bookId=$candidate.bookId;code='HISTORICAL_BOOK_IDENTITY_SKIPPED';currentKey=$keys[0]}
+                } elseif (-not $candidate.authorized -or $verified[$candidate.key]) {
+                    $result.books+=$candidate
+                } else {
+                    $result.failures+=@{key=$candidate.key;bookId=$candidate.bookId;failure=$failures[$candidate.key]}
+                }
+            }
+            if (-not @($group.Group | Where-Object key -CEQ $keys[0]).Count) {
+                $result.failures+=@{key=$keys[0];failure=@{code='CURRENT_BOOK_AUTHORIZATION_NOT_SAVED'}}
+            }
+        } elseif ($keys.Count -gt 1) {
+            foreach ($candidate in $group.Group) { $result.failures+=@{key=$candidate.key;bookId=$candidate.bookId;failure=@{code='BOOK_IDENTITY_CHANGED_DURING_CHECK'}} }
+        } else {
+            foreach ($candidate in $group.Group) {
+                if ($candidate.authorized) { $result.failures+=@{key=$candidate.key;bookId=$candidate.bookId;failure=$failures[$candidate.key]} }
+                else { $result.books+=$candidate }
+            }
+        }
+    }
+    return $result
+}
+
 function Get-LocalSqlInstances {
     $instances = @('MSSQLSERVER','A2006')
     foreach ($path in @('HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\Instance Names\SQL','HKLM:\SOFTWARE\WOW6432Node\Microsoft\Microsoft SQL Server\Instance Names\SQL')) {

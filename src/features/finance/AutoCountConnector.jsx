@@ -15,7 +15,7 @@ const syncErrors = {
   source_login: 'SQL Server rejected the saved reader login or could not open the Account Book. Check the reader on the office PC.',
   source_unreachable: 'The office connector could not reach local SQL Server. Check that SQL Server has started. The connector will retry.',
   source_permissions: 'The saved reader did not pass SQL permission checks. Review the Windows authorization diagnostics.',
-  source_schema: 'The connector could not verify the Account Book identity or its source tables. Review the Windows diagnostics.',
+  source_schema: 'The saved Account Book identity or source tables no longer match. Review the current book in Windows and connect its verified identity in FeedX. Historical bindings and accepted history are retained.',
   scope_limit: 'The connector reached its extraction limit. Review the posting scope in the Windows sync report.',
   upload_rejected: 'FeedX rejected an upload. Review Copy diagnostics on the Windows connector before retrying.',
   upload_date_format: 'FeedX rejected the posting date format. Update the Windows connector and retry the queued upload.',
@@ -23,7 +23,7 @@ const syncErrors = {
   upload_record_shape: 'FeedX rejected the row count or required fields. Share the Windows diagnostics with FeedX support.',
   upload_record_values: 'FeedX rejected a field value or duplicate source key. Share the Windows diagnostics with FeedX support.',
   upload_request_conflict: 'FeedX already has this request ID with different content. Keep the queue and contact FeedX support.',
-  network: 'Check the office PC’s access to FeedX Staging, then run Sync Now.',
+  network: 'Check the office PC’s access to FeedX Staging. The Windows connector retains queued uploads and retries on its next background run.',
   receipt: 'The upload receipt could not be verified. The connector keeps the batch for retry.',
   local: 'Open the Windows connector sync report to identify and correct the failure.',
 };
@@ -60,13 +60,14 @@ export function AutoCountStatus({ entry, timestamp }) {
     <div className="flex flex-wrap gap-2" aria-live="polite">
       <StatusBadge status={tone}>{label}</StatusBadge>
       {heartbeat === 'online' && <StatusBadge status="success">Online</StatusBadge>}
-      {heartbeat === 'overdue' && <StatusBadge status="warning">Check-in overdue</StatusBadge>}
+      {heartbeat === 'overdue' && <StatusBadge status="warning">Offline · check-in overdue</StatusBadge>}
       {entry.state === 'connected' && connector.syncState === 'running' && heartbeat !== 'overdue' && <StatusBadge status="in_progress">Syncing</StatusBadge>}
       {live && connector.syncState === 'running' && heartbeat === 'overdue' && <StatusBadge status="warning">Sync outcome pending</StatusBadge>}
       {['connected', 'pending'].includes(entry.state) && ['failed', 'interrupted'].includes(connector.syncState) && <StatusBadge status="error">Sync failed</StatusBadge>}
       {entry.state === 'connected' && connector.retryRequestedAt && <StatusBadge status="scheduled">Sync requested</StatusBadge>}
     </div>
     <dl className="finance-source-facts">
+      {connector.bookId && <div><dt>Account Book reference</dt><dd>{connector.bookId.slice(0, 8)}</dd></div>}
       <div><dt>Source book</dt><dd>{entry.connection.externalTenantId} · {connector.verifiedAt ? 'Verified by connector' : 'Awaiting verification'}</dd></div>
       <div><dt>Last device check-in</dt><dd>{timestamp(connector.deviceLastSeenAt)}</dd></div>
       <div><dt>Last sync attempt</dt><dd>{timestamp(connector.lastAttemptAt ?? connector.lastSyncReportAt)}{!connector.lastAttemptAt && connector.lastSyncReportAt ? ' · outcome time' : ''}</dd></div>
@@ -80,7 +81,7 @@ export function AutoCountStatus({ entry, timestamp }) {
     {entry.state === 'pending' && <p className="finance-source-note">The Windows Connector will verify the bound book on its next run. If this stays pending, check the connector on the office PC.</p>}
     {entry.state === 'connected' && connector.retryRequestedAt && <p className="finance-source-note">The request stays queued until the next eligible Windows check. An online connector checks every five minutes.</p>}
     {['connected', 'pending'].includes(entry.state) && connector.syncState === 'failed' && <p className="finance-source-note">{syncErrors[connector.syncError] ?? syncErrors.local}</p>}
-    {entry.state === 'connected' && connector.syncState === 'interrupted' && <p className="finance-source-note">The connector did not report an outcome. Check the office PC and run Sync Now.</p>}
+    {entry.state === 'connected' && connector.syncState === 'interrupted' && <p className="finance-source-note">The connector did not report an outcome. Its next background run will retry. Check the office PC and Windows task diagnostics if check-ins remain overdue.</p>}
   </>;
 }
 
@@ -92,7 +93,7 @@ export function AutoCountDevices({ state, onAction, timestamp }) {
       <div><h3>{device.label || 'AutoCount Desktop Connector'}</h3><p>Last check-in: {timestamp(device.lastSeenAt)}</p></div>
       <div className="flex flex-wrap gap-2">
         <StatusBadge status={device.active ? 'info' : 'neutral'}>{device.active ? 'Paired' : 'Revoked'}</StatusBadge>
-        {device.active && connectionHeartbeat(device.lastSeenAt) === 'overdue' && <StatusBadge status="warning">Check-in overdue</StatusBadge>}
+        {device.active && connectionHeartbeat(device.lastSeenAt) === 'overdue' && <StatusBadge status="warning">Offline · check-in overdue</StatusBadge>}
         {device.active && connectionHeartbeat(device.lastSeenAt) === 'online' && <StatusBadge status="success">Online</StatusBadge>}
       </div>
     </div>
@@ -101,11 +102,13 @@ export function AutoCountDevices({ state, onAction, timestamp }) {
     {device.books.length > 0 && <ul className="divide-y divide-border">
       {device.books.map((book) => {
         const entry = state.connections.find((item) => item.connection.id === book.connectionId);
+        const duplicateName = device.books.filter((item) => item.name === book.name).length > 1;
         const canBind = device.active && book.ready && (!entry || entry.state === 'revoked');
         return <li key={book.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
           <div>
             <p className="type-body-sm font-semibold">{book.company}</p>
             <p className="type-caption text-text-secondary">{book.name} · {book.ready ? entry ? entry.legalEntityLabel : 'Ready to connect' : 'Authorization Required'}</p>
+            {duplicateName && <p className="type-caption text-text-secondary">Book reference: {book.id.slice(0, 8)} · {entry ? 'Existing binding retained' : 'Separate identity — confirm before connecting'}</p>}
           </div>
           {canBind && <button className="btn-secondary" type="button" onClick={() => onAction('bind', entry, { book })}>{entry ? 'Reconnect book' : 'Connect book'}</button>}
         </li>;
@@ -185,6 +188,7 @@ export function AutoCountActionModal({ action, entry, book, device, entities, on
         {entry ? <p>Resume this book for <strong>{entry.legalEntityLabel}</strong>. Its history stays with this Legal Entity.</p> :
           <SelectField label="Legal Entity" value={entity} onChange={setEntity} disabled={busy}
             options={entities.map((item) => ({ value: item.id, label: item.label }))} placeholder="Select Legal Entity" required searchable="auto" />}
+        <p className="type-body-sm text-text-secondary">Account Book reference: {book?.id?.slice(0, 8)}. Connecting this identity retains other books’ bindings and accepted history.</p>
         <p className="type-body-sm text-text-secondary">The Windows Connector starts the first sync after you connect this book.</p>
       </>}
       {action === 'retry' && <p>FeedX will queue a request for this book. Start Sync Now on the office PC to run it immediately, or wait for the next background check.</p>}

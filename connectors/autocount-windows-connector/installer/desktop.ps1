@@ -142,6 +142,8 @@ function Get-DiagnosticHint([string]$Code) {
         '^READER_DATABASE_INVENTORY_UNVERIFIED$' { return 'Ask your SQL administrator to verify database metadata visibility for this reader.' }
         '^READER_PERMISSION_OUTSIDE_APPROVED_OBJECTS$|^READER_SCHEMA_PERMISSION_TOO_BROAD$|^READER_PROFILE_PERMISSION_TOO_BROAD$' { return 'Share Copy diagnostics with your SQL administrator. Review the reported effective permission and matching grant scope before changing any access.' }
         '^READER_PENDING_IDENTITY_MISMATCH$' { return 'Ask your SQL administrator to review the pending reader identity. The connector did not replace it.' }
+        '^SAVED_READER_CREDENTIAL_UNREADABLE$' { return 'Run the task under the installing Windows account so its saved Windows-protected credential can be opened. Do not replace the reader.' }
+        '^CURRENT_BOOK_|^BOOK_IDENTITY_' { return 'Review the current database identity and its existing Legal Entity binding. Historical records are retained.' }
         '^READER_DISABLE_FAILED' { return 'Ask your SQL administrator to review and disable the pending reader before retrying.' }
         '^SQL_ERROR_18456$' { return 'Ask your SQL administrator to check SQL authentication and reader sign-in.' }
         '^ACCOUNTING_SCOPE_EXCEEDS' { return 'The posting scope exceeds the connector limit. Contact FeedX support.' }
@@ -161,7 +163,18 @@ function Refresh-Diagnostics {
     if ($schedule.nextPollAt) { $lines += "Next task run: $(Format-ConnectorTime $schedule.nextPollAt)." }
     $setup = Read-ConnectorReport (Join-Path $deviceRoot 'schedule-setup.json')
     if ($setup.code) { $lines += "Background setup: $($setup.code). Use the installing account and check its scheduled task logon rights." }
+    $update = Read-ConnectorReport (Join-Path $deviceRoot 'installed-update.json')
+    if ($update.state) { $lines += "Installer background update: $($update.state). $($update.failure.code)" }
+    $startup = Read-ConnectorReport (Join-Path $deviceRoot 'worker-startup-error.json')
     $poll = Read-ConnectorReport (Join-Path $deviceRoot 'poll-summary.json')
+    if ($startup.error -and (-not $poll.finishedAt -or [string]$startup.finishedAt -gt [string]$poll.finishedAt)) {
+        $lines += "Worker startup: $($startup.error), stage $($startup.stage), $($startup.failure.failureType), line $($startup.failure.line)."
+    }
+    foreach ($result in @($poll.books)) {
+        if ($result.failure.code) { $lines += "Book worker: $($result.failure.code), stage $($result.stage), $($result.failure.failureType), line $($result.failure.line). $(Get-DiagnosticHint $result.failure.code)" }
+        elseif ($result.code -ceq 'CURRENT_BOOK_BINDING_REQUIRED') { $lines += 'Current database identity needs its own Legal Entity binding in FeedX. Historical bindings and accepted history are preserved.' }
+    }
+    if (@($poll.historical).Count) { $lines += "Historical local identities skipped: $(@($poll.historical).Count). Existing readers, bindings and queues were retained." }
     if ($poll) {
         $lines += "Last worker poll: $(Format-ConnectorTime $poll.finishedAt). $($poll.state)."
         if ($poll.error) { $lines += "  $($poll.error). $(Get-DiagnosticHint $poll.error)" }

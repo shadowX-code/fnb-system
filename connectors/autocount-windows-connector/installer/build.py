@@ -19,7 +19,7 @@ with TemporaryDirectory() as temp:
         "installer/staging-public-key.txt": key_file,
     }
     for group, root, files in (
-        ("installer", connector / "installer", ("desktop.ps1", "worker.ps1", "device.ps1", "permission-review.ps1", "scheduler.ps1")),
+        ("installer", connector / "installer", ("desktop.ps1", "worker.ps1", "device.ps1", "permission-review.ps1", "scheduler.ps1", "installed-update.ps1")),
         ("common", connector / "common", ("credentials.ps1", "accounting-read.ps1", "staging-response.ps1")),
         ("sql", sql, ("sql-read.ps1", "connection.ps1", "local-paths.ps1", "review-deptchangelog-permissions.sql")),
     ):

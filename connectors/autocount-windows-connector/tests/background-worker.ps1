@@ -14,13 +14,20 @@ try {
 $deviceRoot=Split-Path $PSScriptRoot
 $deviceCredentialPath=Join-Path $deviceRoot 'paired'
 function Get-DeviceCredential { return [pscredential]::new('fixture',(ConvertTo-SecureString 'fixture' -AsPlainText -Force)) }
+function Resolve-LocalConnectorBooks($Books) { return @{books=@($Books);historical=@(@{key=('b'*64);bookId='unbound-history'});failures=@()} }
+function Get-ConnectorFailure($Record) { return @{code=if ($Record.Exception.Message -match '^[A-Z_]{5,95}$') { $Record.Exception.Message } else { 'LOCAL_WORKER_ERROR' };line=$Record.InvocationInfo.ScriptLineNumber} }
+function Get-RunLocalPath($Path,$BaseDirectory) { Join-Path $BaseDirectory $Path }
 function Get-LocalConnectorBooks {
-    return @{bookId='fixture';key=('a'*64);authorized=$true;database='AED_TEST'}
+    return @{bookId='fixture';key=('a'*64);authorized=$true;database='AED_TEST';instance='A2006'}
 }
 function Invoke-DeviceAction($Credential,$Request) {
-    if ($Request.p_background_mode -ne 'unattended' -or -not $Request.p_next_poll_at) { throw 'Schedule evidence not sent' }
+    if ($Request.p_action -ceq 'source_error') {
+        if ($Request.p_code -cne 'source_schema') { throw 'Historical failure misclassified' }
+        return @{state='Recorded'}
+    }
+    if (-not $Request.p_action -and ($Request.p_background_mode -ne 'unattended' -or -not $Request.p_next_poll_at)) { throw 'Schedule evidence not sent' }
     $record=Get-Content -Raw (Join-Path $deviceRoot 'cloud.json') | ConvertFrom-Json
-    return @{books=@($record)}
+    return @{books=@($record)+@(@{bookId='unbound-history';ready=$true;bound=$true;connectionId='historical-binding'})}
 }
 function Write-LocalTextAtomically($Path,$Text) { [IO.File]::WriteAllText($Path,$Text) }
 '@
@@ -34,8 +41,8 @@ Add-Content (Join-Path $PSScriptRoot 'synced') 'AED_TEST'
     $pending=Join-Path $queue 'pending.json'
     $synced=Join-Path $root 'synced'
     Set-Content -LiteralPath (Join-Path $root 'paired') -Value 'fixture'
-    foreach ($scenario in @('idle','daily','catchup','requested','retry','localQueue')) {
-        $record=@{bookId='fixture';ready=$true;bound=$true;connectionId='existing-binding';requested=$scenario -eq 'requested'
+    foreach ($scenario in @('idle','daily','catchup','requested','retry','localQueue','unboundCurrent')) {
+        $record=@{bookId='fixture';ready=$true;bound=$scenario -cne 'unboundCurrent';connectionId='existing-binding';requested=$scenario -eq 'requested'
             needsRetry=$scenario -eq 'retry';lastSyncAt=[datetimeoffset]::UtcNow.AddHours(-2).ToString('o')}
         if ($scenario -eq 'daily') { $record.lastSyncAt=[datetimeoffset]::UtcNow.AddHours(-25).ToString('o') }
         $record | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $root 'cloud.json')
@@ -46,9 +53,21 @@ Add-Content (Join-Path $PSScriptRoot 'synced') 'AED_TEST'
         & $worker
         $after=@(Get-Content -LiteralPath $synced -ErrorAction SilentlyContinue).Count
         $poll=Get-Content -LiteralPath (Join-Path $root 'poll-summary.json') -Raw | ConvertFrom-Json
-        if ($after-$before -ne [int]($scenario -ne 'idle') -or -not $poll.paired -or -not $poll.finishedAt -or $poll.error) {
+        if ($global:LASTEXITCODE -ne 0) { throw "Worker did not exit zero: $scenario" }
+        if ($after-$before -ne [int]($scenario -cnotin @('idle','unboundCurrent')) -or -not $poll.paired -or -not $poll.finishedAt -or $poll.error -or $poll.historical.Count -ne 1) {
             throw "Background scenario failed: $scenario ($before -> $after). $($poll | ConvertTo-Json -Compress)"
         }
     }
+    # A startup failure must leave evidence even if the installed helpers never loaded.
+    $priorLocal=$env:LOCALAPPDATA
+    try {
+        $env:LOCALAPPDATA=$root
+        $startupRoot=Join-Path $root 'FeedX/AutoCountConnector'
+        $null=[IO.Directory]::CreateDirectory($startupRoot)
+        Remove-Item -LiteralPath (Join-Path $installer 'device.ps1')
+        & $worker
+        $startup=Get-Content -LiteralPath (Join-Path $startupRoot 'worker-startup-error.json') -Raw | ConvertFrom-Json
+        if ($global:LASTEXITCODE -ne 1 -or $startup.stage -cne 'Startup' -or -not $startup.error) { throw 'Startup failure was hidden' }
+    } finally { $env:LOCALAPPDATA=$priorLocal }
 } finally { if (Test-Path -LiteralPath $root) { Remove-Item -LiteralPath $root -Recurse -Force } }
 Write-Host 'Background polling and automatic, requested, catch-up and queue-driven sync passed.'

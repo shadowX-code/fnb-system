@@ -1,6 +1,6 @@
 #requires -Version 5.1
 $connectorTaskName = 'FeedX AutoCount Connector'
-$connectorTaskDescription = 'FeedX accounting check-in every 5 minutes'
+$connectorTaskDescription = 'FeedX accounting check-in every 5 minutes (3.1.1)'
 
 function Get-ConnectorTaskOwnerSid([string]$Account) {
     if ($Account -match '^S-1-') { return $Account }
@@ -35,14 +35,14 @@ function Register-ConnectorSchedule([Management.Automation.PSCredential]$Credent
         if ((Get-ConnectorTaskOwnerSid $existing.Principal.UserId) -cne $identity.User.Value) {
             Stop-ReadPoc 'SCHEDULE_OWNED_BY_ANOTHER_USER'
         }
-        if (-not $Credential -and ($existing.Principal.LogonType -eq 'Password' -or $existing.Description -ceq $connectorTaskDescription)) { return }
+        if (-not $Credential -and ($existing.State -eq 'Disabled' -or $existing.Principal.LogonType -eq 'Password' -or $existing.Description -ceq $connectorTaskDescription)) { return }
     }
     if ($Credential -and (Get-ConnectorTaskOwnerSid $Credential.UserName) -cne $identity.User.Value) {
         Stop-ReadPoc 'SCHEDULE_REQUIRES_INSTALLING_WINDOWS_USER'
     }
     $worker = Join-Path $PSScriptRoot 'worker.ps1'
-    $action = New-ScheduledTaskAction -Execute (Join-Path $PSHOME 'powershell.exe') -Argument ('-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "'+$worker+'"')
-    $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Hours 1)
+    $action = New-ScheduledTaskAction -Execute (Join-Path $PSHOME 'powershell.exe') -WorkingDirectory (Split-Path $PSScriptRoot) -Argument ('-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "'+$worker+'"')
+    $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Hours 1) -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 5)
     # No repetition duration means the time trigger remains active after reboot.
     $triggers = @((New-ScheduledTaskTrigger -AtLogOn -User $identity.Name),
                   (New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes 5)))

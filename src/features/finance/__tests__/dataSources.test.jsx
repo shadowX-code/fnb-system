@@ -91,3 +91,34 @@ it('uses source evidence time rather than read time and keeps missing freshness 
   dataset.metrics.cogs.provenance[0].evidenceAt = null;
   expect(overviewDataStatus(dataset).evidenceAt).toBeNull();
 });
+
+it('distinguishes same-name book identities and binds only the explicitly selected book', async () => {
+  const { AutoCountDevices } = await import('../AutoCountConnector.jsx');
+  const selected = [];
+  const old = { id: '18b35aac-1234-1234-1234-123456789012', name: 'AED_TEST', company: 'TEST COMPANY', ready: true, connectionId: 'existing' };
+  const current = { id: '3037f4f7-1234-1234-1234-123456789012', name: 'AED_TEST', company: 'TEST COMPANY', ready: true };
+  const state = { connections: [{ connection: { id: 'existing' }, legalEntityLabel: 'ABC Sdn Bhd', state: 'connected' }], connectorDevices: [{ id: 'device', active: true, books: [old, current] }] };
+  render(<AutoCountDevices state={state} timestamp={() => 'Not reported'} onAction={(...args) => selected.push(args)} />);
+  expect(screen.getByText(/Book reference: 18b35aac/)).toBeTruthy();
+  expect(screen.getByText(/Book reference: 3037f4f7/)).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Connect book' }));
+  expect(selected).toEqual([['bind', undefined, { book: current }]]);
+  expect(old.connectionId).toBe('existing');
+});
+
+it('keeps paired/online, failed sync and overdue evidence independent', async () => {
+  const { AutoCountStatus } = await import('../AutoCountConnector.jsx');
+  const entry = { state: 'connected', connection: { externalTenantId: 'AED_TEST' }, connector: {
+    deviceLastSeenAt: new Date(Date.now() - 20 * 60 * 1000).toISOString(), syncState: 'failed', syncError: 'network',
+    backgroundMode: 'signed_in', lastAttemptAt: '2026-11-19T14:45:00Z', lastSyncAt: '2026-11-16T17:59:52Z',
+  } };
+  render(<AutoCountStatus entry={entry} timestamp={(value) => value || 'Not reported'} />);
+  expect(screen.getByText('Connected')).toBeTruthy();
+  expect(screen.queryByText('Online')).toBeNull();
+  expect(screen.getByText('Offline · check-in overdue')).toBeTruthy();
+  expect(screen.getByText('Sync failed')).toBeTruthy();
+  expect(screen.getByText(/Requires a signed-in Windows user/)).toBeTruthy();
+  expect(screen.getByText(/retries on its next background run/)).toBeTruthy();
+  expect(screen.getByText('2026-11-19T14:45:00Z')).toBeTruthy();
+  expect(screen.getByText('2026-11-16T17:59:52Z')).toBeTruthy();
+});
