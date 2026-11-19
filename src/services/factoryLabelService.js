@@ -27,6 +27,8 @@ export const factoryLabelService = {
       p_page: page,
     }),
   enqueue: (args) => rpc("enqueue", args),
+  printStatus: (order, job, device) =>
+    rpc("print_status", { p_job_order: order, p_job: job || null, p_device: device || null }),
   resolve: (job, state, reason, usableQuantity) =>
     rpc("resolve", {
       p_job: job,

@@ -5,9 +5,11 @@ import { Field, inputClass } from "../components/FactoryBulkSelectionModal.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
 import FeedXDatePicker from "../components/FeedXDatePicker.jsx";
 import FactoryPagination from "../components/FactoryPagination.jsx";
+import FactoryStatusBadge from "../components/FactoryStatusBadge.jsx";
 import { formatFactoryDate } from "../utils/factoryDates.js";
 import { factoryLabelService } from "../../../services/factoryLabelService.js";
 import { renderLabel, previewFrozenRaster } from "./labelRenderer.js";
+import { PrintJobDetails, PrintJobActions, PrintOutcomeForm, inspectPrint } from "./PrintJobReview.jsx";
 
 import {
   pendingRequestKey,
@@ -28,6 +30,15 @@ const missingLabels = {
   packaged_units: "Confirmed packaged units",
   confirmed_cartons: "Verified actual cartons",
 };
+const lifecycleMessage = {
+  Queued: "Waiting for the print bridge to claim this job.",
+  Printing: "The bridge is processing this submission.",
+  Sent: "Submission accepted. Check the physical output before confirming.",
+  Confirmed: "Physical output was confirmed.",
+  Failed: "Review the recorded outcome before requesting a reprint.",
+  Unknown: "Check the physical output before printing again. An Unknown print holds the bridge until reviewed.",
+};
+const statusTone = { Queued: "neutral", Printing: "info", Sent: "info", Confirmed: "success", Failed: "danger", Unknown: "warning" };
 export default function LabelPrintModal({ job, can, actorId, onClose }) {
   const storageKey = pendingRequestKey(actorId, job.id);
   const [initialRequest] = useState(() => readPendingRequest(storageKey));
@@ -51,14 +62,24 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
     [reprint, setReprint] = useState(null),
     [reason, setReason] = useState(""),
     [resolve, setResolve] = useState(null);
+  const [submittedId, setSubmittedId] = useState(null),
+    [statusRead, setStatusRead] = useState(null),
+    [statusVersion, setStatusVersion] = useState(0);
   const flight = useRef(false),
     generation = useRef(0),
     request = useRef(initialRequest);
   const pendingRequest = Boolean(request.current);
-  const historyRef = useRef(null);
+  const reviewRef = useRef(null);
   const quantityRef = useRef(null);
   const selectedPrinter = data?.devices?.find((entry) => entry.id === device);
-  const selectedHold = selectedPrinter?.hold;
+  const statusKey = JSON.stringify([submittedId, device]);
+  const currentStatus = statusRead?.key === statusKey ? statusRead : null;
+  const submitted = currentStatus?.data?.submitted;
+  const blocking = currentStatus?.data?.blocking;
+  const selectedHold = currentStatus?.data ? blocking : selectedPrinter?.hold;
+  const reviewJob = blocking || submitted;
+  const showStatus = Boolean(submittedId || selectedHold);
+  const reviewUnknown = reviewJob?.state === "Unknown" || Boolean(selectedHold);
   const issue = resolve?.state === "Failed" && resolve.job.state !== "Queued";
   const usableCount = resolve?.state === "Confirmed"
     ? resolve.job.quantity
@@ -71,9 +92,9 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
   const previewOnly = job.status === "in_progress" || data?.preview_only;
   const canPrint = !previewOnly && can("factory_production.complete"),
     canRecover = can("factory_production.verify");
-  const load = useCallback(async () => {
+  const load = useCallback(async (foreground = true) => {
     const current = ++generation.current;
-    setLoading(true);
+    if (foreground) setLoading(true);
     try {
       const result = await factoryLabelService.context(
         job.id,
@@ -83,7 +104,10 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
       );
       if (current !== generation.current) return;
       setData(result);
-      setError("");
+      if (foreground) setError("");
+      if (!result.preview_only && job.status !== "in_progress" && result.devices?.length === 1 && result.devices[0].hold) {
+        setDevice((selected) => selected || result.devices[0].id);
+      }
       if (!request.current && result.labels?.length && !result.labels.some((label) => label.label_key === labelKey)) {
         setLabelKey(result.labels[0].label_key);
       }
@@ -103,7 +127,7 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
           : q,
       );
     } catch (e) {
-      if (current === generation.current)
+      if (foreground && current === generation.current)
         setError(e.message || "Unable to load batch labels.");
     } finally {
       if (current === generation.current) setLoading(false);
@@ -117,10 +141,33 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
   }, [load]);
   useEffect(() => {
     const timer = setInterval(() => {
-      if (!flight.current) load();
+      if (!flight.current) load(false);
     }, 10000);
     return () => clearInterval(timer);
   }, [load]);
+  useEffect(() => {
+    if (!submittedId && !device) return;
+    let active = true;
+    let timer;
+    async function refreshStatus() {
+      try {
+        const data = await factoryLabelService.printStatus(job.id, submittedId, device);
+        if (active) setStatusRead({ key: statusKey, data });
+      } catch {
+        if (active) setStatusRead((previous) => ({
+          key: statusKey, data: previous?.key === statusKey ? previous.data : null,
+          error: "Print status could not be refreshed. Check again before submitting more labels.",
+        }));
+      } finally {
+        if (active) timer = setTimeout(refreshStatus, 2500);
+      }
+    }
+    refreshStatus();
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [job.id, submittedId, device, statusKey, statusVersion]);
   const candidate = data?.candidate,
     candidateKey = JSON.stringify([candidate, data?.saved_raster, previewOnly]);
   useEffect(() => {
@@ -174,16 +221,16 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
           p_reason: reprint ? reason : null,
         };
       writePendingRequest(storageKey, request.current);
-      await factoryLabelService.enqueue(request.current);
+      const id = await factoryLabelService.enqueue(request.current);
       writePendingRequest(storageKey, null);
       request.current = null;
       setConfirmed(false);
       setReprint(null);
       setReason("");
       setQuantity(null);
-      setNotice("Labels queued.");
+      setSubmittedId(id);
       await load();
-      historyRef.current?.scrollIntoView?.({ block: "start" });
+      reviewRef.current?.focus();
     } catch (e) {
       if (e.code) {
         request.current = null;
@@ -217,6 +264,7 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
       setNotice(resolve.job.state === "Unknown"
         ? "Print outcome recorded. The bridge can continue queued work."
         : "Print outcome recorded.");
+      setStatusVersion((version) => version + 1);
       await load();
     } catch (e) {
       setError(e.message);
@@ -225,6 +273,23 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
       setBusy(false);
     }
   }
+  function beginResolve(job, state) {
+    setResolve({ job, state, reason: "", count: "", cleared: false });
+  }
+  function beginReprint(job) {
+    const { inspection } = inspectPrint(job);
+    const missing = job.state === "Failed" && inspection?.state === "Failed"
+      ? job.quantity - inspection.usable_quantity : 0;
+    setSubmittedId(null);
+    setReprint(job);
+    setReason("");
+    setQuantity(missing > 0 ? String(missing) : "");
+    resetRequest();
+    quantityRef.current?.focus();
+  }
+  const outcomeForm = resolve && (
+    <PrintOutcomeForm {...{ resolve, setResolve, issue, busy, canRecordOutcome, resolvePrint }} />
+  );
   const labelLimit = candidate?.quantity_limit ?? (candidate?.quantity_basis ? null : candidate?.packaged_units);
   const remainingQuantity = labelLimit == null ? null : Math.max(0, Number(labelLimit) - (data?.allocated || 0));
   const quantityExceedsLimit = !reprint && remainingQuantity != null && Number(quantity) > remainingQuantity;
@@ -239,7 +304,10 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
   const queueBlock =
     busy ? "Processing the current request…" :
     !canPrint ? "Printing requires Production completion permission." :
+    selectedHold ? "Review the previous print before queueing to this printer." :
     pendingRequest ? "" :
+    submittedId ? "Review the current submission before starting another print." :
+    currentStatus?.error ? "Refresh the printer status before queueing." :
     error ? "Refresh the print context before queueing." :
     loading ? "Checking batch and label eligibility…" :
     !batch ? "Select a completed Production batch." :
@@ -249,6 +317,7 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
     !image ? "Waiting for the label preview." :
     !reprint && remainingQuantity === 0 ? "The initial allowance is fully allocated. Use an authorized reprint." :
     !selectedPrinter ? "Select an available printer." :
+    !currentStatus?.data ? "Checking the selected printer for unresolved prints…" :
     quantityExceedsLimit ? `Enter no more than ${remainingQuantity} labels.` :
     !quantityValid ? "Enter a whole quantity from 1 to 10,000." :
     reprint && reason.trim().length < 3 ? "Enter the reprint reason." :
@@ -260,17 +329,32 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
       title="Print Labels"
       description={`${productName} · ${job.job_order_no} · ${previewOnly ? "In Progress" : "Completed"}`}
       size="2xl"
+      panelClassName="max-sm:max-h-[calc(100dvh-2rem)]"
       onClose={busy ? undefined : onClose}
       footer={
         <div className="flex w-full flex-wrap items-center justify-between gap-2">
           <p className="text-xs text-text-secondary" id="label-queue-status" aria-live="polite">
-            {previewOnly ? "" : queueBlock}
+            {previewOnly || showStatus ? "" : queueBlock}
           </p>
           <div className="ml-auto flex flex-wrap gap-2">
             <button type="button" className="btn-secondary" disabled={busy} onClick={onClose}>
-              {previewOnly ? "Back" : "Cancel"}
+              {previewOnly ? "Back" : showStatus ? "Close" : "Cancel"}
             </button>
-            {!previewOnly && <button type="button" className="btn-primary" disabled={Boolean(queueBlock)}
+            {!previewOnly && reviewUnknown && (
+              <button type="button" className="btn-primary" disabled={busy}
+                onClick={() => reviewRef.current?.focus()}>
+                {selectedHold && (!submittedId || blocking?.id !== submittedId) ? "Review Previous Print" : "Review Print Result"}
+              </button>
+            )}
+            {!previewOnly && !reviewUnknown && submitted && ["Sent", "Confirmed", "Failed"].includes(submitted.state) && canPrint && (
+              <button type="button" className="btn-secondary" disabled={busy} onClick={() => {
+                setSubmittedId(null);
+                setResolve(null);
+                setNotice("");
+                quantityRef.current?.focus();
+              }}>New Print</button>
+            )}
+            {!previewOnly && !showStatus && <button type="button" className="btn-primary" disabled={Boolean(queueBlock)}
               aria-describedby="label-queue-status" onClick={submit}>
               <Printer size={15} />
               {busy ? "Processing…" : pendingRequest ? "Retry Submitted Request" : reprint ? "Queue Reprint" : "Queue Labels"}
@@ -298,6 +382,49 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
           <p role="status" className="text-sm text-text-primary">
             {notice}
           </p>
+        )}
+        {currentStatus?.error && (
+          <p role="alert" className="text-sm text-text-primary">{currentStatus.error}{" "}
+            <button type="button" className="btn-secondary" onClick={() => setStatusVersion((version) => version + 1)}>Check Status</button>
+          </p>
+        )}
+        {!previewOnly && showStatus && (
+          <section ref={reviewRef} tabIndex={-1} aria-labelledby="print-result-title"
+            className="space-y-2 rounded-xl border border-border bg-surface-muted p-3 focus-visible:outline focus-visible:outline-2 md:p-4">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <h3 id="print-result-title" className="font-semibold text-text-primary">
+                {reviewUnknown ? "Review Print Result" : "Print Submission"}
+              </h3>
+              {reviewJob && <FactoryStatusBadge status={reviewJob.state} tone={statusTone[reviewJob.state]} />}
+            </div>
+            <div className="space-y-1 text-sm" aria-live="polite">
+              {reviewJob ? (
+                <>
+                  <p className="font-medium">
+                    {reviewJob.quantity} requested · Job Order {reviewJob.job_order_no || job.job_order_no}
+                    {reviewJob.batch_no && ` · batch ${reviewJob.batch_no}`}
+                    {" · "}Print {reviewJob.id.slice(0, 8)}
+                  </p>
+                  <p className="text-text-secondary">{lifecycleMessage[reviewJob.state]}</p>
+                  {submitted && blocking && submitted.id !== blocking.id && (
+                    <p className="text-text-secondary">Your submission · {submitted.state} · {submitted.quantity} requested</p>
+                  )}
+                </>
+              ) : selectedHold ? (
+                <p>Review the print in Job Order {selectedHold.job_order_no}
+                  {selectedHold.batch_no && ` · batch ${selectedHold.batch_no}`}. Loading the blocking print details…</p>
+              ) : <p>Checking the submitted print status…</p>}
+            </div>
+            {reviewJob && <PrintJobDetails job={reviewJob} printer={selectedPrinter?.printer_name} />}
+            {reviewUnknown && !canRecover && <p className="text-sm text-text-secondary">Ask an authorized verifier to review the physical output.</p>}
+            {reviewJob && canRecover && (
+              <>
+                <PrintJobActions job={reviewJob} busy={busy} onResolve={beginResolve} onReprint={beginReprint}
+                  allowReprint={canPrint && !pendingRequest && data?.history?.some((entry) => entry.id === reviewJob.id)} />
+                {resolve?.job.id === reviewJob.id && outcomeForm}
+              </>
+            )}
+          </section>
         )}
         {previewOnly && (
           <p role="status" className="text-sm text-text-secondary">
@@ -469,13 +596,6 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
             {selectedPrinter && !selectedHold && (
               <p className="text-xs text-text-secondary">Printer status · {printerStatus(selectedPrinter)}</p>
             )}
-            {selectedHold && (
-              <p role="status" className="text-sm text-text-secondary">
-                This bridge is paused. Review the print in Job Order {selectedHold.job_order_no}
-                {selectedHold.batch_no && ` · batch ${selectedHold.batch_no}`}.
-                New work stays queued until that outcome is recorded.
-              </p>
-            )}
             {!data?.devices?.length && (
               <p className="text-sm text-text-secondary">
                 Set up the Windows or macOS Print Bridge to register a printer.
@@ -560,7 +680,7 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
             </label>
             </>}
           </div>
-          <div className="min-w-0 space-y-3 rounded-xl border border-border bg-surface-muted p-3 md:p-4">
+          <div className="order-first min-w-0 space-y-3 rounded-xl border border-border bg-surface-muted p-3 md:sticky md:top-0 md:order-none md:p-4">
             <h3 className="text-sm font-semibold text-text-primary">Label preview · 203 DPI</h3>
             {renderError && (
               <p role="alert" className="text-sm text-text-primary">
@@ -609,13 +729,16 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
             </p>
           </div>
         </details>}
-        {!previewOnly && <section ref={historyRef} aria-labelledby="label-print-history" className="space-y-3 rounded-xl border border-border bg-surface-muted p-3 md:p-4">
+        {!previewOnly && <section aria-labelledby="label-print-history" className="space-y-2 rounded-xl border border-border bg-surface-muted p-3 md:p-4">
           <div className="flex items-center justify-between">
             <h3 id="label-print-history" className="font-semibold text-text-primary">Print history &amp; recovery</h3>
             <button
               className="btn-secondary"
               disabled={busy || loading}
-              onClick={load}
+              onClick={() => {
+                setStatusVersion((version) => version + 1);
+                load();
+              }}
             >
               <RefreshCw size={14} />
               Refresh
@@ -627,166 +750,28 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
             </p>
           )}
           {(data?.history || []).map((h) => {
-            const events = h.events || [];
-            const inspection = events.findLast((event) => event.usable_quantity != null);
-            const submission = events.findLast((event) => ["Sent", "Unknown"].includes(event.state));
+            const { inspection } = inspectPrint(h);
             return (
-              <div
-                key={h.id}
-                className="space-y-2 border-b border-border pb-3 text-sm"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <strong>
-                      {h.state} · {h.quantity} requested
-                    </strong>
-                    <p className="text-text-secondary">
-                      {h.operator_name || "Recorded operator"} ·{" "}
-                      {formatFactoryDate(h.created_at)} · Template{" "}
-                      {h.template_version}{h.label_name ? ` · ${h.label_name}` : ""}
+              <details key={h.id} className="rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+                <summary className="cursor-pointer">
+                  <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <FactoryStatusBadge status={h.state} tone={statusTone[h.state]} />
+                    <span className="font-semibold">{h.quantity} requested</span>
+                    {inspection && <span>{inspection.usable_quantity} usable</span>}
+                    <span className="text-text-secondary">
+                      {formatFactoryDate(h.created_at)}{h.label_name ? ` · ${h.label_name}` : ""}
                       {h.reprint_of ? " · Reprint" : ""}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {canRecover &&
-                      ["Confirmed", "Failed"].includes(
-                        h.state,
-                      ) && (
-                        <button
-                          className="btn-secondary"
-                          disabled={busy || pendingRequest}
-                          onClick={() => {
-                            setReprint(h);
-                            setReason("");
-                            const missing = h.state === "Failed" && inspection?.state === "Failed"
-                              ? h.quantity - inspection.usable_quantity : 0;
-                            setQuantity(missing > 0 ? String(missing) : "");
-                            resetRequest();
-                            quantityRef.current?.focus();
-                          }}
-                        >
-                          Reprint
-                        </button>
-                      )}
-                    {canRecover && ["Sent", "Unknown"].includes(h.state) &&
-                      [["Confirmed", "Confirm Printed"], ["Failed", "Report Issue"]].map(([state, label]) => (
-                        <button
-                          key={state}
-                          className="btn-secondary"
-                          disabled={busy}
-                          onClick={() => setResolve({ job: h, state, reason: "", count: "", cleared: false })}
-                        >
-                          {label}
-                        </button>
-                      ))}
-                    {canRecover && ["Queued", "Printing"].includes(h.state) && (
-                        <button
-                          className="btn-secondary"
-                          disabled={busy}
-                          onClick={() =>
-                            setResolve({
-                              job: h,
-                              state: h.state === "Queued" ? "Failed" : "Unknown",
-                              reason: "",
-                            })
-                          }
-                        >
-                          Review Outcome
-                        </button>
-                      )}
-                  </div>
+                    </span>
+                  </span>
+                </summary>
+                <div className="mt-3 space-y-3">
+                  <PrintJobDetails job={h} audit printer={data.devices?.find((d) => d.id === h.device_id)?.printer_name} />
+                  {h.state === "Unknown" && <p className="text-text-secondary">{lifecycleMessage.Unknown}</p>}
+                  {canRecover && reviewJob?.id !== h.id && <PrintJobActions job={h} busy={busy}
+                    allowReprint={!pendingRequest && canPrint} onResolve={beginResolve} onReprint={beginReprint} />}
+                  {canRecover && reviewJob?.id !== h.id && resolve?.job.id === h.id && outcomeForm}
                 </div>
-                {h.state === "Unknown" && (
-                  <p className="text-text-secondary">
-                    Check the physical output before printing again. This bridge is paused until the outcome is recorded.
-                  </p>
-                )}
-                {submission && (
-                  <p><strong>Submission {submission.state === "Sent" ? "accepted" : "uncertain"}.</strong>{" "}{submission.detail}</p>
-                )}
-                {inspection ? (
-                  <p><strong>Usable labels {inspection.usable_quantity} of {h.quantity}.</strong>{" "}
-                    {inspection.state === "Confirmed" ? "Physically confirmed." : inspection.detail}
-                  </p>
-                ) : (
-                  <>
-                    {["Sent", "Unknown"].includes(h.state) && <p>Physical output awaiting inspection.</p>}
-                    {h.detail && h.detail !== submission?.detail && <p>{h.detail}</p>}
-                  </>
-                )}
-                {h.reprint_reason && <p>Reprint reason · {h.reprint_reason}</p>}
-                {resolve?.job.id === h.id && canRecover && (
-                  <div className="space-y-3 rounded-lg border border-border p-3">
-                    <p className="text-text-secondary">
-                      {resolve.state === "Confirmed"
-                        ? `Have you checked that all ${h.quantity} labels printed and are usable?`
-                        : issue
-                          ? "Count the usable labels and clear any held output before recording the issue."
-                          : h.state === "Queued"
-                            ? "Cancel this queued print request."
-                            : "Inspect the printer before continuing. An active submission cannot be cancelled."}
-                    </p>
-                    {issue && (
-                      <Field label="Usable labels">
-                        <input
-                          aria-label="Usable labels"
-                          className={inputClass()}
-                          type="number"
-                          min="0"
-                          max={h.quantity}
-                          step="1"
-                          value={resolve.count}
-                          disabled={busy}
-                          onChange={(e) => setResolve((r) => ({ ...r, count: e.target.value }))}
-                        />
-                      </Field>
-                    )}
-                    {resolve.state !== "Confirmed" && (
-                      <Field label="Inspection / recovery reason">
-                        <input
-                          aria-label="Inspection / recovery reason"
-                          className={inputClass()}
-                          maxLength={1000}
-                          value={resolve.reason}
-                          disabled={busy}
-                          onChange={(e) => setResolve((r) => ({ ...r, reason: e.target.value }))}
-                        />
-                      </Field>
-                    )}
-                    {issue && (
-                      <label className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={resolve.cleared}
-                          disabled={busy}
-                          onChange={(e) => setResolve((r) => ({ ...r, cleared: e.target.checked }))}
-                        />
-                        I inspected the printer and cleared any held output.
-                      </label>
-                    )}
-                    <div className="flex flex-wrap gap-2">
-                      <button className="btn-secondary" disabled={busy} onClick={() => setResolve(null)}>
-                        Back
-                      </button>
-                      <button className="btn-primary" disabled={busy || !canRecordOutcome} onClick={resolvePrint}>
-                        {resolve.state === "Confirmed" ? `Confirm ${h.quantity} usable labels` : "Record Outcome"}
-                      </button>
-                    </div>
-                  </div>
-                )}
-                <details>
-                  <summary className="cursor-pointer text-text-secondary">
-                    Audit history
-                  </summary>
-                  {events.map((e) => (
-                    <p key={e.id} className="mt-1">
-                      {e.state} · {new Date(e.created_at).toLocaleString()} ·{" "}
-                      {e.detail || "Recorded by operator"}
-                      {e.usable_quantity != null && ` · ${e.usable_quantity} usable`}
-                    </p>
-                  ))}
-                </details>
-              </div>
+              </details>
             );
           })}
           {data?.history_total > 20 && (
