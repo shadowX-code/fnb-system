@@ -110,7 +110,10 @@ export function productionDurationLabel(startDate, startTime, endDate, endTime) 
   const start = strictDateTimeValue(startDate, startTime);
   const end = strictDateTimeValue(endDate, endTime);
   if (start === null || end === null || end < start) return "—";
-  const totalMinutes = Math.floor((end - start) / 60000);
+  return formatProductionDurationMinutes(Math.floor((end - start) / 60000));
+}
+
+export function formatProductionDurationMinutes(totalMinutes) {
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
   if (!hours) return `${minutes} min${minutes === 1 ? "" : "s"}`;
