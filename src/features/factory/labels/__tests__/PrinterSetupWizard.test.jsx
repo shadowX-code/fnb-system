@@ -12,10 +12,10 @@ const device = {
 
 it("distinguishes a connected and calibrated printer from an unresolved queue", () => {
   expect(printerSetupStatus(device)).toEqual({
-    bridge: "Online", connection: "Available", calibration: "Passed", unresolved: 1,
+    bridge: "Online", connection: "Available", readiness: "Held for review", calibration: "Passed", unresolved: 1,
   });
   expect(printerSetupStatus({ ...device, last_seen: "bad" })).toMatchObject({
-    bridge: "Offline", connection: "Not reported",
+    bridge: "Offline", connection: "Not reported", readiness: "Unavailable",
   });
   expect(printerSetupStatus({
     ...device, printers: [{ Name: "D520", WorkOffline: true, Calibration: "Pending" }],

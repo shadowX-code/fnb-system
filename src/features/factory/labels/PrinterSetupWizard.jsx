@@ -16,6 +16,9 @@ export function printerSetupStatus(row) {
   return {
     bridge: !row.enabled ? "Disabled" : online ? "Online" : "Offline",
     connection: !online ? "Not reported" : available ? "Available" : printer || row.status === "Offline" ? "Unavailable" : "Not reported",
+    readiness: !online || !available ? "Unavailable"
+      : row.unresolved_jobs > 0 ? "Held for review"
+      : row.status === "Ready" ? "Ready" : "Not ready",
     calibration: row.calibration_status || printer?.Calibration || "Not reported",
     unresolved: row.unresolved_jobs,
   };

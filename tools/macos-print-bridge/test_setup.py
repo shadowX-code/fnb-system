@@ -98,7 +98,7 @@ class SetupTest(unittest.TestCase):
         self.assertFalse(setup.PAUSE.exists())
 
     def test_setup_exit_clears_pause_and_restarts_one_worker(self):
-        bridge.save(bridge.CONFIG, dict(self.config, guided_setup=True))
+        bridge.save(bridge.CONFIG, dict(self.config, key="fixture-key", owner="fixture-owner"))
         with patch.object(setup, "launch_agent") as launch:
             with self.assertRaisesRegex(ValueError, "cancelled"):
                 with setup.setup_lock():
@@ -129,6 +129,14 @@ class SetupTest(unittest.TestCase):
                     setup.register(config, {})
                 self.assertEqual(rpc.call_args.kwargs["p_status"], expected)
                 self.assertEqual(rpc.call_args.kwargs["p_device"], "existing-device")
+
+    def test_connection_check_reports_without_preparing_a_job(self):
+        with patch.object(bridge, "inventory", return_value=[{"Name": bridge.BLUETOOTH, "WorkOffline": True}]), \
+             patch.object(bridge, "rpc") as rpc, patch.object(bridge, "prepare") as prepare:
+            self.assertFalse(setup.report_connection(self.config, {}))
+        self.assertEqual(rpc.call_args.args[2], "device")
+        self.assertEqual(rpc.call_args.kwargs["p_status"], "Offline")
+        prepare.assert_not_called()
 
     def test_cancelled_calibration_never_submits_or_creates_marker(self):
         with patch.object(bridge, "rpc", return_value=0),              patch.object(setup, "dialog", return_value="Cancel"),              patch.object(bridge, "local_test") as submit:

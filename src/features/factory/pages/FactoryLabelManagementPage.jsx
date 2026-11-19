@@ -17,12 +17,28 @@ import {
   factoryLabelsEnabled,
 } from "../../../services/factoryLabelService.js";
 import PrinterSetupWizard, { printerSetupStatus } from "../labels/PrinterSetupWizard.jsx";
+import { formatFactoryAuditDateTime } from "../utils/factoryDates.js";
 import FactoryLabelEditorPage from "../labels/FactoryLabelEditorPage.jsx";
 import ActiveTemplatePreview from "../labels/ActiveTemplatePreview.jsx";
 import {
   openLabelManagement,
   readLabelManagementLocation,
 } from "../labels/labelManagementNavigation.js";
+
+function BridgeLastSeen({ value }) {
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) return "Never reported";
+  const seconds = Math.max(0, (Date.now() - timestamp) / 1000);
+  const [amount, unit] = seconds < 60 ? [0, "second"]
+    : seconds < 3600 ? [seconds / 60, "minute"]
+    : seconds < 86400 ? [seconds / 3600, "hour"]
+    : [seconds / 86400, "day"];
+  const relative = amount === 0 ? "Just now" : new Intl.RelativeTimeFormat("en").format(-Math.floor(amount), unit);
+  return <time dateTime={value} className="block">
+    <span className="block">{relative}</span>
+    <span className="block text-xs text-text-secondary">{formatFactoryAuditDateTime(value)} MYT</span>
+  </time>;
+}
 
 export default function FactoryLabelManagementPage({ onConfirm, onNotify }) {
   const { can } = useFactoryPermissions(),
@@ -39,6 +55,7 @@ export default function FactoryLabelManagementPage({ onConfirm, onNotify }) {
     [reason, setReason] = useState(""),
     [saving, setSaving] = useState(false);
   const selectedPrinter = data.rows.find((row) => row.id === printer?.id) || printer;
+  const selectedStatus = selectedPrinter && printerSetupStatus(selectedPrinter);
   const canSetup = can("factory_production.complete");
   const generation = useRef(0),
     lock = useRef(false);
@@ -253,20 +270,14 @@ export default function FactoryLabelManagementPage({ onConfirm, onNotify }) {
               label: "Printer / bridge",
               render: (r) => <div><strong>{r.printer_name}</strong><p className="text-xs text-text-secondary">{r.name}</p></div>,
             },
-            {
-              key: "connection",
-              label: "Connection",
-              render: (r) => {
-                const status = printerSetupStatus(r);
-                return <div><FactoryStatusBadge status={status.bridge} /><p className="text-xs text-text-secondary">Printer · {status.connection}</p></div>;
-              },
-            },
+            { key: "bridge", label: "Bridge", render: (r) => <FactoryStatusBadge status={printerSetupStatus(r).bridge} /> },
+            { key: "connection", label: "Printer connection", render: (r) => <FactoryStatusBadge status={printerSetupStatus(r).connection} /> },
             { key: "calibration", label: "Calibration", render: (r) => <FactoryStatusBadge status={printerSetupStatus(r).calibration} /> },
             { key: "unresolved", label: "Unresolved jobs", render: (r) => r.unresolved_jobs ?? "—" },
             {
               key: "last_seen",
               label: "Last seen",
-              render: (r) => r.last_seen ? new Date(r.last_seen).toLocaleString() : "—",
+              render: (r) => <BridgeLastSeen value={r.last_seen} />,
             },
             {
               key: "actions",
@@ -424,24 +435,32 @@ export default function FactoryLabelManagementPage({ onConfirm, onNotify }) {
           <div className="space-y-4">
             <dl className="grid grid-cols-2 gap-2 text-sm">
               <dt>Printer</dt><dd>{selectedPrinter.printer_name}</dd>
-              <dt>Bridge / printer connection</dt>
-              <dd>{printerSetupStatus(selectedPrinter).bridge} / {printerSetupStatus(selectedPrinter).connection}</dd>
-              <dt>Last reported calibration</dt><dd>{printerSetupStatus(selectedPrinter).calibration}</dd>
+              <dt>Bridge</dt><dd><FactoryStatusBadge status={selectedStatus.bridge} /></dd>
+              <dt>Printer connection</dt><dd><FactoryStatusBadge status={selectedStatus.connection} /></dd>
+              <dt>Readiness</dt><dd><FactoryStatusBadge status={selectedStatus.readiness} /></dd>
+              <dt>Last seen</dt><dd><BridgeLastSeen value={selectedPrinter.last_seen} /></dd>
+              <dt>Last reported calibration</dt><dd><FactoryStatusBadge status={selectedStatus.calibration} /></dd>
               <dt>Unresolved jobs</dt><dd>{selectedPrinter.unresolved_jobs ?? "—"}</dd>
             </dl>
             {selectedPrinter.unresolved_jobs > 0 && (
               <p className="text-sm text-text-secondary">Review held output in the affected Job Order’s Print History.</p>
             )}
+            {selectedStatus.bridge === "Offline" && (
+              <p className="text-sm text-text-secondary">On the registered computer, open FeedX Print Bridge and choose Reconnect. If sign-in has expired, choose Reauthorize and use the original operator account.</p>
+            )}
+            {selectedStatus.bridge === "Online" && selectedStatus.connection !== "Available" && (
+              <p className="text-sm text-text-secondary">The Bridge is reporting. Check printer power and run Connection Check on the registered computer. Bluetooth pairing alone does not confirm a connection.</p>
+            )}
             {canSetup && (
               <div className="flex flex-wrap gap-2">
-                {selectedPrinter.enabled && <a className="btn-secondary" href="feedx-printer-staging://setup">Reconnect / Reauthorize</a>}
+                {selectedPrinter.enabled && <a className="btn-secondary" href="feedx-printer-staging://setup">{selectedStatus.bridge === "Offline" ? "Open Setup to Reconnect" : "Open Bridge Setup"}</a>}
                 <button className="btn-secondary" onClick={() => {
                   setWizard({ step: 1, printer: selectedPrinter }); setPrinter(null);
                 }}>Troubleshoot</button>
               </div>
             )}
             <details className="text-sm">
-              <summary className="cursor-pointer font-medium">Discovered printers ({selectedPrinter.printers?.length || 0})</summary>
+              <summary className="cursor-pointer font-medium">Last reported printers ({selectedPrinter.printers?.length || 0})</summary>
               <ul className="mt-2 space-y-1">
                 {(selectedPrinter.printers || []).map((p) => (
                   <li key={p.Name}>{p.Name}{p.Connection ? ` · ${p.Connection}` : ""}</li>
@@ -450,7 +469,7 @@ export default function FactoryLabelManagementPage({ onConfirm, onNotify }) {
             </details>
             {canEdit && (
               <details className="space-y-3 text-sm">
-                <summary className="cursor-pointer font-medium">Manage bridge availability</summary>
+                <summary className="cursor-pointer font-medium">Advanced · Bridge availability</summary>
                 <p className="text-text-secondary">Disabling pauses new claims. Resolve active printing before disabling.</p>
                 <Field label="Reason for availability change">
                   <input

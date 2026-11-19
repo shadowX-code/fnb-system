@@ -106,13 +106,18 @@ def configure(config, session):
     config.update(settings, guided_setup=True, require_calibration=True)
 
 
-def register(config, session):
-    bridge.store_session(config, session)
-    bridge.save(bridge.CONFIG, config)
+def report_connection(config, session):
     printers = bridge.inventory(config)
     available = any(p["Name"] == config["printer"] and not p["WorkOffline"] for p in printers)
     status = "Offline" if not available else "Ready" if bridge.calibration_status(config) == "Passed" else "Error"
     bridge.device_status(config, session, printers, status)
+    return available
+
+
+def register(config, session):
+    bridge.store_session(config, session)
+    bridge.save(bridge.CONFIG, config)
+    report_connection(config, session)
 
 
 def calibrate(config, session):
@@ -183,7 +188,8 @@ def setup_lock():
                 worker.__exit__(None, None, None)
         finally:
             PAUSE.unlink(missing_ok=True)
-            if (bridge.load(bridge.CONFIG) or {}).get("guided_setup"):
+            config = bridge.load(bridge.CONFIG)
+            if config and all(config.get(key) for key in ("device", "owner", "key", "printer", "transport")):
                 launch_agent()
 
 
@@ -262,8 +268,8 @@ def main():
         elif action == "Test / Review Calibration":
             calibrate(config, existing_session(config))
         else:
-            online = any(p["Name"] == config["printer"] and not p["WorkOffline"] for p in bridge.inventory(config))
-            dialog("Printer connection passed." if online else "Printer unavailable. Check power, pairing or the CUPS queue, then check again.")
+            online = report_connection(config, existing_session(config))
+            dialog("Connection check passed and FeedX status was refreshed." if online else "FeedX status was refreshed. Printer unavailable. Check power, pairing or the CUPS queue, then check again.")
 
 
 if __name__ == "__main__":
