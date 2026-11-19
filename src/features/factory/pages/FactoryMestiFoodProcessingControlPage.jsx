@@ -13,7 +13,7 @@ import SearchableSelect from "../components/SearchableSelect.jsx";
 import useFactoryPermissions from "../hooks/useFactoryPermissions.js";
 import { factoryService } from "../../../services/factoryService.js";
 import { formatFactoryDate, formatFactoryDateTime, formatFactoryListDateTime } from "../utils/factoryDates.js";
-import { quantity } from "../utils/factoryFormatters.js";
+import { formatFactoryBatchNo, quantity } from "../utils/factoryFormatters.js";
 import { factoryTimeAmPmLabel } from "../components/productionExecution/productionExecutionHelpers.js";
 
 function productName(row) {
@@ -70,7 +70,7 @@ function FoodProcessingEvidence({ detail }) {
     <FactoryEvidenceHeader title={detail.product_name} subtitle={[detail.product_code, detail.variant_name, detail.batch_no].filter(Boolean).join(" · ")} status={{ label: detail.qc_summary || detail.qc_status || "Evidence unavailable", tone: qcTone(detail) }} />
     <FactoryEvidenceSection title="Production"><FactoryEvidenceGrid items={[
       { label: "Job Order", value: detail.job_order_no },
-      { label: "Production / Batch", value: [detail.production_no, detail.batch_no].filter(Boolean).join(" · ") },
+      { label: "Batch No.", value: formatFactoryBatchNo(detail.batch_no) },
       { label: "Started", value: factoryTimeAmPmLabel(detail.start_time) },
       { label: "Production End", value: detail.completion_date ? `${formatFactoryDate(detail.completion_date)} ${factoryTimeAmPmLabel(detail.completion_time)}` : "—" },
       { label: "Recorded At", value: formatFactoryDateTime(detail.completed_at) },

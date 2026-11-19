@@ -1,17 +1,25 @@
 import { useEffect, useRef, useState } from "react";
 import { Eye } from "lucide-react";
 import Modal from "../../../components/feedback/Modal.jsx";
-import EmptyState from "../../../components/feedback/EmptyState.jsx";
-import { FactoryCellEntity, FactoryCellText } from "./FactoryTableCell.jsx";
-import { formatFactoryAuditDateTime, formatFactoryReadableDate } from "../utils/factoryDates.js";
+import MetricCard from "../../../components/ui/MetricCard.jsx";
+import { FactoryTable } from "./FactoryDataDisplay.jsx";
+import { FactoryCellText } from "./FactoryTableCell.jsx";
+import { formatFactoryReadableDate, formatProductionDurationMinutes } from "../utils/factoryDates.js";
+import { formatFactoryBatchNo } from "../utils/factoryFormatters.js";
 import { performanceNumber as number } from "../utils/productionMonthlyPerformance.js";
 
 function quantity(value, unit) {
   return value == null || !Number.isFinite(Number(value)) ? "—" : `${number(value)}${unit ? ` ${unit}` : ""}`;
 }
 
+function duration(hours) {
+  const minutes = Number(hours) * 60;
+  if (!Number.isFinite(minutes) || minutes <= 0) return "—";
+  return minutes < 1 ? "<1 min" : formatProductionDurationMinutes(Math.round(minutes));
+}
+
 export default function FactoryDailyProductionModal({ day, onClose, onViewResult }) {
-  const content = useRef(null);
+  const summaryRef = useRef(null);
   const opening = useRef(false);
   const [openingResult, setOpeningResult] = useState(false);
   const [error, setError] = useState(null);
@@ -25,39 +33,50 @@ export default function FactoryDailyProductionModal({ day, onClose, onViewResult
     finally { opening.current = false; setOpeningResult(false); }
   }
   useEffect(() => {
-    const previous = document.activeElement;
-    const dialog = content.current.closest('[role="dialog"]');
-    dialog.querySelector("button")?.focus();
-    function keyDown(event) {
-      if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); onClose(); }
-      if (event.key !== "Tab") return;
-      const controls = [...dialog.querySelectorAll('button:not(:disabled), a[href], [tabindex="0"]')];
-      const first = controls[0], last = controls.at(-1);
-      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
-      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
-    }
-    dialog.addEventListener("keydown", keyDown);
-    return () => { dialog.removeEventListener("keydown", keyDown); if (previous?.isConnected) previous.focus(); };
-  }, [onClose]);
-  return <Modal title="Daily Production" description={formatFactoryReadableDate(day.day)} onClose={onClose} size="lg">
-    <div ref={content}>
-      <dl className="mb-3 flex flex-wrap gap-x-8 gap-y-3 border-b border-border pb-3">
-        {[{ label: "Total Output", value: day.state === "missing" ? "Incomplete" : day.state === "future" ? "—" : `${number(day.output_kg)} kg` }, { label: "Completed Runs", value: number(day.completed_runs) }, { label: "Productivity", value: day.productivity == null ? "—" : `${number(day.productivity)} kg/JO-hour` }].map(item => <div key={item.label}><dt className="text-xs text-text-secondary">{item.label}</dt><dd className="mt-1 text-base font-semibold tabular-nums text-text-primary">{item.value}</dd></div>)}
-      </dl>
-      {error ? <p role="alert" className="mb-3 text-sm text-text-secondary">{error}</p> : null}
-      {day.records.length ? <ul className="divide-y divide-border">{day.records.map(run => <li key={run.production_id} className="py-3 first:pt-0 last:pb-0">
-        <div className="mb-3 flex items-start justify-between gap-3">
-          <div className="min-w-0 space-y-1">
-            <FactoryCellEntity name={run.finished_good_name || "Finished Good"} code={run.finished_good_name_cn} />
-            <div className="text-xs text-text-secondary">{[run.sku_code, run.variant_name || quantity(run.pack_size_qty, run.pack_size_uom)].filter(value => value && value !== "—").join(" · ") || "Packaging SKU unavailable"}</div>
-            <FactoryCellText primary={run.job_order_no || "Job Order unavailable"} secondary={run.production_no} />
+    summaryRef.current?.closest('[role="dialog"]')?.querySelector('[aria-label="Close modal"]')?.focus();
+  }, []);
+
+  const summary = [
+    { label: "Total Output", value: day.state === "missing" ? "Incomplete" : day.state === "future" ? "—" : `${number(day.output_kg)} kg` },
+    { label: "Completed Runs", value: number(day.completed_runs) },
+    { label: "Productivity", value: day.productivity == null ? "—" : `${number(day.productivity)} kg/JO-hour` },
+  ];
+  const columns = [
+    { key: "identity", label: "Product / Job Order", className: "min-w-0 break-words", render: (run) => (
+      <FactoryCellText primary={run.finished_good_name || "Finished Good"} secondary={
+        <div className="space-y-0.5">
+          {run.finished_good_name_cn && <div>{run.finished_good_name_cn}</div>}
+          <div>{[run.sku_code, run.variant_name || quantity(run.pack_size_qty, run.pack_size_uom)].filter(value => value && value !== "—").join(" · ") || "Packaging SKU unavailable"}</div>
+          <div className="flex flex-wrap gap-x-2">
+            <span className="font-semibold text-text-primary">{run.job_order_no || "Job Order unavailable"}</span>
+            <span>Batch No. · {formatFactoryBatchNo(run.batch_no)}</span>
           </div>
-          {onViewResult && run.job_order_id ? <button type="button" className="btn-icon shrink-0" disabled={openingResult} title="View Production result" aria-label={`View Production result for ${run.job_order_no || run.production_no}`} onClick={() => viewResult(run)}><Eye size={16} /></button> : null}
         </div>
-        <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
-          {[{ label: "Actual Output", value: run.output_kg == null ? quantity(run.output_qty, run.output_uom) : quantity(run.output_kg, "kg") }, { label: "Actual Pack Qty", value: quantity(run.actual_pack_qty, "packs") }, { label: "Duration", value: run.jo_hours == null ? "—" : quantity(run.jo_hours, "JO-hours") }, { label: "Production Start", value: formatFactoryAuditDateTime(run.start_at) }, { label: "Production End", value: formatFactoryAuditDateTime(run.end_at) }].map(item => <div key={item.label} className="min-w-0"><dt className="text-xs text-text-secondary">{item.label}</dt><dd className="mt-0.5 break-words text-sm tabular-nums text-text-primary">{item.value}</dd></div>)}
-        </dl>
-      </li>)}</ul> : <EmptyState title="No completed Production" description={day.state === "future" ? "No completed runs are attributed to this date yet." : "No completed runs are attributed to this business date."} />}
+      } />
+    ) },
+    { key: "output", label: "Actual Output", align: "right", className: "tabular-nums", render: (run) =>
+      run.output_kg == null ? quantity(run.output_qty, run.output_uom) : quantity(run.output_kg, "kg") },
+    { key: "packs", label: "Actual Pack Qty", align: "right", className: "tabular-nums", render: (run) => quantity(run.actual_pack_qty, "packs") },
+    { key: "duration", label: "Duration", align: "right", className: "tabular-nums", render: (run) => duration(run.jo_hours) },
+    { key: "view", label: "View", mobileLabel: "", align: "right", render: (run) => onViewResult && run.job_order_id ? (
+      <button type="button" className="btn-icon" disabled={openingResult} title="View Production result"
+        aria-label={`View Production result for ${run.job_order_no || run.finished_good_name || "this run"}`}
+        onClick={() => viewResult(run)}>
+        <Eye size={16} />
+      </button>
+    ) : null },
+  ];
+
+  return <Modal title="Daily Production" description={formatFactoryReadableDate(day.day)} onClose={onClose} size="xl"
+    bodyClassName="!p-0">
+    <div ref={summaryRef} className="sticky top-0 z-10 grid grid-cols-3 gap-2 border-b border-border bg-[var(--theme-surface-raised)] px-3 py-3 sm:px-4" aria-label="Daily Production summary">
+      {summary.map(item => <MetricCard key={item.label} {...item} variant="compact" wrapLabel valueClassName="text-sm font-semibold tabular-nums sm:text-base" />)}
+    </div>
+    <div className="min-w-0 p-3 sm:p-4">
+      {error && <p role="alert" className="mb-3 text-sm text-text-secondary">{error}</p>}
+      <FactoryTable columns={columns} rows={day.records} rowKey={(run) => run.production_id} mobileLayout="stack"
+        emptyTitle="No completed Production"
+        emptyDescription={day.state === "future" ? "No completed runs are attributed to this date yet." : "No completed runs are attributed to this business date."} />
       {day.invalid_duration_runs > 0 || day.missing_output_runs > 0 ? <p role="note" className="mt-3 text-xs text-text-secondary">{day.invalid_duration_runs > 0 ? `${day.invalid_duration_runs} runs have no valid duration and are excluded from productivity. ` : ""}{day.missing_output_runs > 0 ? `${day.missing_output_runs} runs have no valid kg output.` : ""}</p> : null}
     </div>
   </Modal>;

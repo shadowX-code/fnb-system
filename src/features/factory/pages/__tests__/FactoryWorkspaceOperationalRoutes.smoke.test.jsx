@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { factoryService } from "../../../../services/factoryService.js";
 import { malaysiaBusinessDateInput } from "../../utils/factoryDates.js";
@@ -253,7 +253,7 @@ describe("FactoryWorkspacePage operational route smoke", () => {
     expect(await screen.findByRole("heading", { name: "Complete Production" })).not.toBeNull();
     fireEvent.click(screen.getAllByRole("button", { name: "Close modal" }).at(-1));
 
-    fireEvent.click(screen.getAllByRole("button", { name: "View result" })[0]);
+    fireEvent.click(within(document.querySelector('[data-stage="completed"]')).getAllByRole("button", { name: "View details" })[0]);
     await waitFor(() => expect(factoryService.getProductionByJobOrder).toHaveBeenCalledWith(completedJob.id));
     expect(await screen.findByRole("heading", { name: "Completed Job Order Result" })).not.toBeNull();
     fireEvent.click(screen.getAllByRole("button", { name: "Close modal" }).at(-1));
@@ -291,7 +291,7 @@ describe("FactoryWorkspacePage operational route smoke", () => {
     expect(startJob).toHaveBeenCalledWith(job);
     fireEvent.click(screen.getByRole("button", { name: "Complete Production" }));
     expect(completeProduction).toHaveBeenCalledWith(inProgressJob);
-    fireEvent.click(screen.getByRole("button", { name: "View result" }));
+    fireEvent.click(within(document.querySelector('[data-stage="completed"]')).getByRole("button", { name: "View details" }));
     expect(viewCompletedResult).toHaveBeenCalledWith(completedJob);
     fireEvent.click(screen.getAllByRole("button", { name: "View details" })[0]);
     expect(openJob).toHaveBeenCalledWith(plannedJob, { readOnly: true });

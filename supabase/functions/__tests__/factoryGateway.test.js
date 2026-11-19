@@ -10,7 +10,7 @@ import {factoryResourceNames,factoryBusinessModules,factoryResourceTool,resource
 import {createHandler} from "../factory-mesti-mcp/protocol.js";
 it("matches all sidebar modules and active related route owners and exact sidebar sections, labels and ordering",()=>{
  const business=moduleRegistry.filter((m)=>m.workspace==="factory" && m.routable!==false && !m.agentNavigationOwner);
- expect(business).toHaveLength(33);expect(modules).toHaveLength(33);
+ expect(modules.map(({ id }) => id).sort()).toEqual(business.map(({ id }) => id).sort());
  for(const module of business){const entry=modules.find((row)=>row.id===module.id);expect(entry).toMatchObject({label:module.label,section:module.section,sidebar:module.sidebar});expect(entry.explanation.length).toBeGreaterThan(20);for(const slug of navigation[module.id])expect(factoryResourceNames).toContain(slug);}
  const sections=getSidebarSections("factory");expect([...new Set(modules.map((m)=>m.section))]).toEqual(sections.map((s)=>s.label));
  for(const section of sections)expect(modules.filter((m)=>m.section===section.label&&m.sidebar).map((m)=>({id:m.id,label:m.label}))).toEqual(section.items);

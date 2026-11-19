@@ -27,6 +27,7 @@ import useFactoryMasterData from "../hooks/useFactoryMasterData.js";
 import useFactoryLatestRequest from "../hooks/useFactoryLatestRequest.js";
 import useFactoryPermissions from "../hooks/useFactoryPermissions.js";
 import { formatFactoryDate, formatFactoryDateTime, malaysiaBusinessDateInput } from "../utils/factoryDates.js";
+import { formatFactoryBatchNo } from "../utils/factoryFormatters.js";
 
 const statusMeta = {
   pending: { label: "Pending", tone: "warning" },
@@ -61,7 +62,7 @@ function StatusBadge({ status, variant = "compact" }) {
 }
 function productionLabel(occurrence) {
   const production = occurrence.production_snapshot || {};
-  return [production.product_name, production.batch_no].filter(Boolean).join(" · ") || "Production evidence";
+  return [production.product_name, formatFactoryBatchNo(production.batch_no)].filter(Boolean).join(" · ");
 }
 function equipmentPrimary(equipment) { return equipment?.equipment_name || equipment?.name || equipment?.equipment_code || "Equipment"; }
 function equipmentSecondary(equipment) {
@@ -77,7 +78,7 @@ function OccurrenceDetail({ occurrence, onClose }) {
       <div><div className="text-xs font-semibold text-text-muted">Source</div><div className="mt-1 font-bold text-text-primary">{recurrenceLabel(occurrence)}</div></div>
       <div><div className="text-xs font-semibold text-text-muted">Equipment</div><div className="mt-1 font-bold text-text-primary">{equipmentPrimary(occurrence)}</div><div className="text-xs text-text-secondary">{equipmentSecondary(occurrence)}</div></div>
       <div><div className="text-xs font-semibold text-text-muted">Due</div><div className="mt-1 font-bold text-text-primary">{formatFactoryDate(occurrence.due_date)}</div></div>
-      {occurrence.source_type === "after_production" ? <div className="md:col-span-2"><div className="text-xs font-semibold text-text-muted">Production Evidence</div><div className="mt-1 font-bold text-text-primary">{productionLabel(occurrence)}</div><div className="text-xs text-text-secondary">{occurrence.production_snapshot?.production_no || ""}{occurrence.production_snapshot?.sop_version ? ` · SOP ${occurrence.production_snapshot.sop_version}` : ""}{occurrence.production_snapshot?.production_end_date ? ` · Production end ${formatFactoryDate(occurrence.production_snapshot.production_end_date)}` : ""}{occurrence.production_snapshot?.completed_at ? ` · Recorded ${formatFactoryDateTime(occurrence.production_snapshot.completed_at)}` : ""}</div></div> : null}
+      {occurrence.source_type === "after_production" ? <div className="md:col-span-2"><div className="text-xs font-semibold text-text-muted">Production Evidence</div><div className="mt-1 font-bold text-text-primary">{productionLabel(occurrence)}</div><div className="text-xs text-text-secondary">{[occurrence.production_snapshot?.sop_version && `SOP ${occurrence.production_snapshot.sop_version}`, occurrence.production_snapshot?.production_end_date && `Production end ${formatFactoryDate(occurrence.production_snapshot.production_end_date)}`, occurrence.production_snapshot?.completed_at && `Recorded ${formatFactoryDateTime(occurrence.production_snapshot.completed_at)}`].filter(Boolean).join(" · ")}</div></div> : null}
       <div><div className="text-xs font-semibold text-text-muted">Completed By</div><div className="mt-1 font-bold text-text-primary">{occurrence.completed_by_name || "-"}</div>{occurrence.completed_at ? <div className="text-xs text-text-secondary">{formatFactoryDateTime(occurrence.completed_at)}</div> : null}</div>
       <div><div className="text-xs font-semibold text-text-muted">Verified By</div><div className="mt-1 font-bold text-text-primary">{occurrence.verified_by_name || "-"}</div>{occurrence.verified_at ? <div className="text-xs text-text-secondary">{formatFactoryDateTime(occurrence.verified_at)}</div> : null}</div>
     </div>
@@ -88,7 +89,7 @@ function MonthlyRecordActions({ occurrence, onOpenOccurrence, occurrenceActions 
   return <section aria-label="Equipment cleaning monthly actions"><FactoryMestiMonthlyActionRow
     primary={occurrence.task_name}
     secondary={`${recurrenceLabel(occurrence)}${occurrence.source_type === "after_production" ? ` · ${productionLabel(occurrence)}` : ""}`}
-    evidence={<>{occurrence.production_snapshot?.sop_version ? `${occurrence.production_snapshot.production_no || ""} · SOP ${occurrence.production_snapshot.sop_version}` : null}<FactoryMestiCleaningMethodReference reference={occurrence.cleaning_method_reference} compact /></>}
+    evidence={<>{occurrence.production_snapshot?.sop_version ? `SOP ${occurrence.production_snapshot.sop_version}` : null}<FactoryMestiCleaningMethodReference reference={occurrence.cleaning_method_reference} compact /></>}
     status={<StatusBadge status={cleaningOccurrenceStatus(occurrence)} />}
     actions={<FactoryMestiOccurrenceActions status={occurrence.status} onView={() => onOpenOccurrence(occurrence)} viewLabel={`View ${occurrence.task_name} details`} {...occurrenceActions(occurrence)} />}
   /></section>;

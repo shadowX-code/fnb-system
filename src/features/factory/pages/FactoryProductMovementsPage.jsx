@@ -30,7 +30,8 @@ function movementSourceLabel(movement) {
 }
 
 function movementSourceReference(movement) {
-  return movement?.source_reference || movement?.reference_no || (movement?.reference_type === "production" ? productionBatchReference(movement) : movement?.batch_no || "—");
+  return movement?.reference_type === "production" ? productionBatchReference(movement)
+    : movement?.source_reference || movement?.reference_no || movement?.batch_no || "—";
 }
 
 function packSizeText(sku) {

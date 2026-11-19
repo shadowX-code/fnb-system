@@ -28,7 +28,7 @@ describe("Factory traceability and audit route smoke", () => {
     vi.spyOn(factoryService, "getFinishedGoodBatchTraceabilityDetail").mockResolvedValue({ ...batch, timeline: [], dispatch_history: [] });
     renderPage(FactoryBatchTraceabilityPage, ["factory_batch_traceability.view"]);
     expect((await screen.findAllByText("PB260809-01")).length).toBeGreaterThan(0);
-    expect(screen.getByRole("columnheader", { name: "Batch no." })).not.toBeNull();
+    expect(screen.getByRole("columnheader", { name: "Batch No." })).not.toBeNull();
     expect(screen.getByRole("columnheader", { name: "Manufacturing / expiry" })).not.toBeNull();
     expect(screen.getByText("09/08/2026")).not.toBeNull();
     expect(screen.getByText("Expiry 09/09/2026")).not.toBeNull();

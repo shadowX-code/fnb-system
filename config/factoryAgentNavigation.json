@@ -149,6 +149,7 @@
     "equipment",
     "equipment_categories"
   ],
+  "factory_label_management": [],
   "factory_audit_logs": [
     "audit_trail"
   ],

@@ -81,7 +81,8 @@ describe("FactoryMestiEquipmentCleaningPage", () => {
     expect(screen.getByText("After Production Cleaning")).not.toBeNull();
     expect(screen.getByText(/Chicken Curry Paste · B260903-018/)).not.toBeNull();
     fireEvent.click(screen.getByRole("button", {name:/Mixer 01 on .*After Production Cleaning/i}));
-    expect(screen.getByText(/PRD-01 · SOP v1/)).not.toBeNull();
+    expect(screen.getByText("SOP v1")).not.toBeNull();
+    expect(screen.queryByText(/PRD-01/)).toBeNull();
     fireEvent.click(screen.getByRole("button", {name:"Collapse Mixer 01 tasks"}));
     expect(screen.queryByRole("button", {name:/Mixer 01 on .*Daily Cleaning/i})).toBeNull();
     fireEvent.click(screen.getByRole("button", {name:"Expand Mixer 01 tasks"}));

@@ -52,6 +52,8 @@ function renderPage({ daily = draftDaily, permissionSet = permissions } = {}) {
 }
 
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-09-05T04:00:00Z"));
   vi.clearAllMocks();
   factoryService.getMestiOperatorHygieneDaily.mockResolvedValue(draftDaily);
   factoryService.listMestiOperatorHygieneMonthly.mockResolvedValue(monthlyRows);
@@ -60,7 +62,7 @@ beforeEach(() => {
   factoryService.verifyMestiOperatorHygiene.mockResolvedValue({});
 });
 
-afterEach(cleanup);
+afterEach(() => { cleanup(); vi.useRealTimers(); });
 
 describe("Factory MeSTI Operator Hygiene", () => {
   it("uses canonical Employee selection and Mark All Pass in the Daily draft", async () => {

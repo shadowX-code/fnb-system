@@ -47,7 +47,7 @@ import { factoryService, factoryDataPlan, emptyFactoryData, productionQcStatus, 
 import { IMAGE_UPLOAD_ACCEPT } from "../../../utils/imageUpload.js";
 import useFactoryNumberPreview from "../hooks/useFactoryNumberPreview.js";
 import { addDaysToFactoryDate, factoryMonthLabel, formatDateDisplay, formatFactoryAuditDateTime, formatFactoryDate, formatFactoryDateTime, formatFactoryReadableDate, isoDate, malaysiaBusinessDateInput, monthStart, productionDurationLabel, timeInput, todayInput } from "../utils/factoryDates.js";
-import { compactCompare, dispatchLineBaseEquivalentLabel, dispatchTotalLabel, ledgerQuantity, ledgerQuantityList, money, normalizePackSizeToBase, packSizeText, packagingTypeLabel, percent, pluralizePackagingType, productionTimeLabel, quantity, rawMaterialLabel, recipeOperatorIdentity, signedQuantity, skuBalanceLabel, sopMinutesLabel, sopStepEstimatedMinutes, sopTotalEstimatedMinutes, validSopMinutes } from "../utils/factoryFormatters.js";
+import { compactCompare, dispatchLineBaseEquivalentLabel, dispatchTotalLabel, formatFactoryBatchNo, ledgerQuantity, ledgerQuantityList, money, normalizePackSizeToBase, packSizeText, packagingTypeLabel, percent, pluralizePackagingType, productionTimeLabel, quantity, rawMaterialLabel, recipeOperatorIdentity, signedQuantity, skuBalanceLabel, sopMinutesLabel, sopStepEstimatedMinutes, sopTotalEstimatedMinutes, validSopMinutes } from "../utils/factoryFormatters.js";
 import { operatorFinishedGoodBatchNo, productionBatchReference, productionJobOrderReference } from "../utils/factoryReferences.js";
 import { uniqueReceivingBatchPreview } from "../utils/factoryNumbers.js";
 import { isFactoryPermissionError } from "../utils/factoryPermissions.js";
@@ -424,7 +424,7 @@ function CompletedJobOrderResultModal({ job, production, recipes = [], canVerify
   ];
   const resultRows = production ? [
     [
-      { label: "Batch No", value: production.batch_no || "—" },
+      { label: "Batch No.", value: formatFactoryBatchNo(production.batch_no) },
       { label: "Production Start", value: production.production_date && production.start_time ? `${formatFactoryDate(production.production_date)} ${factoryTimeAmPmLabel(production.start_time)}` : "—" },
       { label: "Production End", value: production.end_date && production.end_time ? `${formatFactoryDate(production.end_date)} ${factoryTimeAmPmLabel(production.end_time)}` : "—" },
       { label: "Duration", value: productionDuration },

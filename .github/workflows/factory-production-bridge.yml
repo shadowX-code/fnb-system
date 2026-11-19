@@ -1,0 +1,61 @@
+name: Factory Production Bridge acceptance
+on:
+  push:
+    branches: [codex/factory-only-production-candidate]
+    paths:
+      - tools/windows-print-bridge/**
+      - tools/macos-print-bridge/**
+      - .github/workflows/factory-production-bridge.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows-software:
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify Windows PowerShell 5.1, DPAPI, transport and recovery
+        shell: powershell
+        run: ./tools/windows-print-bridge/Test-Bridge.ps1
+      - name: Build and verify private test installer
+        shell: powershell
+        run: |
+          $compiler = Join-Path ${env:ProgramFiles(x86)} 'NSIS\makensis.exe'
+          if (!(Test-Path $compiler)) { choco install nsis -y --no-progress; if ($LASTEXITCODE) { exit $LASTEXITCODE } }
+          $package = Join-Path $env:RUNNER_TEMP 'FeedX-Print-Bridge-Production-Windows.exe'
+          Push-Location tools/windows-print-bridge
+          try {
+            & $compiler "/DOUTPUT=$package" Setup.nsi
+            if ($LASTEXITCODE) { exit $LASTEXITCODE }
+            ./Test-Installer.ps1 -Package $package
+          } finally { Pop-Location }
+  macos-software:
+    runs-on: macos-15
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: python3 -m pip install -r tools/macos-print-bridge/build-requirements.txt
+      - run: python3 -B -m unittest discover -s tools/macos-print-bridge -p 'test_*.py'
+      - name: Build, install and upgrade private test package
+        run: |
+          sh tools/macos-print-bridge/package.sh "$RUNNER_TEMP/bridge"
+          package="$RUNNER_TEMP/bridge/FeedX-Print-Bridge-Production-macOS-arm64.pkg"
+          state="$HOME/Library/Application Support/FeedX Print Bridge Production"
+          test ! -e "$state"
+          sudo installer -pkg "$package" -target /
+          test ! -e "$state"
+          app="/Applications/FeedX Print Bridge Production.app"
+          "$app/Contents/MacOS/FeedX Print Bridge Production" --self-test
+          "$app/Contents/MacOS/feedx-worker" --self-test
+          mkdir -m 700 "$state"
+          printf '%s' '{"device":"fixture","calibrated_labels":3}' > "$state/config.json"
+          printf '%s' '{"stage":"submitting","claim":"existing-claim"}' > "$state/journal.json"
+          printf '%s' '{"stage":"unknown","quantity":1}' > "$state/calibration.json"
+          shasum -a 256 "$state/"*.json > "$RUNNER_TEMP/bridge-before"
+          sudo installer -pkg "$package" -target /
+          shasum -a 256 -c "$RUNNER_TEMP/bridge-before"
+          "$app/Contents/MacOS/feedx-worker" --self-test

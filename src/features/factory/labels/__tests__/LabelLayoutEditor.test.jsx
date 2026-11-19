@@ -1,0 +1,107 @@
+import { useState } from "react";
+import { afterEach, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import LabelLayoutEditor from "../LabelLayoutEditor.jsx";
+global.ResizeObserver = class {
+  observe() {}
+  disconnect() {}
+};
+afterEach(cleanup);
+it("can replace a dynamic field with shared static text without retaining its binding", () => {
+  let value;
+  function Fixture() {
+    const [definition, set] = useState({
+      elements: [
+        { type: "text", field: "batch_no", x: 5, y: 5, w: 50, h: 10, size: 3 },
+      ],
+    });
+    value = definition;
+    return (
+      <LabelLayoutEditor
+        definition={definition}
+        width={80}
+        height={90}
+        onChange={set}
+      />
+    );
+  }
+  render(<Fixture />);
+  fireEvent.click(
+    screen.getByText("Content source").closest("label").querySelector("button"),
+  );
+  fireEvent.click(screen.getByRole("option", { name: "Static Text" }));
+  expect(screen.getByLabelText("Shared template text").value).toBe("New text");
+  expect(value.elements[0]).not.toHaveProperty("field");
+});
+it("moves elements by keyboard and supports adding and removing text", () => {
+  const change = vi.fn();
+  function Fixture() {
+    const [definition, set] = useState({
+      elements: [{ type: "text", text: "Existing", x: 5, y: 5, w: 30, h: 10, size: 3 }],
+    });
+    return (
+      <LabelLayoutEditor definition={definition} width={80} height={90}
+        onChange={(next) => { change(next); set(next); }} />
+    );
+  }
+  render(<Fixture />);
+  fireEvent.keyDown(screen.getByRole("button", { name: "Select element 1" }), {
+    key: "ArrowRight",
+  });
+  expect(change.mock.calls[0][0].elements[0].x).toBe(5.5);
+  fireEvent.click(screen.getByRole("button", { name: /Add Element/ }));
+  fireEvent.click(screen.getByRole("menuitem", { name: "Text", exact: true }));
+  expect(change.mock.calls[1][0].elements).toHaveLength(2);
+  fireEvent.click(screen.getByRole("button", { name: "Remove" }));
+  expect(change.mock.calls[2][0].elements).toHaveLength(1);
+});
+
+it("orders layers without mutating the published definition", () => {
+  const definition = {
+    elements: [
+      { type: "rect", x: 1, y: 1, w: 20, h: 20 },
+      { type: "text", field: "ingredients", x: 2, y: 2, w: 16, h: 10, size: 3 },
+    ],
+  };
+  const change = vi.fn();
+  const view = render(<LabelLayoutEditor definition={definition} width={80} height={90} onChange={change} />);
+  const [first, second] = view.container.querySelectorAll("[data-sortable-item-id]");
+  vi.spyOn(first, "getBoundingClientRect").mockReturnValue({ top: 60, height: 36 });
+  vi.spyOn(second, "getBoundingClientRect").mockReturnValue({ top: 100, height: 36 });
+  fireEvent.pointerDown(screen.getByRole("button", { name: /Reorder Ingredients/ }), {
+    pointerId: 8, button: 0, clientY: 116,
+  });
+  fireEvent.pointerMove(window, { pointerId: 8, clientY: 68 });
+  expect(first.dataset.dropPosition).toBe("before");
+  fireEvent.pointerUp(window, { pointerId: 8, clientY: 68 });
+  expect(change.mock.calls[0][0].elements[0].field).toBe("ingredients");
+  expect(definition.elements[0].type).toBe("rect");
+});
+it("shows source-specific fields and retains zoom as view state only", () => {
+  const change = vi.fn();
+  render(
+    <LabelLayoutEditor
+      definition={{
+        elements: [
+          {
+            type: "text",
+            field: "batch_no",
+            x: 5,
+            y: 5,
+            w: 30,
+            h: 10,
+            size: 3,
+          },
+        ],
+      }}
+      width={80}
+      height={90}
+      onChange={change}
+    />,
+  );
+  expect(screen.getByText("Production field")).toBeTruthy();
+  expect(screen.queryByLabelText("Shared template text")).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+  expect(change).not.toHaveBeenCalled();
+  expect(screen.getByLabelText("Canvas zoom").textContent).toBe("85%");
+});

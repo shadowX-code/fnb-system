@@ -34,6 +34,9 @@ import { quantity } from "../utils/factoryFormatters.js";
 import { productionBatchReference, productionJobOrderReference } from "../utils/factoryReferences.js";
 import { jobStatusLabel } from "../utils/factoryStatus.js";
 
+import { openLabelManagement } from "../labels/labelManagementNavigation.js";
+import { factoryLabelsEnabled } from "../../../services/factoryLabelService.js";
+
 const packSizeText = (sku) => Number(sku?.pack_size_qty || 0) > 0 ? `${sku.pack_size_qty} ${sku.pack_size_uom || ""}`.trim() : "";
 const packagingTypeLabel = (sku) => sku?.packaging_type || "Pack";
 const pluralizePackagingType = (type, value) => Number(value || 0) === 1 ? type || "Pack" : /ch$/i.test(type || "Pack") ? `${type || "Pack"}es` : `${type || "Pack"}s`;
@@ -93,6 +96,7 @@ export default function FactoryFinishedGoodsPage() {
   const setAllGroupsExpanded = (expanded) => setExpandedGroups(Object.fromEntries(query.groups.map((group) => [group.groupKey, expanded])));
   const toggleGroup = (groupKey) => setExpandedGroups((current) => ({ ...current, [groupKey]: !current[groupKey] }));
   const renderSkuActions = (sku, group = null) => <FactoryRowActions onView={() => setSelectedProduct(sku)} directActions={can("factory_finished_goods.edit") ? [
+    ...(factoryLabelsEnabled ? [{ label: "Label Configuration", icon: Printer, onClick: () => openLabelManagement({section:"products",sku:sku.id}) }] : []),
     { label: "Edit Packaging SKU", icon: Pencil, onClick: () => navigation.openFinishedGoodPackagingSku(group, sku) },
     ...(sku.status !== "archived" ? [{ label: "Archive Packaging SKU", icon: Archive, desktopOnly: true, onClick: () => navigation.archiveFinishedGoodPackagingSku(sku) }] : []),
   ] : []} secondaryActions={can("factory_finished_goods.edit") && sku.status !== "archived" ? [{ label: "Archive", destructive: true, mobileOnly: true, onClick: () => navigation.archiveFinishedGoodPackagingSku(sku) }] : []} />;

@@ -4,6 +4,7 @@ import Card from "../../../components/ui/Card.jsx";
 import MetricCard from "../../../components/ui/MetricCard.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import { FactoryTable } from "../components/FactoryDataDisplay.jsx";
+import { formatFactoryBatchNo } from "../utils/factoryFormatters.js";
 
 function rawMaterialStatusTone(status) {
   if (status === "Out of Stock") return "danger";
@@ -20,7 +21,7 @@ export default function FactoryRawMaterialDetailModal({ material, receivings, mo
   const latestReceiving = materialReceivings[0];
   const movementReference = (movement) => {
     const referenceType = String(movement.reference_type || "").toLowerCase();
-    if (referenceType === "production") return movement.production_batch_no || movement.production_job_order_no || "—";
+    if (referenceType === "production") return formatFactoryBatchNo(movement.production_batch_no);
     if (referenceType === "raw_material_receiving") return materialReceivings.find((row) => row.id === movement.reference_id)?.receiving_no || "—";
     if (referenceType === "raw_material_stock_check") {
       const stockCheck = stockChecks.find((row) => row.id === movement.reference_id);

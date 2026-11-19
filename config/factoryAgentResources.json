@@ -40,7 +40,6 @@
     "table": "factory_productions",
     "fields": [
       "id",
-      "production_no",
       "batch_no",
       "job_order_id",
       "finished_good_id",
@@ -67,7 +66,7 @@
       "storage_location_id"
     ],
     "date": "case when r.status='completed' then r.end_date else r.production_date end",
-    "label_field": "production_no",
+    "label_field": "batch_no",
     "refs": {
       "job_order_id": "job_orders",
       "finished_good_id": "finished_goods",

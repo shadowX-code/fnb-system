@@ -6,12 +6,12 @@ export function FactoryDataSurface({ children, className = "" }) {
   return <section className={`factory-data-surface ${className}`.trim()}>{children}</section>;
 }
 
-export function FactoryTable({ columns, rows, emptyTitle, emptyDescription, onRowClick, density = "compact", rowHover = "", loading = false, loadingRows = 4, rowKey = (row) => row.id, renderAfterRow }) {
+export function FactoryTable({ columns, rows, emptyTitle, emptyDescription, onRowClick, density = "compact", rowHover = "", loading = false, loadingRows = 4, rowKey = (row) => row.id, renderAfterRow, mobileLayout }) {
   if (!rows.length && !loading) return <div className="p-4"><EmptyState title={emptyTitle} description={emptyDescription} /></div>;
   const hoverClass = rowHover === "mint" ? "factory-table-row-mint" : "factory-table-row-neutral";
   return (
     <div className="factory-table admin-data-table-scroll overflow-x-auto">
-      <table className="admin-data-table w-full min-w-[760px] text-left" data-density={density} aria-busy={loading}>
+      <table className={`admin-data-table w-full text-left ${mobileLayout === "stack" ? "min-w-0" : "min-w-[760px]"}`} data-density={density} data-mobile-layout={mobileLayout} aria-busy={loading}>
         <thead className="admin-table-head">
           <tr className="factory-table-header">
             {columns.map((column) => (
@@ -34,7 +34,7 @@ export function FactoryTable({ columns, rows, emptyTitle, emptyDescription, onRo
                 onClick={onRowClick ? () => onRowClick(row) : undefined}
               >
                 {columns.map((column) => (
-                  <td key={column.key} className={`admin-table-cell ${column.className || ""} ${column.align === "right" ? "text-right" : ""}`}>
+                  <td key={column.key} data-label={mobileLayout ? column.mobileLabel ?? column.label : undefined} className={`admin-table-cell ${column.className || ""} ${column.align === "right" ? "text-right" : ""}`}>
                     {column.render ? column.render(row) : row[column.key]}
                   </td>
                 ))}

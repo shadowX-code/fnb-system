@@ -5,11 +5,15 @@ const mocks = vi.hoisted(() => ({ read: vi.fn(), reference: vi.fn() }));
 vi.mock("../../../../services/factoryService.js", async importOriginal => ({ ...await importOriginal(), factoryService: { getProductionMonthlyPerformance: mocks.read, getFactoryAuditReference: mocks.reference } }));
 import FactoryProductionMonthlyPerformance, { ProductionPerformanceChart } from "../FactoryProductionMonthlyPerformance.jsx";
 const data = month => ({ month, today: "2026-10-09", unattributed_runs: 0, days: [{ day: `${month}-01`, completed_runs: 2, output_kg: 60, jo_hours: 3, productivity_output_kg: 60, productivity_runs: 2, moving_average_kg: 60, average_days: 1, records: [
-  { production_id: "p1", job_order_id: "j1", job_order_no: "JO-fixture-01", finished_good_name: "Sauce A", sku_code: "S01", variant_name: "1kg Pack", output_kg: 40, actual_pack_qty: 40, start_at: `${month}-01T00:00:00+08:00`, end_at: `${month}-01T02:00:00+08:00`, jo_hours: 2 },
-  { production_id: "p2", job_order_id: "j2", job_order_no: "JO-fixture-02", finished_good_name: "Sauce B", sku_code: "S02", variant_name: "500g Pack", output_kg: 20, actual_pack_qty: 40, start_at: `${month}-01T02:00:00+08:00`, end_at: `${month}-01T03:00:00+08:00`, jo_hours: 1 },
+  { production_id: "p1", production_no: "PRD-internal-01", batch_no: "PB260901-01", job_order_id: "j1", job_order_no: "JO-fixture-01", finished_good_name: "Sauce A", sku_code: "S01", variant_name: "1kg Pack", output_kg: 40, actual_pack_qty: 40, start_at: `${month}-01T00:00:00+08:00`, end_at: `${month}-01T02:00:00+08:00`, jo_hours: 2.5 },
+  { production_id: "p2", production_no: "PRD-internal-02", batch_no: " ", job_order_id: "j2", job_order_no: "JO-fixture-02", finished_good_name: "Sauce B", sku_code: "S02", variant_name: "500g Pack", output_kg: 20, actual_pack_qty: 40, start_at: `${month}-01T02:00:00+08:00`, end_at: `${month}-01T03:00:00+08:00`, jo_hours: 1 },
 ] }] });
-afterEach(cleanup);
-beforeEach(() => { vi.clearAllMocks(); mocks.read.mockImplementation(month => Promise.resolve(data(month))); });
+afterEach(() => { cleanup(); vi.useRealTimers(); });
+beforeEach(() => {
+  vi.setSystemTime(new Date("2026-10-09T12:00:00+08:00"));
+  vi.clearAllMocks();
+  mocks.read.mockImplementation(month => Promise.resolve(data(month)));
+});
 describe("Monthly Production Performance", () => {
   it.each(["Output Trend", "Productivity", "Calendar Heatmap"])("opens the same contributing runs from %s and preserves mode/month on close", async mode => {
     render(<FactoryProductionMonthlyPerformance enabled />);
@@ -22,8 +26,13 @@ describe("Monthly Production Performance", () => {
     expect(dialog.textContent).toContain("20 kg/JO-hour");
     expect(dialog.textContent).toContain("JO-fixture-01");
     expect(dialog.textContent).toContain("JO-fixture-02");
+    expect(dialog.textContent).toContain("Batch No. · PB260901-01");
+    expect(dialog.textContent).toContain("Batch No. · Batch number missing");
+    expect(dialog.textContent).not.toContain("PRD-internal");
     expect(dialog.textContent).toContain("S02 · 500g Pack");
-    expect(dialog.textContent).toContain("Production End");
+    expect(dialog.textContent).toContain("2 hrs 30 mins");
+    expect(dialog.textContent).not.toContain("Production End");
+    expect(screen.getByRole("table").dataset.mobileLayout).toBe("stack");
     expect(document.activeElement).toBe(screen.getByRole("button", { name: "Close modal" }));
     fireEvent.click(screen.getByRole("button", { name: "Close modal" }));
     expect(screen.queryByRole("dialog")).toBeNull();
