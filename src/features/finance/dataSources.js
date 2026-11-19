@@ -54,13 +54,14 @@ function accountingConnection(source) {
     },
     providerLabel: source.companyName ? `AutoCount · ${source.companyName}` : 'AutoCount · AED_TEST',
     legalEntityLabel: source.legalEntityLabel,
-    state: !source.active ? 'revoked' : !source.entityActive ? 'error' : source.verifiedAt ? 'connected' : 'pending',
+    state: source.supersededByConnectionId ? 'superseded' : !source.active ? 'revoked' : !source.entityActive ? 'error' : source.verifiedAt ? 'connected' : 'pending',
     connector: { bookId: source.bookId, verifiedAt: source.verifiedAt, entityActive: source.entityActive, lastSyncAt: source.lastSyncAt,
       syncState: source.syncState, syncError: source.syncError, pendingRetries: source.pendingRetries,
       sourceRows: source.sourceRows, retryRequestedAt: source.retryRequestedAt,
       lastAttemptAt: source.lastAttemptAt, lastSyncReportAt: source.lastSyncReportAt, deviceLastSeenAt: source.deviceLastSeenAt,
       nextPollAt: source.nextPollAt, backgroundMode: source.backgroundMode },
     status: source.active ? 'active' : 'historical',
+    supersededByConnectionId: source.supersededByConnectionId,
     lastConnectedAt: source.lastConnectedAt,
     datasets,
     sync: datasets.map((item) => ({
@@ -88,6 +89,13 @@ export async function readFinanceDataSources() {
   };
 }
 
+export function partitionAccountingConnections(connections) {
+  return {
+    operational: connections.filter((entry) => entry.status === 'active'),
+    historical: connections.filter((entry) => entry.status === 'historical'),
+  };
+}
+
 /** Readiness describes evidence, never a guessed percentage. Historical connections stay in view. */
 export function dataSourceReadiness(state, authorityRequest = null) {
   validateAuthorityPeriods(state.authorityPeriods);
@@ -95,8 +103,8 @@ export function dataSourceReadiness(state, authorityRequest = null) {
     validatePeriod(entry.period);
     if (!Object.hasOwn(mappingLabels, entry.kind) || !Number.isInteger(entry.mapped) || entry.mapped < 0 || !Number.isInteger(entry.unresolved) || entry.unresolved < 0) throw new Error('Invalid mapping readiness evidence');
   });
-  const active = state.connections.filter((entry) => entry.status === 'active' && entry.state === 'connected');
-  const historical = state.connections.filter((entry) => entry.status === 'historical');
+  const { operational, historical } = partitionAccountingConnections(state.connections);
+  const active = operational.filter((entry) => entry.state === 'connected');
   const coverage = authorityRequest ? authorityPlan(state.authorityPeriods, authorityRequest) : null;
   const mappingKinds = new Set(state.mappingReadiness.map((entry) => entry.kind));
   const unresolved = state.mappingReadiness.some((entry) => entry.unresolved > 0);
@@ -109,13 +117,13 @@ export function dataSourceReadiness(state, authorityRequest = null) {
   if (unresolved) issues.push('Unresolved mappings require review.');
   if (!state.reconciliations.length) issues.push('No validated reconciliation evidence is available.');
   else if (state.reconciliations.some((entry) => entry.reconciliation.status !== 'reconciled')) issues.push('Reconciliation review is incomplete.');
-  state.connections.forEach((entry) => {
+  operational.forEach((entry) => {
     if (entry.state === 'error' || ['failed', 'interrupted'].includes(entry.connector?.syncState) || entry.sync.some((sync) => sync.status === 'failed')) issues.push(`${entry.providerLabel}: connection or sync needs attention.`);
   });
   return {
     coverage, issues,
     summary: [
-      { label: 'Connection', value: active.length ? `${active.length} active` : state.connections.some((entry) => entry.state === 'pending') ? 'Pending verification' : 'Not connected', detail: historical.length ? `${historical.length} historical · retained for history` : 'No historical accounting connections' },
+      { label: 'Connection', value: active.length ? `${active.length} active` : operational.some((entry) => entry.state === 'pending') ? 'Pending verification' : 'Not connected', detail: historical.length ? `${historical.length} historical · retained for history` : 'No historical accounting connections' },
       { label: 'Authority coverage', value: !state.authorityPeriods.length ? 'Not assigned' : coverage ? coverage.gaps.length ? 'Gaps identified' : 'Covered for selected period' : 'Not assessed', detail: coverage ? `${coverage.segments.length} authority segments · ${coverage.gaps.length} gaps` : `${state.authorityPeriods.length} defined resource periods` },
       { label: 'Mapping readiness', value: !state.mappingReadiness.length ? 'Not assessed' : unresolved ? 'Needs review' : mappingKinds.size === Object.keys(mappingLabels).length ? 'Mapped evidence available' : 'Partial evidence', detail: !state.mappingReadiness.length ? 'Awaiting provider records' : 'Counts apply to the source, scope and period shown' },
       { label: 'Reconciliation', value: !state.reconciliations.length ? 'Not assessed' : state.reconciliations.every((entry) => entry.reconciliation.status === 'reconciled') ? 'Reconciled evidence available' : 'Needs review', detail: `${state.reconciliations.length} validated comparison records` },

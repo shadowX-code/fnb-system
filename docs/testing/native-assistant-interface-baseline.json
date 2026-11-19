@@ -766,6 +766,7 @@
     "supabase/migrations/20261119050828_factory_label_submission_quantities.sql": "78897e6cb50f0d8ab09c83f39b67efccc10ba16d1cf309c7ec072182cdf28e78",
     "supabase/migrations/20261119084550_factory_label_print_status.sql": "28eb003c97756125321f710eb8d85a9030b483eb05088c1206c8d5bb0f13c7d5",
     "supabase/migrations/20261119092747_factory_daily_production_batch_no.sql": "b9b83a0a154017a833ed378292e218e16b5464bd76a2a1673d7d4430591d69ff",
-    "supabase/migrations/20261119095748_factory_canonical_production_identity.sql": "2d1125db300c2068508cdbd3c907fded5d512f359adb304c7c6937779ace9485"
+    "supabase/migrations/20261119095748_factory_canonical_production_identity.sql": "2d1125db300c2068508cdbd3c907fded5d512f359adb304c7c6937779ace9485",
+    "supabase/migrations/20261119163724_finance_autocount_superseded_connections.sql": "9bfc99aa7e90f0722b186981c369dfee29503db42ae0733fa03388d03e058d60"
   }
 }

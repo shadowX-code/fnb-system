@@ -10,7 +10,7 @@ import FinancePreviewBoundary from './FinancePreviewBoundary.jsx';
 import AsyncDataSurface from '../../components/feedback/AsyncDataSurface.jsx';
 import { money } from '../reports/components/reportingFormatters.js';
 import { metricRegistry } from './metrics.js';
-import { connectionActions, dataSourceReadiness, mappingLabels, readFinanceDataSources } from './dataSources.js';
+import { connectionActions, dataSourceReadiness, mappingLabels, partitionAccountingConnections, readFinanceDataSources } from './dataSources.js';
 import { AutoCountActionModal, AutoCountDevices, AutoCountStatus } from './AutoCountConnector.jsx';
 import './finance.css';
 
@@ -37,35 +37,47 @@ function Capabilities({ values }) {
 function FoundationNotice({ title, children }) {
   return <EmptyState className="mt-4" title={title} description={children} icon={ShieldCheck} />;
 }
+function ConnectionCard({ entry, authorityPeriods, onAction }) {
+  const historical = entry.status === 'historical';
+  const periods = authorityPeriods.filter((period) => period.connectionId === entry.connection.id);
+  const successfulSyncs = entry.sync.map((sync) => sync.lastSuccessAt).filter((value) => Number.isFinite(Date.parse(value))).sort((a, b) => Date.parse(a) - Date.parse(b));
+  return <article key={entry.connection.id} className="finance-source-connection">
+    <div className="finance-section-heading"><h3>{entry.providerLabel}</h3>{historical ? <StatusBadge status="neutral">{entry.supersededByConnectionId ? 'Historical · superseded' : 'Historical'}</StatusBadge> : !entry.connector && <StatusBadge status="neutral">Active · {entry.state}</StatusBadge>}</div>
+    {!historical && entry.connector && <AutoCountStatus entry={entry} timestamp={timestamp} />}
+    <dl className="finance-source-facts">
+      {historical && entry.connector && <>
+        <div><dt>Source book</dt><dd>{entry.connection.externalTenantId}</dd></div>
+        {entry.connector.bookId && <div><dt>Account Book reference</dt><dd>{entry.connector.bookId.slice(0, 8)}</dd></div>}
+        <div><dt>Last successful sync</dt><dd>{timestamp(entry.connector.lastSyncAt)}</dd></div>
+      </>}
+      <div><dt>Legal entity</dt><dd>{entry.legalEntityLabel}</dd></div>
+      <div><dt>Last book connection check</dt><dd>{timestamp(entry.lastConnectedAt)}</dd></div>
+      <div><dt>Last accepted upload</dt><dd>{timestamp(successfulSyncs.at(-1))}</dd></div>
+      <div><dt>Source freshness</dt><dd>{entry.evidenceAt ? timestamp(entry.evidenceAt) : 'Not assessed · sync time alone does not prove complete evidence'}</dd></div>
+      <div><dt>Effective authority</dt><dd>{periods.length ? periods.map((period) => <div key={`${period.resource}:${period.start}`}>{period.resource} · {periodLabel(period)}</div>) : 'Not assigned'}</dd></div>
+    </dl>
+    {entry.datasets?.length ? <FinanceDisclosure label="Accepted accounting evidence">
+      <ul className="list-disc space-y-1 pl-4">{entry.datasets.map((item) => <li key={item.dataset}>{item.dataset} · {item.acceptedRows} accepted rows{item.scopeDate ? ` · ${item.scopeDate}` : ''} · {timestamp(item.acceptedAt)}</li>)}</ul>
+      <p className="finance-source-note">Native reconciliation and financial classification are pending. This test evidence has no accounting authority.</p>
+    </FinanceDisclosure> : null}
+    {historical ? <p className="finance-source-note">Historical visibility preserves the source of earlier evidence. Deactivation does not delete financial history.</p> : null}
+    <FinanceDisclosure label="Provider capabilities"><Capabilities values={entry.connection.capabilities} /></FinanceDisclosure>
+    {!historical && entry.connector && onAction ? <div className="finance-source-actions" aria-label="AutoCount connector actions">
+      {entry.state === 'connected' && <button type="button" className="btn-secondary" disabled={Boolean(entry.connector.retryRequestedAt)} onClick={() => onAction('retry', entry)}>{['failed', 'interrupted'].includes(entry.connector.syncState) ? 'Retry sync' : 'Request sync'}</button>}
+      {entry.state !== 'revoked' && <button type="button" className="btn-secondary" onClick={() => onAction('revoke', entry)}>Revoke access</button>}
+    </div> : !historical && !entry.connector && <div className="finance-source-actions">{connectionActions.filter((action) => action.id !== 'connect').map((action) => <button key={action.id} type="button" className="btn-secondary" disabled>{action.label}</button>)}</div>}
+  </article>;
+}
 function ConnectionSection({ state, onAction }) {
+  const { operational, historical } = partitionAccountingConnections(state.connections);
   return <section aria-label="Accounting connections">
     <div className="finance-section-heading"><div><h2>Accounting connections</h2><p>Provider access, legal entity binding and retained history.</p></div><Link2 size={20} aria-hidden="true" /></div>
     {onAction && <AutoCountDevices state={state} onAction={onAction} timestamp={timestamp} />}
-    {!state.connections.length ? <EmptyState className="my-4" title="No accounting provider connected" description="Operational reporting is available. Accounting statements and balances require validated provider evidence." icon={Link2} /> : state.connections.map((entry) => {
-      const periods = state.authorityPeriods.filter((period) => period.connectionId === entry.connection.id);
-      const successfulSyncs = entry.sync.map((sync) => sync.lastSuccessAt).filter((value) => Number.isFinite(Date.parse(value))).sort((a, b) => Date.parse(a) - Date.parse(b));
-      return <article key={entry.connection.id} className="finance-source-connection">
-        <div className="finance-section-heading"><h3>{entry.providerLabel}</h3>{!entry.connector && <StatusBadge status="neutral">{entry.status === 'historical' ? 'Historical' : 'Active'} · {entry.state}</StatusBadge>}</div>
-        {entry.connector && <AutoCountStatus entry={entry} timestamp={timestamp} />}
-        <dl className="finance-source-facts">
-          <div><dt>Legal entity</dt><dd>{entry.legalEntityLabel}</dd></div>
-          <div><dt>Last book connection check</dt><dd>{timestamp(entry.lastConnectedAt)}</dd></div>
-          <div><dt>Last accepted upload</dt><dd>{timestamp(successfulSyncs.at(-1))}</dd></div>
-          <div><dt>Source freshness</dt><dd>{entry.evidenceAt ? timestamp(entry.evidenceAt) : 'Not assessed · sync time alone does not prove complete evidence'}</dd></div>
-          <div><dt>Effective authority</dt><dd>{periods.length ? periods.map((period) => <div key={`${period.resource}:${period.start}`}>{period.resource} · {periodLabel(period)}</div>) : 'Not assigned'}</dd></div>
-        </dl>
-        {entry.datasets?.length ? <FinanceDisclosure label="Accepted accounting evidence">
-          <ul className="list-disc space-y-1 pl-4">{entry.datasets.map((item) => <li key={item.dataset}>{item.dataset} · {item.acceptedRows} accepted rows{item.scopeDate ? ` · ${item.scopeDate}` : ''} · {timestamp(item.acceptedAt)}</li>)}</ul>
-          <p className="finance-source-note">Native reconciliation and financial classification are pending. This test evidence has no accounting authority.</p>
-        </FinanceDisclosure> : null}
-        {entry.status === 'historical'  ? <p className="finance-source-note">Historical visibility preserves the source of earlier evidence. Deactivation does not delete financial history.</p> : null}
-        <FinanceDisclosure label="Provider capabilities"><Capabilities values={entry.connection.capabilities} /></FinanceDisclosure>
-        {entry.connector && onAction ? <div className="finance-source-actions" aria-label="AutoCount connector actions">
-          {entry.state === 'connected' && <button type="button" className="btn-secondary" disabled={Boolean(entry.connector.retryRequestedAt)} onClick={() => onAction('retry', entry)}>{['failed', 'interrupted'].includes(entry.connector.syncState) ? 'Retry sync' : 'Request sync'}</button>}
-          {entry.state !== 'revoked' && <button type="button" className="btn-secondary" onClick={() => onAction('revoke', entry)}>Revoke access</button>}
-        </div> : !entry.connector && <div className="finance-source-actions">{connectionActions.filter((action) => action.id !== 'connect').map((action) => <button key={action.id} type="button" className="btn-secondary" disabled>{action.label}</button>)}</div>}
-      </article>;
-    })}
+    {!operational.length && <EmptyState className="my-4" title="No accounting provider connected" description="Operational reporting is available. Accounting statements and balances require validated provider evidence." icon={Link2} />}
+    {operational.map((entry) => <ConnectionCard key={entry.connection.id} entry={entry} authorityPeriods={state.authorityPeriods} onAction={onAction} />)}
+    {historical.length > 0 && <FinanceDisclosure label="Connection History">
+      {historical.map((entry) => <ConnectionCard key={entry.connection.id} entry={entry} authorityPeriods={state.authorityPeriods} />)}
+    </FinanceDisclosure>}
     <p id="finance-connection-boundary" className="finance-source-note">Set up and run the AED_TEST connector on the office PC.</p>
     <FinanceDisclosure label="FeedX operational source capabilities"><p>{state.operationalSource.label} supplies the existing outlet-scoped management P&L. It is separate from an accounting provider connection.</p><Capabilities values={state.operationalSource.capabilities} /></FinanceDisclosure>
   </section>;

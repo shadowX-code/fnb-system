@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, expect, it } from 'vitest';
 import FinanceDataSourcesPage, { FinanceDataSources } from '../FinanceDataSourcesPage.jsx';
 import { dataSourceReadiness, overviewDataStatus, readFinanceDataSources } from '../dataSources.js';
@@ -49,7 +49,9 @@ it('retains historical connections and their original effective periods', () => 
   state.authorityPeriods[1].start = '2026-08-01';
   expect(dataSourceReadiness(state, request).coverage.gaps).toEqual([{ start: '2026-07-01', end: '2026-07-31' }]);
   render(<FinanceDataSources state={state} />);
-  expect(screen.getByRole('heading', { name: 'Prior accounting source' })).toBeTruthy();
+  const history = screen.getByText('Connection History', { selector: 'summary' }).closest('details');
+  expect(history.open).toBe(false);
+  expect(within(history).getByRole('heading', { name: 'Prior accounting source' })).toBeTruthy();
   expect(screen.getByText(/Deactivation does not delete financial history/)).toBeTruthy();
   expect(screen.getAllByRole('button', { name: 'Sync accounting data' }).every((button) => button.disabled)).toBe(true);
   fireEvent.click(screen.getByRole('tab', { name: 'Authority' }));
@@ -121,4 +123,31 @@ it('keeps paired/online, failed sync and overdue evidence independent', async ()
   expect(screen.getByText(/retries on its next background run/)).toBeTruthy();
   expect(screen.getByText('2026-11-19T14:45:00Z')).toBeTruthy();
   expect(screen.getByText('2026-11-16T17:59:52Z')).toBeTruthy();
+});
+
+
+it('keeps superseded AutoCount evidence in collapsed history with no live status or sync action', () => {
+  const state = historicalState();
+  const [old, current] = state.connections;
+  Object.assign(old, { state: 'superseded', supersededByConnectionId: current.connection.id, connector: {
+    bookId: '18b35aac-old-book', lastSyncAt: '2026-11-16T17:59:52Z',
+    deviceLastSeenAt: new Date().toISOString(), syncState: 'failed', retryRequestedAt: '2026-11-17T01:54:49Z',
+  }, datasets: [{ dataset: 'COA', acceptedRows: 137 }] });
+  old.connection.externalTenantId = 'AED_TEST';
+  current.connection.externalTenantId = 'AED_TEST';
+  current.connector = { bookId: '3037f4f7-current-book', deviceLastSeenAt: new Date().toISOString(), syncState: 'succeeded' };
+  const actions = [];
+  render(<FinanceDataSources state={state} onAction={(...args) => actions.push(args)} />);
+  expect(screen.getByText('1 active')).toBeTruthy();
+  expect(screen.getByText('1 historical · retained for history')).toBeTruthy();
+  expect(dataSourceReadiness(state).issues.every((issue) => !issue.includes('Prior accounting source'))).toBe(true);
+  const history = screen.getByText('Connection History', { selector: 'summary' }).closest('details');
+  expect(history.open).toBe(false);
+  expect(within(history).getByText('18b35aac')).toBeTruthy();
+  expect(within(history).getByText('Last successful sync')).toBeTruthy();
+  expect(within(history).getByText(/137 accepted rows/)).toBeTruthy();
+  expect(within(history).queryByText(/Online|Sync failed|Sync requested/)).toBeNull();
+  expect(within(history).queryByRole('button', { name: /request sync|retry sync|reconnect/i })).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Request sync' }));
+  expect(actions).toEqual([['retry', current]]);
 });

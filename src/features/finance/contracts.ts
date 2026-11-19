@@ -34,8 +34,8 @@ export interface AccountingProvider {
 /** Read-only administration projections reuse canonical Phase 1 records. No credentials. */
 export type FinancialConnectionView = {
   connection: Connection; providerLabel: string; legalEntityLabel: string;
-  state: 'connected' | 'disconnected' | 'deactivated' | 'error' | 'pending' | 'revoked';
-  status: 'active' | 'historical'; sync: SyncState[]; evidenceAt?: string | null; lastConnectedAt?: string | null;
+  state: 'connected' | 'disconnected' | 'deactivated' | 'error' | 'pending' | 'revoked' | 'superseded';
+  status: 'active' | 'historical'; supersededByConnectionId?: string | null; sync: SyncState[]; evidenceAt?: string | null; lastConnectedAt?: string | null;
   connector?: { bookId?: string | null; verifiedAt: string | null; entityActive: boolean; lastSyncAt: string | null;
     syncState: 'running' | 'succeeded' | 'failed' | 'interrupted' | null; syncError: string | null;
     pendingRetries: number | null; sourceRows: number | null; retryRequestedAt: string | null;
