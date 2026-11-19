@@ -21,6 +21,9 @@ describe("shared Admin brand colors", () => {
   it("uses neutral group surfaces and separates live status from navigation selection", () => {
     expect(source("components/tables/tableControls.css"))
       .toMatch(/\.admin-table-group--workspace>th\{background:var\(--theme-table-header\);color:var\(--theme-text\)/);
+    const tabs = source("components/navigation/AdminUnderlineTabs.jsx");
+    expect(tabs).toContain("hover:border-primary-ink hover:text-primary-ink");
+    expect(tabs).not.toContain("--factory-success-text");
     const navigation = source("components/layout/SystemNavigationChip.css");
     expect(navigation).toMatch(/\.system-nav-chip__status\s*\{[^}]+color: var\(--factory-success-text\)/);
     expect(navigation.match(/--factory-success-text/g)).toHaveLength(1);
