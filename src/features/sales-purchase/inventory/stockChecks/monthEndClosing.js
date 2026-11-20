@@ -20,6 +20,12 @@ export function toPhysicalCountCutoff(localValue) {
 const countDateFormat = new Intl.DateTimeFormat("en-MY", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 const monthFormat = new Intl.DateTimeFormat("en-MY", { month: "short", year: "numeric", timeZone: "UTC" });
 
+export function formatClosingMonthLabel(value) {
+  return /^\d{4}-(0[1-9]|1[0-2])-01$/.test(value)
+    ? monthFormat.format(new Date(value + "T00:00:00Z"))
+    : "";
+}
+
 export function generateAuditName(type, date, month) {
   const countDate = countDateFormat.format(new Date(`${date}T00:00:00Z`));
   if (type !== MONTH_END_CLOSING) return `${type} · ${countDate}`;

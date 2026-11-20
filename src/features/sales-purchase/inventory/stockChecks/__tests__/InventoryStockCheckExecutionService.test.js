@@ -20,7 +20,7 @@ const rows = {
 };
 beforeEach(() => {
   read.mockReset().mockImplementation(async (table) => ({ data: rows[table] || [], completeness: "complete" }));
-  mocks.rpc.mockReset().mockResolvedValue({ data: { check_count: 1, summaries: [{ check_id: "check", total: 1, skipped: 0, shortage: 1 }] }, error: null });
+  mocks.rpc.mockReset().mockResolvedValue({ data: { check_count: 1, summaries: [{ check_id: "check", total: 1, skipped: 0, shortage: 1, excess: 0 }] }, error: null });
 });
 
 it("writes a skipped row without an actual or variance and preserves explicit zero on counted rows", async () => {
@@ -48,7 +48,7 @@ describe("Stock Check execution read boundary", () => {
     expect(result.groups[0].categoryIds).toEqual(["category"]);
     expect(result.items[0].linkedOutletIds).toEqual(["A"]);
     expect(result.checks[0].rows).toEqual([]);
-    expect(result.checks[0].rowSummary).toEqual({ total: 1, skipped: 0, shortage: 1 });
+    expect(result.checks[0].rowSummary).toEqual({ total: 1, skipped: 0, shortage: 1, excess: 0 });
     expect(result.orders[0].sourceStockCheckId).toBe("check");
     expect(mocks.rpc).toHaveBeenCalledWith("inventory_stock_check_row_summaries", { p_check_ids: ["check"] });
     expect(read.mock.calls.map(([table]) => table)).not.toContain("inventory_stock_check_items");

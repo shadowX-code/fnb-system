@@ -26,9 +26,9 @@ const SHOW_STOCK_CHECK_CARD_DEBUG = import.meta.env.DEV && String(import.meta.en
 const shifts = ["Opening", "Mid", "Closing", "Any Shift"];
 import MonthPickerField from "../../../../components/forms/MonthPickerField.jsx";
 import AuditCountTimestamps, { AuditCountTimestampFields } from "./AuditCountTimestamps.jsx";
-import { formatClosingError, isValidClosingQuantity, MONTH_END_CLOSING, updateClosingAuditName } from "./monthEndClosing.js";
+import { formatClosingError, formatClosingMonthLabel, isValidClosingQuantity, MONTH_END_CLOSING, updateClosingAuditName } from "./monthEndClosing.js";
 import { STOCK_CHECK_SKIP_REASONS, stockCheckSkipReason } from "./stockCheckSkipReasons.js";
-import { formatQuantity, projectStockCheckCount, stockCheckCountState } from "./inventoryStockCheckReadModel.js";
+import { formatQuantity, projectStockCheckCount, stockCheckCountState, summarizeAuditRows } from "./inventoryStockCheckReadModel.js";
 
 const auditTypes = [MONTH_END_CLOSING, "Full Stock Audit", "Spot Check", "Category Audit", "Custom Audit"];
 const countStatusOptions = [
@@ -1297,6 +1297,44 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
       );
     }
 
+    const auditRows = auditChecks.slice((auditPage - 1) * auditPageSize, auditPage * auditPageSize)
+      .map(check => ({ check, summary: check.rowSummary ?? summarizeAuditRows(check.rows) }));
+    const auditColumns = [
+      { key: "date", header: "Date", className: "whitespace-nowrap font-semibold", render: ({ check }) => formatDate(check.date) },
+      { key: "auditType", header: "Audit Type", render: ({ check }) => {
+        const month = check.auditType === MONTH_END_CLOSING ? formatClosingMonthLabel(check.accountingMonth) : "";
+        return <>
+          <span>{check.auditType || check.auditName || "Custom Audit"}</span>
+          {month && <div className="type-caption text-text-secondary">Closing Month · {month}</div>}
+          {check.correctionOfId && <div className="type-caption text-text-secondary">Correction</div>}
+        </>;
+      } },
+      { key: "items", header: "Items", align: "right", className: "tabular-nums", render: ({ summary }) => summary.total },
+      { key: "shortage", header: "Shortage", align: "right", className: "tabular-nums", render: ({ summary }) =>
+        <span className={summary.shortage ? "font-semibold text-rose-700 dark:text-rose-300" : undefined}>{summary.shortage}</span> },
+      { key: "excess", header: "Excess", align: "right", className: "tabular-nums", render: ({ summary }) =>
+        <span className={summary.excess ? "font-semibold text-emerald-700 dark:text-emerald-300" : undefined}>{summary.excess}</span> },
+      { key: "skipped", header: "Skipped", align: "right", className: "tabular-nums max-[700px]:order-1", render: ({ summary }) => summary.skipped },
+      { key: "status", header: "Status", render: ({ check }) =>
+        <Badge tone={statusTone(check.status)}>{check.status === "submitted" ? "Completed" : toTitle(check.status)}</Badge> },
+      { key: "createdBy", header: "Created By", className: "max-[700px]:order-1", render: ({ check }) => actorNameByAuthUserId(check.createdBy) },
+      { key: "actions", header: "Actions", align: "right", className: "max-[700px]:order-1", render: ({ check }) => {
+        const openResult = () => navigateAdminRoute("inventory-stock-check-result", { checkId: check.id }, { date });
+        if (check.status !== "draft") {
+          return <button className="icon-btn h-9 w-9" type="button" title="View audit result"
+            aria-label={"View audit result " + (check.auditName || check.date)} onClick={openResult}><Eye size={16} /></button>;
+        }
+        if (check.correctionOfId && !can.correctAudit) return null;
+        return <div className="flex flex-wrap items-center justify-end gap-2 max-[700px]:justify-start">
+          <button className="btn-primary h-9 px-2.5 text-xs" type="button"
+            onClick={check.correctionOfId ? openResult : () => continueAuditStockCheck(check)}>Continue Audit</button>
+          <button className="icon-btn h-9 w-9 text-rose-700" type="button"
+            title="Delete draft" aria-label={"Delete draft audit " + (check.auditName || check.date)}
+            onClick={() => deleteAuditDraft(check)}><Trash2 size={16} /></button>
+        </div>;
+      } },
+    ];
+
     return (
       <div className="space-y-4">
       <AdminFilterToolbar>
@@ -1382,13 +1420,12 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
         </SectionCard>
         <SectionCard title="Audit Stock Checks" description="Special non-scheduled checks for month-end closing, surprise audits and control counts.">
           {auditChecks.length ? (
-            <><div className="overflow-x-auto"><table className="w-full min-w-[900px] text-left"><thead className="table-head"><tr><th className="px-3 py-2">Date</th><th>Audit Type</th><th>Items Checked</th><th>Skipped</th><th>Variance Items</th><th>Status</th><th>Created By</th><th className="text-right">Actions</th></tr></thead><tbody className="divide-y divide-border text-[13px]">{auditChecks.slice((auditPage - 1) * auditPageSize, auditPage * auditPageSize).map((check) => {
-              const varianceCount = check.rowSummary?.shortage ?? (check.rows || []).filter((row) => !row.skipped && Number(row.variance || 0) > 0).length;
-              const skippedCount = check.rowSummary?.skipped ?? (check.rows || []).filter((row) => row.skipped).length;
-              return <tr key={check.id}><td className="px-3 py-3 font-semibold">{formatDate(check.date)}</td><td>{check.auditType || check.auditName || "Custom Audit"}{check.correctionOfId && <div className="type-caption text-text-secondary">Correction</div>}</td><td>{check.rowSummary?.total ?? check.rows?.length ?? 0}</td><td>{skippedCount}</td><td>{varianceCount}</td><td><Badge tone={statusTone(check.status)}>{check.status === "submitted" ? "Completed" : toTitle(check.status)}</Badge></td><td>{actorNameByAuthUserId(check.createdBy)}</td><td><div className="flex items-center justify-end gap-2">{check.status === "draft" ? (!check.correctionOfId || can.correctAudit) && <><button className="btn-primary h-9 px-2.5 text-xs" type="button" onClick={() => check.correctionOfId
-                ? navigateAdminRoute('inventory-stock-check-result', { checkId: check.id }, { date })
-                : continueAuditStockCheck(check)}>Continue Audit</button><button className="icon-btn h-9 w-9 text-rose-700" type="button" title="Delete draft" aria-label={`Delete draft audit ${check.auditName || check.date}`} onClick={() => deleteAuditDraft(check)}><Trash2 size={16} /></button></> : <button className="icon-btn h-9 w-9" type="button" title="View audit result" aria-label={`View audit result ${check.auditName || check.date}`} onClick={() => navigateAdminRoute('inventory-stock-check-result', { checkId: check.id }, { date })}><Eye size={16} /></button>}</div></td></tr>;
-            })}</tbody></table></div><FactoryPagination page={auditPage} pageSize={auditPageSize} total={auditChecks.length} onPageChange={setAuditPage} onPageSizeChange={(value) => { setAuditPageSize(value); setAuditPage(1); }} /></>
+            <>
+              <DataTable columns={auditColumns} rows={auditRows} getRowKey={({ check }) => check.id}
+                density="compact" columnSpacing="compact" mobileLayout="stack" minWidth={690} />
+              <FactoryPagination page={auditPage} pageSize={auditPageSize} total={auditChecks.length}
+                onPageChange={setAuditPage} onPageSizeChange={(value) => { setAuditPageSize(value); setAuditPage(1); }} />
+            </>
           ) : <EmptyState title="No audit stock checks yet." description="Use Audit Stock Check for month-end closing, full outlet counts or spot checks." />}
         </SectionCard>
       </div>

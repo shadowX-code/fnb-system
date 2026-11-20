@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Check, ChevronRight, Plus, Trash2 } from "lucide-react";
+import { Check, ChevronRight, MoreHorizontal, Plus, Trash2 } from "lucide-react";
+import ActionMenu from "../../../components/ui/ActionMenu.jsx";
 import { crewService } from "../../../services/crewService.js";
 import { formatCrewDate, formatCrewOperationalDateTime } from "../utils/crewI18n.js";
 import CrewMobileDetailHeader from "./CrewMobileDetailHeader.jsx";
@@ -105,6 +106,7 @@ export default function CrewStockCheckMobile({ token, outletId, grants, initialT
     return groups;
   }, {}));
   const required = (data?.due || []).filter((row) => row.status === "due" || row.status === "in_progress");
+  const auditDrafts = (data?.checks || []).filter(row => row.type === "audit" && row.status === "draft");
   const history = historyView.rows;
 
   async function loadPurchaseResult(id, type) {
@@ -316,8 +318,44 @@ export default function CrewStockCheckMobile({ token, outletId, grants, initialT
       {tab === "required" && (data.can_perform_stock_check ? <>
         {required.length ? <div className="crew-inventory-list">{required.map((group) => <div className="crew-inventory-scheduled-row" key={group.group_id}><CrewInventoryItemThumb item={itemById.get(group.items?.[0]?.item_id)} /><span className="crew-inventory-scheduled-copy"><strong>{group.name}</strong><small>{[group.shift, t("inventory.homeItemCount", { count: group.items?.length || 0 })].filter(Boolean).join(" · ")}</small></span><CrewStatusBadge tone={group.status === "in_progress" ? "info" : "warning"}>{t(`inventory.${group.status}`)}</CrewStatusBadge><div className="crew-inventory-scheduled-actions"><button type="button" className="crew-mobile-secondary" onClick={() => startScheduled(group)}>{group.status === "in_progress" ? t("inventory.resume") : t("inventory.start")}</button>{group.status === "due" && <button type="button" className="crew-inventory-skip-action" onClick={() => { pendingSkipRequest.current = null; setSkipTarget(group); setSkipReason(""); }}>{t("inventory.skip")}</button>}</div></div>)}</div> : <CrewEmptyState title={t("inventory.noRequired")} body={t("inventory.noRequiredBody")} />}
       </> : <CrewEmptyState title={t("inventory.noAccess")} />)}
-      {tab === "audit" && (data.can_create_audit_stock_check ? <><button className="crew-mobile-primary crew-inventory-add" type="button" onClick={() => { setAuditForm({ type: "Spot Check", categoryIds: [], notes: "", closingMonth: "" }); pendingRequest.current = null; setError(""); setAuditOpen(true); }}><Plus size={18} />{t("inventory.newAudit")}</button><div className="crew-inventory-list">{(data.checks || []).filter((row) => row.type === "audit" && row.status === "draft").map((row) => <div className="crew-inventory-audit-row" key={row.id}><button type="button" onClick={() => void openSaved(row.id)} aria-label={`${t("inventory.homeContinue")}: ${row.name}`}><CrewInventoryItemThumb item={itemById.get(row.cover_item_id)} /><span><strong>{row.name}</strong><small>{row.audit_type} · {t("inventory.homeItemCount", { count: row.item_count || 0 })}</small><small>{t("inventory.homeContinue")}</small></span><CrewStatusBadge tone="warning">{t("inventory.draft")}</CrewStatusBadge><ChevronRight size={16} /></button><button type="button" aria-label={t("inventory.deleteDraft")} onClick={() => setDeleteTarget(row.id)}><Trash2 size={18} /></button></div>)}</div>{!(data.checks || []).some((row) => row.type === "audit" && row.status === "draft") && <CrewEmptyState title={t("inventory.noAuditDrafts")} />}</> : <CrewEmptyState title={t("inventory.noAccess")} />)}
-      {tab === "history" && <><CrewHistoryControls month={historyView.month} onMonthChange={historyView.setMonth} status={historyView.status} onStatusChange={historyView.setStatus} statuses={["completed", "missed", "skipped"]} />{historyView.error && <p className="crew-v2-error" role="alert">{historyView.error}</p>}<div className="crew-inventory-list">{history.map((row) => <div className="crew-inventory-history-entry" key={row.id || `${row.group_id}-${row.check_date}`}><CrewInventoryItemThumb item={itemById.get(row.cover_item_id) || { photo_url: row.cover_photo_url, name: row.name }} inspectable={row.status === "completed"} /><button type="button" onClick={() => row.id ? void openSaved(row.id) : (setCheck({ ...row, stock_check_type: "scheduled", check_name: row.name }), setRows([]))}><span><strong>{row.name}</strong><small>{[row.check_date, t(`inventory.${row.type}`), row.status === "completed" ? t("inventory.homeItemCount", { count: row.item_count || 0 }) : null].filter(Boolean).join(" · ")}</small></span><CrewStatusBadge tone={row.status === "completed" ? "success" : row.status === "missed" ? "danger" : "neutral"}>{t(`inventory.${row.status}`)}</CrewStatusBadge><ChevronRight size={18} /></button></div>)}{!history.length && !historyView.loading && <CrewEmptyState title={t("inventory.noHistory")} />}</div>{historyView.loading && <p className="crew-inventory-state" role="status">{t("common.loading")}</p>}{historyView.hasMore && <button className="crew-mobile-secondary crew-inventory-load-more" type="button" disabled={historyView.loading} onClick={historyView.loadMore}>{t("inventory.loadMore")}</button>}</>}
+      {tab === "audit" && (data.can_create_audit_stock_check ? <>
+        <button className="crew-mobile-primary crew-inventory-add" type="button"
+          onClick={() => { setAuditForm({ type: "Spot Check", categoryIds: [], notes: "", closingMonth: "" }); pendingRequest.current = null; setError(""); setAuditOpen(true); }}>
+          <Plus size={18} />{t("inventory.newAudit")}
+        </button>
+        {auditDrafts.length ? <div className="crew-inventory-list">{auditDrafts.map(row => (
+          <CrewAuditCard key={row.id} row={row} item={itemById.get(row.cover_item_id)} token={token} outletId={outletId}
+            onOpen={() => void openSaved(row.id)} onDelete={() => setDeleteTarget(row.id)} />
+        ))}</div> : <CrewEmptyState title={t("inventory.noAuditDrafts")} />}
+      </> : <CrewEmptyState title={t("inventory.noAccess")} />)}
+      {tab === "history" && <>
+        <CrewHistoryControls month={historyView.month} onMonthChange={historyView.setMonth} status={historyView.status}
+          onStatusChange={historyView.setStatus} statuses={["completed", "missed", "skipped"]} />
+        {historyView.error && <p className="crew-v2-error" role="alert">{historyView.error}</p>}
+        <div className="crew-inventory-list">
+          {history.map(row => row.type === "audit" ? (
+            <CrewAuditCard key={row.id} row={row} item={itemById.get(row.cover_item_id)} token={token} outletId={outletId}
+              onOpen={() => void openSaved(row.id)} />
+          ) : (
+            <div className="crew-inventory-history-entry" key={row.id || row.group_id + "-" + row.check_date}>
+              <CrewInventoryItemThumb item={itemById.get(row.cover_item_id) || { photo_url: row.cover_photo_url, name: row.name }}
+                inspectable={row.status === "completed"} />
+              <button type="button" onClick={() => row.id ? void openSaved(row.id) : (setCheck({ ...row, stock_check_type: "scheduled", check_name: row.name }), setRows([]))}>
+                <span><strong>{row.name}</strong><small>{[row.check_date, t("inventory." + row.type),
+                  row.status === "completed" ? t("inventory.homeItemCount", { count: row.item_count || 0 }) : null].filter(Boolean).join(" · ")}</small></span>
+                <CrewStatusBadge tone={row.status === "completed" ? "success" : row.status === "missed" ? "danger" : "neutral"}>
+                  {t("inventory." + row.status)}
+                </CrewStatusBadge>
+                <ChevronRight size={18} />
+              </button>
+            </div>
+          ))}
+          {!history.length && !historyView.loading && <CrewEmptyState title={t("inventory.noHistory")} />}
+        </div>
+        {historyView.loading && <p className="crew-inventory-state" role="status">{t("common.loading")}</p>}
+        {historyView.hasMore && <button className="crew-mobile-secondary crew-inventory-load-more" type="button"
+          disabled={historyView.loading} onClick={historyView.loadMore}>{t("inventory.loadMore")}</button>}
+      </>}
     </>}
     {auditOpen && <CrewBottomSheet title={t("inventory.newAudit")} onClose={() => setAuditOpen(false)} closeDisabled={busy} footer={<>
       <button className="crew-mobile-secondary" type="button" disabled={busy} onClick={() => setAuditOpen(false)}>{t("common.cancel")}</button>
@@ -341,6 +379,60 @@ export default function CrewStockCheckMobile({ token, outletId, grants, initialT
     {deleteTarget && <CrewMobileModal title={t("inventory.deleteDraft")} onClose={() => setDeleteTarget(null)} closeDisabled={busy} footer={<><button className="crew-mobile-secondary" type="button" onClick={() => setDeleteTarget(null)}>{t("common.cancel")}</button><button className="crew-mobile-primary" type="button" disabled={busy} onClick={() => void deleteDraft()}>{t("inventory.deleteDraft")}</button></>}><p>{t("inventory.deleteDraftBody")}</p></CrewMobileModal>}
     {skipTarget && <CrewBottomSheet title={t("inventory.skipCheckTitle")} description={t("inventory.skipCheckBody")} onClose={() => setSkipTarget(null)} closeDisabled={busy} footer={<><button className="crew-mobile-secondary" type="button" disabled={busy} onClick={() => setSkipTarget(null)}>{t("common.cancel")}</button><button className="crew-mobile-primary" type="button" disabled={busy} onClick={() => void skipScheduled()}>{t("inventory.confirmSkip")}</button></>}><CrewChoicePicker label={t("inventory.optionalReason")} value={skipReason} options={[{ value: "", label: t("inventory.noReason") }, ...["stock_sufficient", "recently_checked", "other"].map((value) => ({ value, label: t(`inventory.skipReasons.${value}`) }))]} onChange={setSkipReason} />{error && <p className="crew-v2-error" role="alert">{error}</p>}</CrewBottomSheet>}
   </section>;
+}
+
+function CrewAuditCard({ row, item, token, outletId, onOpen, onDelete }) {
+  const { t } = useTranslation();
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [detailMonth, setDetailMonth] = useState(null);
+  const isClosing = row.audit_type === MONTH_END_CLOSING;
+  const needsMonth = isClosing && !Object.hasOwn(row, "accounting_month");
+  const { id, updated_at: updatedAt } = row;
+
+  useEffect(() => {
+    if (!needsMonth || !id) return undefined;
+    let current = true;
+    // List responses omit the month. The existing scoped detail read is the evidence for it.
+    crewService.inventoryStockChecks(token, outletId, id).then(({ detail } = {}) => {
+      if (current && detail?.id === id) setDetailMonth(detail.accounting_month ?? null);
+    }).catch(() => {
+      if (current) setDetailMonth(null);
+    });
+    return () => { current = false; };
+  }, [needsMonth, token, outletId, id, updatedAt]);
+
+  const month = needsMonth ? detailMonth : row.accounting_month;
+  const type = row.audit_type
+    ? t("inventory.auditTypes." + row.audit_type, { defaultValue: row.audit_type })
+    : t("inventory.audit");
+  const date = row.check_date && formatCrewDate(row.check_date, { day: "numeric", month: "short", year: "numeric" });
+  const title = isClosing && month
+    ? t("inventory.closingCardTitle", { month: formatCrewDate(month, { month: "long", year: "numeric" }) })
+    : [type, date].filter(Boolean).join(" · ");
+  const draft = row.status === "draft";
+  const action = t(draft ? "inventory.homeContinue" : "inventory.auditView");
+  const moreLabel = t("inventory.auditMoreActions", { title });
+
+  return <article className="crew-ui-functional-surface crew-inventory-audit-card">
+    <CrewInventoryItemThumb item={item || { photo_url: row.cover_photo_url, name: title }} inspectable={!draft} />
+    <button type="button" className="crew-inventory-audit-card-link" aria-label={action + ": " + title} onClick={onOpen}>
+      <strong className="crew-type-card-title crew-inventory-audit-card-title">{title}</strong>
+      <span className="crew-inventory-audit-card-meta">
+        <small>{t("inventory.homeItemCount", { count: row.item_count || 0 })}</small>
+        <CrewStatusBadge tone={draft ? "warning" : "success"}>{t(draft ? "inventory.draft" : "inventory.completed")}</CrewStatusBadge>
+        <span className="crew-inventory-audit-card-action">{action}<ChevronRight size={14} aria-hidden="true" /></span>
+      </span>
+    </button>
+    {draft && onDelete && <ActionMenu open={moreOpen} onOpenChange={setMoreOpen} width={170} ariaLabel={moreLabel}
+      trigger={({ toggle, open }) => <button type="button" className="crew-mobile-ghost crew-inventory-audit-more"
+        aria-label={moreLabel} aria-haspopup="menu" aria-expanded={open} onClick={toggle}><MoreHorizontal size={20} aria-hidden="true" /></button>}>
+      <div role="menu" aria-label={moreLabel}>
+        <button type="button" role="menuitem" className="is-danger" onClick={() => { setMoreOpen(false); onDelete(); }}>
+          <Trash2 size={16} aria-hidden="true" />{t("inventory.deleteDraft")}
+        </button>
+      </div>
+    </ActionMenu>}
+  </article>;
 }
 
 function CountRow({ row, item, counted, onSkip, onChange, t }) {

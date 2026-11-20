@@ -15,6 +15,40 @@ const deferred = () => { let resolve; const promise = new Promise((done) => { re
 afterEach(() => { cleanup(); mocks.load.mockReset(); mocks.persist.mockReset(); mocks.remove.mockReset(); window.history.replaceState(null, "", "/"); });
 
 describe("Stock Check execution scoped read", () => {
+  it("shows scoped shortage and excess plus only the explicit closing month", async () => {
+    mocks.load.mockResolvedValue({ ...snapshot("A"), checks: [
+      { id: "closing", outletId: "A", stockCheckType: "audit", auditType: "Month-End Closing",
+        date: "2026-11-02", status: "submitted", accountingMonth: "2026-10-01", rows: [],
+        rowSummary: { total: 242, shortage: 147, excess: 9, skipped: 0 } },
+      { id: "draft", outletId: "A", stockCheckType: "audit", auditType: "Month-End Closing",
+        date: "2026-08-02", status: "draft", rows: [
+          { actualCount: 0, expectedQty: 1.001, variance: -1.001 },
+          { actualCount: 0.002, expectedQty: 0.001, variance: -99 },
+          { actualCount: 1, expectedQty: 1, variance: 99 },
+          { actualCount: "", expectedQty: 1, variance: 99 },
+          { actualCount: 1, expectedQty: "", variance: 99 },
+          { actualCount: 0, expectedQty: 1, status: "skipped" },
+          { actualCount: 0, expectedQty: 1, status: "pending" },
+          { actualCount: 0, expectedQty: 1, na: true },
+        ] },
+    ] });
+    window.history.replaceState(null, "", "/restaurant/inventory/stock-check?outletId=A");
+    render(<InventoryStockCheckPage auth={{ ...auth, profile: { role_outlet_access_type: "all" }, hasPermission: () => true }}
+      ui={{ notify: vi.fn() }} outlets={[{ id: "A", name: "QA Outlet" }]} />);
+    const closing = within(await screen.findByRole("row", { name: /2 Nov 2026 Month-End Closing/ }));
+    expect(screen.getAllByRole("columnheader").map(cell => cell.textContent)).toEqual(
+      ["Date", "Audit Type", "Items", "Shortage", "Excess", "Skipped", "Status", "Created By", "Actions"],
+    );
+    expect(closing.getAllByRole("cell").slice(2, 7).map(cell => cell.textContent)).toEqual(["242", "147", "9", "0", "Completed"]);
+    expect(closing.getByText("Closing Month · Oct 2026")).toBeTruthy();
+    expect(closing.getByRole("button", { name: /View audit result/ })).toBeTruthy();
+
+    const draft = within(screen.getByRole("row", { name: /2 Aug 2026 Month-End Closing/ }));
+    expect(draft.getAllByRole("cell").slice(2, 7).map(cell => cell.textContent)).toEqual(["8", "1", "1", "1", "Draft"]);
+    expect(draft.queryByText(/Closing Month ·/)).toBeNull();
+    expect(draft.getByRole("button", { name: "Continue Audit" })).toBeTruthy();
+  });
+
   it.each([
     ["outletId=B&accountingMonth=2026-08", "Second Outlet", "August 2026"],
     ["outletId=B&date=2026-09-24", "Second Outlet", "Select Closing Month"],
