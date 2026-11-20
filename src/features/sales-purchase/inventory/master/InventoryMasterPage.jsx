@@ -1,9 +1,10 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Boxes, CheckCircle2, ChevronDown, ClipboardList, Download, Folder, GripVertical, PackagePlus, Plus, RefreshCw, Trash2, Upload, Warehouse } from 'lucide-react';
+import { Boxes, CheckCircle2, ChevronDown, ClipboardList, Download, Folder, GripVertical, MoreHorizontal, PackagePlus, Plus, RefreshCw, Trash2, Upload, Warehouse } from 'lucide-react';
 import PageHeader from '../../../../components/layout/PageHeader.jsx';
 import Modal from '../../../../components/feedback/Modal.jsx';
 import MetricCard from '../../../../components/ui/MetricCard.jsx';
 import Badge from '../../../../components/ui/Badge.jsx';
+import ActionMenu from '../../../../components/ui/ActionMenu.jsx';
 import FloatingLayer from '../../../../components/ui/FloatingLayer.jsx';
 import SelectField from '../../../../components/forms/SelectField.jsx';
 import AdminFilterToolbar from '../../../../components/layout/AdminFilterToolbar.jsx';
@@ -685,6 +686,22 @@ function UomSettingsModal({ uoms, remoteRows, visibleRows, lastWriteStatus, canA
 }
 
 
+
+function InventoryItemActions({ itemName, onEdit, onManageUnits, onArchive }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  return <>
+    <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={onEdit}>Edit</button>
+    <ActionMenu open={menuOpen} onOpenChange={setMenuOpen} width={168} ariaLabel={`More actions for ${itemName}`}
+      trigger={({ toggle, ariaLabel }) => <button className="icon-btn" type="button" aria-label={ariaLabel} aria-haspopup="menu" aria-expanded={menuOpen} onClick={toggle}>
+        <MoreHorizontal size={16} aria-hidden="true" />
+      </button>}>
+      <div role="menu">
+        <button type="button" role="menuitem" onClick={() => { setMenuOpen(false); onManageUnits(); }}>Manage Units</button>
+        {onArchive && <button type="button" role="menuitem" className="is-danger" onClick={() => { setMenuOpen(false); onArchive(); }}>Archive</button>}
+      </div>
+    </ActionMenu>
+  </>;
+}
 
 function InventoryItemModal({ item, categories, outlets, uoms, canCreateUom, onAddUom, onClose, onSave }) {
   const initialItem = normalizeInventoryItem(item ?? {
@@ -1614,6 +1631,11 @@ export default function InventoryMasterPage({ auth, ui, outlets }) {
       );
     };
 
+    const renderItemActions = (item) => <InventoryItemActions itemName={item.name}
+      onEdit={() => requirePermission(can.editMaster, "edit inventory items") && setModal({ type: "item", item })}
+      onManageUnits={() => setUomHistory({ item, scopeKey })}
+      onArchive={can.deleteMaster ? () => archiveItem(item.id) : undefined} />;
+
     const renderItemRow = (item) => {
       const category = categoryForItem(item, categoryById);
       const photo = item.photo_url || item.photo;
@@ -1642,9 +1664,7 @@ export default function InventoryMasterPage({ auth, ui, outlets }) {
           <td><Badge tone={statusTone(item.status)}>{toTitle(item.status)}</Badge></td>
           <td>
             <div className="flex justify-end gap-2" onClick={(event) => event.stopPropagation()}>
-              <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => requirePermission(can.editMaster, "edit inventory items") && setModal({ type: "item", item })}>Edit</button>
-              <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => setUomHistory({ item, scopeKey })}>Manage Units</button>
-              <button className="btn-secondary h-8 px-2.5 text-xs text-rose-700" type="button" onClick={() => requirePermission(can.deleteMaster, "archive inventory items") && archiveItem(item.id)}>Archive</button>
+              {renderItemActions(item)}
             </div>
           </td>
         </tr>
@@ -1689,9 +1709,7 @@ export default function InventoryMasterPage({ auth, ui, outlets }) {
             </div>
           </div>
           <div className="mt-3 flex justify-end gap-2 border-t border-border pt-3" onClick={(event) => event.stopPropagation()}>
-            <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => requirePermission(can.editMaster, "edit inventory items") && setModal({ type: "item", item })}>Edit</button>
-              <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => setUomHistory({ item, scopeKey })}>Manage Units</button>
-            <button className="btn-secondary h-8 px-2.5 text-xs text-rose-700" type="button" onClick={() => requirePermission(can.deleteMaster, "archive inventory items") && archiveItem(item.id)}>Archive</button>
+            {renderItemActions(item)}
           </div>
         </div>
       );

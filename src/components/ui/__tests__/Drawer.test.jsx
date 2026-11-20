@@ -8,3 +8,17 @@ it('does not close the parent drawer when a nested dialog handles Escape',()=>{c
 it('retains current field focus when execution temporarily disables Escape',()=>{const {rerender}=render(<Drawer title="Task" onClose={()=>{}}><input aria-label="Title"/></Drawer>);const input=screen.getByRole('textbox',{name:'Title'});input.focus();rerender(<Drawer title="Task" closeOnEscape={false} onClose={()=>{}}><input aria-label="Title"/></Drawer>);expect(document.activeElement).toBe(input);});
 
 it('spaces direct footer actions at the shared twelve-pixel gap',()=>{render(<Drawer title="Task" footer={<><button>Close</button><button>Save</button></>}/>);const footer=screen.getByRole('button',{name:'Save'}).closest('footer');expect(footer.classList.contains('flex')).toBe(true);expect(footer.classList.contains('gap-[12px]')).toBe(true);expect(footer.classList.contains('flex-wrap')).toBe(true)});
+
+it('includes native disclosure summaries in the drawer tab order', () => {
+  const rects = vi.spyOn(HTMLElement.prototype, 'getClientRects').mockReturnValue([{}]);
+  try {
+    render(<Drawer title="Units" onClose={() => {}}><button>Change Purchase Unit</button><details><summary>UOM History</summary></details></Drawer>);
+    const summary = screen.getByText('UOM History');
+    summary.focus();
+    expect(document.activeElement).toBe(summary);
+    fireEvent.keyDown(summary, { key: 'Tab' });
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Close drawer', exact: true }));
+  } finally {
+    rects.mockRestore();
+  }
+});

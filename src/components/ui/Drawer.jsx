@@ -39,7 +39,7 @@ export default function Drawer({
       if(event.key==='Escape'&&panel.querySelector('[data-floating-ancestors]'))return;
       if(event.key==='Escape'&&escapeRef.current){event.preventDefault();closeRef.current?.();}
       if(event.key!=='Tab')return;
-      const items=[...panel.querySelectorAll('button:not(:disabled),a[href],input:not(:disabled),textarea:not(:disabled),select:not(:disabled),[tabindex="0"]')].filter(el=>el.getClientRects().length&&el.closest('[role="dialog"]')===panel),first=items[0],last=items.at(-1);
+      const items=[...panel.querySelectorAll('button:not(:disabled),a[href],input:not(:disabled),textarea:not(:disabled),select:not(:disabled),summary,[tabindex="0"]')].filter(el=>el.getClientRects().length&&el.closest('[role="dialog"]')===panel),first=items[0],last=items.at(-1);
       if(!first){event.preventDefault();panel.focus();}
       else if(event.shiftKey&&(document.activeElement===first||document.activeElement===panel)){event.preventDefault();last.focus();}
       else if(!event.shiftKey&&(document.activeElement===last||document.activeElement===panel)){event.preventDefault();first.focus();}
