@@ -38,6 +38,14 @@ export function manageAutoCountDevice(action, { deviceId, bookId, legalEntityId,
   });
 }
 
+export function readAccountingDataset({ connectionId, dataset, scopeDate, snapshotId, search, page, pageSize }) {
+  if (!stagingAccounting()) throw new Error('Accounting evidence is available on Staging.');
+  return accountingRpc('finance_accounting_dataset', {
+    p_connection_id: connectionId, p_dataset: dataset, p_scope_date: scopeDate || null,
+    p_snapshot_id: snapshotId ?? null, p_search: search, p_offset: (page - 1) * pageSize, p_limit: pageSize,
+  });
+}
+
 const sourceResources = { COA: 'chart_of_accounts', GL: 'journal_lines', Department: 'financial_dimensions', Project: 'financial_dimensions' };
 
 function accountingConnection(source) {
@@ -64,6 +72,7 @@ function accountingConnection(source) {
     supersededByConnectionId: source.supersededByConnectionId,
     lastConnectedAt: source.lastConnectedAt,
     datasets,
+    glCoverage: source.glCoverage,
     sync: datasets.map((item) => ({
       connectionId: source.id, resource: sourceResources[item.dataset], cursor: item.scopeDate,
       lastSuccessAt: item.acceptedAt, status: 'idle',

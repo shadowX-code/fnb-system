@@ -2,6 +2,7 @@ import { useState } from 'react';
 import SelectField from '../../components/forms/SelectField.jsx';
 import Modal from '../../components/feedback/Modal.jsx';
 import StatusBadge from '../../components/ui/StatusBadge.jsx';
+import { FinanceDisclosure } from './FinanceVisualSystem.jsx';
 import { manageAccountingConnector, manageAutoCountDevice } from './dataSources.js';
 
 const connectionLabels = {
@@ -48,7 +49,7 @@ const backgroundLabels = {
   disabled: 'Windows task disabled',
 };
 
-export function AutoCountStatus({ entry, timestamp }) {
+export function AutoCountStatus({ entry, timestamp, children }) {
   const [tone, label] = connectionLabels[entry.state];
   const { connector } = entry;
   const live = ['connected', 'pending'].includes(entry.state);
@@ -56,49 +57,42 @@ export function AutoCountStatus({ entry, timestamp }) {
   const missedPoll = Date.parse(connector.nextPollAt) < Date.now() && heartbeat === 'overdue';
   const nextRun = connector.nextPollAt ? `${timestamp(connector.nextPollAt)}${missedPoll ? ' · overdue' : ''}`
     : ['disabled', 'missing'].includes(connector.backgroundMode) ? 'Not scheduled' : 'Awaiting schedule report';
+  const failed = ['failed', 'interrupted'].includes(connector.syncState);
+  const outcome = failed ? 'Sync failed' : connector.retryRequestedAt ? 'Sync requested'
+    : connector.syncState === 'running' ? (heartbeat === 'overdue' ? 'Sync outcome pending' : 'Syncing') : null;
   return <>
-    <div className="flex flex-wrap gap-2" aria-live="polite">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 type-caption text-text-secondary" aria-live="polite">
       <StatusBadge status={tone}>{label}</StatusBadge>
-      {heartbeat === 'online' && <StatusBadge status="success">Online</StatusBadge>}
-      {heartbeat === 'overdue' && <StatusBadge status="warning">Offline · check-in overdue</StatusBadge>}
-      {entry.state === 'connected' && connector.syncState === 'running' && heartbeat !== 'overdue' && <StatusBadge status="in_progress">Syncing</StatusBadge>}
-      {live && connector.syncState === 'running' && heartbeat === 'overdue' && <StatusBadge status="warning">Sync outcome pending</StatusBadge>}
-      {['connected', 'pending'].includes(entry.state) && ['failed', 'interrupted'].includes(connector.syncState) && <StatusBadge status="error">Sync failed</StatusBadge>}
-      {entry.state === 'connected' && connector.retryRequestedAt && <StatusBadge status="scheduled">Sync requested</StatusBadge>}
+      {heartbeat && <span>{heartbeat === 'online' ? 'Online' : 'Offline · check-in overdue'}</span>}
+      {outcome && <span className="font-semibold">{outcome}</span>}
+      {connector.lastSyncAt && <span>Last successful sync · {timestamp(connector.lastSyncAt)}</span>}
     </div>
-    <dl className="finance-source-facts">
-      {connector.bookId && <div><dt>Account Book reference</dt><dd>{connector.bookId.slice(0, 8)}</dd></div>}
-      <div><dt>Source book</dt><dd>{entry.connection.externalTenantId} · {connector.verifiedAt ? 'Verified by connector' : 'Awaiting verification'}</dd></div>
-      <div><dt>Last device check-in</dt><dd>{timestamp(connector.deviceLastSeenAt)}</dd></div>
-      <div><dt>Last sync attempt</dt><dd>{timestamp(connector.lastAttemptAt ?? connector.lastSyncReportAt)}{!connector.lastAttemptAt && connector.lastSyncReportAt ? ' · outcome time' : ''}</dd></div>
-      <div><dt>Last completed sync</dt><dd>{timestamp(connector.lastSyncAt)}</dd></div>
-      <div><dt>Next scheduled run</dt><dd>{nextRun}</dd></div>
-      {connector.backgroundMode && <div><dt>Windows background task</dt><dd>{backgroundLabels[connector.backgroundMode]}{heartbeat === 'overdue' ? ' · last reported' : ''}</dd></div>}
-      <div><dt>Last reported source rows, including retries</dt><dd>{connector.sourceRows ?? 'Not reported'}</dd></div>
-      <div><dt>Pending upload retries</dt><dd>{connector.pendingRetries ?? 'Not reported'}</dd></div>
-    </dl>
-    {heartbeat === 'overdue' && <p className="finance-source-note">FeedX has missed expected Windows check-ins. Check that the office PC is awake and connected, then review the connector's Windows task diagnostics.</p>}
-    {entry.state === 'pending' && <p className="finance-source-note">The Windows Connector will verify the bound book on its next run. If this stays pending, check the connector on the office PC.</p>}
-    {entry.state === 'connected' && connector.retryRequestedAt && <p className="finance-source-note">The request stays queued until the next eligible Windows check. An online connector checks every five minutes.</p>}
-    {['connected', 'pending'].includes(entry.state) && connector.syncState === 'failed' && <p className="finance-source-note">{syncErrors[connector.syncError] ?? syncErrors.local}</p>}
-    {entry.state === 'connected' && connector.syncState === 'interrupted' && <p className="finance-source-note">The connector did not report an outcome. Its next background run will retry. Check the office PC and Windows task diagnostics if check-ins remain overdue.</p>}
+    {failed && <p className="type-caption text-text-secondary">{connector.syncState === 'interrupted' ? 'Sync did not report an outcome. The next eligible run will retry.' : syncErrors[connector.syncError] ?? syncErrors.local}</p>}
+    {!failed && heartbeat === 'overdue' && <p className="type-caption text-text-secondary">Check that the office PC is awake and connected.</p>}
+    <FinanceDisclosure label="Connection details">
+      <dl className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        <div><dt>Last check-in</dt><dd>{timestamp(connector.deviceLastSeenAt)}</dd></div>
+        <div><dt>Last attempt</dt><dd>{timestamp(connector.lastAttemptAt ?? connector.lastSyncReportAt)}</dd></div>
+        <div><dt>Next scheduled run</dt><dd>{nextRun}</dd></div>
+        {connector.backgroundMode && <div><dt>Windows task</dt><dd>{backgroundLabels[connector.backgroundMode]}</dd></div>}
+        <div><dt>Pending uploads</dt><dd>{connector.pendingRetries ?? 'Not reported'}</dd></div>
+      </dl>
+      {children}
+    </FinanceDisclosure>
   </>;
 }
 
 const windowsInstaller = '/downloads/FeedX-AutoCount-Connector-Setup.exe';
 
-export function AutoCountDevices({ state, onAction, timestamp }) {
+export function AutoCountDevices({ state, onAction }) {
   return state.connectorDevices?.map((device) => <article key={device.id} className="finance-source-connection">
-    <div className="finance-section-heading">
-      <div><h3>{device.label || 'AutoCount Desktop Connector'}</h3><p>Last check-in: {timestamp(device.lastSeenAt)}</p></div>
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <h3>{device.label || 'AutoCount Desktop Connector'}</h3>
       <div className="flex flex-wrap gap-2">
         <StatusBadge status={device.active ? 'info' : 'neutral'}>{device.active ? 'Paired' : 'Revoked'}</StatusBadge>
-        {device.active && connectionHeartbeat(device.lastSeenAt) === 'overdue' && <StatusBadge status="warning">Offline · check-in overdue</StatusBadge>}
-        {device.active && connectionHeartbeat(device.lastSeenAt) === 'online' && <StatusBadge status="success">Online</StatusBadge>}
       </div>
     </div>
-    <p className="finance-source-note">SQL sync and native report support are assessed independently. Native Trial Balance, P&amp;L and Balance Sheet are unverified.</p>
-    {!device.books.length && <p className="finance-source-note">Authorization Required. Books appear after the Windows Connector checks in. Use Test Connection in Windows to check in now.</p>}
+    {!device.books.length && <p className="finance-source-note">No books reported. Check book authorization on the Windows Connector.</p>}
     {device.books.length > 0 && <ul className="divide-y divide-border">
       {device.books.map((book) => {
         const entry = state.connections.find((item) => item.connection.id === book.connectionId);

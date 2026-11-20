@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
-import { afterEach, expect, it } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 import FinanceDataSourcesPage, { FinanceDataSources } from '../FinanceDataSourcesPage.jsx';
 import { dataSourceReadiness, overviewDataStatus, readFinanceDataSources } from '../dataSources.js';
 import { capabilities } from '../foundation.js';
-afterEach(cleanup);
+import * as financeSources from '../dataSources.js';
+afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 const period = { start: '2026-01-01', end: '2026-12-31' };
 function historicalState() {
   return {
@@ -30,10 +31,10 @@ it('keeps the current management read honest with no connected accounting eviden
   render(<FinanceDataSources state={state} />);
   expect(screen.getByText('No accounting provider connected')).toBeTruthy();
   fireEvent.click(screen.getByRole('tab', { name: 'Mapping' }));
-  expect(screen.getAllByText('No provider mapping evidence.')).toHaveLength(4);
+  expect(within(screen.getByRole('region', { name: 'Mapping readiness' })).getAllByText('Not assessed')).toHaveLength(4);
   expect(screen.queryByText(/0 mapped/)).toBeNull();
   fireEvent.click(screen.getByRole('tab', { name: 'Reconciliation' }));
-  expect(screen.getByText('No validated reconciliation evidence')).toBeTruthy();
+  expect(screen.getByText(/No validated reconciliation evidence/)).toBeTruthy();
 });
 it('exposes a disabled connection boundary with no mutation action', async () => {
   render(<FinanceDataSourcesPage />);
@@ -52,8 +53,8 @@ it('retains historical connections and their original effective periods', () => 
   const history = screen.getByText('Connection History', { selector: 'summary' }).closest('details');
   expect(history.open).toBe(false);
   expect(within(history).getByRole('heading', { name: 'Prior accounting source' })).toBeTruthy();
-  expect(screen.getByText(/Deactivation does not delete financial history/)).toBeTruthy();
-  expect(screen.getAllByRole('button', { name: 'Sync accounting data' }).every((button) => button.disabled)).toBe(true);
+  expect(within(history).getByText('Historical')).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Sync accounting data' })).toBeNull();
   fireEvent.click(screen.getByRole('tab', { name: 'Authority' }));
   expect(screen.getByRole('cell', { name: 'Historical' })).toBeTruthy();
   expect(screen.getByRole('cell', { name: '2026-01-01 → 2026-06-30' })).toBeTruthy();
@@ -68,7 +69,7 @@ it('shows actual mapping counts and preserves currency, missing differences and 
   render(<FinanceDataSources state={state} />);
   fireEvent.click(screen.getByRole('tab', { name: 'Mapping' }));
   expect(screen.getByText('12 mapped · 3 unresolved')).toBeTruthy();
-  expect(screen.getAllByText('No provider mapping evidence.')).toHaveLength(3);
+  expect(within(screen.getByRole('region', { name: 'Mapping readiness' })).getAllByText('Not assessed')).toHaveLength(3);
   fireEvent.keyDown(screen.getByRole('tab', { name: 'Mapping' }), { key: 'ArrowRight' });
   expect(screen.getByRole('tab', { name: 'Reconciliation' }).getAttribute('aria-selected')).toBe('true');
   expect(screen.getByRole('cell', { name: /25.00/ }).textContent).toContain('US$');
@@ -122,7 +123,7 @@ it('keeps paired/online, failed sync and overdue evidence independent', async ()
   expect(screen.getByText(/Requires a signed-in Windows user/)).toBeTruthy();
   expect(screen.getByText(/retries on its next background run/)).toBeTruthy();
   expect(screen.getByText('2026-11-19T14:45:00Z')).toBeTruthy();
-  expect(screen.getByText('2026-11-16T17:59:52Z')).toBeTruthy();
+  expect(screen.getByText(/2026-11-16T17:59:52Z/)).toBeTruthy();
 });
 
 
@@ -139,15 +140,45 @@ it('keeps superseded AutoCount evidence in collapsed history with no live status
   const actions = [];
   render(<FinanceDataSources state={state} onAction={(...args) => actions.push(args)} />);
   expect(screen.getByText('1 active')).toBeTruthy();
-  expect(screen.getByText('1 historical · retained for history')).toBeTruthy();
+  expect(dataSourceReadiness(state).summary[0].detail).toContain('1 historical');
   expect(dataSourceReadiness(state).issues.every((issue) => !issue.includes('Prior accounting source'))).toBe(true);
   const history = screen.getByText('Connection History', { selector: 'summary' }).closest('details');
   expect(history.open).toBe(false);
-  expect(within(history).getByText('18b35aac')).toBeTruthy();
-  expect(within(history).getByText('Last successful sync')).toBeTruthy();
+  expect(within(history).getByText(/18b35aac/)).toBeTruthy();
+  expect(within(history).getByText(/Last successful sync/)).toBeTruthy();
   expect(within(history).getByText(/137 accepted rows/)).toBeTruthy();
   expect(within(history).queryByText(/Online|Sync failed|Sync requested/)).toBeNull();
   expect(within(history).queryByRole('button', { name: /request sync|retry sync|reconnect/i })).toBeNull();
-  fireEvent.click(screen.getByRole('button', { name: 'Request sync' }));
+  fireEvent.click(screen.getByText('Connection details', { selector: 'summary' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Request sync', hidden: true }));
   expect(actions).toEqual([['retry', current]]);
+});
+
+
+it('browses accepted records with a pinned snapshot and opens Mapping for the same source', async () => {
+  const state = historicalState();
+  const current = state.connections[1];
+  current.connector = { bookId: '3037f4f7-current' };
+  current.connection.externalTenantId = 'AED_TEST';
+  const read = vi.spyOn(financeSources, 'readAccountingDataset').mockImplementation(async ({ dataset, page, search }) => ({
+    snapshotId: dataset === 'COA' ? '16' : '17', snapshotAt: '2026-11-20T00:00:00Z',
+    acceptedRows: dataset === 'COA' ? 123 : 0, filteredRows: dataset === 'COA' ? (search ? 1 : 123) : 0,
+    rows: dataset === 'COA' ? [{ key: `TEST-${page}`, description: 'Fixture account' }] : [],
+  }));
+  render(<FinanceDataSources state={state} onAction={() => {}} />);
+  fireEvent.click(screen.getByRole('button', { name: 'View Data' }));
+  expect(await screen.findByText('TEST-1')).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+  expect(await screen.findByText('TEST-2')).toBeTruthy();
+  expect(read).toHaveBeenLastCalledWith(expect.objectContaining({ connectionId: 'new', dataset: 'COA', snapshotId: '16', page: 2 }));
+  fireEvent.change(screen.getByRole('searchbox', { name: 'Search records' }), { target: { value: 'Fixture' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Apply' }));
+  expect(await screen.findByText('TEST-1')).toBeTruthy();
+  expect(read).toHaveBeenLastCalledWith(expect.objectContaining({ search: 'Fixture', page: 1, snapshotId: '16' }));
+  fireEvent.click(screen.getByRole('tab', { name: 'GL' }));
+  expect(await screen.findByText('The accepted extraction found no postings for this date.')).toBeTruthy();
+  fireEvent.click(screen.getByRole('tab', { name: 'COA' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Review account mapping' }));
+  expect(screen.getByRole('tab', { name: 'Mapping' }).getAttribute('aria-selected')).toBe('true');
+  expect(screen.getByText(/Selected source.*3037f4f7/)).toBeTruthy();
 });

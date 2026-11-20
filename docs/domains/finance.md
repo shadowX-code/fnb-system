@@ -161,7 +161,7 @@ Planning presents canonical readiness surfaces for Forecasting, Scenarios and Ca
 
 ## AutoCount test-book ingestion
 
-The office Windows Connector sends source observations for local A2006 / AED_TEST to the Staging Finance ingestion RPC. The device credential authenticates the paired computer. The verified book identity and owner-approved binding govern ingestion into the existing Legal Entity. Request receipts are idempotent and changed observations append snapshots. Access to raw snapshots is server-only.
+The office Windows Connector sends source observations for local A2006 / AED_TEST to the Staging Finance ingestion RPC. The device credential authenticates the paired computer. The verified book identity and owner-approved binding govern ingestion into the existing Legal Entity. Request receipts are idempotent and changed observations append snapshots. Direct access to raw snapshots remains server-only. The owner-only dataset browser reads receipt-backed pages for the exact active connection and pins the snapshot during search and paging.
 
 The installed worker verifies the current physical Account Book identity through the saved restricted SQL reader before publication or synchronization. Historical local identities retain their credentials, queues, bindings and receipts, but cannot read or upload from a different current database. A changed Profile/broker identity requires an explicit owner binding through the existing connection workflow; it never silently inherits a historical binding.
 
@@ -170,3 +170,7 @@ An independently verified replacement can supersede an earlier AutoCount binding
 Background checks run through the installing Windows account and report task mode/next run separately from source attempts, completed sync and accepted uploads. Signed-out operation uses Windows Task Scheduler credential storage with the same Windows identity; device check-in is not proof of successful accounting extraction.
 
 Finance Data Sources shows the owner the connector check-in and accepted row counts. Acceptance records structural validation and receipt. Accounting authority, classification mapping, native reconciliation and eligibility for financial metrics require separately validated evidence. Native Trial Balance, P&L and Balance Sheet are gated on SDK compatibility, licensing and structured-report contracts.
+
+Data Sources separates connection operations, effective authority, mapping, and reconciliation. Connection details hold sync diagnostics and technical capabilities. Accepted COA, GL, Department and Project records can be browsed without changing evidence. COA retains the source account type and links to Mapping for classification review.
+
+GL coverage counts distinct accepted posting days from receipts, with the latest accepted observation per day. It identifies empty accepted days and gaps within the accepted span. That span is separate from the Windows First Posting Date, local next-day watermark and the complete SQL source range. To compare the current AED_TEST source against accepted coverage, run the [read-only GL coverage check](../../public/downloads/FeedX-AED_TEST-GL-Coverage.ps1) on the office PC under the installing Windows account with the current book ID and the accepted through date. The check returns aggregate counts and dates only.
