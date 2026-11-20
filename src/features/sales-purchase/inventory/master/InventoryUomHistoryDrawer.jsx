@@ -10,6 +10,7 @@ import { AdminEvidenceDisclosure } from '../../../../components/layout/AdminAnal
 import { getBusinessDateInput } from '../InventorySharedPresentation.jsx';
 import { loadInventoryUomHistory, reviseInventoryUom } from './inventoryMasterService.js';
 import { formatOperationalMoment } from '../../../../lib/dateTime.js';
+import { formatInventoryCost } from './inventoryCostPresentation.js';
 
 const numberLabel = value => Number(value).toLocaleString('en-MY', { maximumFractionDigits: 6 });
 const dateLabel = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Kuala_Lumpur' });
@@ -128,6 +129,7 @@ export default function InventoryUomHistoryDrawer({ item, uoms, canEdit, onClose
           <DatePickerField label="Effective Date (MYT)" value={form.date} minDate={minimumDate} onChange={date => setForm({ ...form, date })} disabled={saving} required />
           <TextareaField label={reasonRequired ? 'Reason / Evidence' : 'Reason / Evidence (optional)'} rows={2}
             value={form.reason} onChange={value => setForm({ ...form, reason: value })} required={reasonRequired} maxLength={500} disabled={saving} />
+          {validFactor && <p>Standard cost per {form.unit} · {formatInventoryCost(item.costRevisionId ? Number(item.cost) * factor : null)}</p>}
         </AdminEvidenceDisclosure>
         {needsReason && <p className="type-caption text-text-secondary">Add a reason in Advanced Details to save this change.</p>}
         {form.date < minimumDate && <p className="type-caption text-text-secondary">Choose {formatEffectiveDate(minimumDate)} or later in Advanced Details.</p>}

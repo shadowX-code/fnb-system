@@ -60,6 +60,7 @@ it('requires a user-entered reason for a change and submits against the latest r
   fireEvent.click(screen.getByText('Advanced Details'));
   const reason = screen.getByRole('textbox', { name: /Reason \/ Evidence/ });
   expect(reason.required).toBe(true);
+  expect(screen.getByText('Standard cost per pack · RM 75.00')).toBeTruthy();
   fireEvent.change(reason, { target: { value: 'Supplier switched pack size' } });
   fireEvent.click(save);
   await waitFor(() => expect(reviseInventoryUom).toHaveBeenCalledWith(expect.objectContaining({
