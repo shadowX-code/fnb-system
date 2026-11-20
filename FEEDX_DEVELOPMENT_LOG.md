@@ -1303,3 +1303,7 @@ Preserved 110 READ / 2 ACTION authority; extended Employees type/outlet summarie
 ## 2026-11-20 — Restaurant Purchase UOM Phase 1
 
 Master Inventory records forward purchase-unit conversions in append-only UOM History and protects the existing Stock UOM for items in use. Admin and Crew pin the selected basis on new Purchase Orders. Receipts retain purchase quantities and post stock-unit movements through the same Inventory authority. Existing audit and cost evidence keeps its recorded basis. See `docs/domains/inventory-and-assets.md`.
+
+## 2026-11-21 — Restaurant Master Inventory item UOM
+
+Edit Item now manages the canonical item UOM and append-only change history. Saved operational evidence blocks changes, and stock writes detect stale units on items that have changed. New purchases use the item UOM, with existing order pins retained for receiving compatibility. See `docs/domains/inventory-and-assets.md`.

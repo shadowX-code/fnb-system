@@ -86,7 +86,7 @@ describe("Crew PO month history", () => {
   });
 });
 
-it("sends the purchase unit and quantity for receiving and previews the stock equivalent", async () => {
+it("preserves the stored unit and quantity when receiving a legacy pinned order", async () => {
   const converted = { ...detail, lines: [{
     ...detail.lines[0], unit: "carton", stock_unit: "pcs", stock_units_per_purchase_unit: 12,
   }] };
@@ -97,10 +97,10 @@ it("sends the purchase unit and quantity for receiving and previews the stock eq
   crewService.receiveInventoryPurchaseOrder.mockResolvedValue({});
   render(<CrewPurchaseOrdersMobile token="qa-token" outletId="outlet-1" grants={{ can_receive_purchase_orders: true }} onBack={() => {}} />);
   fireEvent.click((await screen.findByText("Test Supplier")).closest("button"));
-  expect(await screen.findByText("Stock equivalent: 60 pcs")).toBeTruthy();
+  expect(await screen.findByText(/5 carton/)).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Receive PO" }));
   fireEvent.change(screen.getByRole("spinbutton", { name: "Received now" }), { target: { value: "0.5" } });
-  expect(screen.getByText("Stock equivalent: 6 pcs")).toBeTruthy();
+  expect(screen.queryByText(/stock equivalent/i)).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Record Receipt" }));
   await waitFor(() => expect(crewService.receiveInventoryPurchaseOrder).toHaveBeenCalledWith(
     "qa-token", "outlet-1", "order-1", expect.any(String), "", [

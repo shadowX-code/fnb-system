@@ -1,10 +1,9 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Boxes, CheckCircle2, ChevronDown, ClipboardList, Download, Folder, GripVertical, MoreHorizontal, PackagePlus, Plus, RefreshCw, Trash2, Upload, Warehouse } from 'lucide-react';
+import { Boxes, CheckCircle2, ChevronDown, ClipboardList, Download, Folder, GripVertical, PackagePlus, Plus, RefreshCw, Trash2, Upload, Warehouse } from 'lucide-react';
 import PageHeader from '../../../../components/layout/PageHeader.jsx';
 import Modal from '../../../../components/feedback/Modal.jsx';
 import MetricCard from '../../../../components/ui/MetricCard.jsx';
 import Badge from '../../../../components/ui/Badge.jsx';
-import ActionMenu from '../../../../components/ui/ActionMenu.jsx';
 import FloatingLayer from '../../../../components/ui/FloatingLayer.jsx';
 import SelectField from '../../../../components/forms/SelectField.jsx';
 import AdminFilterToolbar from '../../../../components/layout/AdminFilterToolbar.jsx';
@@ -16,7 +15,7 @@ import { getAccessibleOutletOptions, getAccessibleOutlets, hasAllOutletAccess, h
 import { IMAGE_UPLOAD_ACCEPT, isImageDataUrl as isStandardImageDataUrl, optimizeImageFileForPreview, removeStorageObjectFromPublicUrl, uploadOptimizedImage } from '../../../../utils/imageUpload.js';
 import { normalizeOutletRecord, normalizeInventoryItem, uniqueIds, buildOutletConfig, isActiveInventoryItem, categoryForItem, canonical, isUuid, outletDisplayCode, outletDisplayName } from '../inventoryItemModel.js';
 import { InventoryCategoryIcon, SectionCard, TextArea, Field, csvEscape, downloadTextFile, todayInput } from '../InventorySharedPresentation.jsx';
-import InventoryUomHistoryDrawer from './InventoryUomHistoryDrawer.jsx';
+import InventoryItemUomSection from './InventoryItemUomSection.jsx';
 import InventoryCostHistoryDrawer from './InventoryCostHistoryDrawer.jsx';
 import { formatInventoryCost, formatInventoryCostChange, parseInventoryCostInput } from './inventoryCostPresentation.js';
 import InventoryItemPhotoPreview from '../InventoryItemPhotoPreview.jsx';
@@ -425,8 +424,8 @@ function buildInventoryImportPreview(rows, { categories, outlets, items, uoms })
     if (rawCost && (parsedCost === null || !existing?.costRevisionId || parsedCost !== existing.cost)) {
       errors.push("Clear the Cost cell and use Cost History to set the unit cost.");
     }
-    if (existing?.costRevisionId && existing.unit && canonical(existing.unit) !== canonical(uom?.code || unit)) {
-      errors.push("Use a separate item for a different UOM when an item has cost history.");
+    if (existing && existing.unit !== (uom?.code || unit)) {
+      errors.push("Use Change UOM in Edit Item before importing a different unit for an existing item.");
     }
 
     return {
@@ -687,23 +686,7 @@ function UomSettingsModal({ uoms, remoteRows, visibleRows, lastWriteStatus, canA
 
 
 
-function InventoryItemActions({ itemName, onEdit, onManageUnits, onArchive }) {
-  const [menuOpen, setMenuOpen] = useState(false);
-  return <>
-    <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={onEdit}>Edit</button>
-    <ActionMenu open={menuOpen} onOpenChange={setMenuOpen} width={168} ariaLabel={`More actions for ${itemName}`}
-      trigger={({ toggle, ariaLabel }) => <button className="icon-btn" type="button" aria-label={ariaLabel} aria-haspopup="menu" aria-expanded={menuOpen} onClick={toggle}>
-        <MoreHorizontal size={16} aria-hidden="true" />
-      </button>}>
-      <div role="menu">
-        <button type="button" role="menuitem" onClick={() => { setMenuOpen(false); onManageUnits(); }}>Manage Units</button>
-        {onArchive && <button type="button" role="menuitem" className="is-danger" onClick={() => { setMenuOpen(false); onArchive(); }}>Archive</button>}
-      </div>
-    </ActionMenu>
-  </>;
-}
-
-function InventoryItemModal({ item, categories, outlets, uoms, canCreateUom, onAddUom, onClose, onSave }) {
+function InventoryItemModal({ item, categories, outlets, uoms, canCreateUom, onAddUom, onClose, onSave, onUomChanged }) {
   const initialItem = normalizeInventoryItem(item ?? {
     id: "",
     name: "",
@@ -720,8 +703,8 @@ function InventoryItemModal({ item, categories, outlets, uoms, canCreateUom, onA
   const [form, setForm] = useState(initialItem);
   const [quickUomOpen, setQuickUomOpen] = useState(false);
   const [touched, setTouched] = useState(false);
-  const hasCostBasis = Boolean(item?.unit && (item.costRevisionId || item.linkedOutletIds?.length));
-  const invalid = touched && (!form.name.trim() || !form.categoryId || !form.unit || !form.linkedOutletIds?.length);
+  const [savingUom, setSavingUom] = useState(false);
+  const invalid = touched && (!form.name.trim() || !form.categoryId || (!item && !form.unit) || !form.linkedOutletIds?.length);
 
   function update(key, value) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -741,21 +724,26 @@ function InventoryItemModal({ item, categories, outlets, uoms, canCreateUom, onA
     });
   }
 
+  const statusField = <SelectField label="Status" value={form.status}
+    options={statuses.map(status => ({ value: status, label: toTitle(status) }))}
+    onChange={value => update("status", value)} />;
+
   return (
     <Modal
       title={item ? "Edit Inventory Item" : "Add Inventory Item"}
       description="Define the global item identity. Par levels are managed separately in Par Level Setup."
       size="lg"
-      onClose={onClose}
+      onClose={savingUom ? undefined : onClose}
       footer={(
         <>
-          <button className="btn-secondary" type="button" onClick={onClose}>Cancel</button>
+          <button className="btn-secondary" type="button" disabled={savingUom} onClick={onClose}>Cancel</button>
           <button
             className="btn-primary"
             type="button"
+            disabled={savingUom}
             onClick={() => {
               setTouched(true);
-              if (!form.name.trim() || !form.categoryId || !form.unit || !form.linkedOutletIds?.length) return;
+              if (!form.name.trim() || !form.categoryId || (!item && !form.unit) || !form.linkedOutletIds?.length) return;
               const id = form.id || makeId("item");
               onSave({ ...form, id, outletConfigs: (form.outletConfigs || []).map((config) => ({ ...config, inventoryItemId: id })) });
             }}
@@ -769,11 +757,14 @@ function InventoryItemModal({ item, categories, outlets, uoms, canCreateUom, onA
         <Field label="Item Name" value={form.name} required onChange={(value) => update("name", value)} placeholder="Sambal Sauce" />
         <Field label="SKU Code" value={form.sku} onChange={(value) => update("sku", value)} placeholder="RAW-SAM-001" />
         <SelectField label="Category" value={form.categoryId} options={categories.map((category) => ({ value: category.id, label: category.name }))} onChange={(value) => update("categoryId", value)} searchable required />
-        <SelectField
+        {item && statusField}
+        {item ? <InventoryItemUomSection key={item.id} item={item} uoms={uoms} onSavingChange={setSavingUom}
+          onChanged={unit => {
+            setForm(current => ({ ...current, unit, uom_code: unit, uomCode: unit }));
+            onUomChanged(item.id, unit);
+          }} /> : <SelectField
           label="UOM"
           value={form.unit}
-          disabled={hasCostBasis}
-          helper={hasCostBasis ? "Stock UOM is fixed once in use. Use Manage Units for purchasing." : undefined}
           options={uoms.filter((uom) => uom.isActive || uom.code === form.unit).map((uom) => ({ value: uom.code, label: uomOptionLabel(uom) }))}
           onChange={(value) => update("unit", value)}
           footerAction={({ close }) => (
@@ -789,8 +780,8 @@ function InventoryItemModal({ item, categories, outlets, uoms, canCreateUom, onA
               <Plus size={14} /> Add New UOM
             </button>
           )}
-        />
-        <SelectField label="Status" value={form.status} options={statuses.map((status) => ({ value: status, label: toTitle(status) }))} onChange={(value) => update("status", value)} />
+        />}
+        {!item && statusField}
         <div className="md:col-span-2">
           <ItemPhotoPicker
             value={form.photo}
@@ -1002,7 +993,6 @@ export default function InventoryMasterPage({ auth, ui, outlets }) {
   const [uomWriteStatus, setUomWriteStatus] = useState('Not written');
   const [modal, setModal] = useState(null);
   const [costHistory, setCostHistory] = useState(null);
-  const [uomHistory, setUomHistory] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
   const can = useMemo(() => ({
     importMaster: hasPermission(auth, 'inventory_master.import'), exportMaster: hasPermission(auth, 'inventory_master.export'),
@@ -1631,11 +1621,6 @@ export default function InventoryMasterPage({ auth, ui, outlets }) {
       );
     };
 
-    const renderItemActions = (item) => <InventoryItemActions itemName={item.name}
-      onEdit={() => requirePermission(can.editMaster, "edit inventory items") && setModal({ type: "item", item })}
-      onManageUnits={() => setUomHistory({ item, scopeKey })}
-      onArchive={can.deleteMaster ? () => archiveItem(item.id) : undefined} />;
-
     const renderItemRow = (item) => {
       const category = categoryForItem(item, categoryById);
       const photo = item.photo_url || item.photo;
@@ -1664,7 +1649,8 @@ export default function InventoryMasterPage({ auth, ui, outlets }) {
           <td><Badge tone={statusTone(item.status)}>{toTitle(item.status)}</Badge></td>
           <td>
             <div className="flex justify-end gap-2" onClick={(event) => event.stopPropagation()}>
-              {renderItemActions(item)}
+              <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => requirePermission(can.editMaster, "edit inventory items") && setModal({ type: "item", item, scopeKey })}>Edit</button>
+              <button className="btn-secondary h-8 px-2.5 text-xs text-rose-700" type="button" onClick={() => requirePermission(can.deleteMaster, "archive inventory items") && archiveItem(item.id)}>Archive</button>
             </div>
           </td>
         </tr>
@@ -1709,7 +1695,8 @@ export default function InventoryMasterPage({ auth, ui, outlets }) {
             </div>
           </div>
           <div className="mt-3 flex justify-end gap-2 border-t border-border pt-3" onClick={(event) => event.stopPropagation()}>
-            {renderItemActions(item)}
+            <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => requirePermission(can.editMaster, "edit inventory items") && setModal({ type: "item", item, scopeKey })}>Edit</button>
+              <button className="btn-secondary h-8 px-2.5 text-xs text-rose-700" type="button" onClick={() => requirePermission(can.deleteMaster, "archive inventory items") && archiveItem(item.id)}>Archive</button>
           </div>
         </div>
       );
@@ -1870,7 +1857,16 @@ export default function InventoryMasterPage({ auth, ui, outlets }) {
     {read.state === 'refreshing' ? <p role="status" className="text-sm text-text-secondary">Refreshing Master Inventory. Showing the last verified complete read.</p> : null}
     {read.state === 'stale-error' ? <div className="card p-3" role="alert">{read.error} Showing the last verified Master Inventory read. <button type="button" className="btn-secondary ml-2" onClick={refreshInventory}>Retry</button></div> : null}
     {renderMasterInventory()}
-      {modal?.type === "item" ? <InventoryItemModal item={modal.item} categories={sortedCategories} outlets={outlets} uoms={sortedUoms} canCreateUom={can.createUom} onAddUom={saveQuickUom} onClose={() => setModal(null)} onSave={saveItem} /> : null}
+      {modal?.type === "item" && (!modal.item || modal.scopeKey === scopeKey) ? <InventoryItemModal
+        item={modal.item} categories={sortedCategories} outlets={outlets} uoms={sortedUoms} canCreateUom={can.createUom}
+        onAddUom={saveQuickUom} onClose={() => setModal(null)} onSave={saveItem}
+        onUomChanged={(itemId, unit) => {
+          setData(current => ({ ...current, items: current.items.map(item => item.id === itemId
+            ? { ...item, unit, uomCode: unit, uom_code: unit } : item) }));
+          notify("Inventory UOM updated");
+          invalidateInventoryReads({ source: "inventory-master", itemId });
+        }}
+      /> : null}
       {modal?.type === "inventory-import" ? (
         <InventoryImportModal
           categories={sortedCategories}
@@ -1917,10 +1913,6 @@ export default function InventoryMasterPage({ auth, ui, outlets }) {
       ) : null}
       {modal?.type === "uom" ? <UomModal uom={modal.uom} onClose={() => setModal(modal.returnToSettings ? { type: "uom-settings" } : null)} onSave={saveUom} /> : null}
 
-    {uomHistory?.scopeKey === scopeKey ? <InventoryUomHistoryDrawer
-      key={uomHistory.item.id} item={uomHistory.item} uoms={sortedUoms} canEdit={can.editCost}
-      onClose={() => setUomHistory(null)}
-    /> : null}
     {costHistory?.scopeKey === scopeKey ? <InventoryCostHistoryDrawer
       key={costHistory.item.id}
       item={costHistory.item}

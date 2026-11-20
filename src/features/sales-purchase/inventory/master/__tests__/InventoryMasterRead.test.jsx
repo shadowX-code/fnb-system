@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => ({ load: vi.fn(), unitHistory: vi.fn() }));
 vi.mock("../inventoryMasterService.js", async (importOriginal) => ({
   ...(await importOriginal()),
   loadInventoryMaster: mocks.load,
-  loadInventoryUomHistory: mocks.unitHistory,
+  loadInventoryStockUomHistory: mocks.unitHistory,
 }));
 
 import InventoryMasterPage from "../InventoryMasterPage.jsx";
@@ -33,16 +33,17 @@ beforeEach(() => mocks.load.mockReset());
 afterEach(cleanup);
 
 describe("Master Inventory scoped complete projection", () => {
-  it("opens Manage Units from the item action menu instead of a row button", async () => {
+  it("opens the existing editor with Current UOM, Change UOM and UOM History", async () => {
     mocks.load.mockResolvedValue(snapshot("Current Item"));
-    mocks.unitHistory.mockResolvedValue({ stock_unit: "kg", current: null, revisions: [] });
+    mocks.unitHistory.mockResolvedValue({ unit: "kg", blocked_reason: null, changes: [] });
     render(mount("first-user"));
-    const [menu] = await screen.findAllByRole("button", { name: "More actions for Current Item" });
+    const [edit] = await screen.findAllByRole("button", { name: "Edit" });
     expect(screen.queryByRole("button", { name: "Manage Units" })).toBeNull();
-    fireEvent.click(menu);
-    fireEvent.click(screen.getByRole("menuitem", { name: "Manage Units" }));
-    expect(screen.getByRole("dialog", { name: "Manage Units" })).toBeTruthy();
-    expect(await screen.findByRole("button", { name: "Change Purchase Unit" })).toBeTruthy();
+    fireEvent.click(edit);
+    expect(screen.getByRole("dialog", { name: "Edit Inventory Item" })).toBeTruthy();
+    expect(screen.getByText("Current UOM")).toBeTruthy();
+    expect(await screen.findByText("UOM History")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Change UOM" })).toBeTruthy();
   });
 
   it("does not expose previous-scope rows or actions while a new scope is pending", async () => {

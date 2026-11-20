@@ -1,4 +1,5 @@
--- Use only the verified Staging project. All fixtures and writes roll back.
+-- Historical verification for migration 20261120154225, before item-only UOM cutover.
+-- Use restaurantMasterStockUom.rollback.sql for the current Staging workflow.
 begin;
 
 do $$
