@@ -33,10 +33,15 @@ export function AdminChart({ label, height = 300, children, className = '', data
     const host = ref.current.getBoundingClientRect();
     const svg = element.ownerSVGElement, scale = host.width / Number(svg?.getAttribute('viewBox')?.split(' ')[2] || host.width || 1);
     const mark = anchor ? {left:host.left+anchor.x*scale,top:host.top+anchor.y*scale,bottom:host.top+anchor.y*scale,width:0} : element.getBoundingClientRect();
-    setTip({content, owner, anchor:{x:mark.left+mark.width/2,top:anchor ? mark.top : (mark.top+mark.bottom)/2,bottom:anchor ? mark.bottom : (mark.top+mark.bottom)/2}});
+    setTip({content, owner, plotX:anchor?.x, anchor:{x:mark.left+mark.width/2,top:anchor ? mark.top : (mark.top+mark.bottom)/2,bottom:anchor ? mark.bottom : (mark.top+mark.bottom)/2}});
     return true;
   };
-  return <ChartContext.Provider value={{ show, hide: owner => setTip(current => !owner || current?.owner === owner ? null : current), tooltipId, owner: tip?.owner }}><div ref={ref} className={`admin-chart ${className}`} onKeyDown={e => { if (e.key === 'Escape') setTip(null); }}>
+  return <ChartContext.Provider value={{ show, hide: owner => setTip(current => !owner || current?.owner === owner ? null : current), tooltipId, owner: tip?.owner, plotX: tip?.plotX }}><div ref={ref} className={`admin-chart ${className}`} onKeyDown={e => {
+    if (e.key === 'Escape' && tip) {
+      e.preventDefault();
+      setTip(null);
+    }
+  }}>
     <svg viewBox={`0 0 ${width} ${typeof height === 'function' ? height(width) : height}`} role="group" aria-label={label}>{children(width, height)}</svg>
     {tip ? <AdminChartFloatingTooltip id={tooltipId} anchor={tip.anchor}>{tip.content}</AdminChartFloatingTooltip> : null}
   </div></ChartContext.Provider>;
@@ -109,8 +114,10 @@ export function adminChartScale(values, intervals = 4, {includeZero = true} = {}
 }
 
 /** A shared inspection guide, intentionally immediate so it tracks the inspected observation. */
-export function AdminChartCrosshair({x, top, bottom}) {
-  return Number.isFinite(x) ? <line aria-hidden="true" className="admin-chart-crosshair" x1={x} x2={x} y1={top} y2={bottom}/> : null;
+export function AdminChartCrosshair({x, top, bottom, followTooltip = false}) {
+  const chart = useContext(ChartContext);
+  const position = followTooltip ? chart?.plotX : x;
+  return Number.isFinite(position) ? <line aria-hidden="true" className="admin-chart-crosshair" x1={position} x2={position} y1={top} y2={bottom}/> : null;
 }
 
 /** Shared exact-value inspection anatomy; domain adapters own values, units and evidence. */
