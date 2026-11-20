@@ -45,6 +45,7 @@ export default function InventoryStockCheckResultModal({
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [valuationFilter, setValuationFilter] = useState("all");
+  const [sort, setSort] = useState("saved");
   const [search, setSearch] = useState("");
   const rows = stockCheck.rows || [];
   const valuation = useMemo(() => auditStockCheckValuation(rows), [rows]);
@@ -66,7 +67,7 @@ export default function InventoryStockCheckResultModal({
   const statuses = ["Normal", "Shortage", "Excess", "Skipped", "Pending", "Not Available"]
     .filter((label) => detailedRows.some((row) => row.result.label === label))
     .map((label) => ({ value: label, label }));
-  const visibleRows = isAuditResult ? detailedRows.filter((row) => {
+  const matchingRows = isAuditResult ? detailedRows.filter((row) => {
     const category = categoryById.get(row.categoryId)?.name || "Uncategorized";
     const text = `${row.item?.name || ""} ${row.item?.sku || ""} ${category}`.toLowerCase();
     return (categoryFilter === "all" || row.categoryId === categoryFilter)
@@ -74,6 +75,9 @@ export default function InventoryStockCheckResultModal({
       && (valuationFilter === "all" || row.stockValue === null)
       && (!search.trim() || text.includes(search.trim().toLowerCase()));
   }) : detailedRows;
+  const visibleRows = sort === "stockValue"
+    ? [...matchingRows].sort((left, right) => (right.stockValue ?? -1) - (left.stockValue ?? -1))
+    : matchingRows;
   const countItems = [
     { key: "total", label: "Total Items", value: rows.length },
     { key: "normal", label: "Normal", value: counts.Normal },
@@ -138,7 +142,9 @@ export default function InventoryStockCheckResultModal({
         </p>
         <AdminFilterToolbar ariaLabel="Audit result filters" denseFields searchAfterFilters
           filters={<><SelectField label="Category" value={categoryFilter} options={[ALL_FILTER_OPTION, ...categories]} onChange={setCategoryFilter} searchable /><SelectField label="Status" value={statusFilter} options={[ALL_FILTER_OPTION, ...statuses]} onChange={setStatusFilter} /><SelectField label="Valuation" value={valuationFilter}
-            options={[ALL_FILTER_OPTION, { value: "unvalued", label: "Unvalued" }]} onChange={setValuationFilter} /></>}
+            options={[ALL_FILTER_OPTION, { value: "unvalued", label: "Unvalued" }]} onChange={setValuationFilter} />
+            <SelectField label="Sort" value={sort}
+              options={[{ value: "saved", label: "Saved order" }, { value: "stockValue", label: "Highest stock value" }]} onChange={setSort} /></>}
           search={<AdminSearchField label="Search Item" value={search} onChange={setSearch} placeholder="Search item or category" />}
         />
       </> : null}
