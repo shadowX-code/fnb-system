@@ -127,6 +127,11 @@ describe("Stock Check execution scoped read", () => {
       expect(input.value).toBe("");
       fireEvent.change(input, { target: { value: "0" } });
     }
+    const firstActual = screen.getAllByRole("spinbutton")[0];
+    fireEvent.change(firstActual, { target: { value: "-1" } });
+    fireEvent.click(screen.getByRole("button", { name: "Submit Audit Check" }));
+    expect(mocks.persist).toHaveBeenCalledTimes(1);
+    fireEvent.change(firstActual, { target: { value: "0" } });
     fireEvent.click(screen.getByRole("button", { name: "Submit Audit Check" }));
     await waitFor(() => expect(mocks.persist).toHaveBeenLastCalledWith(
       expect.objectContaining({ existingCheckId: "audit" }),
