@@ -37,6 +37,15 @@ describe('identity-owned submitted result', () => {
     read.mockResolvedValueOnce({ data: [{ ...header('A'), status: 'draft' }] });
     await expect(loadSubmittedStockCheck('A')).rejects.toThrow('Only submitted');
   });
+  it('shows missing historical actuals as pending without projecting a stored variance', async () => {
+    read.mockImplementation(async (table, options) => table === 'inventory_stock_check_items'
+      ? { data: [{ ...rows('A')[0], actual_count_quantity: null }] } : fixture(table, options));
+    render(<InventoryStockCheckResultSurface checkId="A" auth={auth} outlets={outlets} onClose={vi.fn()} />);
+    const row = within(await screen.findByRole('row', { name: /item-A.*Pending/ }));
+    expect(row.getAllByRole('cell')[1].textContent).toBe('10');
+    expect(row.getAllByRole('cell')[2].textContent).toBe('—');
+    expect(row.getAllByRole('cell')[3].textContent).toBe('—');
+  });
   it.each(['incomplete', 'error'])('shows %s rather than partial results', async readState => {
     read.mockImplementation(async (table, options) => {
       if (table === 'inventory_stock_check_items') throw Object.assign(new Error('Cannot verify all rows'), { readState });

@@ -8,7 +8,7 @@ import { FactoryDataSurface, FactoryTable } from "../../../factory/components/Fa
 import FactoryStatusBadge from "../../../factory/components/FactoryStatusBadge.jsx";
 import ClosingStockApproval from "./ClosingStockApproval.jsx";
 import AuditCountTimestamps from "./AuditCountTimestamps.jsx";
-import { auditItemChanged, formatQuantity, sourceCountLabel } from "./inventoryStockCheckReadModel.js";
+import { auditItemChanged, formatQuantity, sourceCountLabel, stockCheckCountState } from "./inventoryStockCheckReadModel.js";
 import { auditStockCheckValuation } from "./auditStockCheckValuation.js";
 
 function auditQuantityVariance(row) {
@@ -19,9 +19,10 @@ function auditQuantityVariance(row) {
   return Number.isFinite(actual) && Number.isFinite(par) ? actual - par : null;
 }
 
-function resultStatus(row, isAuditResult) {
-  if (row.skipped) return { label: "Skipped", tone: "neutral" };
-  if (row.na) return { label: "Not Available", tone: "neutral" };
+function resultStatus(row, isAuditResult, countState) {
+  if (countState === "skipped") return { label: "Skipped", tone: "neutral" };
+  if (countState === "na") return { label: "Not Available", tone: "neutral" };
+  if (countState === "pending") return { label: "Pending", tone: "neutral" };
   if (isAuditResult) {
     const variance = auditQuantityVariance(row);
     if (variance === null) return { label: "Not Available", tone: "neutral" };
@@ -48,18 +49,20 @@ export default function InventoryStockCheckResultModal({
   const valuation = useMemo(() => auditStockCheckValuation(rows), [rows]);
   const detailedRows = valuation.items.map((row) => {
     const item = itemById.get(row.itemId);
-    return { ...row, item, categoryId: row.categoryId || item?.categoryId, result: resultStatus(row, isAuditResult), displayVariance: isAuditResult ? auditQuantityVariance(row) : row.variance };
+    const countState = stockCheckCountState(row);
+    const displayVariance = countState !== "counted" ? null : isAuditResult ? auditQuantityVariance(row) : row.variance;
+    return { ...row, item, categoryId: row.categoryId || item?.categoryId, result: resultStatus(row, isAuditResult, countState), displayVariance };
   });
   const sourceByItem = new Map(correctionSource?.rows.map(row => [row.itemId, row]));
   const affectedCount = detailedRows.filter(row => auditItemChanged(row, sourceByItem.get(row.itemId))).length;
   const counts = detailedRows.reduce((acc, row) => {
     acc[row.result.label] += 1;
     return acc;
-  }, { Normal: 0, Shortage: 0, Excess: 0, Skipped: 0, "Not Available": 0 });
+  }, { Normal: 0, Shortage: 0, Excess: 0, Skipped: 0, Pending: 0, "Not Available": 0 });
   const categories = [...new Set(detailedRows.map((row) => row.categoryId).filter(Boolean))]
     .map((id) => ({ value: id, label: categoryById.get(id)?.name || "Uncategorized" }))
     .sort((left, right) => left.label.localeCompare(right.label));
-  const statuses = ["Normal", "Shortage", "Excess", "Skipped", "Not Available"]
+  const statuses = ["Normal", "Shortage", "Excess", "Skipped", "Pending", "Not Available"]
     .filter((label) => detailedRows.some((row) => row.result.label === label))
     .map((label) => ({ value: label, label }));
   const visibleRows = isAuditResult ? detailedRows.filter((row) => {
@@ -75,6 +78,7 @@ export default function InventoryStockCheckResultModal({
     { key: "shortage", label: "Shortage", value: counts.Shortage },
     { key: "excess", label: "Excess", value: counts.Excess },
     { key: "skipped", label: "Skipped", value: counts.Skipped },
+    counts.Pending > 0 && { key: "pending", label: "Pending", value: counts.Pending },
   ];
   const amount = (value, signed = false) => value === null ? "—" : `${value < 0 ? "-" : signed && value > 0 ? "+" : ""}${formatCurrency(Math.abs(value))}`;
   const valueItems = [
@@ -92,7 +96,7 @@ export default function InventoryStockCheckResultModal({
       {row.skipped ? "—" : formatQuantity(row.actualCount)}
       {correctionSource && auditItemChanged(row, sourceByItem.get(row.itemId)) && <div className="type-caption text-text-secondary">Changed</div>}
     </> },
-    { key: "variance", label: "Variance", align: "right", className: "min-w-[85px] tabular-nums", render: (row) => row.skipped || row.na ? "—" : formatQuantity(row.displayVariance) },
+    { key: "variance", label: "Variance", align: "right", className: "min-w-[85px] tabular-nums", render: row => formatQuantity(row.displayVariance) },
     { key: "uom", label: "UOM", className: "min-w-[65px]", render: (row) => row.unit || row.item?.unit || "—" },
     { key: "status", label: "Status", className: "min-w-[100px]", render: (row) => <FactoryStatusBadge status={row.result.label} tone={row.result.tone}>{row.result.label}</FactoryStatusBadge> },
     ...(isAuditResult ? [

@@ -135,7 +135,7 @@ describe("Stock Check execution scoped read", () => {
     expect(skip.getByRole("button", { name: "Skip Item" }).disabled).toBe(true);
     fireEvent.change(skip.getByRole("textbox", { name: "Explanation (required)" }), { target: { value: "  Delivery in progress  " } });
     fireEvent.click(skip.getByRole("button", { name: "Skip Item" }));
-    expect(screen.getByText("Other: Delivery in progress")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Skip reason: Other: Delivery in progress" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Submit Audit Check" }));
     expect(mocks.persist).toHaveBeenLastCalledWith(expect.anything(), [
       expect.objectContaining({ skipped: true, skipReason: "Other: Delivery in progress", actualCount: "" }),
@@ -176,12 +176,19 @@ describe("Stock Check execution scoped read", () => {
     fireEvent.click(screen.getByRole("button", { name: "Submit Audit Check" }));
     expect(mocks.persist).toHaveBeenCalledTimes(1);
     const countedRow = within(screen.getByRole("row", { name: /QA Item/ }));
+    expect(countedRow.getByRole("cell", { name: "Pending" })).toBeTruthy();
+    expect(countedRow.getByRole("cell", { name: "—", exact: true })).toBeTruthy();
+    expect(screen.queryByRole("cell", { name: "Critical" })).toBeNull();
     fireEvent.change(countedRow.getByRole("spinbutton"), { target: { value: "0" } });
+    expect(countedRow.getByRole("cell", { name: "Critical" })).toBeTruthy();
+    expect(countedRow.getAllByRole("cell")[3].textContent).toBe("10");
     fireEvent.change(countedRow.getByPlaceholderText("Optional note"), { target: { value: "Verified shelf" } });
-    const selectCategory = (name) => {
-      fireEvent.click(screen.getByRole("button", { name: "Category" }));
+    const selectFilter = (field, name) => {
+      fireEvent.click(screen.getByRole("button", { name: field, exact: true }));
       fireEvent.click(screen.getByRole("option", { name, exact: true }));
     };
+    const selectCategory = name => selectFilter("Category", name);
+    const selectStatus = name => selectFilter("Status", name);
     expect(screen.getByRole("button", { name: "Category" }).textContent).toContain("All Categories");
     fireEvent.click(screen.getByRole("button", { name: /Dry Goods.*1 item/ }));
     selectCategory("Uncategorized");
@@ -190,6 +197,9 @@ describe("Stock Check execution scoped read", () => {
     expect(screen.getByRole("button", { name: /Dry Goods.*1 item/ }).getAttribute("aria-expanded")).toBe("false");
     fireEvent.click(screen.getByRole("button", { name: /Dry Goods.*1 item/ }));
     const search = screen.getByRole("searchbox", { name: "Search item" });
+    selectStatus("Pending");
+    expect(screen.getByText("No items match these filters.")).toBeTruthy();
+    selectStatus("Counted");
     fireEvent.change(search, { target: { value: "QA Uncategorised" } });
     expect(screen.getByText("No items match these filters.")).toBeTruthy();
     fireEvent.change(search, { target: { value: "" } });
@@ -198,6 +208,7 @@ describe("Stock Check execution scoped read", () => {
     expect(shownRow.getByPlaceholderText("Optional note").value).toBe("Verified shelf");
     fireEvent.click(screen.getByRole("button", { name: "Submit Audit Check" }));
     expect(mocks.persist).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "Status" }).textContent).toContain("All Statuses");
     expect(screen.getByRole("button", { name: "Category" }).textContent).toContain("All Categories");
     const uncountedRow = within(screen.getByRole("row", { name: /QA Uncategorised/ }));
     fireEvent.click(uncountedRow.getByRole("button", { name: "Skip" }));
@@ -206,8 +217,13 @@ describe("Stock Check execution scoped read", () => {
     fireEvent.click(screen.getByRole("option", { name: "Cannot Access" }));
     expect(skip.queryByRole("textbox")).toBeNull();
     fireEvent.click(skip.getByRole("button", { name: "Skip Item" }));
-    expect(uncountedRow.getByText("Cannot Access")).toBeTruthy();
+    const reason = uncountedRow.getByRole("button", { name: "Skip reason: Cannot Access" });
+    fireEvent.focus(reason);
+    expect(screen.getByRole("tooltip").textContent).toBe("Skip reason: Cannot Access");
+    fireEvent.blur(reason);
     expect(uncountedRow.queryByRole("spinbutton")).toBeNull();
+    selectStatus("Skipped");
+    expect(screen.queryByRole("row", { name: /QA Item/ })).toBeNull();
     selectCategory("Dry Goods");
     fireEvent.click(screen.getByRole("button", { name: "Save Draft" }));
     await waitFor(() => expect(mocks.persist).toHaveBeenLastCalledWith(expect.anything(), [
@@ -215,7 +231,7 @@ describe("Stock Check execution scoped read", () => {
       expect.objectContaining({ itemId: "uncategorized", actualCount: "", skipped: true, skipReason: "Cannot Access" }),
     ], "draft", expect.any(String)));
     fireEvent.click(await screen.findByRole("button", { name: "Continue Audit" }));
-    expect(await screen.findByText("Cannot Access")).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "Skip reason: Cannot Access" })).toBeTruthy();
     selectCategory("Dry Goods");
     fireEvent.click(screen.getByRole("button", { name: "Submit Audit Check" }));
     expect(mocks.persist).toHaveBeenCalledTimes(2);

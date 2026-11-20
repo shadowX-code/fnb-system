@@ -1,5 +1,29 @@
 import { normalizeBusinessDate } from '../waste/inventoryWasteService.js';
 import { uniqueIds } from '../inventoryItemModel.js';
+import { isValidClosingQuantity } from './monthEndClosing.js';
+
+export function stockCheckCountState(row, isClosing = false) {
+  if (row.skipped) return "skipped";
+  if (row.na) return isClosing ? "pending" : "na";
+  const actual = row.actualCount;
+  const present = actual != null && actual !== "" && Number.isFinite(Number(actual));
+  return present && (!isClosing || isValidClosingQuantity(actual)) ? "counted" : "pending";
+}
+
+export function projectStockCheckCount(row, parLevel, isClosing = false) {
+  const state = stockCheckCountState(row, isClosing);
+  if (state !== "counted") {
+    const label = { pending: "Pending", skipped: "Skipped", na: "Not Available" }[state];
+    return { state, label, tone: "neutral", variance: null };
+  }
+  const par = Number(parLevel || 0);
+  const variance = par - Number(row.actualCount);
+  if (variance < 0) return { state, label: "Excess", tone: "info", variance };
+  if (variance === 0) return { state, label: "Normal", tone: "success", variance };
+  if (variance >= Math.max(3, par * 0.35)) return { state, label: "Critical", tone: "danger", variance };
+  return { state, label: "Shortage", tone: "warning", variance };
+}
+
 export function mapRemoteStockCheckItem(row = {}) {
   return {
     id: row.id,
