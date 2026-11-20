@@ -17,8 +17,8 @@ afterEach(() => { cleanup(); mocks.load.mockReset(); mocks.persist.mockReset(); 
 describe("Stock Check execution scoped read", () => {
   it.each([
     ["outletId=B&accountingMonth=2026-08", "Second Outlet", "August 2026"],
-    ["outletId=B&date=2026-09-24", "Second Outlet", "Select month"],
-    ["outletId=unavailable", "Select", "Select month"],
+    ["outletId=B&date=2026-09-24", "Second Outlet", "Select Closing Month"],
+    ["outletId=unavailable", "Select", "Select Closing Month"],
   ])("opens the existing closing setup with safe preselection (%s)", async (query, outlet, month) => {
     mocks.load.mockResolvedValue(snapshot("B"));
     window.history.replaceState(null, "", `/restaurant/inventory/stock-check?startClosingAudit=1&${query}`);
@@ -27,7 +27,7 @@ describe("Stock Check execution scoped read", () => {
     const setup = within(await screen.findByRole("dialog", { name: "Audit Stock Check" }));
     expect(setup.getByRole("button", { name: "Audit Type" }).textContent).toContain("Month-End Closing");
     expect(setup.getByRole("button", { name: "Outlet" }).textContent).toBe(outlet);
-    expect(setup.getByRole("button", { name: "Accounting Month" }).textContent).toBe(month);
+    expect(setup.getByRole("button", { name: "Closing Month" }).textContent).toBe(month);
     expect(window.location.search).not.toContain("startClosingAudit");
     expect(mocks.persist).not.toHaveBeenCalled();
   });
@@ -145,7 +145,7 @@ describe("Stock Check execution scoped read", () => {
     expect(setup.queryByPlaceholderText("Select date")).toBeNull();
     expect(setup.queryByRole("button", { name: "Time" })).toBeNull();
     expect(setup.getByRole("button", { name: "Start Audit" }).disabled).toBe(true);
-    fireEvent.click(setup.getByRole("button", { name: "Accounting Month" }));
+    fireEvent.click(setup.getByRole("button", { name: "Closing Month" }));
     fireEvent.click(setup.getByRole("gridcell", { name: "Oct" }));
     fireEvent.click(setup.getByRole("button", { name: "Start Audit" }));
     await waitFor(() => expect(mocks.persist).toHaveBeenCalledWith(

@@ -125,10 +125,10 @@ Object.assign(resources.inventory, {
   sourceNoLongerEligible:"This check has no remaining eligible suggestions. An order may already have been created."
 });
 Object.assign(resources.inventory, {
-  accountingMonth: "Accounting Month",
-  selectAccountingMonth: "Select month",
+  accountingMonth: "Closing Month",
+  selectAccountingMonth: "Select Closing Month",
   closingCoverage: "Count all {{count}} active outlet items. Enter zero if an item has no stock.",
-  closingDetailsRequired: "Select an accounting month.",
+  closingDetailsRequired: "Select a valid Closing Month.",
   countStartedAt: "Count Started At (MYT)",
   countSubmittedAt: "Count Submitted At (MYT)",
   supersededAuditEvidence: "Newer audit evidence has superseded this result.",

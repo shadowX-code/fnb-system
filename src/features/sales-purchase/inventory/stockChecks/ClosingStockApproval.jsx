@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { inventoryLifecycleService } from "../../../../services/inventoryLifecycleService.js";
 import DateTimePickerField from "../../../../components/forms/DateTimePickerField.jsx";
-import { toClosingLocalTime, toPhysicalCountCutoff } from "./monthEndClosing.js";
+import { formatClosingError, toClosingLocalTime, toPhysicalCountCutoff } from "./monthEndClosing.js";
 
 function formatCutoff(value) {
   return toClosingLocalTime(value).replace("T", " ");
@@ -60,7 +60,7 @@ export default function ClosingStockApproval({ check, context, itemById, canAppr
       setLines(null);
       pending.current = null;
     } catch (cause) {
-      setError(cause.message);
+      setError(formatClosingError(cause.message));
     } finally {
       setBusy(false);
     }
@@ -69,7 +69,7 @@ export default function ClosingStockApproval({ check, context, itemById, canAppr
   return <section aria-label="Closing Stock approval" className="space-y-3 rounded-xl border border-border p-4">
     <h3 className="font-semibold">Month-End Closing</h3>
     <dl className="grid gap-2 text-sm sm:grid-cols-3">
-      <div><dt className="text-text-secondary">Accounting Month</dt><dd>{check.accountingMonth.slice(0, 7)}</dd></div>
+      <div><dt className="text-text-secondary">Closing Month</dt><dd>{check.accountingMonth.slice(0, 7)}</dd></div>
       <div><dt className="text-text-secondary">Accounting Cutoff (MYT)</dt><dd><time dateTime={context.month_end_cutoff}>{formatCutoff(context.month_end_cutoff)}</time></dd></div>
       <div><dt className="text-text-secondary">Physical Count Cutoff (MYT)</dt><dd>{(legacyCutoff || (isSource && recordedCutoff))
         ? <time dateTime={recordedCutoff}>{formatCutoff(recordedCutoff)}</time> : "Awaiting confirmation"}</dd></div>
@@ -80,7 +80,7 @@ export default function ClosingStockApproval({ check, context, itemById, canAppr
     {check.correctionOfId && published && !isSource && !context.approval_blocked &&
       <p className="text-sm text-text-secondary">Corrected evidence awaits Closing Approval.</p>}
     {canApprove && !hasCosts && <p className="text-sm text-text-secondary">A pinned unit cost is required for every item. Submit a new closing audit after the costs are configured.</p>}
-    {canApprove && !context.period_ended && <p className="text-sm text-text-secondary">Approval opens after the accounting month ends.</p>}
+    {canApprove && !context.period_ended && <p className="text-sm text-text-secondary">Approval opens after the Closing Month ends.</p>}
     {context.approval_blocked && <p className="text-sm text-text-secondary">Approval is available from the current submitted evidence once its correction draft is resolved.</p>}
     {canApprove && !context.approval_blocked && hasCosts && context.period_ended && lines === null &&
       <button className="btn-secondary" type="button" onClick={startApproval}>{published ? "Prepare Closing Correction" : "Review Closing Approval"}</button>}

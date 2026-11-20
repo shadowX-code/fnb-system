@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Check, ChevronRight, Plus, Trash2 } from "lucide-react";
 import { crewService } from "../../../services/crewService.js";
-import { formatCrewOperationalDateTime } from "../utils/crewI18n.js";
+import { formatCrewDate, formatCrewOperationalDateTime } from "../utils/crewI18n.js";
 import CrewMobileDetailHeader from "./CrewMobileDetailHeader.jsx";
 import CrewBottomSheet from "./CrewBottomSheet.jsx";
 import CrewMobileModal from "./CrewMobileModal.jsx";
@@ -15,7 +15,7 @@ import useCrewInventoryHistory from "../hooks/useCrewInventoryHistory.js";
 import { CrewEmptyState, CrewProgressBar, CrewSearchBar, CrewStatusBadge } from "./CrewMobileUI.jsx";
 
 import AuditCountTimestamps from "../../sales-purchase/inventory/stockChecks/AuditCountTimestamps.jsx";
-import { MONTH_END_CLOSING, updateClosingAuditName } from "../../sales-purchase/inventory/stockChecks/monthEndClosing.js";
+import { formatClosingError, MONTH_END_CLOSING, updateClosingAuditName } from "../../sales-purchase/inventory/stockChecks/monthEndClosing.js";
 
 const auditTypes = [MONTH_END_CLOSING, "Full Stock Audit", "Spot Check", "Category Audit", "Custom Audit"];
 const requestId = () => crypto.randomUUID();
@@ -176,7 +176,7 @@ export default function CrewStockCheckMobile({ token, outletId, grants, initialT
       // The canonical write response carries the saved roster; retain catalog names and photos on count rows.
       setRows((result.items || initialRows).map(asRow));
       setAuditOpen(false); resetItemFilters(); setTab("audit"); setDirty(false);
-    } catch (cause) { setError(cause.message || t("inventory.saveError")); }
+    } catch (cause) { setError(formatClosingError(cause.message, t("inventory.closingDetailsRequired")) || t("inventory.saveError")); }
     finally { setBusy(false); }
   }
   function updateRow(itemId, patch) { setRows((current) => current.map((row) => row.item_id === itemId ? { ...row, ...patch } : row)); setDirty(true); }
@@ -223,7 +223,7 @@ export default function CrewStockCheckMobile({ token, outletId, grants, initialT
         setExitOpen(false); setCheck(null); setRows([]); setReview(false); setPurchase(null);
         setNotice(t("inventory.draftSaved")); await load();
       }
-    } catch (cause) { setError(cause.message || t("inventory.saveError")); }
+    } catch (cause) { setError(formatClosingError(cause.message, t("inventory.closingDetailsRequired")) || t("inventory.saveError")); }
     finally { setBusy(false); }
   }
   async function deleteDraft() {
@@ -268,6 +268,10 @@ export default function CrewStockCheckMobile({ token, outletId, grants, initialT
     {check.stock_check_type === "audit" && <AuditCountTimestamps className="crew-inventory-audit-timestamps"
       startedAt={check.created_at} submittedAt={check.submitted_at}
       startedLabel={t("inventory.countStartedAt")} submittedLabel={t("inventory.countSubmittedAt")} />}
+    {isClosing && closingMonth && (review || check.status === "completed") &&
+      <p className="type-body-sm"><strong>{t("inventory.accountingMonth")}</strong>{" · "}
+        <time dateTime={closingMonth}>{formatCrewDate(`${closingMonth}-01T12:00:00+08:00`, { month: "long", year: "numeric" })}</time>
+      </p>}
     {check.status === "completed" && check.stock_check_type === "audit" && (check.correction_of_id || check.superseded) &&
       <div className="crew-inventory-lifecycle-result">
         {check.superseded && <p>{t("inventory.supersededAuditEvidence")}</p>}

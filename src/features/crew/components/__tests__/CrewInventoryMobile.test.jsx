@@ -274,7 +274,7 @@ describe("Crew Inventory mobile authority boundary", () => {
     expect(api.inventoryPurchaseOrders).not.toHaveBeenCalled();
   });
 
-  it("submits a Month-End Closing with an accounting month and explicit zero, without a cutoff", async () => {
+  it("submits a Month-End Closing with a Closing Month and explicit zero, without a cutoff", async () => {
     api.inventoryStockChecks.mockResolvedValue({ ...stock, can_create_audit_stock_check: true });
     const year = new Date().getFullYear();
     const draft = { id: "closing-audit", stock_check_type: "audit", audit_type: "Month-End Closing", status: "draft",
@@ -290,21 +290,24 @@ describe("Crew Inventory mobile authority boundary", () => {
     const setup = within(screen.getByRole("dialog", { name: "Audit" }));
     expect(setup.queryByText("Stock Count Date & Time")).toBeNull();
     expect(setup.getByRole("button", { name: "Continue" }).disabled).toBe(true);
-    expect(setup.getByRole("button", { name: "Accounting Month" }).className).toBe(setup.getByRole("button", { name: "Audit type" }).className);
-    fireEvent.click(setup.getByRole("button", { name: "Accounting Month" }));
-    const monthPicker = within(screen.getByRole("dialog", { name: "Accounting Month" }));
+    expect(setup.getByRole("button", { name: "Closing Month" }).className).toBe(setup.getByRole("button", { name: "Audit type" }).className);
+    fireEvent.click(setup.getByRole("button", { name: "Closing Month" }));
+    const monthPicker = within(screen.getByRole("dialog", { name: "Closing Month" }));
     fireEvent.keyDown(monthPicker.getByRole("button", { name: "Aug" }), { key: "Escape" });
-    expect(screen.queryByRole("dialog", { name: "Accounting Month" })).toBeNull();
-    fireEvent.click(setup.getByRole("button", { name: "Accounting Month" }));
-    fireEvent.click(within(screen.getByRole("dialog", { name: "Accounting Month" })).getByRole("button", { name: "Aug" }));
+    expect(screen.queryByRole("dialog", { name: "Closing Month" })).toBeNull();
+    fireEvent.click(setup.getByRole("button", { name: "Closing Month" }));
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Closing Month" })).getByRole("button", { name: "Aug" }));
     fireEvent.click(setup.getByRole("button", { name: "Continue" }));
     const input = await screen.findByRole("spinbutton", { name: /Rice.*Actual count/ });
+    expect(screen.getByRole("button", { name: "Closing Month" })).toBeTruthy();
     expect(screen.getByText("Count Started At (MYT)")).toBeTruthy();
     expect(input.value).toBe("");
     expect(screen.getByRole("button", { name: "Skip Item" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Review (0/1)" }).disabled).toBe(true);
     fireEvent.change(input, { target: { value: "0" } });
     fireEvent.click(screen.getByRole("button", { name: "Review (1/1)" }));
+    expect(screen.getByText("Closing Month")).toBeTruthy();
+    expect(screen.getByText(`August ${year}`)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Complete Check" }));
     await waitFor(() => expect(api.saveInventoryStockCheck).toHaveBeenCalledWith("token", "outlet-1", expect.any(String),
       expect.objectContaining({ status: "submitted", accounting_month: `${year}-08-01`,

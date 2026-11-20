@@ -1,5 +1,11 @@
 export const MONTH_END_CLOSING = "Month-End Closing";
 
+export function formatClosingError(message, invalidMonth = "Select a valid Closing Month.") {
+  if (message?.includes("A valid Accounting Month is required.")) return invalidMonth;
+  if (message?.includes("Approval opens after the accounting month ends.")) return "Approval opens after the Closing Month ends.";
+  return message;
+}
+
 // The controls represent Malaysia business time, even on a device in another zone.
 export function toPhysicalCountCutoff(localValue) {
   return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(localValue) ? `${localValue}+08:00` : null;

@@ -17,6 +17,8 @@ it("requires a reconciled quantity and evidence for an off-cutoff audit and publ
     context={{ month_end_cutoff: "2026-10-31T16:00:00Z", period_ended: true, requires_reconciliation: true }}
     itemById={new Map([["item", { name: "Chilli" }]])} />);
 
+  expect(screen.getByText("Closing Month")).toBeTruthy();
+  expect(screen.getByText("Accounting Cutoff (MYT)")).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Review Closing Approval" }));
   const submit = screen.getByRole("button", { name: "Approve Closing Stock" });
   fireEvent.change(screen.getByLabelText("Month-End Quantity for Chilli"), { target: { value: "0" } });

@@ -24,7 +24,7 @@ const SHOW_STOCK_CHECK_CARD_DEBUG = import.meta.env.DEV && String(import.meta.en
 const shifts = ["Opening", "Mid", "Closing", "Any Shift"];
 import MonthPickerField from "../../../../components/forms/MonthPickerField.jsx";
 import AuditCountTimestamps from "./AuditCountTimestamps.jsx";
-import { MONTH_END_CLOSING, updateClosingAuditName } from "./monthEndClosing.js";
+import { formatClosingError, MONTH_END_CLOSING, updateClosingAuditName } from "./monthEndClosing.js";
 
 const auditTypes = [MONTH_END_CLOSING, "Full Stock Audit", "Spot Check", "Category Audit", "Custom Audit"];
 function parLevelForOutlet(item = {}, outletId) { return outletConfigForItem(item, outletId).parLevel; }
@@ -517,7 +517,7 @@ function AuditStockCheckModal({ outlets, categories, items, closingSetup, onClos
           <SelectField label="Outlet" value={form.outletId} options={outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))} onChange={(value) => update("outletId", value)} searchable />
           <SelectField label="Audit Type" value={form.auditType} options={auditTypes.map((type) => ({ value: type, label: type }))} onChange={(value) => update("auditType", value)} />
         </div>
-        {isClosing && <MonthPickerField className="max-w-xs" label="Accounting Month" emptyLabel="Select month"
+        {isClosing && <MonthPickerField className="max-w-xs" label="Closing Month" emptyLabel="Select Closing Month"
           value={form.closingMonth} onChange={value => update("closingMonth", value)} />}
         {isClosing ? <p className="type-caption text-text-secondary">Count all {outletItems.length} active outlet items. Enter zero if an item has no stock.</p> : <div className="rounded-2xl border border-border p-3">
           <div className="type-title font-bold text-text-primary">Category Selection</div>
@@ -852,7 +852,7 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
     } catch (error) {
       console.warn("[StockCheckExecution] Unable to start audit stock check.", error);
       debugLog("[AuditStockCheckDebug]", { action: "start-audit", form, error });
-      notify("Unable to start audit stock check", error.message || "Please try again.", "error");
+      notify("Unable to start audit stock check", formatClosingError(error.message) || "Please try again.", "error");
     } finally {
       setSavingStockCheck(false);
     }
@@ -987,7 +987,7 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
     const isAudit = activeCheckGroup.stockCheckType === "audit";
     const isClosing = activeCheckGroup.auditType === MONTH_END_CLOSING;
     if (isClosing && !closingMonth) {
-      notify("Accounting Month required", "Select the month this audit closes.", "warning");
+      notify("Closing Month required", "Select the Closing Month for this audit.", "warning");
       return;
     }
     if (status === "submitted") {
@@ -1047,7 +1047,7 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
         status === "submitted"
           ? (isAudit ? "Failed to submit Audit Stock Check" : "Failed to submit Stock Check")
           : (isAudit ? "Failed to save Audit Stock Check draft" : "Failed to save Stock Check draft"),
-        error.message || "Please try again.",
+        formatClosingError(error.message) || "Please try again.",
         "error",
       );
     } finally {
@@ -1070,8 +1070,8 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
     if (activeCheckGroup) {
       const isAudit = activeCheckGroup.stockCheckType === "audit";
       const isClosing = activeCheckGroup.auditType === MONTH_END_CLOSING;
-      const closingFields = isClosing && <MonthPickerField className="my-3 max-w-xs" label="Accounting Month"
-        emptyLabel="Select month" value={closingMonth} onChange={setClosingMonth} />;
+      const closingFields = isClosing && <MonthPickerField className="my-3 max-w-xs" label="Closing Month"
+        emptyLabel="Select Closing Month" value={closingMonth} onChange={setClosingMonth} />;
       const activePersistedCheck = activeScheduledCheckId
         ? data.checks.find((check) => check.id === activeScheduledCheckId)
         : activeCheckGroup.existingCheckId

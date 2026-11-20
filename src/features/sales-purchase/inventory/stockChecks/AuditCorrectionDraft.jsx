@@ -86,7 +86,7 @@ export default function AuditCorrectionDraft({ check, source, itemById, onClose,
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <p className="type-body-sm text-text-secondary">Source audit · {source.auditName}</p>
-          {check.accountingMonth && <p className="type-caption text-text-secondary">Accounting Month · {check.accountingMonth.slice(0, 7)}</p>}
+          {check.accountingMonth && <p className="type-caption text-text-secondary">Closing Month · {check.accountingMonth.slice(0, 7)}</p>}
           {check.notes && <p className="type-caption break-words text-text-secondary">Audit notes · {check.notes}</p>}
         </div>
         <button type="button" className="btn-secondary" disabled={busy} onClick={onOpenSource}>View Source Audit</button>
