@@ -116,6 +116,7 @@ export default function CrewStockCheckMobile({ token, outletId, grants, initialT
         check_name: detail.check_name, audit_name: detail.audit_name, audit_type: detail.audit_type,
         audit_category_ids: detail.audit_category_ids, check_date: detail.check_date, shift: detail.shift, notes: detail.notes,
         accounting_month: detail.accounting_month, created_at: detail.created_at,
+        correction_of_id: detail.correction_of_id, correction_reason: detail.correction_reason, superseded: detail.superseded,
         submitted_at: detail.submitted_at, skipped_at: detail.skipped_at,
         skipped_by_employee_id: detail.skipped_by_employee_id, skipped_by_name: detail.skipped_by_name,
         skip_reason: detail.skip_reason });
@@ -234,6 +235,12 @@ export default function CrewStockCheckMobile({ token, outletId, grants, initialT
     {check.stock_check_type === "audit" && <AuditCountTimestamps className="crew-inventory-audit-timestamps"
       startedAt={check.created_at} submittedAt={check.submitted_at}
       startedLabel={t("inventory.countStartedAt")} submittedLabel={t("inventory.countSubmittedAt")} />}
+    {check.status === "completed" && check.stock_check_type === "audit" && (check.correction_of_id || check.superseded) &&
+      <div className="crew-inventory-lifecycle-result">
+        {check.superseded && <p>{t("inventory.supersededAuditEvidence")}</p>}
+        {check.correction_of_id && <p>{t("inventory.correctedAuditEvidence")}</p>}
+        {check.correction_reason && <p>{t("inventory.auditCorrectionReason", { reason: check.correction_reason })}</p>}
+      </div>}
     {check.status === "completed" ? <CompletedResult check={check} rows={rows} itemById={itemById} purchase={purchase} canReviewSuggestions={grants?.can_manage_purchase_orders} onRetry={() => void loadPurchaseResult(check.id, check.stock_check_type)} onReview={() => onReviewSuggestions?.(check.id)} onOpenPurchaseOrder={onOpenPurchaseOrder} t={t} language={i18n.language} /> : ["skipped", "missed"].includes(check.status) ? <LifecycleResult check={check} t={t} language={i18n.language} /> : review ? <ReviewRows rows={rows} itemById={itemById} t={t} /> : <>
       {isClosing && <div className="crew-inventory-form">
         <CrewDatePicker monthOnly label={t("inventory.accountingMonth")} placeholder={t("inventory.selectAccountingMonth")}

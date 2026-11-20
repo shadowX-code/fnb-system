@@ -8,6 +8,7 @@ import { FactoryDataSurface, FactoryTable } from "../../../factory/components/Fa
 import FactoryStatusBadge from "../../../factory/components/FactoryStatusBadge.jsx";
 import ClosingStockApproval from "./ClosingStockApproval.jsx";
 import AuditCountTimestamps from "./AuditCountTimestamps.jsx";
+import { auditItemChanged, formatQuantity, sourceCountLabel } from "./inventoryStockCheckReadModel.js";
 import { auditStockCheckValuation } from "./auditStockCheckValuation.js";
 
 function auditQuantityVariance(row) {
@@ -34,14 +35,11 @@ function resultStatus(row, isAuditResult) {
   return { label: "Normal", tone: "success" };
 }
 
-function formatQuantity(value) {
-  return value === "" || value === null || value === undefined ? "—" : value;
-}
 
 export default function InventoryStockCheckResultModal({
   stockCheck, isAuditResult, outletName, submittedByName, itemById, categoryById,
   formatDate, formatDateTimeCompact, formatCurrency, ItemThumbnail, onPhotoPreview, onClose, onRestock,
-  closing, canApproveClosing,
+  closing, canApproveClosing, correctionHistory, correctionSource,
 }) {
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -52,6 +50,8 @@ export default function InventoryStockCheckResultModal({
     const item = itemById.get(row.itemId);
     return { ...row, item, categoryId: row.categoryId || item?.categoryId, result: resultStatus(row, isAuditResult), displayVariance: isAuditResult ? auditQuantityVariance(row) : row.variance };
   });
+  const sourceByItem = new Map(correctionSource?.rows.map(row => [row.itemId, row]));
+  const affectedCount = detailedRows.filter(row => auditItemChanged(row, sourceByItem.get(row.itemId))).length;
   const counts = detailedRows.reduce((acc, row) => {
     acc[row.result.label] += 1;
     return acc;
@@ -86,7 +86,12 @@ export default function InventoryStockCheckResultModal({
   const columns = [
     { key: "item", label: "Item", className: "min-w-[210px]", render: (row) => <div className="flex items-center gap-2"><ItemThumbnail item={row.item} category={categoryById.get(row.categoryId)} onPreview={onPhotoPreview} size="sm" /><div className="min-w-0"><div className="break-words font-semibold text-text-primary">{row.item?.name || "Inventory item"}</div><div className="text-xs text-text-secondary">{categoryById.get(row.categoryId)?.name || "Uncategorized"}{row.item?.sku ? ` · ${row.item.sku}` : ""}</div></div></div> },
     { key: "par", label: "Par", align: "right", className: "min-w-[70px] tabular-nums", render: (row) => formatQuantity(row.expectedQty) },
-    { key: "actual", label: "Actual", align: "right", className: "min-w-[70px] tabular-nums", render: (row) => row.skipped ? "—" : formatQuantity(row.actualCount) },
+    ...(correctionSource ? [{ key: "source", label: "Source Count", align: "right", className: "min-w-[100px]",
+      render: row => sourceCountLabel(sourceByItem.get(row.itemId)) }] : []),
+    { key: "actual", label: correctionSource ? "Corrected Count" : "Actual", align: "right", className: "min-w-[70px] tabular-nums", render: (row) => <>
+      {row.skipped ? "—" : formatQuantity(row.actualCount)}
+      {correctionSource && auditItemChanged(row, sourceByItem.get(row.itemId)) && <div className="type-caption text-text-secondary">Changed</div>}
+    </> },
     { key: "variance", label: "Variance", align: "right", className: "min-w-[85px] tabular-nums", render: (row) => row.skipped || row.na ? "—" : formatQuantity(row.displayVariance) },
     { key: "uom", label: "UOM", className: "min-w-[65px]", render: (row) => row.unit || row.item?.unit || "—" },
     { key: "status", label: "Status", className: "min-w-[100px]", render: (row) => <FactoryStatusBadge status={row.result.label} tone={row.result.tone}>{row.result.label}</FactoryStatusBadge> },
@@ -109,6 +114,8 @@ export default function InventoryStockCheckResultModal({
       <div className="flex flex-wrap gap-x-8 gap-y-2 text-sm"><div><span className="text-text-secondary">Checked by</span><div className="font-semibold text-text-primary">{submittedByName}</div></div>{isAuditResult
         ? <AuditCountTimestamps startedAt={stockCheck.createdAt} submittedAt={stockCheck.submittedAt} />
         : <div><span className="text-text-secondary">Submitted at</span><div className="font-semibold text-text-primary">{formatDateTimeCompact(stockCheck.submittedAt)}</div></div>}</div>
+      {correctionHistory}
+      {correctionSource && <p className="type-body-sm text-text-secondary">{affectedCount} of {rows.length} items changed from the source audit.</p>}
       {closing && <ClosingStockApproval check={stockCheck} context={closing} itemById={itemById}
         canApprove={canApproveClosing} formatCurrency={formatCurrency} />}
       <AdminSummaryGrid variant="compact" ariaLabel="Audit item counts" items={countItems} />

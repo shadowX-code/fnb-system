@@ -771,6 +771,7 @@
     "supabase/migrations/20261120022144_finance_accounting_dataset_browser.sql": "3b8792e17c808d923f8bbcbc9da4e4c6eb262cb9a206fdf112cd527464fb344b",
     "supabase/migrations/20261120033506_restaurant_month_end_closing_stock.sql": "c9b4ddb1c15b47a3ca01040f188908e3fab0b2dc35d598b5cf1788bcad8799ac",
     "supabase/migrations/20261120064057_restaurant_inventory_cost_history.sql": "b2af772f91242adc2e51c4d59e4a5b6484d12c2c9474c58fb9b855e71d2c347a",
-    "supabase/migrations/20261120071253_restaurant_audit_server_timestamps.sql": "f2b55451d7a6abf0e11c7c4d60615356096fc4a9501af5448b678df1ef433785"
+    "supabase/migrations/20261120071253_restaurant_audit_server_timestamps.sql": "f2b55451d7a6abf0e11c7c4d60615356096fc4a9501af5448b678df1ef433785",
+    "supabase/migrations/20261120091611_restaurant_audit_corrections.sql": "f45ef1ba254eb0bddc53287359ef65c802996fff3eae4da46ffb79e58a067e5d"
   }
 }

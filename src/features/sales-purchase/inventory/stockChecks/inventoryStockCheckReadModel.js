@@ -36,6 +36,8 @@ export function mapRemoteStockCheck(row = {}, rows = []) {
     stockCheckType: checkType,
     auditType: row.audit_type || "",
     accountingMonth: row.accounting_month || "",
+    correctionOfId: row.correction_of_id || "",
+    correctionReason: row.correction_reason || "",
     physicalCountCutoff: row.physical_count_cutoff || "",
     auditName: row.audit_name || row.check_name || "",
     auditCategoryIds: categoryIds,
@@ -51,4 +53,21 @@ export function mapRemoteStockCheck(row = {}, rows = []) {
     createdAt: row.created_at || "",
     updatedAt: row.updated_at || "",
   };
+}
+
+export function formatQuantity(value) {
+  return value === "" || value === null || value === undefined ? "—" : value;
+}
+
+export function auditItemChanged(row, source) {
+  if (!source) return false;
+  const actual = row.actualCount === "" ? "" : Number(row.actualCount);
+  return actual !== source.actualCount || row.notes !== source.notes;
+}
+
+export function sourceCountLabel(row) {
+  if (!row) return "—";
+  if (row.skipped) return "Skipped";
+  if (row.na) return "Not available";
+  return row.actualCount === "" ? "—" : `${formatQuantity(row.actualCount)} ${row.unit}`.trim();
 }

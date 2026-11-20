@@ -43,6 +43,13 @@ export const inventoryLifecycleService = {
     });
   },
 
+  async createAuditCorrection({ checkId, requestId: suppliedRequestId }) {
+    return call("inventory.audit.correction.create", "inventory_create_audit_correction", {
+      p_check_id: requireUuid(checkId, "Audit Stock Check"),
+      p_request_id: suppliedRequestId || requestId(),
+    });
+  },
+
   async approveClosingStock({ checkId, requestId: suppliedRequestId, reconciliation, supersedesId, reason, physicalCountCutoff }) {
     return call("inventory.closing.approve", "inventory_approve_closing_stock", {
       p_check_id: requireUuid(checkId, "Stock Check"),

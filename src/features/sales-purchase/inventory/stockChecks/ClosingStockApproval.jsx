@@ -17,10 +17,10 @@ export default function ClosingStockApproval({ check, context, itemById, canAppr
   const pending = useRef(null);
   const isSource = published?.source_audit_id === check.id;
   const legacyCutoff = check.physicalCountCutoff;
-  const recordedCutoff = legacyCutoff || (isSource ? published.physical_count_cutoff : null);
+  const recordedCutoff = legacyCutoff || (isSource ? published.physical_count_cutoff : context.prior_confirmed_cutoff);
   const physicalCountCutoff = legacyCutoff || toPhysicalCountCutoff(cutoffInput);
   const physicalTime = Date.parse(physicalCountCutoff);
-  const cutoffAfterSubmit = physicalTime > Date.parse(check.submittedAt);
+  const cutoffAfterSubmit = physicalTime > Date.parse(context.count_evidence_submitted_at || check.submittedAt);
   const validCutoff = Number.isFinite(physicalTime) && !cutoffAfterSubmit;
   const requiresReconciliation = validCutoff && physicalTime !== Date.parse(context.month_end_cutoff);
   const hasCosts = check.rows.length > 0 && check.rows.every(row => row.unit && Number.isFinite(row.unitCostSnapshot));
@@ -71,22 +71,25 @@ export default function ClosingStockApproval({ check, context, itemById, canAppr
     <dl className="grid gap-2 text-sm sm:grid-cols-3">
       <div><dt className="text-text-secondary">Accounting Month</dt><dd>{check.accountingMonth.slice(0, 7)}</dd></div>
       <div><dt className="text-text-secondary">Accounting Cutoff (MYT)</dt><dd><time dateTime={context.month_end_cutoff}>{formatCutoff(context.month_end_cutoff)}</time></dd></div>
-      <div><dt className="text-text-secondary">Physical Count Cutoff (MYT)</dt><dd>{recordedCutoff
+      <div><dt className="text-text-secondary">Physical Count Cutoff (MYT)</dt><dd>{(legacyCutoff || (isSource && recordedCutoff))
         ? <time dateTime={recordedCutoff}>{formatCutoff(recordedCutoff)}</time> : "Awaiting confirmation"}</dd></div>
     </dl>
     <p className="text-sm" role="status">{published
       ? `Published revision ${published.revision} · ${formatCurrency(published.amount)} · ${isSource ? "This audit" : "Another audit for this month"}`
       : "Awaiting approval"}</p>
+    {check.correctionOfId && published && !isSource && !context.approval_blocked &&
+      <p className="text-sm text-text-secondary">Corrected evidence awaits Closing Approval.</p>}
     {canApprove && !hasCosts && <p className="text-sm text-text-secondary">A pinned unit cost is required for every item. Submit a new closing audit after the costs are configured.</p>}
     {canApprove && !context.period_ended && <p className="text-sm text-text-secondary">Approval opens after the accounting month ends.</p>}
-    {canApprove && hasCosts && context.period_ended && lines === null &&
+    {context.approval_blocked && <p className="text-sm text-text-secondary">Approval is available from the current submitted evidence once its correction draft is resolved.</p>}
+    {canApprove && !context.approval_blocked && hasCosts && context.period_ended && lines === null &&
       <button className="btn-secondary" type="button" onClick={startApproval}>{published ? "Prepare Closing Correction" : "Review Closing Approval"}</button>}
     {lines !== null && <form onSubmit={approve} className="space-y-3">
       {!legacyCutoff && <div className="max-w-lg">
         <DateTimePickerField label="Confirm Physical Count Cutoff" dateLabel="Physical Count Date" timeLabel="Physical Count Time"
           value={cutoffInput} onChange={setCutoffInput} disabled={busy} withSeconds timezone="Malaysia time"
           helper="Use the actual count time supported by your count evidence."
-          error={cutoffAfterSubmit ? "Choose a time on or before Count Submitted At." : ""} />
+          error={cutoffAfterSubmit ? "Choose a time on or before the original count submission." : ""} />
       </div>}
       {requiresReconciliation ? <>
         <p className="text-sm text-text-secondary">For each item, verify the quantity at month-end and record the supporting evidence, including when the quantity stayed the same.</p>

@@ -1,5 +1,9 @@
 # FeedX Development Log
 
+## 2026-11-20 — Audit Stock Check corrections
+
+Added Admin correction drafts and submitted evidence lineage to Audit Stock Check. Corrections preserve original count and valuation evidence, and Month-End Closing continues through the existing scoped approval and publication workflow. See [Inventory and Assets](docs/domains/inventory-and-assets.md#lifecycle-and-business-rules).
+
 ## 2026-11-20 — Audit Stock Check timestamps
 
 Admin and Crew audit starts now use the saved draft creation timestamp, and both surfaces display server submission time in MYT. Month-End Closing continues to capture Accounting Month before counting, while the approver confirms the separate physical count cutoff using supporting evidence. See [Inventory and Assets](docs/domains/inventory-and-assets.md#lifecycle-and-business-rules).

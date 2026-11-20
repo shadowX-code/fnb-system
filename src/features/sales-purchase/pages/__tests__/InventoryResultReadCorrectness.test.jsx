@@ -1,7 +1,8 @@
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-const read = vi.hoisted(() => vi.fn());
+const { read, rpc } = vi.hoisted(() => ({ read: vi.fn(), rpc: vi.fn() }));
 vi.mock('../../../../services/inventoryCompleteRead.js', () => ({ readCompleteInventoryRows: read }));
+vi.mock('../../../../lib/supabase', () => ({ supabase: { rpc } }));
 import InventoryStockCheckResultSurface from '../../inventory/stockChecks/InventoryStockCheckResultSurface.jsx';
 import { loadSubmittedStockCheck, loadStockCheckResult } from '../../inventory/stockChecks/inventoryStockCheckResultService.js';
 const auth = { user: { id: 'admin' }, profile: { role_outlet_access_type: 'all' }, hasPermission: () => true };
@@ -16,8 +17,14 @@ function fixture(table, options) {
   if (table === 'employees') return { data: [{ id: 'employee', full_name: 'QA Actor' }] };
   throw new Error(`Unexpected read ${table}`);
 }
-beforeEach(() => { read.mockReset().mockImplementation(async (table, options) => fixture(table, options)); });
-afterEach(cleanup);
+beforeEach(() => {
+  read.mockReset().mockImplementation(async (table, options) => fixture(table, options));
+  rpc.mockReset().mockImplementation(async (name, args) => {
+    if (name !== 'inventory_audit_correction_history') throw new Error(`Unexpected RPC ${name}`);
+    return { data: { entries: [{ id: args.p_check_id, version: 0, status: 'submitted', submitted_at: '2026-09-24T12:00:00Z' }] }, error: null };
+  });
+});
+afterEach(() => { cleanup(); window.history.replaceState(null, '', '/'); });
 describe('identity-owned submitted result', () => {
   it('loads only identity-scoped evidence and label context, never mutable cost/Par', async () => {
     const data = await loadStockCheckResult('A', ['outlet']);
@@ -68,4 +75,58 @@ describe('identity-owned submitted result', () => {
     await act(async () => resolve({ data: rows('B') }));
     expect(screen.queryByText('item-B')).toBeNull();
   });
+});
+
+it('opens a linked correction draft and submits quantity zero with a reason through Stock Check', async () => {
+  const sourceId = '00000000-0000-4000-8000-000000000001';
+  const draftId = '00000000-0000-4000-8000-000000000002';
+  let submitted = false;
+  const source = { ...header(sourceId), audit_name: 'Spot Check' };
+  const sourceRows = rows(sourceId);
+  read.mockImplementation(async (table, options) => {
+    if (table === 'inventory_stock_checks') return { data: [options.eq.id === sourceId ? source : {
+      ...source, id: draftId, status: submitted ? 'submitted' : 'draft', correction_of_id: sourceId, audit_name: 'Spot Check · Correction',
+    }] };
+    if (table === 'inventory_stock_check_items') return { data: options.eq.stock_check_id === sourceId ? sourceRows : [{
+      ...sourceRows[0], id: 'correction-row', actual_count_quantity: submitted ? 0 : 4,
+    }] };
+    return fixture(table, options);
+  });
+  rpc.mockImplementation(async (name, args) => {
+    if (name === 'inventory_audit_correction_history') return { data: { entries: submitted ? [
+      { ...source, version: 0 }, { ...source, id: draftId, version: 1, correction_reason: 'Verified zero' },
+    ] : [{ ...source, version: 0 }] }, error: null };
+    if (name === 'inventory_create_audit_correction') return { data: { check_id: draftId }, error: null };
+    if (name === 'inventory_save_stock_check') { submitted = args.p_check.status === 'submitted'; return { data: {}, error: null }; }
+    throw new Error(`Unexpected RPC ${name}`);
+  });
+  const view = render(<InventoryStockCheckResultSurface checkId={sourceId} auth={auth} outlets={outlets} onClose={vi.fn()} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Create Correction' }));
+  await waitFor(() => expect(window.location.pathname).toContain(draftId));
+  expect(rpc).toHaveBeenCalledWith('inventory_create_audit_correction', { p_check_id: sourceId, p_request_id: expect.any(String) });
+  view.rerender(<InventoryStockCheckResultSurface checkId={draftId} auth={auth} outlets={outlets} onClose={vi.fn()} />);
+  const draft = within(await screen.findByRole('dialog', { name: 'Audit Correction Draft' }));
+  const input = draft.getByRole('spinbutton');
+  const submit = draft.getByRole('button', { name: 'Submit Correction' });
+  expect(input.value).toBe('4');
+  fireEvent.change(input, { target: { value: '0' } });
+  expect(draft.getByText('1 of 1 items affected')).toBeTruthy();
+  expect(submit.disabled).toBe(true);
+  fireEvent.change(draft.getByLabelText('Correction Reason'), { target: { value: 'Verified zero' } });
+  fireEvent.click(submit);
+
+  expect(await screen.findByText('Superseded evidence')).toBeTruthy();
+  expect(screen.getByText('Current submitted evidence')).toBeTruthy();
+  expect(screen.getByRole('columnheader', { name: 'Source Count' })).toBeTruthy();
+  expect(rpc).toHaveBeenCalledWith('inventory_save_stock_check', expect.objectContaining({
+    p_check: expect.objectContaining({ id: draftId, status: 'submitted', correction_reason: 'Verified zero' }),
+    p_items: [{ item_id: sourceRows[0].item_id, actual_count_quantity: 0, notes: '' }],
+  }));
+});
+
+it('shows evidence to viewers without granting correction authoring', async () => {
+  const viewer = { ...auth, hasPermission: (code) => code === 'inventory_stock_check.view' };
+  render(<InventoryStockCheckResultSurface checkId="A" auth={viewer} outlets={outlets} onClose={vi.fn()} />);
+  expect(await screen.findByText('Current submitted evidence')).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Create Correction' })).toBeNull();
 });
