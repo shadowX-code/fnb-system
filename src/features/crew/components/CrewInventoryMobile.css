@@ -53,7 +53,7 @@
 .crew-inventory-state { display: grid; gap: 10px; padding: 20px 0; }
 
 .crew-inventory-hub-list,.crew-inventory-list,.crew-inventory-picker-list { display: grid; gap: 6px; margin-top: 10px; }
-.crew-inventory-hub-list>button,.crew-inventory-list>button,.crew-inventory-audit-row>button:first-child,.crew-inventory-picker-list>button {
+.crew-inventory-hub-list>button,.crew-inventory-list>button,.crew-inventory-picker-list>button {
   display: flex; align-items: center; gap: 9px; min-width: 0; min-height: 58px;
   border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-functional);
   background: var(--crew-color-surface); padding: 8px 10px; color: var(--crew-color-text); text-align: left;
@@ -63,12 +63,23 @@
 .crew-inventory-history-entry>button:last-child>span:first-child { display: grid; flex: 1; min-width: 0; gap: 2px; }
 .crew-inventory-history-entry strong { overflow-wrap: anywhere; font-size: var(--crew-type-list-primary); }
 .crew-inventory-history-entry small { color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); }
-.crew-inventory-hub-list>button,.crew-inventory-list>button,.crew-inventory-audit-row>button:first-child { width: 100%; }
-.crew-inventory-hub-list>button>span:not(.crew-inventory-thumb):not(.crew-ui-status),.crew-inventory-list>button>span:not(.crew-inventory-thumb):not(.crew-ui-status),.crew-inventory-audit-row>button:first-child>span:not(.crew-inventory-thumb):not(.crew-ui-status) { display: grid; flex: 1; min-width: 0; gap: 2px; }
+.crew-inventory-hub-list>button,.crew-inventory-list>button { width: 100%; }
+.crew-inventory-hub-list>button>span:not(.crew-inventory-thumb):not(.crew-ui-status),.crew-inventory-list>button>span:not(.crew-inventory-thumb):not(.crew-ui-status) { display: grid; flex: 1; min-width: 0; gap: 2px; }
 .crew-inventory-hub-list small,.crew-inventory-list small,.crew-inventory-picker-list small { color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); }
 .crew-inventory-hub-list strong,.crew-inventory-list strong,.crew-inventory-picker-list strong { font-size: var(--crew-type-list-primary); overflow-wrap: anywhere; }
-.crew-inventory-audit-row { display: grid; grid-template-columns: minmax(0,1fr) 44px; gap: 4px; }
-.crew-inventory-audit-row>button:last-child { display: grid; place-items: center; border: 0; border-radius: var(--crew-radius-control); background: transparent; color: var(--crew-color-danger); }
+.crew-inventory-audit-card { display: flex; align-items: center; gap: 6px; min-width: 0; padding: 5px 4px 5px 8px; }
+.crew-inventory-audit-card > .crew-inventory-thumb { flex-basis: 36px; width: 36px; height: 36px; }
+.crew-inventory-audit-card > .crew-inventory-thumb-action { display: grid; place-items: center; flex-basis: 44px; width: 44px; height: 44px; }
+.crew-inventory-audit-card .crew-inventory-thumb-action .crew-inventory-thumb { width: 36px; height: 36px; }
+.crew-inventory-audit-card-link { display: grid; flex: 1; align-content: center; gap: 4px; min-width: 0; min-height: 52px; border: 0; border-radius: var(--crew-radius-control); background: transparent; padding: 4px 3px; color: var(--crew-color-text); text-align: start; }
+.crew-inventory-audit-card-link:hover { background: var(--crew-color-mineral); }
+.crew-inventory-audit-card-link:focus-visible { outline: 2px solid var(--crew-color-deep-teal); outline-offset: -2px; }
+.crew-inventory-list .crew-inventory-audit-card-title { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-height: 1.25; overflow-wrap: normal; }
+.crew-inventory-audit-card-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 3px 7px; }
+.crew-inventory-audit-card-meta .crew-ui-status { min-height: 20px; padding: 2px 6px; font-size: var(--crew-type-badge); }
+.crew-inventory-audit-card-action { display: inline-flex; align-items: center; gap: 2px; color: var(--crew-color-deep-teal); font-size: var(--crew-type-helper); font-weight: 700; white-space: nowrap; }
+.crew-mobile-ghost.crew-inventory-audit-more { width: 44px; padding: 0; }
+
 .crew-inventory-thumb { display: grid; flex: 0 0 48px; width: 48px; height: 48px; place-items: center; overflow: hidden; border-radius: 9px; background: var(--crew-color-success-surface); color: var(--crew-color-success); }
 .crew-inventory-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .crew-inventory-thumb-action,.crew-inventory-row-head>.crew-inventory-thumb-action { display: block; flex: 0 0 48px; width: 48px; height: 48px; min-width: 48px; min-height: 48px; border: 0; border-radius: 9px; background: transparent; padding: 0; color: inherit; cursor: pointer; }
