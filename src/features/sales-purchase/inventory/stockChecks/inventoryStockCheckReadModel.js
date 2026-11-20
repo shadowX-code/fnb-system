@@ -24,6 +24,24 @@ export function projectStockCheckCount(row, parLevel, isClosing = false) {
   return { state, label: "Shortage", tone: "warning", variance };
 }
 
+export function summarizeAuditRows(rows = []) {
+  const totals = { total: rows.length, shortage: 0, excess: 0, skipped: 0 };
+  for (const row of rows) {
+    if (row.skipped || row.status === "skipped") {
+      totals.skipped += 1;
+      continue;
+    }
+    if (row.na || row.status === "na" || row.status === "pending"
+      || !isValidClosingQuantity(row.actualCount) || !isValidClosingQuantity(row.expectedQty)) continue;
+
+    const actual = Number(row.actualCount);
+    const par = Number(row.expectedQty);
+    if (actual < par) totals.shortage += 1;
+    if (actual > par) totals.excess += 1;
+  }
+  return totals;
+}
+
 export function mapRemoteStockCheckItem(row = {}) {
   return {
     id: row.id,

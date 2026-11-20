@@ -26,10 +26,10 @@ async function readCheckSummaries(checkIds) {
   const summaries = new Map();
   for (const summary of data.summaries) {
     if (!ids.includes(summary.check_id) || summaries.has(summary.check_id)
-        || ![summary.total, summary.skipped, summary.shortage].every((value) => Number.isInteger(value) && value >= 0)) {
+        || ![summary.total, summary.skipped, summary.shortage, summary.excess].every((value) => Number.isInteger(value) && value >= 0)) {
       throw Object.assign(new Error("Stock Check summary identities or counts are incomplete."), { readState: "incomplete" });
     }
-    summaries.set(summary.check_id, { total: summary.total, skipped: summary.skipped, shortage: summary.shortage });
+    summaries.set(summary.check_id, { total: summary.total, skipped: summary.skipped, shortage: summary.shortage, excess: summary.excess });
   }
   return summaries;
 }

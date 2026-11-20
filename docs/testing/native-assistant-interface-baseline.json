@@ -773,6 +773,7 @@
     "supabase/migrations/20261120064057_restaurant_inventory_cost_history.sql": "b2af772f91242adc2e51c4d59e4a5b6484d12c2c9474c58fb9b855e71d2c347a",
     "supabase/migrations/20261120071253_restaurant_audit_server_timestamps.sql": "f2b55451d7a6abf0e11c7c4d60615356096fc4a9501af5448b678df1ef433785",
     "supabase/migrations/20261120091611_restaurant_audit_corrections.sql": "f45ef1ba254eb0bddc53287359ef65c802996fff3eae4da46ffb79e58a067e5d",
-    "supabase/migrations/20261120120247_restaurant_inventory_dashboard_cost_insights.sql": "d704d7a5c6a8c4eed614ecf48a884a40d5119bc9c9ec3effcef4202c61978770"
+    "supabase/migrations/20261120120247_restaurant_inventory_dashboard_cost_insights.sql": "d704d7a5c6a8c4eed614ecf48a884a40d5119bc9c9ec3effcef4202c61978770",
+    "supabase/migrations/20261120131449_restaurant_audit_summary_quantities.sql": "253ebf0c109fd90ee7bb693ecba107f9b79558ed2cef2d77291d263365c4589c"
   }
 }
