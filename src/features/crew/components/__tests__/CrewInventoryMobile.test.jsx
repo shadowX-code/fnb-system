@@ -261,6 +261,30 @@ describe("Crew Inventory mobile authority boundary", () => {
     expect(api.inventoryPurchaseOrders).not.toHaveBeenCalled();
   });
 
+  it("records a Month-End Closing cutoff and explicitly counted zero in Crew", async () => {
+    api.inventoryStockChecks.mockResolvedValue({ ...stock, can_create_audit_stock_check: true });
+    api.saveInventoryStockCheck.mockResolvedValue({ check: { id: "closing-audit" } });
+    render(<CrewStockCheckMobile token="token" outletId="outlet-1" grants={{ can_create_audit_stock_check: true }} onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("tab", { name: "Audit" }));
+    fireEvent.click(screen.getByRole("button", { name: "Audit" }));
+    fireEvent.click(screen.getByRole("button", { name: /Audit type/i }));
+    fireEvent.click(await screen.findByText("Month-End Closing"));
+    fireEvent.change(screen.getByRole("textbox", { name: /audit name/i }), { target: { value: "August Close" } });
+    fireEvent.change(screen.getByLabelText("Accounting Month"), { target: { value: "2026-08" } });
+    fireEvent.change(screen.getByLabelText("Physical Count Cutoff (Malaysia time)"), { target: { value: "2026-08-31T23:00" } });
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    const input = screen.getByRole("spinbutton", { name: /Rice.*Actual count/ });
+    expect(input.value).toBe("");
+    expect(screen.queryByRole("button", { name: "Skip" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Review (0/1)" }).disabled).toBe(true);
+    fireEvent.change(input, { target: { value: "0" } });
+    fireEvent.click(screen.getByRole("button", { name: "Review (1/1)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Complete Check" }));
+    await waitFor(() => expect(api.saveInventoryStockCheck).toHaveBeenCalledWith("token", "outlet-1", expect.any(String),
+      expect.objectContaining({ status: "submitted", accounting_month: "2026-08-01", physical_count_cutoff: "2026-08-31T23:00+08:00" }),
+      [expect.objectContaining({ item_id: "item-1", actual_count_quantity: 0 })]));
+  });
+
   it("deletes only an Audit draft through the trusted command", async () => {
     api.inventoryStockChecks.mockResolvedValue({ ...stock, can_create_audit_stock_check: true,
       checks: [{ id: "audit-1", type: "audit", status: "draft", name: "Weekly Audit", audit_type: "Spot Check", item_count: 1 }] });

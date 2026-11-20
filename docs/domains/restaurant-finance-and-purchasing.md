@@ -50,6 +50,8 @@ Monthly and Yearly posters share a fixed-canvas editorial visual system: present
 
 Outlet P&L consumes the same canonical Reporting financial RPCs, not browser source-table totals. Its yearly/YTD adapter reports a total only when every elapsed month contains that metric; dependent EBITDA/margins remain unavailable on missing evidence. Trend series are withheld rather than connecting missing months to invented zero points. Financial reads accept the existing `outlet_pnl.view` or `reports.view` permission and retain server outlet scope; Product Analytics remains `reports.view` only. Data Health is a loaded-source completeness review, not a Month Closing authority. It offers no Lock/Unlock/Frozen state and does not manufacture audit actors or read-time events.
 
+Each Monthly P&L card displays Closing Stock below EBITDA. The scoped Reporting response reads the current Inventory publication for that outlet and accounting month. All Outlets includes a sum when every outlet in the viewer's Reporting scope has a published value for the month. Unpublished values display as — and a published zero displays as RM 0.00. Closing Stock is a monthly reference outside COGS, EBITDA, margins, financial completeness, trends and totals. Inventory owns approval and revision history.
+
 Admin access requires the relevant finance, purchasing, import, supplier, or reporting permission plus outlet scope. Reporting reads and the Reports page require `reports.view`; downloading a generated report requires `reports.export`.
 Cross-outlet comparisons must return only outlets visible to the caller.
 Material imports, snapshot transitions, configuration changes, and protected purchasing actions retain business audit evidence.

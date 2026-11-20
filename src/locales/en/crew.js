@@ -125,6 +125,11 @@ Object.assign(resources.inventory, {
   sourceNoLongerEligible:"This check has no remaining eligible suggestions. An order may already have been created."
 });
 Object.assign(resources.inventory, {
+  accountingMonth: "Accounting Month",
+  physicalCountCutoff: "Physical Count Cutoff (Malaysia time)",
+  closingCoverage: "Count all {{count}} active outlet items. Enter zero if an item has no stock.",
+  closingDetailsRequired: "Enter the accounting month and physical count cutoff.",
+  legacyClosingDraft: "Start a new closing audit to record explicit actual quantities.",
   newAudit: "Audit", scheduled: "Scheduled", in_progress: "In Progress", missed: "Missed", noHistory: "No Stock Check history",
   stockInProgressCount_one: "{{count}} check in progress", stockInProgressCount_other: "{{count}} checks in progress",
   checkSkipped: "Stock Check skipped", skipCheckTitle: "Skip this stock check?",

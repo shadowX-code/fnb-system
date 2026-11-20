@@ -131,6 +131,11 @@ Object.assign(resources.inventory, {
 });
 Object.assign(resources.inventory, { fromStockCheckHelp:"Isi semula stok daripada kiraan yang baru selesai", manualPoHelp:"Cipta pesanan dari awal", noSuggestions:"Tiada cadangan semakan stok layak dalam 7 hari terkini", restockItems:"Item untuk Stok Semula", reviewPurchaseSuggestions:"Item untuk Stok Semula", suggestionsHelp:"Semak kuantiti sebelum mencipta pesanan belian.", ordered:"Dipesan", receivedNow:"Diterima sekarang", receiveAllRemaining:"Isi Semua Baki", lineComplete:"Diterima sepenuhnya", receivingProgress:"{{received}} / {{ordered}} diterima", receiveHelp:"Masukkan kuantiti diterima sekarang. Tiada rekod dibuat sehingga anda menekan Rekod Penerimaan." });
 Object.assign(resources.inventory, {
+  accountingMonth: "Bulan Perakaunan",
+  physicalCountCutoff: "Waktu Tutup Kiraan Fizikal (waktu Malaysia)",
+  closingCoverage: "Kira semua {{count}} item aktif di cawangan. Masukkan sifar jika item tiada stok.",
+  closingDetailsRequired: "Masukkan bulan perakaunan dan waktu tutup kiraan fizikal.",
+  legacyClosingDraft: "Mulakan audit penutupan baharu untuk merekod kuantiti sebenar.",
   newAudit: "Audit", scheduled: "Berjadual", in_progress: "Sedang Dibuat", missed: "Terlepas", noHistory: "Tiada sejarah semakan stok",
   stockInProgressCount_one: "{{count}} semakan sedang dibuat", stockInProgressCount_other: "{{count}} semakan sedang dibuat",
   checkSkipped: "Semakan stok dilangkau", skipCheckTitle: "Langkau semakan stok ini?",

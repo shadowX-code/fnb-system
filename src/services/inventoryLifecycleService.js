@@ -43,6 +43,16 @@ export const inventoryLifecycleService = {
     });
   },
 
+  async approveClosingStock({ checkId, requestId: suppliedRequestId, reconciliation, supersedesId, reason }) {
+    return call("inventory.closing.approve", "inventory_approve_closing_stock", {
+      p_check_id: requireUuid(checkId, "Stock Check"),
+      p_request_id: suppliedRequestId || requestId(),
+      p_reconciliation: reconciliation,
+      p_supersedes_id: supersedesId,
+      p_correction_reason: reason,
+    });
+  },
+
   async savePurchaseOrder({ order, requestId: suppliedRequestId }) {
     return call("inventory.purchase_order.save", "inventory_save_purchase_order", {
       p_request_id: suppliedRequestId || requestId(),

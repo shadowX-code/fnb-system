@@ -28,6 +28,7 @@ export function monthlyFinancialDataset(contract, { year, month, outlet } = {}) 
       opex: metric(source.opex),
       netProfit: metric(source.net_profit),
     },
+    closingStock: numberOrNull(contract?.closing_stock),
     financialCompleteness: contract?.financial_completeness === "complete" ? "complete" : "incomplete",
   };
 }

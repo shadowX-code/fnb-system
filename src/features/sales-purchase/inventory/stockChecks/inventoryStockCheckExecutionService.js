@@ -1,3 +1,4 @@
+import { MONTH_END_CLOSING, toPhysicalCountCutoff } from "./monthEndClosing.js";
 import { readCompleteInventoryRows } from "../../../../services/inventoryCompleteRead.js";
 import { supabase } from "../../../../lib/supabase.ts";
 import { inventoryLifecycleService } from "../../../../services/inventoryLifecycleService.js";
@@ -93,6 +94,10 @@ export async function persistRemoteStockCheck(activeGroup, rows = [], status = "
     check_name: isAudit ? (activeGroup.auditName || activeGroup.name || "Audit Stock Check") : (activeGroup.name || "Stock Check"),
     shift: activeGroup.shift || (isAudit ? "Audit" : null),
     check_date: checkDate,
+    ...(isAudit && activeGroup.auditType === MONTH_END_CLOSING ? {
+      accounting_month: activeGroup.closingMonth ? `${activeGroup.closingMonth}-01` : null,
+      physical_count_cutoff: toPhysicalCountCutoff(activeGroup.closingCutoff),
+    } : {}),
     audit_type: isAudit ? (activeGroup.auditType || "Custom Audit") : null,
     audit_name: isAudit ? (activeGroup.auditName || activeGroup.name || "Audit Stock Check") : null,
     audit_category_ids: isAudit ? uniqueIds(activeGroup.categoryIds || activeGroup.auditCategoryIds || []) : [],

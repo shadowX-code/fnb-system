@@ -21,7 +21,10 @@ import FactoryPagination from "../../../factory/components/FactoryPagination.jsx
 
 const SHOW_STOCK_CHECK_CARD_DEBUG = import.meta.env.DEV && String(import.meta.env.VITE_SHOW_STOCK_CHECK_CARD_DEBUG ?? "false").toLowerCase() === "true";
 const shifts = ["Opening", "Mid", "Closing", "Any Shift"];
-const auditTypes = ["Month-End Closing", "Full Stock Audit", "Spot Check", "Category Audit", "Custom Audit"];
+import ClosingCountFields from "./ClosingCountFields.jsx";
+import { MONTH_END_CLOSING, toClosingLocalTime } from "./monthEndClosing.js";
+
+const auditTypes = [MONTH_END_CLOSING, "Full Stock Audit", "Spot Check", "Category Audit", "Custom Audit"];
 function parLevelForOutlet(item = {}, outletId) { return outletConfigForItem(item, outletId).parLevel; }
 function normalizeBusinessDate(value, fallback = todayInput()) {
   if (value instanceof Date) return toDateInputValue(value) || fallback;
@@ -293,6 +296,7 @@ function StockCheckMobileView({
   onUpdateRow,
   onSkipRow,
   onUnskipRow,
+  closingFields,
   onBack,
   onSaveDraft,
   onSubmit,
@@ -318,6 +322,7 @@ function StockCheckMobileView({
         description={`${outletName} · ${isAudit ? activeCheckGroup.auditType : activeCheckGroup.shift} · ${dateLabel}`}
         action={<button className="btn-secondary h-9 px-3 text-xs" type="button" onClick={onBack}>Back</button>}
       >
+        {closingFields}
         <div className="grid gap-2 rounded-2xl border border-border bg-slate-50 p-3">
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -411,13 +416,12 @@ function StockCheckMobileView({
               {!row.skipped ? (
                 <div className="mt-3 flex flex-wrap gap-1">
                   {[
-                    ["Full", parLevel],
-                    ["Half", Math.round(Number(parLevel || 0) / 2)],
+                    ...(closingFields ? [] : [["Full", parLevel], ["Half", Math.round(Number(parLevel || 0) / 2)]]),
                     ["Empty", 0],
                   ].map(([label, value]) => (
                     <button key={label} className="rounded-full border border-border px-2.5 py-1 text-[11px] font-semibold text-text-secondary hover:border-primary/30 hover:text-primary" type="button" onClick={() => onUpdateRow(row.rowIndex, (entry) => ({ ...entry, actualCount: Number(value || 0), na: false }))}>{label}</button>
                   ))}
-                  <button className="rounded-full border border-border px-2.5 py-1 text-[11px] font-semibold text-text-secondary hover:border-primary/30 hover:text-primary" type="button" onClick={() => onSkipRow(row.rowIndex, item?.name)}>Skip</button>
+                  {onSkipRow && <button className="rounded-full border border-border px-2.5 py-1 text-[11px] font-semibold text-text-secondary hover:border-primary/30 hover:text-primary" type="button" onClick={() => onSkipRow(row.rowIndex, item?.name)}>Skip</button>}
                 </div>
               ) : <div className="mt-3 rounded-xl bg-slate-50 px-3 py-2 type-caption font-semibold text-text-muted">Not Available · {row.skipReason}</div>}
 
@@ -475,6 +479,8 @@ function AuditStockCheckModal({ outlets, categories, items, onClose, onStart }) 
     date: todayInput(),
     auditName: "",
     auditType: auditTypes[0],
+    closingMonth: "",
+    closingCutoff: "",
     categoryIds: [],
     notes: "",
   });
@@ -482,7 +488,9 @@ function AuditStockCheckModal({ outlets, categories, items, onClose, onStart }) 
   const outletItems = items.filter((item) => isActiveInventoryItem(item) && itemHasActiveOutletLink(item, form.outletId));
   const selectedCategories = new Set(form.categoryIds);
   const selectedLinkedItemCount = outletItems.filter((item) => selectedCategories.has(item.categoryId)).length;
-  const canStart = form.outletId && form.auditName.trim() && form.auditType && selectedLinkedItemCount > 0;
+  const isClosing = form.auditType === MONTH_END_CLOSING;
+  const canStart = form.outletId && form.auditName.trim() && form.auditType
+    && (isClosing ? outletItems.length > 0 && form.closingMonth && form.closingCutoff : selectedLinkedItemCount > 0);
 
   function update(key, value) {
     setForm((current) => {
@@ -513,11 +521,12 @@ function AuditStockCheckModal({ outlets, categories, items, onClose, onStart }) 
       <div className="space-y-4">
         <div className="grid gap-3 md:grid-cols-2">
           <SelectField label="Outlet" value={form.outletId} options={outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))} onChange={(value) => update("outletId", value)} searchable />
-          <DatePickerField label="Audit Date" value={form.date} onChange={(value) => update("date", value)} required />
+          {!isClosing && <DatePickerField label="Audit Date" value={form.date} onChange={(value) => update("date", value)} required />}
           <Field label="Audit Name" value={form.auditName} onChange={(value) => update("auditName", value)} placeholder="Month-end closing count" required />
           <SelectField label="Audit Type" value={form.auditType} options={auditTypes.map((type) => ({ value: type, label: type }))} onChange={(value) => update("auditType", value)} />
+          {isClosing && <ClosingCountFields month={form.closingMonth} cutoff={form.closingCutoff} onMonthChange={value => update("closingMonth", value)} onCutoffChange={value => update("closingCutoff", value)} inputClassName="control w-full" />}
         </div>
-        <div className="rounded-2xl border border-border p-3">
+        {isClosing ? <p className="type-caption text-text-secondary">Count all {outletItems.length} active outlet items. Enter zero if an item has no stock.</p> : <div className="rounded-2xl border border-border p-3">
           <div className="type-title font-bold text-text-primary">Category Selection</div>
           <p className="mt-1 type-caption text-text-secondary">Audit setup selects categories only. The full item list is generated next, and individual items can be skipped during counting with a reason.</p>
           <div className="mt-3 grid gap-2 md:grid-cols-2">
@@ -540,7 +549,7 @@ function AuditStockCheckModal({ outlets, categories, items, onClose, onStart }) 
               );
             })}
           </div>
-        </div>
+        </div>}
         <TextArea label="Notes" value={form.notes} onChange={(value) => update("notes", value)} placeholder="Optional audit objective or instruction" />
       </div>
     </Modal>
@@ -602,6 +611,7 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
   const [activeCheckGroupId, setActiveCheckGroupId] = useState(null);
   const [activeScheduledCheckId, setActiveScheduledCheckId] = useState(null);
   const [activeAuditCheck, setActiveAuditCheck] = useState(null);
+  const [closingDetails, setClosingDetails] = useState({ closingMonth: "", closingCutoff: "" });
   const [checkRows, setCheckRows] = useState([]);
   const [savingStockCheck, setSavingStockCheck] = useState(false);
   const [checkValidationAttempted, setCheckValidationAttempted] = useState(false);
@@ -699,8 +709,7 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
       setCheckRows(draft.rows.map((row) => ({ itemId: row.itemId, actualCount: row.actualCount, status: row.status ?? "normal", notes: row.notes ?? "", na: Boolean(row.na), skipped: Boolean(row.skipped), skipReason: row.skipReason ?? "" })));
       return;
     }
-    const items = stockCheckItemsForGroup(activeCheckGroup, data.items);
-    setCheckRows(items.map((item) => ({ itemId: item.id, actualCount: parLevelForOutlet(item, activeCheckGroup.outletId), status: "normal", notes: "", na: false, skipped: false, skipReason: "" })));
+    setCheckRows(initialStockCheckRowsForGroup(activeCheckGroup));
   }, [activeCheckGroupId, activeScheduledCheckId, activeAuditCheck, activeCheckGroup, data.checks, data.items, date, stockCheckShiftFilter]);
 
   function notify(title, message = "", tone = "success") {
@@ -735,10 +744,15 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
   }
 
   function initialStockCheckRowsForGroup(group) {
-    return stockCheckItemsForGroup(group, data.items).map((item) => ({
+    const isClosing = group.auditType === MONTH_END_CLOSING;
+    const items = isClosing
+      ? data.items.filter((item) => isActiveInventoryItem(item) && itemHasActiveOutletLink(item, group.outletId))
+        .sort((a, b) => a.name.localeCompare(b.name))
+      : stockCheckItemsForGroup(group, data.items);
+    return items.map((item) => ({
       itemId: item.id,
       categoryId: item.categoryId,
-      actualCount: parLevelForOutlet(item, group.outletId),
+      actualCount: isClosing ? "" : parLevelForOutlet(item, group.outletId),
       status: "normal",
       notes: "",
       na: false,
@@ -780,6 +794,7 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
   }
 
   async function startAuditStockCheck(form) {
+    const isClosing = form.auditType === MONTH_END_CLOSING;
     const auditGroup = {
       id: makeId("audit_group"),
       outletId: form.outletId,
@@ -795,7 +810,9 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
       stockCheckType: "audit",
       auditType: form.auditType,
       auditName: form.auditName.trim(),
-      date: form.date,
+      date: isClosing ? form.closingCutoff.slice(0, 10) : form.date,
+      closingMonth: form.closingMonth,
+      closingCutoff: form.closingCutoff,
       notes: form.notes,
     };
     try {
@@ -804,7 +821,8 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
       setData((current) => ({ ...current, checks: [savedCheck, ...current.checks.filter((check) => check.id !== savedCheck.id)] }));
       await refreshExecution();
       setSelectedOutletId(form.outletId);
-      setDate(form.date);
+      setDate(auditGroup.date);
+      setClosingDetails({ closingMonth: form.closingMonth, closingCutoff: form.closingCutoff });
       setActiveCheckGroupId(null);
       setActiveScheduledCheckId(null);
       setActiveAuditCheck({ ...auditGroup, id: savedCheck.id, existingCheckId: savedCheck.id });
@@ -817,6 +835,11 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
   }
 
   function continueAuditStockCheck(check) {
+    if (check.auditType === MONTH_END_CLOSING && !check.accountingMonth) {
+      notify("Start a new closing audit", "This draft was created before closing counts required explicit actuals.", "warning");
+      return;
+    }
+    setClosingDetails({ closingMonth: check.accountingMonth.slice(0, 7), closingCutoff: toClosingLocalTime(check.physicalCountCutoff) });
     setSelectedOutletId(check.outletId);
     setDate(check.date || todayInput());
     setActiveCheckGroupId(null);
@@ -890,19 +913,22 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
     } : entry));
   }
 
-  function stockCheckValidationIssues(rows = checkRows, isAudit = false) {
+  function stockCheckValidationIssues(rows = checkRows, isClosing = false) {
     return rows
       .map((row, rowIndex) => {
         const countMissing = row.actualCount === "" || row.actualCount === null || row.actualCount === undefined;
         const negative = Number(row.actualCount || 0) < 0;
         const item = itemById.get(row.itemId);
+        if (isClosing && (row.skipped || row.na)) {
+          return { rowIndex, itemId: row.itemId, itemName: item?.name || "Inventory item", reason: "Closing items must be counted", action: "Enter the actual quantity" };
+        }
         if (row.skipped) {
           if (!row.skipReason?.trim()) {
             return { rowIndex, itemId: row.itemId, itemName: item?.name || "Inventory item", reason: "Skip reason required", action: "Add a skip reason" };
           }
           return null;
         }
-        if (countMissing) return { rowIndex, itemId: row.itemId, itemName: item?.name || "Inventory item", reason: "Count not entered", action: "Complete count or click Skip" };
+        if (countMissing) return { rowIndex, itemId: row.itemId, itemName: item?.name || "Inventory item", reason: "Count not entered", action: isClosing ? "Enter the actual quantity" : "Complete count or click Skip" };
         if (negative) return { rowIndex, itemId: row.itemId, itemName: item?.name || "Inventory item", reason: "Count cannot be negative", action: "Enter a non-negative count" };
         return null;
       })
@@ -932,8 +958,13 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
     if (!activeCheckGroup) return;
     if (savingStockCheck) return;
     const isAudit = activeCheckGroup.stockCheckType === "audit";
+    const isClosing = activeCheckGroup.auditType === MONTH_END_CLOSING;
+    if (isClosing && (!closingDetails.closingMonth || !closingDetails.closingCutoff)) {
+      notify("Closing details required", "Enter the Accounting Month and Physical Count Cutoff.", "warning");
+      return;
+    }
     if (status === "submitted") {
-      const invalidRows = stockCheckValidationIssues(checkRows, isAudit);
+      const invalidRows = stockCheckValidationIssues(checkRows, isClosing);
       if (invalidRows.length) {
         setCheckValidationAttempted(true);
         revealFirstInvalidStockCheckRow(invalidRows[0]);
@@ -945,7 +976,8 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
       : draftCheckForGroupRun(activeCheckGroup, data.checks, activeCheckGroup.date || date, stockCheckShiftFilter);
     const persistGroup = {
       ...activeCheckGroup,
-      date: activeCheckGroup.date || date,
+      ...closingDetails,
+      date: isClosing ? closingDetails.closingCutoff.slice(0, 10) : activeCheckGroup.date || date,
       existingCheckId: activeCheckGroup.existingCheckId || existingDraft?.id || activeScheduledCheckId || "",
     };
     const rows = buildStockCheckRowsForGroup(persistGroup);
@@ -1007,6 +1039,12 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
 
     if (activeCheckGroup) {
       const isAudit = activeCheckGroup.stockCheckType === "audit";
+      const isClosing = activeCheckGroup.auditType === MONTH_END_CLOSING;
+      const closingFields = isClosing && <div className="mb-3 grid gap-3 md:grid-cols-2">
+        <ClosingCountFields month={closingDetails.closingMonth} cutoff={closingDetails.closingCutoff}
+          onMonthChange={closingMonth => setClosingDetails(current => ({ ...current, closingMonth }))}
+          onCutoffChange={closingCutoff => setClosingDetails(current => ({ ...current, closingCutoff }))} inputClassName="control w-full" />
+      </div>;
       const activePersistedCheck = activeScheduledCheckId
         ? data.checks.find((check) => check.id === activeScheduledCheckId)
         : activeCheckGroup.existingCheckId
@@ -1015,7 +1053,7 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
       const startedByName = activePersistedCheck?.createdBy ? actorNameByAuthUserId(activePersistedCheck.createdBy) : currentCheckerName;
       const submittedByName = activePersistedCheck?.submittedBy ? actorNameByEmployeeId(activePersistedCheck.submittedBy) : "";
       const draftSavedAt = activePersistedCheck?.updatedAt || activePersistedCheck?.createdAt || "";
-      const validationIssues = checkValidationAttempted ? stockCheckValidationIssues(checkRows, isAudit) : [];
+      const validationIssues = checkValidationAttempted ? stockCheckValidationIssues(checkRows, isClosing) : [];
       const validationIssueByRowIndex = new Map(validationIssues.map((issue) => [issue.rowIndex, issue]));
       const checkRowsWithIndex = checkRows.map((row, index) => ({ ...row, rowIndex: index })).filter((row) => {
         if (!checkSearch.trim()) return true;
@@ -1068,8 +1106,7 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
               {!row.skipped ? (
                 <div className="mt-2 flex flex-wrap gap-1">
                   {[
-                    ["Full", parLevel],
-                    ["Half", Math.round(Number(parLevel || 0) / 2)],
+                    ...(isClosing ? [] : [["Full", parLevel], ["Half", Math.round(Number(parLevel || 0) / 2)]]),
                     ["Empty", 0],
                     ...(!isAudit ? [["NA", row.actualCount]] : []),
                   ].map(([label, value]) => (
@@ -1089,9 +1126,9 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
                     <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => unskipCheckRow(index)}>Unskip</button>
                     {validationIssue?.reason === "Skip reason required" ? <div className="type-caption font-bold text-amber-700">Skip reason required</div> : null}
                   </div>
-                ) : (
+                ) : !isClosing ? (
                   <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => setModal({ type: "skip-check-row", rowIndex: index, itemName: item?.name })}>Skip</button>
-                )}
+                ) : null}
               </td>
             ) : null}
           </tr>
@@ -1128,7 +1165,8 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
             onSearchChange={setCheckSearch}
             onPreviewPhoto={setPhotoPreview}
             onUpdateRow={updateCheckRow}
-            onSkipRow={(rowIndex, itemName) => setModal({ type: "skip-check-row", rowIndex, itemName })}
+            onSkipRow={isClosing ? undefined : (rowIndex, itemName) => setModal({ type: "skip-check-row", rowIndex, itemName })}
+            closingFields={closingFields}
             onUnskipRow={unskipCheckRow}
             onBack={closeActiveCheck}
             onSaveDraft={() => requirePermission(can.editCheck, "save stock check drafts") && saveStockCheck("draft")}
@@ -1161,6 +1199,7 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
                 </div>
               </div>
             </div>
+            {closingFields}
             {isAudit ? (
               <div className="mb-3 flex flex-col gap-2 rounded-2xl border border-border bg-slate-50 p-3 md:flex-row md:items-center md:justify-between">
                 <div>

@@ -677,7 +677,7 @@ export const moduleRegistry: AppModule[] = [
     route: "/inventory/stock-check",
     icon: "inventory-stock-check",
     sidebar: true,
-    permissions: { view: true, create: true, edit: true, review: true, audit: true, export: true },
+    permissions: { view: true, create: true, edit: true, review: true, approve: true, audit: true, export: true },
   },
   {
     id: "inventory_orders",

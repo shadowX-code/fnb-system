@@ -131,6 +131,11 @@ Object.assign(resources.inventory, {
 });
 Object.assign(resources.inventory, { fromStockCheckHelp:"从最近完成的盘点补货", manualPoHelp:"从零开始创建订单", noSuggestions:"最近 7 天没有可用的盘点建议", restockItems:"补货物品", reviewPurchaseSuggestions:"补货物品", suggestionsHelp:"创建采购订单前检查数量。", ordered:"订购", receivedNow:"本次收货", receiveAllRemaining:"填入全部剩余数量", lineComplete:"已全部收货", receivingProgress:"已收 {{received}} / {{ordered}}", receiveHelp:"输入本次实收数量。点击“记录收货”后才会保存。" });
 Object.assign(resources.inventory, {
+  accountingMonth: "会计月份",
+  physicalCountCutoff: "实物盘点截止时间（马来西亚时间）",
+  closingCoverage: "盘点门店所有 {{count}} 个在用物品。无库存时请输入零。",
+  closingDetailsRequired: "请输入会计月份和实物盘点截止时间。",
+  legacyClosingDraft: "请新建月末盘点并逐项填写实际数量。",
   newAudit: "稽核", scheduled: "计划", in_progress: "进行中", missed: "已错过", noHistory: "暂无盘点记录",
   stockInProgressCount: "{{count}} 项盘点进行中",
   checkSkipped: "已跳过库存盘点", skipCheckTitle: "跳过这次库存盘点？",

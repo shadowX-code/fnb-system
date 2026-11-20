@@ -1,5 +1,9 @@
 # FeedX Development Log
 
+## 2026-11-20 — Restaurant Month-End Closing Stock
+
+Added full-outlet Month-End Closing counts in Admin and Crew, scoped approval with item-level reconciliation and immutable valuation revisions, and a reference line below EBITDA in Outlet P&L. Canonical owners are the [Inventory](docs/domains/inventory-and-assets.md) and [Restaurant Finance](docs/domains/restaurant-finance-and-purchasing.md) domains.
+
 ## 2026-11-18 — Space Station
 
 Added an optional animated Admin workspace with four explorable cabins, locally simulated crew and permission-filtered links into Finance, Factory and Marketing. The renderer and assets load on demand. Platform owns the [workspace contract](docs/architecture/platform.md#space-station).

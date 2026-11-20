@@ -93,10 +93,46 @@ describe("Stock Check execution scoped read", () => {
     render(<InventoryStockCheckPage auth={{ ...auth, profile: { role_outlet_access_type: "all" }, hasPermission: () => true }} ui={{ notify: vi.fn() }} outlets={[{ id: "A", name: "QA Outlet" }]} />);
     fireEvent.click(await screen.findByRole("button", { name: "Audit Stock Check" }));
     fireEvent.change(screen.getByPlaceholderText("Month-end closing count"), { target: { value: "QA Audit" } });
+    fireEvent.click(screen.getByRole("button", { name: "Audit Type" }));
+    fireEvent.click(await screen.findByRole("option", { name: "Spot Check" }));
     fireEvent.click(screen.getByRole("button", { name: /Frozen.*1 items/ }));
     fireEvent.click(screen.getByRole("button", { name: "Start Audit" }));
     await waitFor(() => expect(mocks.persist).toHaveBeenCalledWith(expect.objectContaining({ stockCheckType: "audit", auditName: "QA Audit" }), expect.any(Array), "draft", "admin", undefined));
     fireEvent.click(await screen.findByRole("button", { name: "Skip" }));
     expect((await screen.findByRole("dialog", { name: "Skip stock check item" })).textContent).toContain("Skip Reason");
   });
+
+  it("starts every eligible closing item blank and submits explicit zero without category selection", async () => {
+    const item = { id: "item", name: "QA Item", categoryId: "category", unit: "kg", status: "active", linkedOutletIds: ["A"], outletConfigs: [{ outletId: "A", parLevel: 10 }] };
+    mocks.load.mockResolvedValue({ ...snapshot("A"), groups: [], items: [item, { ...item, id: "uncategorized", categoryId: "", name: "QA Uncategorised" }] });
+    mocks.persist.mockResolvedValue({ id: "audit", outletId: "A", stockCheckType: "audit", status: "draft", rows: [] });
+    window.history.replaceState(null, "", "/restaurant/inventory/stock-check");
+    render(<InventoryStockCheckPage auth={{ ...auth, profile: { role_outlet_access_type: "all" }, hasPermission: () => true }} ui={{ notify: vi.fn() }} outlets={[{ id: "A", name: "QA Outlet" }]} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Audit Stock Check" }));
+    fireEvent.change(screen.getByPlaceholderText("Month-end closing count"), { target: { value: "October Close" } });
+    fireEvent.change(screen.getByLabelText("Accounting Month"), { target: { value: "2026-10" } });
+    fireEvent.change(screen.getByLabelText("Physical Count Cutoff (Malaysia time)"), { target: { value: "2026-11-01T00:00" } });
+    fireEvent.click(screen.getByRole("button", { name: "Start Audit" }));
+    await waitFor(() => expect(mocks.persist).toHaveBeenCalledWith(
+      expect.objectContaining({ closingMonth: "2026-10", date: "2026-11-01" }),
+      [expect.objectContaining({ itemId: "item", actualCount: "" }), expect.objectContaining({ itemId: "uncategorized", actualCount: "" })],
+      "draft", "admin", undefined,
+    ));
+    await screen.findByText("QA Uncategorised");
+    expect(screen.queryByRole("button", { name: "Skip" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Full" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Submit Audit Check" }));
+    expect(mocks.persist).toHaveBeenCalledTimes(1);
+    for (const input of screen.getAllByRole("spinbutton")) {
+      expect(input.value).toBe("");
+      fireEvent.change(input, { target: { value: "0" } });
+    }
+    fireEvent.click(screen.getByRole("button", { name: "Submit Audit Check" }));
+    await waitFor(() => expect(mocks.persist).toHaveBeenLastCalledWith(
+      expect.objectContaining({ existingCheckId: "audit" }),
+      [expect.objectContaining({ actualCount: 0 }), expect.objectContaining({ actualCount: 0 })],
+      "submitted", "admin", undefined,
+    ));
+  });
+
 });

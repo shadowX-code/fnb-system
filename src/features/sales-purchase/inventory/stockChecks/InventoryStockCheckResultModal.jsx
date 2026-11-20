@@ -6,6 +6,7 @@ import SelectField from "../../../../components/forms/SelectField.jsx";
 import AdminSummaryGrid from "../../../../components/ui/AdminSummaryGrid.jsx";
 import { FactoryDataSurface, FactoryTable } from "../../../factory/components/FactoryDataDisplay.jsx";
 import FactoryStatusBadge from "../../../factory/components/FactoryStatusBadge.jsx";
+import ClosingStockApproval from "./ClosingStockApproval.jsx";
 import { auditStockCheckValuation } from "./auditStockCheckValuation.js";
 
 function auditQuantityVariance(row) {
@@ -39,6 +40,7 @@ function formatQuantity(value) {
 export default function InventoryStockCheckResultModal({
   stockCheck, isAuditResult, outletName, submittedByName, itemById, categoryById,
   formatDate, formatDateTimeCompact, formatCurrency, ItemThumbnail, onPhotoPreview, onClose, onRestock,
+  closing, canApproveClosing,
 }) {
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -104,6 +106,8 @@ export default function InventoryStockCheckResultModal({
   >
     <div className="space-y-4">
       <div className="flex flex-wrap gap-x-8 gap-y-2 text-sm"><div><span className="text-text-secondary">Checked by</span><div className="font-semibold text-text-primary">{submittedByName}</div></div><div><span className="text-text-secondary">Submitted at</span><div className="font-semibold text-text-primary">{formatDateTimeCompact(stockCheck.submittedAt)}</div></div></div>
+      {closing && <ClosingStockApproval check={stockCheck} context={closing} itemById={itemById}
+        canApprove={canApproveClosing} formatCurrency={formatCurrency} />}
       <AdminSummaryGrid variant="compact" ariaLabel="Audit item counts" items={countItems} />
       {isAuditResult ? <>
         <AdminSummaryGrid variant="compact" ariaLabel="Full Audit valuation" items={valueItems} />
