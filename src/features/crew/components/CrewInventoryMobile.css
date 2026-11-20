@@ -95,6 +95,9 @@
 .crew-inventory-lifecycle-result dl>div { display: flex; justify-content: space-between; gap: 12px; }
 .crew-inventory-lifecycle-result dt { color: var(--crew-color-text-secondary); }
 .crew-inventory-lifecycle-result dd { margin: 0; text-align: right; }
+.crew-inventory-audit-timestamps { margin: 0 0 12px; padding: 9px 10px; border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-functional); background: var(--crew-color-surface); }
+.crew-inventory-audit-timestamps dt { color: var(--crew-color-text-secondary); }
+.crew-inventory-audit-timestamps dd { margin: 0; color: var(--crew-color-text); }
 .crew-inventory-progress { display: grid; gap: 5px; margin: 9px 0 10px; }
 .crew-inventory-progress>span { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .crew-inventory-progress strong { font-size: var(--crew-type-secondary); }

@@ -73,12 +73,12 @@ describe("Stock Check execution scoped read", () => {
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     const start = await screen.findByRole("button", { name: "Start Check" });
     fireEvent.click(start);
-    await waitFor(() => expect(mocks.persist).toHaveBeenCalledWith(expect.objectContaining({ id: "group", date: today }), expect.any(Array), "draft", "admin", undefined));
+    await waitFor(() => expect(mocks.persist).toHaveBeenCalledWith(expect.objectContaining({ id: "group", date: today }), expect.any(Array), "draft"));
     await screen.findByText("QA Item");
     const count = screen.getByRole("spinbutton");
     fireEvent.change(count, { target: { value: "8" } });
     fireEvent.click(screen.getByRole("button", { name: "Save Draft" }));
-    await waitFor(() => expect(mocks.persist).toHaveBeenLastCalledWith(expect.objectContaining({ existingCheckId: "draft" }), [expect.objectContaining({ itemId: "item", actualCount: 8, expectedQty: 10, variance: 2 })], "draft", "admin", undefined));
+    await waitFor(() => expect(mocks.persist).toHaveBeenLastCalledWith(expect.objectContaining({ existingCheckId: "draft" }), [expect.objectContaining({ itemId: "item", actualCount: 8, expectedQty: 10, variance: 2 })], "draft"));
   });
 
   it("starts an Audit draft and renders the skip-reason flow", async () => {
@@ -88,7 +88,10 @@ describe("Stock Check execution scoped read", () => {
       groups: [], checks: [], orders: [], people: [], completeness: "complete",
     };
     mocks.load.mockResolvedValue(data);
-    mocks.persist.mockResolvedValue({ id: "audit", outletId: "A", stockCheckType: "audit", status: "draft", rows: [] });
+    const audit = { id: "audit", outletId: "A", stockCheckType: "audit", status: "draft", rows: [],
+      auditName: "Spot Check · 15 Oct 2026", date: "2026-10-15", createdAt: "2026-10-15T04:00:00Z" };
+    mocks.persist.mockRejectedValueOnce(new Error("Lost response")).mockResolvedValue(audit);
+    mocks.load.mockResolvedValueOnce(data).mockResolvedValue({ ...data, checks: [audit] });
     window.history.replaceState(null, "", "/restaurant/inventory/stock-check");
     render(<InventoryStockCheckPage auth={{ ...auth, profile: { role_outlet_access_type: "all" }, hasPermission: () => true }} ui={{ notify: vi.fn() }} outlets={[{ id: "A", name: "QA Outlet" }]} />);
     fireEvent.click(await screen.findByRole("button", { name: "Audit Stock Check" }));
@@ -96,10 +99,16 @@ describe("Stock Check execution scoped read", () => {
     fireEvent.click(await screen.findByRole("option", { name: "Spot Check" }));
     const setup = within(screen.getByRole("dialog", { name: "Audit Stock Check" }));
     expect(setup.queryByRole("textbox", { name: /audit name/i })).toBeNull();
-    fireEvent.change(setup.getByPlaceholderText("Select date"), { target: { value: "15 Oct 2026" } });
+    expect(setup.queryByPlaceholderText("Select date")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /Frozen.*1 items/ }));
     fireEvent.click(screen.getByRole("button", { name: "Start Audit" }));
-    await waitFor(() => expect(mocks.persist).toHaveBeenCalledWith(expect.objectContaining({ stockCheckType: "audit", auditName: "Spot Check · 15 Oct 2026" }), expect.any(Array), "draft", "admin", undefined));
+    await waitFor(() => expect(mocks.persist).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Start Audit" }).disabled).toBe(false));
+    fireEvent.click(screen.getByRole("button", { name: "Start Audit" }));
+    expect(await screen.findByText("Count Started At (MYT)")).toBeTruthy();
+    expect(screen.getByText("15 Oct 2026 · 12:00 PM")).toBeTruthy();
+    expect(mocks.persist.mock.calls[0][3]).toBe(mocks.persist.mock.calls[1][3]);
+    expect(mocks.persist.mock.calls[0][0]).not.toHaveProperty("date");
     fireEvent.click(await screen.findByRole("button", { name: "Skip" }));
     expect((await screen.findByRole("dialog", { name: "Skip stock check item" })).textContent).toContain("Skip Reason");
   });
@@ -109,27 +118,23 @@ describe("Stock Check execution scoped read", () => {
     mocks.load.mockResolvedValue({ ...snapshot("A"), groups: [],
       categories: [{ id: "category", name: "Dry Goods", sortOrder: 1, status: "active" }],
       items: [item, { ...item, id: "uncategorized", categoryId: "", name: "QA Uncategorised" }] });
-    mocks.persist.mockResolvedValue({ id: "audit", outletId: "A", stockCheckType: "audit", status: "draft", rows: [] });
+    const year = new Date().getFullYear();
+    mocks.persist.mockResolvedValue({ id: "audit", outletId: "A", stockCheckType: "audit", status: "draft", rows: [],
+      date: `${year}-11-02`, accountingMonth: `${year}-10-01`, auditName: `Month-End Closing · Oct ${year} · 2 Nov ${year}` });
     window.history.replaceState(null, "", "/restaurant/inventory/stock-check");
     render(<InventoryStockCheckPage auth={{ ...auth, profile: { role_outlet_access_type: "all" }, hasPermission: () => true }} ui={{ notify: vi.fn() }} outlets={[{ id: "A", name: "QA Outlet" }]} />);
     fireEvent.click(await screen.findByRole("button", { name: "Audit Stock Check" }));
-    const year = new Date().getFullYear();
     const setup = within(screen.getByRole("dialog", { name: "Audit Stock Check" }));
-    expect(setup.getByText(/When the physical stock count was taken/)).toBeTruthy();
+    expect(setup.queryByPlaceholderText("Select date")).toBeNull();
+    expect(setup.queryByRole("button", { name: "Time" })).toBeNull();
+    expect(setup.getByRole("button", { name: "Start Audit" }).disabled).toBe(true);
     fireEvent.click(setup.getByRole("button", { name: "Accounting Month" }));
     fireEvent.click(setup.getByRole("gridcell", { name: "Oct" }));
-    fireEvent.change(setup.getByPlaceholderText("Select date"), { target: { value: `1 Nov ${year}` } });
-    expect(setup.getByRole("button", { name: "Start Audit" }).disabled).toBe(true);
-    fireEvent.click(setup.getByRole("button", { name: "Time" }));
-    fireEvent.click(setup.getByRole("button", { name: "Hour" }));
-    fireEvent.click(setup.getByRole("option", { name: "12", exact: true }));
-    fireEvent.click(setup.getByRole("button", { name: "Done" }));
-    fireEvent.click(screen.getByRole("button", { name: "Start Audit" }));
+    fireEvent.click(setup.getByRole("button", { name: "Start Audit" }));
     await waitFor(() => expect(mocks.persist).toHaveBeenCalledWith(
-      expect.objectContaining({ closingMonth: `${year}-10`, date: `${year}-11-01`,
-        closingCutoff: `${year}-11-01T00:00:00`, auditName: `Month-End Closing · Oct ${year} · 1 Nov ${year}` }),
+      expect.objectContaining({ closingMonth: `${year}-10` }),
       [expect.objectContaining({ itemId: "item", actualCount: "" }), expect.objectContaining({ itemId: "uncategorized", actualCount: "" })],
-      "draft", "admin", undefined,
+      "draft", expect.any(String),
     ));
     await screen.findByText("QA Uncategorised");
     expect(screen.queryByRole("button", { name: "Skip" })).toBeNull();
@@ -171,7 +176,7 @@ describe("Stock Check execution scoped read", () => {
     await waitFor(() => expect(mocks.persist).toHaveBeenLastCalledWith(
       expect.objectContaining({ existingCheckId: "audit" }),
       [expect.objectContaining({ actualCount: 0, notes: "Verified shelf" }), expect.objectContaining({ actualCount: 0 })],
-      "submitted", "admin", undefined,
+      "submitted", expect.any(String),
     ));
   });
 

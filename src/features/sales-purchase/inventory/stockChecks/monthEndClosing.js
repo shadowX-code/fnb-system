@@ -16,7 +16,8 @@ export function generateAuditName(type, date, month) {
 
 export function updateClosingAuditName(name, previousDate, previousMonth, date, month) {
   // Existing custom names remain intact when a closing draft is edited.
-  return previousMonth && name === generateAuditName(MONTH_END_CLOSING, previousDate, previousMonth)
+  return previousMonth && previousMonth !== month && name?.replaceAll("Sept ", "Sep ")
+    === generateAuditName(MONTH_END_CLOSING, previousDate, previousMonth).replaceAll("Sept ", "Sep ")
     ? generateAuditName(MONTH_END_CLOSING, date, month) : name;
 }
 

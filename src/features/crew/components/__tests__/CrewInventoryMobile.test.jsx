@@ -241,37 +241,55 @@ describe("Crew Inventory mobile authority boundary", () => {
     expect(api.inventoryPurchaseOrders).not.toHaveBeenCalled();
   });
 
-  it("creates an Audit draft without a purchase source and resumes its saved count", async () => {
+  it("starts an Audit on the server, retries the same start, and resumes its original timestamp", async () => {
+    const started = "2026-09-24T00:00:00Z";
     api.inventoryStockChecks.mockImplementation(async (_token, _outlet, id) => id ? { ...stock, detail: {
-      id, type: "audit", status: "draft", audit_name: "Weekly Audit", audit_type: "Spot Check", check_date: "2026-09-24",
+      id, type: "audit", status: "draft", audit_name: "Weekly Audit", audit_type: "Spot Check", check_date: "2026-09-24", created_at: started,
       items: [{ item_id: "item-1", item_name: "Rice", category_id: "cat-1", par_level_quantity: 10, actual_count_quantity: 7, unit: "kg" }],
     } } : { ...stock, can_create_audit_stock_check: true, checks: [{ id: "audit-1", type: "audit", status: "draft", name: "Weekly Audit", audit_type: "Spot Check", item_count: 1 }] });
-    api.saveInventoryStockCheck.mockResolvedValue({ check: { id: "audit-1" } });
+    api.saveInventoryStockCheck.mockRejectedValueOnce(new Error("Lost response")).mockResolvedValue({ check: {
+      id: "audit-1", stock_check_type: "audit", audit_type: "Spot Check", status: "draft",
+      audit_name: "Spot Check · 24 Sep 2026", check_date: "2026-09-24", created_at: started,
+    } });
     render(<CrewStockCheckMobile token="token" outletId="outlet-1" grants={{ can_create_audit_stock_check: true }} onBack={() => {}} />);
     fireEvent.click(await screen.findByRole("tab", { name: "Audit" }));
     fireEvent.click(screen.getByRole("button", { name: "Audit" }));
     expect(screen.queryByRole("textbox", { name: /audit name/i })).toBeNull();
     fireEvent.click(screen.getByRole("checkbox", { name: "Dry Goods" }));
+    expect(screen.queryByRole("button", { name: "Check date" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    expect((await screen.findByRole("alert")).textContent).toContain("Lost response");
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    expect(await screen.findByText("24 Sept 2026 · 8:00 AM")).toBeTruthy();
+    expect(api.saveInventoryStockCheck.mock.calls[0][2]).toBe(api.saveInventoryStockCheck.mock.calls[1][2]);
+    const startPayload = api.saveInventoryStockCheck.mock.calls[0][3];
+    expect(startPayload).toMatchObject({ stock_check_type: "audit", status: "draft", outlet_id: "outlet-1" });
+    expect(startPayload).not.toHaveProperty("check_date");
     fireEvent.click(screen.getByRole("button", { name: "Save Draft" }));
-    await waitFor(() => expect(api.saveInventoryStockCheck).toHaveBeenCalledTimes(1));
-    expect(api.saveInventoryStockCheck.mock.calls[0][3]).toMatchObject({ stock_check_type: "audit", status: "draft", outlet_id: "outlet-1", audit_name: "Spot Check · 24 Sept 2026" });
+    await waitFor(() => expect(api.saveInventoryStockCheck).toHaveBeenCalledTimes(3));
+    expect(api.saveInventoryStockCheck.mock.calls[2][3]).not.toHaveProperty("created_at");
     fireEvent.click(await screen.findByRole("button", { name: "Continue: Weekly Audit" }));
-    expect(await screen.findByRole("spinbutton", { name: /Rice.*Actual count/ })).not.toBeNull();
+    expect(await screen.findByText("24 Sept 2026 · 8:00 AM")).toBeTruthy();
+    expect((await screen.findByRole("spinbutton", { name: /Rice.*Actual count/ })).value).toBe("7");
     expect(api.inventoryPurchaseOrders).not.toHaveBeenCalled();
   });
 
-  it("records a Month-End Closing cutoff and explicitly counted zero in Crew", async () => {
+  it("submits a Month-End Closing with an accounting month and explicit zero, without a cutoff", async () => {
     api.inventoryStockChecks.mockResolvedValue({ ...stock, can_create_audit_stock_check: true });
-    api.saveInventoryStockCheck.mockResolvedValue({ check: { id: "closing-audit" } });
+    const year = new Date().getFullYear();
+    const draft = { id: "closing-audit", stock_check_type: "audit", audit_type: "Month-End Closing", status: "draft",
+      accounting_month: `${year}-08-01`, audit_name: `Month-End Closing · Aug ${year} · 20 Nov ${year}`,
+      check_date: `${year}-11-20`, created_at: `${year}-11-20T01:00:00Z` };
+    api.saveInventoryStockCheck.mockResolvedValueOnce({ check: draft })
+      .mockResolvedValue({ check: { ...draft, status: "submitted", submitted_at: `${year}-11-20T02:00:00Z` } });
     render(<CrewStockCheckMobile token="token" outletId="outlet-1" grants={{ can_create_audit_stock_check: true }} onBack={() => {}} />);
     fireEvent.click(await screen.findByRole("tab", { name: "Audit" }));
     fireEvent.click(screen.getByRole("button", { name: "Audit" }));
     fireEvent.click(screen.getByRole("button", { name: /Audit type/i }));
     fireEvent.click(await screen.findByText("Month-End Closing"));
-    const year = new Date().getFullYear();
     const setup = within(screen.getByRole("dialog", { name: "Audit" }));
-    expect(setup.getByText("Actual stock count date and time (MYT).")).toBeTruthy();
+    expect(setup.queryByText("Stock Count Date & Time")).toBeNull();
+    expect(setup.getByRole("button", { name: "Continue" }).disabled).toBe(true);
     expect(setup.getByRole("button", { name: "Accounting Month" }).className).toBe(setup.getByRole("button", { name: "Audit type" }).className);
     fireEvent.click(setup.getByRole("button", { name: "Accounting Month" }));
     const monthPicker = within(screen.getByRole("dialog", { name: "Accounting Month" }));
@@ -279,16 +297,9 @@ describe("Crew Inventory mobile authority boundary", () => {
     expect(screen.queryByRole("dialog", { name: "Accounting Month" })).toBeNull();
     fireEvent.click(setup.getByRole("button", { name: "Accounting Month" }));
     fireEvent.click(within(screen.getByRole("dialog", { name: "Accounting Month" })).getByRole("button", { name: "Aug" }));
-    fireEvent.click(setup.getByRole("button", { name: "Time" }));
-    const timePicker = within(screen.getByRole("dialog", { name: "Time" }));
-    fireEvent.click(timePicker.getByRole("button", { name: "Second" }));
-    fireEvent.click(within(screen.getByRole("dialog", { name: "Second" })).getByRole("option", { name: "31", exact: true }));
-    fireEvent.click(timePicker.getByRole("button", { name: "Done" }));
-    expect(setup.getByRole("button", { name: "Continue" }).disabled).toBe(true);
-    fireEvent.click(setup.getByRole("button", { name: "Date" }));
-    fireEvent.click(within(screen.getByRole("dialog", { name: "Date" })).getByRole("button", { current: "date" }));
-    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-    const input = screen.getByRole("spinbutton", { name: /Rice.*Actual count/ });
+    fireEvent.click(setup.getByRole("button", { name: "Continue" }));
+    const input = await screen.findByRole("spinbutton", { name: /Rice.*Actual count/ });
+    expect(screen.getByText("Count Started At (MYT)")).toBeTruthy();
     expect(input.value).toBe("");
     expect(screen.queryByRole("button", { name: "Skip" })).toBeNull();
     expect(screen.getByRole("button", { name: "Review (0/1)" }).disabled).toBe(true);
@@ -297,25 +308,29 @@ describe("Crew Inventory mobile authority boundary", () => {
     fireEvent.click(screen.getByRole("button", { name: "Complete Check" }));
     await waitFor(() => expect(api.saveInventoryStockCheck).toHaveBeenCalledWith("token", "outlet-1", expect.any(String),
       expect.objectContaining({ status: "submitted", accounting_month: `${year}-08-01`,
-        audit_name: expect.stringContaining(`Month-End Closing · Aug ${year} · `), physical_count_cutoff: expect.stringMatching(/T09:00:31\+08:00$/) }),
+        audit_name: expect.stringContaining(`Month-End Closing · Aug ${year} · `) }),
       [expect.objectContaining({ item_id: "item-1", actual_count_quantity: 0 })]));
+    expect(api.saveInventoryStockCheck.mock.calls[1][3]).not.toHaveProperty("physical_count_cutoff");
+    expect(await screen.findByText(`20 Nov ${year} · 10:00 AM`)).toBeTruthy();
   });
 
-  it("keeps an existing closing draft's custom name and time to the second", async () => {
+  it("keeps an existing closing draft's custom name and leaves its historical cutoff to the server", async () => {
     api.inventoryStockChecks.mockImplementation(async (_token, _outlet, id) => id ? { ...stock, detail: {
       id, type: "audit", status: "draft", audit_type: "Month-End Closing", audit_name: "Legacy closing name",
       check_name: "Legacy closing check", check_date: "2026-08-31", accounting_month: "2026-08-01",
-      physical_count_cutoff: "2026-08-31T15:59:42Z",
+      physical_count_cutoff: "2026-08-31T15:59:42Z", created_at: "2026-08-31T14:00:00Z",
       items: [{ item_id: "item-1", item_name: "Rice", actual_count_quantity: 0, unit: "kg" }],
     } } : { ...stock, can_create_audit_stock_check: true });
     api.saveInventoryStockCheck.mockResolvedValue({ check: { id: "closing-audit" } });
     render(<CrewStockCheckMobile token="token" outletId="outlet-1" grants={{ can_create_audit_stock_check: true }}
       initialTarget={{ id: "closing-audit" }} onBack={() => {}} />);
-    expect(await screen.findByText("23:59:42")).toBeTruthy();
+    expect(await screen.findByText("31 Aug 2026 · 10:00 PM")).toBeTruthy();
+    expect(screen.queryByText("23:59:42")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Save Draft" }));
     await waitFor(() => expect(api.saveInventoryStockCheck).toHaveBeenCalledWith("token", "outlet-1", expect.any(String),
       expect.objectContaining({ id: "closing-audit", audit_name: "Legacy closing name", check_name: "Legacy closing check",
-        check_date: "2026-08-31", physical_count_cutoff: "2026-08-31T23:59:42+08:00" }), expect.any(Array)));
+        check_date: "2026-08-31" }), expect.any(Array)));
+    expect(api.saveInventoryStockCheck.mock.calls[0][3]).not.toHaveProperty("physical_count_cutoff");
   });
 
   it("deletes only an Audit draft through the trusted command", async () => {

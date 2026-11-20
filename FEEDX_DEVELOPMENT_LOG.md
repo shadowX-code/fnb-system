@@ -1,5 +1,9 @@
 # FeedX Development Log
 
+## 2026-11-20 — Audit Stock Check timestamps
+
+Admin and Crew audit starts now use the saved draft creation timestamp, and both surfaces display server submission time in MYT. Month-End Closing continues to capture Accounting Month before counting, while the approver confirms the separate physical count cutoff using supporting evidence. See [Inventory and Assets](docs/domains/inventory-and-assets.md#lifecycle-and-business-rules).
+
 ## 2026-11-20 — Restaurant Master Inventory Cost History
 
 Added scoped, append-only global unit cost maintenance in Master Inventory, with a Cost History drawer, confirmed-cost baselines, explicit corrections and a compatibility projection for existing consumers. Submitted Audit costs and published Closing Stock retain their original evidence. See [Inventory and Assets](docs/domains/inventory-and-assets.md#master-inventory-cost-history).

@@ -1,4 +1,4 @@
-import { MONTH_END_CLOSING, toPhysicalCountCutoff } from "./monthEndClosing.js";
+import { MONTH_END_CLOSING } from "./monthEndClosing.js";
 import { readCompleteInventoryRows } from "../../../../services/inventoryCompleteRead.js";
 import { supabase } from "../../../../lib/supabase.ts";
 import { inventoryLifecycleService } from "../../../../services/inventoryLifecycleService.js";
@@ -82,7 +82,7 @@ export async function loadStockCheckExecution(outletIds) {
   };
 }
 
-export async function persistRemoteStockCheck(activeGroup, rows = [], status = "draft", userId, employeeId) {
+export async function persistRemoteStockCheck(activeGroup, rows = [], status = "draft", requestId) {
   if (!activeGroup) throw new Error("Stock check is not active.");
   const isAudit = activeGroup.stockCheckType === "audit";
   const checkDate = String(activeGroup.date || "").slice(0, 10);
@@ -91,25 +91,22 @@ export async function persistRemoteStockCheck(activeGroup, rows = [], status = "
     outlet_id: isUuid(activeGroup.outletId) ? activeGroup.outletId : null,
     group_id: isAudit ? null : (isUuid(activeGroup.id) ? activeGroup.id : null),
     stock_check_type: isAudit ? "audit" : "scheduled",
-    check_name: isAudit ? (activeGroup.auditName || activeGroup.name || "Audit Stock Check") : (activeGroup.name || "Stock Check"),
+    check_name: isAudit ? activeGroup.auditName || activeGroup.name || null : activeGroup.name || "Stock Check",
     shift: activeGroup.shift || (isAudit ? "Audit" : null),
-    check_date: checkDate,
+    check_date: checkDate || null,
     ...(isAudit && activeGroup.auditType === MONTH_END_CLOSING ? {
       accounting_month: activeGroup.closingMonth ? `${activeGroup.closingMonth}-01` : null,
-      physical_count_cutoff: toPhysicalCountCutoff(activeGroup.closingCutoff),
     } : {}),
     audit_type: isAudit ? (activeGroup.auditType || "Custom Audit") : null,
-    audit_name: isAudit ? (activeGroup.auditName || activeGroup.name || "Audit Stock Check") : null,
+    audit_name: isAudit ? activeGroup.auditName || activeGroup.name || null : null,
     audit_category_ids: isAudit ? uniqueIds(activeGroup.categoryIds || activeGroup.auditCategoryIds || []) : [],
     notes: activeGroup.notes || null,
     status,
-    submitted_at: status === "submitted" ? new Date().toISOString() : null,
-    updated_at: new Date().toISOString(),
   };
-  if (status === "submitted" && isUuid(employeeId)) payload.submitted_by = employeeId;
   if (!payload.outlet_id) throw new Error("Outlet is required.");
   if (!isAudit && !payload.group_id) throw new Error("Stock check group is required.");
   const result = await inventoryLifecycleService.saveInventoryStockCheck({
+    requestId,
     check: { id: existingId || null, ...payload },
     items: rows.map((row) => ({
       item_id: isUuid(row.itemId) ? row.itemId : null,

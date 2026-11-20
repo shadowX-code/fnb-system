@@ -22,8 +22,9 @@ import FactoryPagination from "../../../factory/components/FactoryPagination.jsx
 
 const SHOW_STOCK_CHECK_CARD_DEBUG = import.meta.env.DEV && String(import.meta.env.VITE_SHOW_STOCK_CHECK_CARD_DEBUG ?? "false").toLowerCase() === "true";
 const shifts = ["Opening", "Mid", "Closing", "Any Shift"];
-import ClosingCountFields from "./ClosingCountFields.jsx";
-import { generateAuditName, MONTH_END_CLOSING, toClosingLocalTime, toPhysicalCountCutoff, updateClosingAuditName } from "./monthEndClosing.js";
+import MonthPickerField from "../../../../components/forms/MonthPickerField.jsx";
+import AuditCountTimestamps from "./AuditCountTimestamps.jsx";
+import { MONTH_END_CLOSING, updateClosingAuditName } from "./monthEndClosing.js";
 
 const auditTypes = [MONTH_END_CLOSING, "Full Stock Audit", "Spot Check", "Category Audit", "Custom Audit"];
 function parLevelForOutlet(item = {}, outletId) { return outletConfigForItem(item, outletId).parLevel; }
@@ -322,7 +323,6 @@ function StockCheckMobileView({
         description={`${outletName} · ${isAudit ? activeCheckGroup.auditType : activeCheckGroup.shift} · ${dateLabel}`}
         action={<button className="btn-secondary h-9 px-3 text-xs" type="button" onClick={onBack}>Back</button>}
       >
-        {closingFields}
         <div className="grid gap-2 rounded-2xl border border-border bg-slate-50 p-3">
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -345,7 +345,9 @@ function StockCheckMobileView({
               </div>
             </div>
           </div>
+          {isAudit && <AuditCountTimestamps startedAt={activePersistedCheck?.createdAt} submittedAt={activePersistedCheck?.submittedAt} />}
         </div>
+        {closingFields}
 
         {isAudit && <div className="mt-3">{auditFilters}</div>}
 
@@ -467,13 +469,11 @@ function StockCheckMobileView({
 }
 
 
-function AuditStockCheckModal({ outlets, categories, items, onClose, onStart }) {
+function AuditStockCheckModal({ outlets, categories, items, onClose, onStart, starting }) {
   const [form, setForm] = useState({
     outletId: outlets[0]?.id || "",
-    date: todayInput(),
     auditType: auditTypes[0],
     closingMonth: "",
-    closingCutoff: "",
     categoryIds: [],
     notes: "",
   });
@@ -483,8 +483,8 @@ function AuditStockCheckModal({ outlets, categories, items, onClose, onStart }) 
   const selectedLinkedItemCount = outletItems.filter((item) => selectedCategories.has(item.categoryId)).length;
   const isClosing = form.auditType === MONTH_END_CLOSING;
   const canStart = form.outletId && form.auditType
-    && (isClosing ? outletItems.length > 0 && form.closingMonth && toPhysicalCountCutoff(form.closingCutoff)
-      : form.date && selectedLinkedItemCount > 0);
+    && (isClosing ? outletItems.length > 0 && form.closingMonth
+      : selectedLinkedItemCount > 0);
 
   function update(key, value) {
     setForm((current) => {
@@ -504,11 +504,11 @@ function AuditStockCheckModal({ outlets, categories, items, onClose, onStart }) 
       title="Audit Stock Check"
       description="Run a special non-scheduled stock check for closing, spot checks or control audits."
       size="xl"
-      onClose={onClose}
+      onClose={starting ? undefined : onClose}
       footer={(
         <>
-          <button className="btn-secondary" type="button" onClick={onClose}>Cancel</button>
-          <button className="btn-primary" type="button" disabled={!canStart} onClick={() => onStart(form)}>Start Audit</button>
+          <button className="btn-secondary" type="button" disabled={starting} onClick={onClose}>Cancel</button>
+          <button className="btn-primary" type="button" disabled={starting || !canStart} onClick={() => onStart(form)}>{starting ? "Starting…" : "Start Audit"}</button>
         </>
       )}
     >
@@ -517,10 +517,8 @@ function AuditStockCheckModal({ outlets, categories, items, onClose, onStart }) 
           <SelectField label="Outlet" value={form.outletId} options={outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))} onChange={(value) => update("outletId", value)} searchable />
           <SelectField label="Audit Type" value={form.auditType} options={auditTypes.map((type) => ({ value: type, label: type }))} onChange={(value) => update("auditType", value)} />
         </div>
-        {isClosing
-          ? <ClosingCountFields className="md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]" month={form.closingMonth} cutoff={form.closingCutoff}
-              onMonthChange={value => update("closingMonth", value)} onCutoffChange={value => update("closingCutoff", value)} />
-          : <DatePickerField className="max-w-md" label="Audit Date" value={form.date} onChange={(value) => update("date", value)} required />}
+        {isClosing && <MonthPickerField className="max-w-xs" label="Accounting Month" emptyLabel="Select month"
+          value={form.closingMonth} onChange={value => update("closingMonth", value)} />}
         {isClosing ? <p className="type-caption text-text-secondary">Count all {outletItems.length} active outlet items. Enter zero if an item has no stock.</p> : <div className="rounded-2xl border border-border p-3">
           <div className="type-title font-bold text-text-primary">Category Selection</div>
           <p className="mt-1 type-caption text-text-secondary">Audit setup selects categories only. The full item list is generated next, and individual items can be skipped during counting with a reason.</p>
@@ -606,7 +604,8 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
   const [activeCheckGroupId, setActiveCheckGroupId] = useState(null);
   const [activeScheduledCheckId, setActiveScheduledCheckId] = useState(null);
   const [activeAuditCheck, setActiveAuditCheck] = useState(null);
-  const [closingDetails, setClosingDetails] = useState({ closingMonth: "", closingCutoff: "" });
+  const [closingMonth, setClosingMonth] = useState("");
+  const pendingAuditRequest = useRef(null);
   const [checkRows, setCheckRows] = useState([]);
   const [savingStockCheck, setSavingStockCheck] = useState(false);
   const [checkValidationAttempted, setCheckValidationAttempted] = useState(false);
@@ -776,7 +775,7 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
     }
     try {
       const initialRows = initialStockCheckRowsForGroup({ ...group, date });
-      const savedCheck = await persistRemoteStockCheck({ ...group, date, existingCheckId: "" }, buildStockCheckRowsForGroup({ ...group, date }, initialRows), "draft", auth?.user?.id, auth?.profile?.id);
+      const savedCheck = await persistRemoteStockCheck({ ...group, date, existingCheckId: "" }, buildStockCheckRowsForGroup({ ...group, date }, initialRows), "draft");
       setData((current) => ({ ...current, checks: [savedCheck, ...current.checks.filter((check) => check.id !== savedCheck.id)] }));
       await refreshExecution();
       setActiveAuditCheck(null);
@@ -789,14 +788,20 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
     }
   }
 
+  async function persistAudit(group, rows, status) {
+    const signature = JSON.stringify([group, rows.map(({ id, ...row }) => row), status]);
+    if (pendingAuditRequest.current?.signature !== signature) {
+      pendingAuditRequest.current = { signature, id: crypto.randomUUID() };
+    }
+    const saved = await persistRemoteStockCheck(group, rows, status, pendingAuditRequest.current.id);
+    pendingAuditRequest.current = null;
+    return saved;
+  }
+
   async function startAuditStockCheck(form) {
-    const isClosing = form.auditType === MONTH_END_CLOSING;
-    const countDate = isClosing ? form.closingCutoff.slice(0, 10) : form.date;
-    const auditName = generateAuditName(form.auditType, countDate, form.closingMonth);
+    if (savingStockCheck) return;
     const auditGroup = {
-      id: makeId("audit_group"),
       outletId: form.outletId,
-      name: auditName,
       description: form.notes || "",
       categoryIds: form.categoryIds,
       itemIds: [],
@@ -807,30 +812,31 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
       status: "active",
       stockCheckType: "audit",
       auditType: form.auditType,
-      auditName,
-      date: countDate,
       closingMonth: form.closingMonth,
-      closingCutoff: form.closingCutoff,
       notes: form.notes,
     };
     try {
+      setSavingStockCheck(true);
       const initialRows = initialStockCheckRowsForGroup(auditGroup);
-      const savedCheck = await persistRemoteStockCheck(auditGroup, buildStockCheckRowsForGroup(auditGroup, initialRows), "draft", auth?.user?.id, auth?.profile?.id);
+      const savedCheck = await persistAudit(auditGroup, buildStockCheckRowsForGroup(auditGroup, initialRows), "draft");
       setData((current) => ({ ...current, checks: [savedCheck, ...current.checks.filter((check) => check.id !== savedCheck.id)] }));
       await refreshExecution();
       setSelectedOutletId(form.outletId);
-      setDate(auditGroup.date);
-      setClosingDetails({ closingMonth: form.closingMonth, closingCutoff: form.closingCutoff });
+      setDate(savedCheck.date);
+      setClosingMonth(savedCheck.accountingMonth?.slice(0, 7) || "");
       setActiveCheckGroupId(null);
       setActiveScheduledCheckId(null);
       setCheckSearch("");
       setCheckCategory("all");
-      setActiveAuditCheck({ ...auditGroup, id: savedCheck.id, existingCheckId: savedCheck.id });
+      setActiveAuditCheck({ ...auditGroup, id: savedCheck.id, existingCheckId: savedCheck.id,
+        date: savedCheck.date, name: savedCheck.auditName, auditName: savedCheck.auditName });
       setModal(null);
     } catch (error) {
       console.warn("[StockCheckExecution] Unable to start audit stock check.", error);
       debugLog("[AuditStockCheckDebug]", { action: "start-audit", form, error });
       notify("Unable to start audit stock check", error.message || "Please try again.", "error");
+    } finally {
+      setSavingStockCheck(false);
     }
   }
 
@@ -839,7 +845,7 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
       notify("Start a new closing audit", "This draft was created before closing counts required explicit actuals.", "warning");
       return;
     }
-    setClosingDetails({ closingMonth: check.accountingMonth?.slice(0, 7) || "", closingCutoff: toClosingLocalTime(check.physicalCountCutoff) });
+    setClosingMonth(check.accountingMonth?.slice(0, 7) || "");
     setSelectedOutletId(check.outletId);
     setDate(check.date || todayInput());
     setActiveCheckGroupId(null);
@@ -962,8 +968,8 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
     if (savingStockCheck) return;
     const isAudit = activeCheckGroup.stockCheckType === "audit";
     const isClosing = activeCheckGroup.auditType === MONTH_END_CLOSING;
-    if (isClosing && (!closingDetails.closingMonth || !toPhysicalCountCutoff(closingDetails.closingCutoff))) {
-      notify("Closing details required", "Enter the Accounting Month and Stock Count Date & Time.", "warning");
+    if (isClosing && !closingMonth) {
+      notify("Accounting Month required", "Select the month this audit closes.", "warning");
       return;
     }
     if (status === "submitted") {
@@ -977,19 +983,19 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
     const existingDraft = isAudit ? null : activeScheduledCheckId
       ? data.checks.find((check) => check.id === activeScheduledCheckId)
       : draftCheckForGroupRun(activeCheckGroup, data.checks, activeCheckGroup.date || date, stockCheckShiftFilter);
-    const checkDate = isClosing ? closingDetails.closingCutoff.slice(0, 10) : activeCheckGroup.date || date;
+    const checkDate = activeCheckGroup.date || date;
     const persistGroup = {
       ...activeCheckGroup,
-      ...closingDetails,
-      ...(isClosing ? { auditName: updateClosingAuditName(activeCheckGroup.auditName, activeCheckGroup.date,
-        activeCheckGroup.closingMonth, checkDate, closingDetails.closingMonth) } : {}),
+      ...(isClosing ? { closingMonth, auditName: updateClosingAuditName(activeCheckGroup.auditName, checkDate,
+        activeCheckGroup.closingMonth, checkDate, closingMonth) } : {}),
       date: checkDate,
       existingCheckId: activeCheckGroup.existingCheckId || existingDraft?.id || activeScheduledCheckId || "",
     };
     const rows = buildStockCheckRowsForGroup(persistGroup);
     try {
       setSavingStockCheck(true);
-      const savedCheck = await persistRemoteStockCheck(persistGroup, rows, status, auth?.user?.id, auth?.profile?.id);
+      const savedCheck = await (isAudit ? persistAudit(persistGroup, rows, status)
+        : persistRemoteStockCheck(persistGroup, rows, status));
       const refreshedInventory = await refreshExecution();
       if (status === "submitted") {
         debugLog("[SubmittedScheduledChecksDebug]");
@@ -1046,10 +1052,8 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
     if (activeCheckGroup) {
       const isAudit = activeCheckGroup.stockCheckType === "audit";
       const isClosing = activeCheckGroup.auditType === MONTH_END_CLOSING;
-      const closingFields = isClosing && <ClosingCountFields className="mb-3 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]"
-        month={closingDetails.closingMonth} cutoff={closingDetails.closingCutoff}
-        onMonthChange={closingMonth => setClosingDetails(current => ({ ...current, closingMonth }))}
-        onCutoffChange={closingCutoff => setClosingDetails(current => ({ ...current, closingCutoff }))} />;
+      const closingFields = isClosing && <MonthPickerField className="my-3 max-w-xs" label="Accounting Month"
+        emptyLabel="Select month" value={closingMonth} onChange={setClosingMonth} />;
       const activePersistedCheck = activeScheduledCheckId
         ? data.checks.find((check) => check.id === activeScheduledCheckId)
         : activeCheckGroup.existingCheckId
@@ -1208,6 +1212,8 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
                 </div>
               </div>
             </div>
+            {isAudit && <AuditCountTimestamps className="mb-3 rounded-xl border border-border p-3"
+              startedAt={activePersistedCheck?.createdAt} submittedAt={activePersistedCheck?.submittedAt} />}
             {closingFields}
             {isAudit ? (
               <div className="mb-3 flex flex-col gap-2 rounded-2xl border border-border bg-slate-50 p-3 md:flex-row md:items-center md:justify-between">
@@ -1409,7 +1415,7 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
     <PageHeader section="INVENTORY CONTROL" title={meta.title} description={meta.description} actions={<button className="btn-primary" type="button" onClick={() => requirePermission(can.createCheck, "create audit stock checks") && setModal({ type: "audit-stock-check" })}><ClipboardCheck size={15} /> Audit Stock Check</button>} />
     {executionRead.state === "refreshing" ? <p role="status" className="text-sm text-text-secondary">Refreshing Stock Checks. Showing the last verified complete read.</p> : null}
     {renderStockCheck()}
-    {modal?.type === "audit-stock-check" ? <AuditStockCheckModal outlets={outlets.filter((outlet) => accessibleOutletIds.includes(outlet.id))} categories={sortedCategories} items={data.items} onClose={() => setModal(null)} onStart={startAuditStockCheck} /> : null}
+    {modal?.type === "audit-stock-check" ? <AuditStockCheckModal outlets={outlets.filter((outlet) => accessibleOutletIds.includes(outlet.id))} categories={sortedCategories} items={data.items} onClose={() => setModal(null)} onStart={startAuditStockCheck} starting={savingStockCheck} /> : null}
     {modal?.type === "skip-check-row" ? <SkipReasonModal itemName={modal.itemName} onClose={() => setModal(null)} onSave={(reason) => skipCheckRow(modal.rowIndex, reason)} /> : null}
     <InventoryItemPhotoPreview preview={photoPreview} onClose={() => setPhotoPreview(null)} />
   </div>;

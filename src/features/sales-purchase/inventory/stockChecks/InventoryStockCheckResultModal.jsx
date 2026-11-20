@@ -7,6 +7,7 @@ import AdminSummaryGrid from "../../../../components/ui/AdminSummaryGrid.jsx";
 import { FactoryDataSurface, FactoryTable } from "../../../factory/components/FactoryDataDisplay.jsx";
 import FactoryStatusBadge from "../../../factory/components/FactoryStatusBadge.jsx";
 import ClosingStockApproval from "./ClosingStockApproval.jsx";
+import AuditCountTimestamps from "./AuditCountTimestamps.jsx";
 import { auditStockCheckValuation } from "./auditStockCheckValuation.js";
 
 function auditQuantityVariance(row) {
@@ -105,7 +106,9 @@ export default function InventoryStockCheckResultModal({
     footer={<><button className="btn-secondary" type="button" onClick={onClose}>Close</button>{onRestock ? <button className="btn-primary" type="button" onClick={onRestock}>Review Purchase Suggestions</button> : null}</>}
   >
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-x-8 gap-y-2 text-sm"><div><span className="text-text-secondary">Checked by</span><div className="font-semibold text-text-primary">{submittedByName}</div></div><div><span className="text-text-secondary">Submitted at</span><div className="font-semibold text-text-primary">{formatDateTimeCompact(stockCheck.submittedAt)}</div></div></div>
+      <div className="flex flex-wrap gap-x-8 gap-y-2 text-sm"><div><span className="text-text-secondary">Checked by</span><div className="font-semibold text-text-primary">{submittedByName}</div></div>{isAuditResult
+        ? <AuditCountTimestamps startedAt={stockCheck.createdAt} submittedAt={stockCheck.submittedAt} />
+        : <div><span className="text-text-secondary">Submitted at</span><div className="font-semibold text-text-primary">{formatDateTimeCompact(stockCheck.submittedAt)}</div></div>}</div>
       {closing && <ClosingStockApproval check={stockCheck} context={closing} itemById={itemById}
         canApprove={canApproveClosing} formatCurrency={formatCurrency} />}
       <AdminSummaryGrid variant="compact" ariaLabel="Audit item counts" items={countItems} />

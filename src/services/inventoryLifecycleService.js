@@ -43,13 +43,14 @@ export const inventoryLifecycleService = {
     });
   },
 
-  async approveClosingStock({ checkId, requestId: suppliedRequestId, reconciliation, supersedesId, reason }) {
+  async approveClosingStock({ checkId, requestId: suppliedRequestId, reconciliation, supersedesId, reason, physicalCountCutoff }) {
     return call("inventory.closing.approve", "inventory_approve_closing_stock", {
       p_check_id: requireUuid(checkId, "Stock Check"),
       p_request_id: suppliedRequestId || requestId(),
       p_reconciliation: reconciliation,
       p_supersedes_id: supersedesId,
       p_correction_reason: reason,
+      ...(physicalCountCutoff ? { p_physical_count_cutoff: physicalCountCutoff } : {}),
     });
   },
 
