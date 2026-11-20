@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({ read: vi.fn(), existingLinks: [], savedConfigs
 vi.mock("../../../../../services/inventoryCompleteRead.js", () => ({ readCompleteInventoryRows: mocks.read }));
 vi.mock("../../../../../lib/supabase.ts", () => ({
   supabase: {
+    rpc: vi.fn(async () => ({ data: {}, error: null })),
     from(table) {
       let action = "read";
       let payload;
@@ -70,7 +71,8 @@ describe("Master Inventory read and item persistence boundary", () => {
       { id: "link-a", inventory_item_id: itemId, outlet_id: outletA, par_level: 1 },
       { id: "link-b", inventory_item_id: itemId, outlet_id: outletB, par_level: 2 },
     ];
-    const saved = await persistRemoteInventoryItem({ id: itemId, name: "QA Item", unit: "kg", linkedOutletIds: [outletA], outletConfigs: [{ outletId: outletA, parLevel: 1 }] }, "qa-user", [outletA]);
+    const saved = await persistRemoteInventoryItem({ id: itemId, name: "QA Item", unit: "kg", cost: 5, linkedOutletIds: [outletA], outletConfigs: [{ outletId: outletA, parLevel: 1 }] }, "qa-user", [outletA]);
+    expect(mocks.operations.find(operation => operation.table === "inventory_items")?.payload).not.toHaveProperty("cost");
     expect(mocks.operations.some(operation => operation.action === "delete")).toBe(false);
     expect(mocks.operations.find(operation => operation.action === "upsert")?.payload).toMatchObject([{ inventory_item_id: itemId, outlet_id: outletA }]);
     expect(saved.linkedOutletIds).toEqual([outletA, outletB]);

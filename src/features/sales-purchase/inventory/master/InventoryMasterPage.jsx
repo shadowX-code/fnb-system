@@ -14,7 +14,9 @@ import { subscribeInventoryRevalidation, invalidateInventoryReads } from '../../
 import { getAccessibleOutletOptions, getAccessibleOutlets, hasAllOutletAccess, hasPermission, notifyPermissionDenied } from '../../../../utils/accessControl.js';
 import { IMAGE_UPLOAD_ACCEPT, isImageDataUrl as isStandardImageDataUrl, optimizeImageFileForPreview, removeStorageObjectFromPublicUrl, uploadOptimizedImage } from '../../../../utils/imageUpload.js';
 import { normalizeOutletRecord, normalizeInventoryItem, uniqueIds, buildOutletConfig, isActiveInventoryItem, categoryForItem, canonical, isUuid, outletDisplayCode, outletDisplayName } from '../inventoryItemModel.js';
-import { InventoryCategoryIcon, SectionCard, TextArea, Field, selectInputText, csvEscape, downloadTextFile, todayInput } from '../InventorySharedPresentation.jsx';
+import { InventoryCategoryIcon, SectionCard, TextArea, Field, csvEscape, downloadTextFile, todayInput } from '../InventorySharedPresentation.jsx';
+import InventoryCostHistoryDrawer from './InventoryCostHistoryDrawer.jsx';
+import { formatInventoryCost, formatInventoryCostChange, parseInventoryCostInput } from './inventoryCostPresentation.js';
 import InventoryItemPhotoPreview from '../InventoryItemPhotoPreview.jsx';
 import { loadInventoryMaster, normalizeUom, persistRemoteInventoryItem, persistRemoteInventoryCategory, persistRemoteInventoryUom, countRemoteInventoryItemsForCategory, countRemoteInventoryItemsForUom, uomSaveErrorMessage } from './inventoryMasterService.js';
 
@@ -33,29 +35,6 @@ function toTitle(value = "") {
     .replace(/_/g, " ")
     .replace(/\b\w/g, (match) => match.toUpperCase());
 }
-
-
-
-function formatInventoryCost(value, unit = "") {
-  if (value === "" || value === null || value === undefined) return "—";
-  const amount = Number(value);
-  if (!Number.isFinite(amount)) return "—";
-  const formatted = amount.toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 4 });
-  return `RM ${formatted}${unit ? ` / ${unit}` : ""}`;
-}
-
-function parseInventoryCostInput(value) {
-  const raw = String(value ?? "").trim();
-  if (!raw) return "";
-  if (!/^\d+(\.\d{0,4})?$/.test(raw)) return null;
-  const parsed = Number(raw);
-  if (!Number.isFinite(parsed) || parsed < 0) return null;
-  return parsed;
-}
-
-
-
-
 
 
 
@@ -419,8 +398,6 @@ function buildInventoryImportPreview(rows, { categories, outlets, items, uoms })
     if (!unit) errors.push("Missing UOM");
     const uom = unit ? uomByCode.get(canonical(unit)) : null;
     if (unit && !uom) errors.push("Unknown UOM");
-    const parsedCost = rawCost ? parseInventoryCostInput(rawCost) : "";
-    if (parsedCost === null) errors.push("Invalid Cost");
     if (!["active", "inactive", "archived"].includes(status)) errors.push("Invalid Status");
 
     const skuKey = canonical(sku);
@@ -442,6 +419,13 @@ function buildInventoryImportPreview(rows, { categories, outlets, items, uoms })
       : [];
     const linkedOutletCodes = linkedOutlets.map(outletDisplayCode).filter(Boolean);
     const existing = skuKey ? existingBySku.get(skuKey) : existingByName.get(nameKey);
+    const parsedCost = rawCost ? parseInventoryCostInput(rawCost) : null;
+    if (rawCost && (parsedCost === null || !existing?.costRevisionId || parsedCost !== existing.cost)) {
+      errors.push("Clear the Cost cell and use Cost History to set the unit cost.");
+    }
+    if (existing?.costRevisionId && existing.unit && canonical(existing.unit) !== canonical(uom?.code || unit)) {
+      errors.push("Use a separate item for a different UOM when an item has cost history.");
+    }
 
     return {
       rowNumber: row.__row,
@@ -455,7 +439,7 @@ function buildInventoryImportPreview(rows, { categories, outlets, items, uoms })
         sku,
         categoryId: category?.id || "",
         unit: uom?.code || unit,
-        cost: parsedCost === "" ? (existing?.cost ?? "") : parsedCost,
+        cost: existing?.costRevisionId ? existing.cost : "",
         description,
         defaultSupplierId: existing?.defaultSupplierId || "",
         status,
@@ -498,8 +482,8 @@ function InventoryImportModal({ categories, outlets, items, uoms, onClose, onImp
 
   function downloadTemplate() {
     const text = [
-      inventoryImportColumns.join(","),
-      ["Sambal Sauce 三八", "RAW-SAM-001", "Raw Material", "kg", "6.5000", "House sambal batch", "Active", "FC,HLIPH"].map(csvEscape).join(","),
+      "Item Name,SKU Code,Category,UOM,Description,Status,Linked Outlet Codes",
+      ["Sambal Sauce 三八", "RAW-SAM-001", "Raw Material", "kg", "House sambal batch", "Active", "FC,HLIPH"].map(csvEscape).join(","),
     ].join("\n");
     downloadTextFile("feedx-master-inventory-template.csv", text);
   }
@@ -520,7 +504,7 @@ function InventoryImportModal({ categories, outlets, items, uoms, onClose, onImp
   return (
     <Modal
       title="Import Master Inventory"
-      description="Upload CSV or XLSX, validate rows, preview changes, then import valid rows."
+      description="Import catalog details from CSV or XLSX. Use Cost History to configure or change unit costs."
       size="xl"
       onClose={onClose}
       footer={(
@@ -708,7 +692,6 @@ function InventoryItemModal({ item, categories, outlets, uoms, canCreateUom, onA
     sku: "",
     categoryId: categories[0]?.id ?? "",
     unit: uoms.find((uom) => uom.isActive)?.code || "kg",
-    cost: "",
     photo: "",
     description: "",
     inventoryType: item?.inventoryType ?? "",
@@ -719,9 +702,8 @@ function InventoryItemModal({ item, categories, outlets, uoms, canCreateUom, onA
   const [form, setForm] = useState(initialItem);
   const [quickUomOpen, setQuickUomOpen] = useState(false);
   const [touched, setTouched] = useState(false);
-  const parsedCost = parseInventoryCostInput(form.cost);
-  const costInvalid = parsedCost === null;
-  const invalid = touched && (!form.name.trim() || !form.categoryId || !form.unit || !form.linkedOutletIds?.length || costInvalid);
+  const hasCostBasis = Boolean(item?.costRevisionId && item.unit);
+  const invalid = touched && (!form.name.trim() || !form.categoryId || !form.unit || !form.linkedOutletIds?.length);
 
   function update(key, value) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -755,9 +737,9 @@ function InventoryItemModal({ item, categories, outlets, uoms, canCreateUom, onA
             type="button"
             onClick={() => {
               setTouched(true);
-              if (!form.name.trim() || !form.categoryId || !form.unit || !form.linkedOutletIds?.length || costInvalid) return;
+              if (!form.name.trim() || !form.categoryId || !form.unit || !form.linkedOutletIds?.length) return;
               const id = form.id || makeId("item");
-              onSave({ ...form, id, cost: parsedCost === "" ? "" : parsedCost, outletConfigs: (form.outletConfigs || []).map((config) => ({ ...config, inventoryItemId: id })) });
+              onSave({ ...form, id, outletConfigs: (form.outletConfigs || []).map((config) => ({ ...config, inventoryItemId: id })) });
             }}
           >
             Save Item
@@ -772,7 +754,9 @@ function InventoryItemModal({ item, categories, outlets, uoms, canCreateUom, onA
         <SelectField
           label="UOM"
           value={form.unit}
-          options={uoms.filter((uom) => uom.isActive).map((uom) => ({ value: uom.code, label: uomOptionLabel(uom) }))}
+          disabled={hasCostBasis}
+          helper={hasCostBasis ? "Fixed by this item’s cost history." : undefined}
+          options={uoms.filter((uom) => uom.isActive || uom.code === form.unit).map((uom) => ({ value: uom.code, label: uomOptionLabel(uom) }))}
           onChange={(value) => update("unit", value)}
           footerAction={({ close }) => (
             <button
@@ -789,21 +773,6 @@ function InventoryItemModal({ item, categories, outlets, uoms, canCreateUom, onA
           )}
         />
         <SelectField label="Status" value={form.status} options={statuses.map((status) => ({ value: status, label: toTitle(status) }))} onChange={(value) => update("status", value)} />
-        <label className="block">
-          <div className="mb-1 type-caption font-semibold text-text-secondary">Default Cost</div>
-          <input
-            className="control h-9 w-full text-[13px]"
-            type="number"
-            min="0"
-            step="0.0001"
-            value={form.cost ?? ""}
-            placeholder="0.00"
-            onFocus={selectInputText}
-            onChange={(event) => update("cost", event.target.value)}
-          />
-          <div className="mt-1 type-caption text-text-muted">Cost is per selected UOM. RM per {form.unit || "UOM"}.</div>
-          {touched && costInvalid ? <div className="mt-1 type-caption font-semibold text-rose-600">Cost must be a non-negative number with up to 4 decimals.</div> : null}
-        </label>
         <div className="md:col-span-2">
           <ItemPhotoPicker
             value={form.photo}
@@ -1014,14 +983,12 @@ export default function InventoryMasterPage({ auth, ui, outlets }) {
   const [collapsedCategoryIds, setCollapsedCategoryIds] = useState(() => new Set());
   const [uomWriteStatus, setUomWriteStatus] = useState('Not written');
   const [modal, setModal] = useState(null);
-  const [editingCostItemId, setEditingCostItemId] = useState(null);
-  const [editingCostValue, setEditingCostValue] = useState('');
-  const [savingCostItemId, setSavingCostItemId] = useState(null);
-  const skipCostBlurSaveRef = useRef(false);
+  const [costHistory, setCostHistory] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
   const can = useMemo(() => ({
     importMaster: hasPermission(auth, 'inventory_master.import'), exportMaster: hasPermission(auth, 'inventory_master.export'),
     createMaster: hasPermission(auth, 'inventory_master.create'), editMaster: hasPermission(auth, 'inventory_master.edit'),
+    editCost: hasPermission(auth, 'inventory_master.edit') || hasPermission(auth, 'inventory_control.manage_master'),
     deleteMaster: hasPermission(auth, 'inventory_master.delete'), editParLevels: hasPermission(auth, 'inventory_par_levels.edit'),
     viewCategories: hasPermission(auth, 'inventory_categories.view') || hasPermission(auth, 'inventory_master.view'),
     createCategory: hasPermission(auth, 'inventory_categories.create'), editCategory: hasPermission(auth, 'inventory_categories.edit'), deleteCategory: hasPermission(auth, 'inventory_categories.delete'),
@@ -1105,7 +1072,7 @@ export default function InventoryMasterPage({ auth, ui, outlets }) {
     }
     const photoUploadFailed = item.photoUploadFailed === true || (isLocalPreview && !hasNewPhotoFile);
     const safePhoto = uploadedPhotoUrl || (photoUploadFailed ? (existingItem?.photo || existingItem?.photo_url || "") : incomingPhoto);
-    const normalizedItem = normalizeInventoryItem({ ...item, photo: safePhoto, photo_url: safePhoto, costUpdatedBy: auth?.profile?.id || "" });
+    const normalizedItem = normalizeInventoryItem({ ...item, photo: safePhoto, photo_url: safePhoto });
     const photoChanged = !photoUploadFailed && (existingItem?.photo || existingItem?.photo_url || "") !== (normalizedItem.photo || normalizedItem.photo_url || "");
     const linkedOutletsChanged = !sameIdSet(existingItem?.linkedOutletIds || [], normalizedItem.linkedOutletIds || []);
     const existingOutletIdsForDebug = uniqueIds(existingItem?.linkedOutletIds || []);
@@ -1123,7 +1090,6 @@ export default function InventoryMasterPage({ auth, ui, outlets }) {
     const uomChanged = !isCreate && Boolean(existingItem) && (existingItem.unit || "") !== (normalizedItem.unit || "");
     const statusChanged = !isCreate && Boolean(existingItem) && (existingItem.status || "active") !== (normalizedItem.status || "active");
     const descriptionChanged = !isCreate && Boolean(existingItem) && (existingItem.description || "") !== (normalizedItem.description || "");
-    const costChanged = isCreate ? normalizedItem.cost !== "" : Boolean(existingItem) && Number(existingItem.cost ?? 0) !== Number(normalizedItem.cost ?? 0);
     const changeFlags = {
       nameChanged,
       skuChanged,
@@ -1132,12 +1098,11 @@ export default function InventoryMasterPage({ auth, ui, outlets }) {
       statusChanged,
       photoChanged,
       descriptionChanged,
-      costChanged,
       linkedOutletsChanged,
     };
     const changeCount = Object.values(changeFlags).filter(Boolean).length;
     try {
-      const remoteItem = await persistRemoteInventoryItem({ ...normalizedItem, costMetadataChanged: isCreate || costChanged }, auth?.user?.id, accessibleOutletIds);
+      const remoteItem = await persistRemoteInventoryItem(normalizedItem, auth?.user?.id, accessibleOutletIds);
       photoDebug = {
         ...photoDebug,
         itemId: remoteItem.id,
@@ -1152,7 +1117,6 @@ export default function InventoryMasterPage({ auth, ui, outlets }) {
           sku: normalizedItem.sku,
           categoryId: normalizedItem.categoryId,
           unit: normalizedItem.unit,
-          cost: normalizedItem.cost,
           status: normalizedItem.status,
           photo_url: normalizedItem.photo || normalizedItem.photo_url || null,
         },
@@ -1201,8 +1165,6 @@ export default function InventoryMasterPage({ auth, ui, outlets }) {
         notify("Inventory status updated", remoteItem.name);
       } else if (changeCount === 1 && descriptionChanged) {
         notify("Inventory item details updated", remoteItem.name);
-      } else if (changeCount === 1 && costChanged) {
-        notify("Inventory cost updated", remoteItem.name);
       } else {
         notify("Inventory item updated", changeCount > 1 ? `${remoteItem.name} · ${changeCount} changes saved` : remoteItem.name);
       }
@@ -1223,53 +1185,6 @@ export default function InventoryMasterPage({ auth, ui, outlets }) {
       } else {
         notify(isCreate ? "Failed to create Inventory Item" : "Failed to update Inventory Item", error.message || "Please try again.", "error");
       }
-    }
-  }
-
-  function beginInlineCostEdit(item) {
-    if (!requirePermission(can.editMaster, "edit inventory item cost")) return;
-    skipCostBlurSaveRef.current = false;
-    setEditingCostItemId(item.id);
-    setEditingCostValue(item.cost === "" || item.cost === null || item.cost === undefined ? "" : String(item.cost));
-  }
-
-  function cancelInlineCostEdit() {
-    skipCostBlurSaveRef.current = true;
-    setEditingCostItemId(null);
-    setEditingCostValue("");
-  }
-
-  async function saveInlineCost(item) {
-    if (!requirePermission(can.editMaster, "edit inventory item cost")) return;
-    const parsedCost = parseInventoryCostInput(editingCostValue);
-    if (parsedCost === null) {
-      notify("Failed to update inventory cost", "Cost must be a non-negative number with up to 4 decimals.", "error");
-      return;
-    }
-    setSavingCostItemId(item.id);
-    const payload = {
-      cost: parsedCost === "" ? null : parsedCost,
-      cost_updated_at: new Date().toISOString(),
-      cost_updated_by: isUuid(auth?.profile?.id) ? auth.profile.id : null,
-    };
-    try {
-      const result = await supabase
-        .from("inventory_items")
-        .update(payload)
-        .eq("id", item.id)
-        .select("*")
-        .single();
-      debugLog("[InventoryCostSaveDebug]", { itemId: item.id, payload, result: { data: result.data, error: result.error }, error: result.error });
-      if (result.error) throw result.error;
-      await refreshInventory();
-      cancelInlineCostEdit();
-      notify("Inventory cost updated", item.name);
-    } catch (error) {
-      console.warn("[InventoryControl] Unable to update inventory cost.", error);
-      debugLog("[InventoryCostSaveDebug]", { itemId: item.id, payload, result: null, error });
-      notify("Failed to update inventory cost", error.message || "Please try again.", "error");
-    } finally {
-      setSavingCostItemId(null);
     }
   }
 
@@ -1565,8 +1480,6 @@ export default function InventoryMasterPage({ auth, ui, outlets }) {
         id: existing?.id || incoming.id || "",
         photo: existing?.photo || existing?.photo_url || incoming.photo || "",
         photo_url: existing?.photo_url || existing?.photo || incoming.photo || "",
-        costUpdatedBy: auth?.profile?.id || "",
-        costMetadataChanged: incoming.cost !== "" && incoming.cost !== null && incoming.cost !== undefined,
         linkedOutletIds,
         outletConfigs: linkedOutletIds.map((outletId) => buildOutletConfig(existing || incoming, outletId, existingConfigs.get(outletId))),
       });
@@ -1625,7 +1538,7 @@ export default function InventoryMasterPage({ auth, ui, outlets }) {
         "SKU Code": item.sku_code || item.sku,
         Category: category?.name || "",
         UOM: item.uom_code || item.unit,
-        Cost: item.cost === "" || item.cost === null || item.cost === undefined ? "" : item.cost,
+        Cost: item.costRevisionId ? item.cost : "",
         Description: item.description,
         Status: item.status,
         "Linked Outlet Codes": linkedOutlets,
@@ -1680,51 +1593,21 @@ export default function InventoryMasterPage({ auth, ui, outlets }) {
     };
 
     const renderCostCell = (item, mobile = false) => {
-      const editing = editingCostItemId === item.id;
-      const saving = savingCostItemId === item.id;
-      if (editing) {
-        return (
-          <input
-            className={`control h-8 ${mobile ? "w-28 text-right" : "w-32"} text-[13px] font-semibold`}
-            type="number"
-            min="0"
-            step="0.0001"
-            value={editingCostValue}
-            autoFocus
-            disabled={saving}
-            placeholder="0.00"
-            onFocus={selectInputText}
-            onChange={(event) => setEditingCostValue(event.target.value)}
-            onBlur={() => {
-              if (skipCostBlurSaveRef.current) {
-                skipCostBlurSaveRef.current = false;
-                return;
-              }
-              saveInlineCost(item);
-            }}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                event.preventDefault();
-                skipCostBlurSaveRef.current = true;
-                saveInlineCost(item);
-              }
-              if (event.key === "Escape") {
-                event.preventDefault();
-                cancelInlineCostEdit();
-              }
-            }}
-          />
-        );
-      }
+      const cost = item.costRevisionId ? item.cost : null;
+      const change = formatInventoryCostChange(cost, item.costPreviousAmount);
       return (
         <button
-          className={`${mobile ? "text-right" : "text-left"} rounded-lg px-2 py-1 text-[13px] font-bold text-text-primary transition hover:bg-primary/5 disabled:cursor-not-allowed disabled:text-text-muted`}
+          className={`min-h-9 rounded-lg px-2 py-1 text-text-primary transition hover:bg-primary/5 ${mobile ? "text-right" : "text-left"}`}
           type="button"
-          disabled={!can.editMaster || saving}
-          onClick={() => beginInlineCostEdit(item)}
-          title={can.editMaster ? "Edit cost" : "Editing cost requires inventory master edit permission"}
+          aria-label={`Cost History for ${item.name}`}
+          onClick={() => setCostHistory({ item, scopeKey })}
         >
-          {saving ? "Saving..." : formatInventoryCost(item.cost, item.uom_code || item.unit)}
+          <span className="block whitespace-nowrap type-body-sm font-semibold tabular-nums">
+            {cost === null ? "Unconfigured" : formatInventoryCost(cost, item.unit)}
+          </span>
+          {change ? <span className="block whitespace-nowrap type-caption tabular-nums text-text-secondary">
+            {change.amount}{change.percentage ? ` (${change.percentage})` : ""}
+          </span> : null}
         </button>
       );
     };
@@ -2012,6 +1895,13 @@ export default function InventoryMasterPage({ auth, ui, outlets }) {
       ) : null}
       {modal?.type === "uom" ? <UomModal uom={modal.uom} onClose={() => setModal(modal.returnToSettings ? { type: "uom-settings" } : null)} onSave={saveUom} /> : null}
 
+    {costHistory?.scopeKey === scopeKey ? <InventoryCostHistoryDrawer
+      key={costHistory.item.id}
+      item={costHistory.item}
+      canEdit={can.editCost}
+      onClose={() => setCostHistory(null)}
+      onSaved={() => { refreshInventory(); notify("Inventory cost updated", costHistory.item.name); }}
+    /> : null}
     <InventoryItemPhotoPreview preview={photoPreview} onClose={() => setPhotoPreview(null)} />
   </div>;
 }

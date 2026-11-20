@@ -13,9 +13,9 @@ begin
   insert into public.outlets(id, name, code) values
     (v_outlet, 'QA Closing Stock', 'QAC' || left(v_outlet::text, 6)),
     (v_other, 'QA Closing Stock Zero', 'QAC' || left(v_other::text, 6));
-  insert into public.inventory_items(id, item_name, unit, cost, cost_updated_at) values
-    (v_item, 'QA Closing Item', 'kg', 2.5, now()),
-    (v_item2, 'QA Closing Item Two', 'kg', 1, now());
+  insert into public.inventory_items(id, item_name, unit) values
+    (v_item, 'QA Closing Item', 'kg'),
+    (v_item2, 'QA Closing Item Two', 'kg');
   insert into public.inventory_item_outlets(outlet_id, inventory_item_id, par_level) values
     (v_outlet, v_item, 10), (v_outlet, v_item2, 10), (v_other, v_item, 10);
 
@@ -77,6 +77,10 @@ begin
   if has_table_privilege(current_user, 'public.inventory_stock_checks', 'TRUNCATE') then
     raise exception 'Authenticated stock check truncate is allowed';
   end if;
+  perform public.inventory_master_revise_cost(v_item, 2.5, 'kg', '2001-08-01',
+    'QA opening unit cost', gen_random_uuid(), null);
+  perform public.inventory_master_revise_cost(v_item2, 1, 'kg', '2001-08-01',
+    'QA opening unit cost', gen_random_uuid(), null);
   v_before := public.reporting_monthly_scope_financials(v_outlet, 2001, 8);
   if v_before->>'closing_stock' is not null then raise exception 'Fixture starts with a published close'; end if;
 
@@ -151,6 +155,13 @@ begin
     or (public.reporting_yearly_scope_financials(v_outlet, 2001)->'months'->7->>'closing_stock')::numeric is distinct from 5 then
     raise exception 'Reporting did not surface the latest close independently of financial inputs';
   end if;
+  perform public.inventory_master_revise_cost(v_item, 7, 'kg', '2001-09-01', 'QA revised unit cost',
+    gen_random_uuid(), (public.inventory_master_cost_history(v_item)->>'current_revision_id')::uuid);
+  if (select unit_cost_snapshot from public.inventory_stock_check_items where stock_check_id = v_id and item_id = v_item)
+      is distinct from 2.5::numeric
+    or (public.reporting_monthly_scope_financials(v_outlet, 2001, 8)->>'closing_stock')::numeric is distinct from 5 then
+    raise exception 'Changing Master Inventory cost changed historical audit evidence or approved valuation';
+  end if;
   if public.reporting_monthly_scope_financials(null, 2001, 8)->>'closing_stock' is not null then
     raise exception 'Partial All Outlets close was published';
   end if;
@@ -158,6 +169,10 @@ begin
   v_other_id := (public.inventory_save_stock_check(gen_random_uuid(), v_check || jsonb_build_object(
     'outlet_id', v_other, 'physical_count_cutoff', '2001-09-01T00:00:00+08:00'
   ), jsonb_build_array(v_item_line))->'check'->>'id')::uuid;
+  if (select unit_cost_snapshot from public.inventory_stock_check_items where stock_check_id = v_other_id and item_id = v_item)
+      is distinct from 7::numeric then
+    raise exception 'New Audit did not pin the current revised cost at submission';
+  end if;
   v_close := public.inventory_approve_closing_stock(v_other_id, gen_random_uuid());
   if (v_close->>'amount')::numeric is distinct from 0
     or (public.reporting_monthly_scope_financials(v_other, 2001, 8)->>'closing_stock')::numeric is distinct from 0 then

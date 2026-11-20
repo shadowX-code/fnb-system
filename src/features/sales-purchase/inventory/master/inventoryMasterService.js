@@ -45,7 +45,6 @@ export async function persistRemoteInventoryItem(item, userId, accessibleOutletI
     sku_code: normalized.sku || null,
     category_id: isUuid(normalized.categoryId) ? normalized.categoryId : null,
     unit: normalized.unit || null,
-    cost: normalized.cost === "" || normalized.cost === null || normalized.cost === undefined ? null : Number(normalized.cost),
     photo_url: normalized.photo || normalized.photo_url || null,
     description: normalized.description || null,
     inventory_type: normalized.inventoryType || null,
@@ -53,11 +52,6 @@ export async function persistRemoteInventoryItem(item, userId, accessibleOutletI
     status: normalized.status || "active",
     updated_by: userId || null,
   };
-  if (itemPayload.cost !== null && (!Number.isFinite(itemPayload.cost) || itemPayload.cost < 0)) throw new Error("Cost must be a non-negative number.");
-  if (item.costMetadataChanged === true) {
-    itemPayload.cost_updated_at = new Date().toISOString();
-    itemPayload.cost_updated_by = isUuid(item.costUpdatedBy || item.cost_updated_by) ? (item.costUpdatedBy || item.cost_updated_by) : null;
-  }
   const debug = {
     mode,
     payload: itemPayload,
@@ -310,13 +304,15 @@ export async function countRemoteInventoryItemsForUom(code) {
 
 
 export async function loadInventoryMaster() {
-  const [itemsResult, categoriesResult, uomsResult, itemOutletsResult, itemOutletSuppliersResult] = await Promise.all([
+  const [itemsResult, categoriesResult, uomsResult, itemOutletsResult, itemOutletSuppliersResult, changes] = await Promise.all([
     readCompleteInventoryRows('inventory_items', { order: 'created_at', ascending: false }),
     readCompleteInventoryRows('inventory_categories', { order: 'sort_order' }),
     readCompleteInventoryRows('inventory_uoms', { order: 'sort_order' }),
     readCompleteInventoryRows('inventory_item_outlets', { select: '*, outlets:outlet_id(*)' }),
     readCompleteInventoryRows('inventory_item_outlet_suppliers'),
+    supabase.rpc('inventory_master_cost_changes'),
   ]);
+  if (changes.error) throw changes.error;
   const categories = categoriesResult.data.map(mapRemoteCategory);
   const categoryById = new Map(categories.map(category => [category.id, category]));
   const supplierIdsByConfigId = new Map();
@@ -334,8 +330,32 @@ export async function loadInventoryMaster() {
   return {
     categories,
     uoms: uomsResult.data.map(mapRemoteUom),
-    items: itemsResult.data.map(item => mapRemoteInventoryItem(item, configsByItem.get(item.id) || [], categoryById, supplierIdsByConfigId)),
+    items: itemsResult.data.map(item => ({
+      ...mapRemoteInventoryItem(item, configsByItem.get(item.id) || [], categoryById, supplierIdsByConfigId),
+      costPreviousAmount: changes.data?.[item.cost_revision_id] ?? null,
+    })),
     rawItemCount: itemsResult.count,
     outletLinkCount: itemOutletsResult.count,
   };
+}
+
+export async function loadInventoryCostHistory(itemId) {
+  const { data, error } = await supabase.rpc('inventory_master_cost_history', { p_item_id: itemId });
+  if (error) throw error;
+  return data;
+}
+
+export async function reviseInventoryCost({ itemId, cost, unit, effectiveDate, reason, requestId, expectedRevisionId, correctedRevisionId }) {
+  const { data, error } = await supabase.rpc('inventory_master_revise_cost', {
+    p_item_id: itemId,
+    p_unit_cost: cost,
+    p_unit: unit,
+    p_effective_date: effectiveDate,
+    p_reason: reason,
+    p_request_id: requestId,
+    p_expected_revision_id: expectedRevisionId,
+    p_correct_revision_id: correctedRevisionId,
+  });
+  if (error) throw error;
+  return data;
 }

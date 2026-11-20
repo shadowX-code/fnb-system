@@ -24,6 +24,7 @@ export function mapRemoteInventoryItem(row = {}, configs = [], categoryById = ne
     unit: row.unit || row.uom_code || row.uom || "",
     cost: row.cost === null || row.cost === undefined ? "" : Number(row.cost),
     costUpdatedAt: row.cost_updated_at || "",
+    costRevisionId: row.cost_revision_id ?? null,
     costUpdatedBy: row.cost_updated_by || "",
     photo: row.photo_url || row.image_url || row.item_photo_url || row.photo || row.image || "",
     description: row.description || "",

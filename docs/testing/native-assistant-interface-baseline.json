@@ -769,6 +769,7 @@
     "supabase/migrations/20261119095748_factory_canonical_production_identity.sql": "2d1125db300c2068508cdbd3c907fded5d512f359adb304c7c6937779ace9485",
     "supabase/migrations/20261119163724_finance_autocount_superseded_connections.sql": "9bfc99aa7e90f0722b186981c369dfee29503db42ae0733fa03388d03e058d60",
     "supabase/migrations/20261120022144_finance_accounting_dataset_browser.sql": "3b8792e17c808d923f8bbcbc9da4e4c6eb262cb9a206fdf112cd527464fb344b",
-    "supabase/migrations/20261120033506_restaurant_month_end_closing_stock.sql": "c9b4ddb1c15b47a3ca01040f188908e3fab0b2dc35d598b5cf1788bcad8799ac"
+    "supabase/migrations/20261120033506_restaurant_month_end_closing_stock.sql": "c9b4ddb1c15b47a3ca01040f188908e3fab0b2dc35d598b5cf1788bcad8799ac",
+    "supabase/migrations/20261120064057_restaurant_inventory_cost_history.sql": "b2af772f91242adc2e51c4d59e4a5b6484d12c2c9474c58fb9b855e71d2c347a"
   }
 }

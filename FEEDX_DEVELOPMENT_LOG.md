@@ -1,5 +1,9 @@
 # FeedX Development Log
 
+## 2026-11-20 — Restaurant Master Inventory Cost History
+
+Added scoped, append-only global unit cost maintenance in Master Inventory, with a Cost History drawer, confirmed-cost baselines, explicit corrections and a compatibility projection for existing consumers. Submitted Audit costs and published Closing Stock retain their original evidence. See [Inventory and Assets](docs/domains/inventory-and-assets.md#master-inventory).
+
 ## 2026-11-20 — Restaurant Month-End Closing Stock
 
 Added full-outlet Month-End Closing counts in Admin and Crew, scoped approval with item-level reconciliation and immutable valuation revisions, and a reference line below EBITDA in Outlet P&L. Canonical owners are the [Inventory](docs/domains/inventory-and-assets.md) and [Restaurant Finance](docs/domains/restaurant-finance-and-purchasing.md) domains.
