@@ -20,6 +20,13 @@ export async function fetchRemotePurchaseOrder(orderId) {
   })));
 }
 
+export async function loadPurchaseUomChoices(outletId) {
+  if (!isUuid(outletId)) return {};
+  const { data, error } = await supabase.rpc('inventory_purchase_uom_choices', { p_outlet_id: outletId });
+  if (error) throw error;
+  return data || {};
+}
+
 const ordersSuffix = value => String(value || "GEN").slice(-3).toUpperCase();
 export async function persistRemoteDraftPurchaseOrders(stockCheck, suggestionRows = [], { requestId, poTimestamp = Date.now() } = {}) {
   if (!isUuid(stockCheck?.id)) throw new Error("Stock check must be saved before creating Draft PO.");
@@ -41,7 +48,8 @@ export async function persistRemoteDraftPurchaseOrders(stockCheck, suggestionRow
     const itemPayload = rows.map((row) => ({
       item_id: isUuid(row.itemId) ? row.itemId : null,
       requested_qty: Number(row.suggestedOrderQty || 0),
-      unit: row.unit || null,
+      unit: row.purchaseUnit || row.unit || null,
+      ...(row.uomRevisionId ? { uom_revision_id: row.uomRevisionId } : {}),
       remark: row.remark || null,
       source_stock_check_item_id: isUuid(row.stockCheckItemId) ? row.stockCheckItemId : null,
     }));
@@ -83,6 +91,8 @@ export async function persistRemotePurchaseOrderEdit(order = {}) {
       source_stock_check_id: order.sourceStockCheckId || null,
       lines: (order.lines || []).map((line) => ({
         item_id: line.itemId,
+        line_id: isUuid(line.id) ? line.id : null,
+        uom_revision_id: line.uomRevisionId || null,
         requested_qty: Number(line.requestedQty || 0),
         unit: line.unit || null,
         remark: line.remark || null,
@@ -138,6 +148,9 @@ export function mapRemotePurchaseOrderItem(row = {}) {
     requestedQty: row.requested_qty === null || row.requested_qty === undefined ? 0 : Number(row.requested_qty),
     receivedQty: row.received_qty === null || row.received_qty === undefined ? 0 : Number(row.received_qty),
     unit: row.unit || "",
+    stockUnit: row.stock_unit ?? null,
+    uomRevisionId: row.uom_revision_id ?? null,
+    stockFactor: row.stock_units_per_purchase_unit ?? null,
     remark: row.remark || "",
     sourceStockCheckItemId: row.source_stock_check_item_id || "",
     createdAt: row.created_at || "",
@@ -153,6 +166,8 @@ export function mapRemotePurchaseReceiptItem(row = {}) {
     itemId: row.item_id || "",
     receivedQty: row.received_qty === null || row.received_qty === undefined ? 0 : Number(row.received_qty),
     unit: row.unit || "",
+    stockUnit: row.stock_unit ?? null,
+    stockQuantity: row.stock_quantity ?? null,
     remark: row.remark || "",
     createdAt: row.created_at || "",
   };

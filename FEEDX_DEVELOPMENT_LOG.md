@@ -1299,3 +1299,7 @@ Added the Employees summary/list/detail reference with unchanged human RLS and d
 
 ## 2026-11-17 — Domain Query consolidation
 Preserved 110 READ / 2 ACTION authority; extended Employees type/outlet summaries and Finished Goods page/SKU queries. Added bounded schema discovery over the existing dispatcher to avoid a >53 KB tool catalogue exceeding Text's 24 KB request limit. Removed Text-only Factory answer substitution. Explicit Employees policy grouping preserves all current flags and excludes future/sensitive operations. Staging-only migration; no business writes or provider changes.
+
+## 2026-11-20 — Restaurant Purchase UOM Phase 1
+
+Master Inventory records forward purchase-unit conversions in append-only UOM History and protects the existing Stock UOM for items in use. Admin and Crew pin the selected basis on new Purchase Orders. Receipts retain purchase quantities and post stock-unit movements through the same Inventory authority. Existing audit and cost evidence keeps its recorded basis. See `docs/domains/inventory-and-assets.md`.

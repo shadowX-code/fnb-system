@@ -20,7 +20,7 @@ export function buildPurchaseSuggestions(record, items, categories, suppliers) {
           itemId: row.itemId,
           itemName: item?.name || "Inventory item",
           categoryName: categoryById.get(item?.categoryId)?.name || "Uncategorized",
-          unit: item?.unit || row.unit || "",
+          unit: row.unit || "",
           parLevel: row.expectedQty,
           actualCount: row.actualCount,
           shortageQty,

@@ -5,10 +5,32 @@ import Badge from '../../../../components/ui/Badge.jsx';
 import EmptyState from '../../../../components/feedback/EmptyState.jsx';
 import SelectField from '../../../../components/forms/SelectField.jsx';
 import { Field, TextArea, selectInputText, parseNonNegativeNumber } from '../InventorySharedPresentation.jsx';
-import { isActiveInventoryItem } from '../inventoryItemModel.js';
+import { isUuid, isActiveInventoryItem } from '../inventoryItemModel.js';
 import { poProgress, poStatusLabel, poStatusTone as statusTone } from './inventoryPurchaseOrderHelpers.js';
 import { loadPurchaseOrderSupplierItems } from "./inventoryPurchaseOrdersReadService.js";
 import { purchaseOrderSupplierItems } from "./purchaseOrderSupplierItems.js";
+import { loadPurchaseUomChoices } from './inventoryPurchaseOrderService.js';
+import { quantityInPurchaseUnit, stockEquivalent } from './purchaseOrderUnits.js';
+
+function usePurchaseUomChoices(outletId) {
+  const [state, setState] = useState({ outletId: null, choices: {}, error: false });
+  useEffect(() => {
+    let active = true;
+    loadPurchaseUomChoices(outletId).then(
+      choices => { if (active) setState({ outletId, choices, error: false }); },
+      () => { if (active) setState({ outletId, choices: {}, error: true }); },
+    );
+    return () => { active = false; };
+  }, [outletId]);
+  return state.outletId === outletId ? state : { choices: {}, error: false };
+}
+
+function PurchaseUnitPicker({ stockUnit, choice, unit, onChange }) {
+  if (!choice || choice.stock_unit !== stockUnit) return null;
+  return <SelectField label="Order UOM" value={unit || stockUnit}
+    options={[{ value: stockUnit, label: stockUnit }, { value: choice.unit, label: choice.unit }]}
+    onChange={value => onChange(value === choice.unit ? choice : null)} />;
+}
 const makeId = prefix => prefix + '_' + crypto.randomUUID();
 
 export function PurchaseSuggestionsModal({ suggestions, suppliers, outlet, existingOrders = [], businessPoNo = (order) => order?.poNo || "PO", saving = false, onClose, onCreateDraftPo, onViewPurchaseOrder }) {
@@ -28,6 +50,7 @@ export function PurchaseSuggestionsModal({ suggestions, suppliers, outlet, exist
     return groups;
   }, new Map());
   const hasExistingOrders = existingOrders.length > 0;
+  const purchaseUnits = usePurchaseUomChoices(hasExistingOrders ? null : outlet?.id);
 
   function updateRow(id, patch) {
     setRows((current) => current.map((row) => row.id === id ? { ...row, ...patch } : row));
@@ -55,6 +78,7 @@ export function PurchaseSuggestionsModal({ suggestions, suppliers, outlet, exist
       )}
     >
       <div className="space-y-4">
+        {purchaseUnits.error && <p role="alert">Purchase unit options are unavailable. You can still order in Stock UOM.</p>}
         {hasExistingOrders ? (
           <div className="rounded-2xl border border-primary/20 bg-primary/5 p-3">
             <div className="type-title font-bold text-text-primary">Draft PO already created</div>
@@ -127,7 +151,17 @@ export function PurchaseSuggestionsModal({ suggestions, suppliers, outlet, exist
                         <td>{row.actualCount}</td>
                         <td className="font-bold text-amber-700">{row.shortageQty}</td>
                         <td>
-                          <input className="control h-8 w-24 text-[13px]" type="number" min="0" value={row.suggestedOrderQty ?? ""} placeholder="Qty" onFocus={selectInputText} onChange={(event) => updateRow(row.id, { suggestedOrderQty: parseNonNegativeNumber(event.target.value) })} />
+                          <input className="control h-8 w-24 text-[13px]" type="number" min="0" value={row.suggestedOrderQty ?? ""} placeholder="Qty" aria-label={`Order quantity for ${row.itemName}`} onFocus={selectInputText} onChange={(event) => updateRow(row.id, { suggestedOrderQty: parseNonNegativeNumber(event.target.value) })} />
+                          <PurchaseUnitPicker stockUnit={row.unit} unit={row.purchaseUnit} choice={purchaseUnits.choices[row.itemId]}
+                            onChange={choice => updateRow(row.id, {
+                              purchaseUnit: choice?.unit,
+                              uomRevisionId: choice?.uom_revision_id,
+                              stockFactor: choice?.stock_units_per_purchase_unit,
+                              suggestedOrderQty: quantityInPurchaseUnit(row.suggestedOrderQty, row.stockFactor, choice?.stock_units_per_purchase_unit),
+                            })} />
+                          {row.purchaseUnit && <div className="type-caption text-text-secondary">
+                            {stockEquivalent(row.suggestedOrderQty, row.purchaseUnit, row.unit, row.stockFactor)}
+                          </div>}
                         </td>
                         <td>
                           <SelectField
@@ -182,6 +216,7 @@ export function PurchaseOrderEditModal({ order, suppliers, items, onClose, onSav
     lines: current.lines.map((line, lineIndex) => lineIndex === index ? { ...line, ...patch } : line),
   }));
   const outletId = form.outletId || form.outletIds?.[0];
+  const purchaseUnits = usePurchaseUomChoices(outletId);
   const manual = !form.sourceStockCheckId;
   const [supplierCatalog, setSupplierCatalog] = useState(null);
   const [catalogError, setCatalogError] = useState(false);
@@ -226,7 +261,7 @@ export function PurchaseOrderEditModal({ order, suppliers, items, onClose, onSav
       </> : (
         <>
           <button className="btn-secondary" type="button" disabled={saving} onClick={onClose}>Cancel</button>
-          <button className="btn-primary" type="button" disabled={saving || form.status !== "draft" || !form.lines.length} onClick={submit}>{saving ? "Saving…" : "Save Draft PO"}</button>
+          <button className="btn-primary" type="button" disabled={saving || form.status !== "draft" || !form.lines.length || form.lines.some(line => !(Number(line.requestedQty) > 0))} onClick={submit}>{saving ? "Saving…" : "Save Draft PO"}</button>
         </>
       )}
     >
@@ -246,17 +281,26 @@ export function PurchaseOrderEditModal({ order, suppliers, items, onClose, onSav
               <div key={line.id || `${line.itemId}-${index}`} className="grid gap-2 rounded-2xl border border-border p-3 md:grid-cols-[1.4fr_120px_1fr_auto] md:items-end">
                 <SelectField label="Item" value={line.itemId} options={[...availableItems.map((entry) => ({ value: entry.id, label: entry.name, searchText: `${entry.name} ${entry.sku || ""}` })), ...(!availableItems.some((entry) => entry.id === line.itemId) && line.itemId ? [{ value: line.itemId, label: item?.name || "Existing item", disabled: true }] : [])]} onChange={(value) => {
                   const nextItem = items.find((entry) => entry.id === value);
-                  updateLine(index, { itemId: value, unit: nextItem?.unit || line.unit });
+                  updateLine(index, { id: makeId("po_item"), itemId: value, unit: nextItem?.unit || "", stockUnit: null, stockFactor: null, uomRevisionId: null, requestedQty: "" });
                 }} searchable disabled={form.status !== "draft"} />
                 <Field label="Order Qty" type="number" value={line.requestedQty} placeholder="Enter quantity" onChange={(value) => updateLine(index, { requestedQty: parseNonNegativeNumber(value) })} />
                 <Field label="Remark" value={line.remark || ""} onChange={(value) => updateLine(index, { remark: value })} />
                 <button className="btn-secondary h-9 px-2.5 text-xs" type="button" disabled={form.status !== "draft"} onClick={() => setForm((current) => ({ ...current, lines: current.lines.filter((_, lineIndex) => lineIndex !== index) }))}>Remove</button>
-                <div className="type-caption text-text-secondary md:col-span-4">Unit: <span className="font-bold text-text-primary">{line.unit || item?.unit || "-"}</span></div>
+                <div className="type-caption text-text-secondary md:col-span-4">
+                  {!isUuid(line.id) && <PurchaseUnitPicker stockUnit={item?.unit} unit={line.unit} choice={purchaseUnits.choices[line.itemId]}
+                    onChange={choice => updateLine(index, {
+                      unit: choice?.unit || item.unit, stockUnit: item.unit, stockFactor: choice?.stock_units_per_purchase_unit,
+                      uomRevisionId: choice?.uom_revision_id,
+                      requestedQty: quantityInPurchaseUnit(line.requestedQty, line.stockFactor, choice?.stock_units_per_purchase_unit),
+                    })} />}
+                  {line.unit || '—'} {stockEquivalent(line.requestedQty, line.unit, line.stockUnit, line.stockFactor) && `· ${stockEquivalent(line.requestedQty, line.unit, line.stockUnit, line.stockFactor)} stock equivalent`}
+                </div>
               </div>
             );
           })}
         </div>
         <button className="btn-secondary" type="button" disabled={form.status !== "draft" || (manual && (!form.supplierId || !availableItems.length))} onClick={() => setForm((current) => ({ ...current, lines: [...current.lines, { id: makeId("po_item"), itemId: availableItems[0]?.id || "", requestedQty: 1, receivedQty: 0, unit: availableItems[0]?.unit || "", remark: "" }] }))}>Add Item</button>
+        {purchaseUnits.error && <p role="alert">Purchase unit options are unavailable. You can still order in Stock UOM.</p>}
         {manual && !supplierCatalog && (catalogError
           ? <p role="alert">Supplier items could not be loaded. <button type="button" className="btn-secondary" onClick={() => setCatalogAttempt((attempt) => attempt + 1)}>Retry</button></p>
           : <p role="status">Loading supplier items…</p>)}

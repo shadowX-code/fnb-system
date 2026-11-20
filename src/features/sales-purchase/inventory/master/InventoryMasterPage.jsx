@@ -15,6 +15,7 @@ import { getAccessibleOutletOptions, getAccessibleOutlets, hasAllOutletAccess, h
 import { IMAGE_UPLOAD_ACCEPT, isImageDataUrl as isStandardImageDataUrl, optimizeImageFileForPreview, removeStorageObjectFromPublicUrl, uploadOptimizedImage } from '../../../../utils/imageUpload.js';
 import { normalizeOutletRecord, normalizeInventoryItem, uniqueIds, buildOutletConfig, isActiveInventoryItem, categoryForItem, canonical, isUuid, outletDisplayCode, outletDisplayName } from '../inventoryItemModel.js';
 import { InventoryCategoryIcon, SectionCard, TextArea, Field, csvEscape, downloadTextFile, todayInput } from '../InventorySharedPresentation.jsx';
+import InventoryUomHistoryDrawer from './InventoryUomHistoryDrawer.jsx';
 import InventoryCostHistoryDrawer from './InventoryCostHistoryDrawer.jsx';
 import { formatInventoryCost, formatInventoryCostChange, parseInventoryCostInput } from './inventoryCostPresentation.js';
 import InventoryItemPhotoPreview from '../InventoryItemPhotoPreview.jsx';
@@ -702,7 +703,7 @@ function InventoryItemModal({ item, categories, outlets, uoms, canCreateUom, onA
   const [form, setForm] = useState(initialItem);
   const [quickUomOpen, setQuickUomOpen] = useState(false);
   const [touched, setTouched] = useState(false);
-  const hasCostBasis = Boolean(item?.costRevisionId && item.unit);
+  const hasCostBasis = Boolean(item?.unit && (item.costRevisionId || item.linkedOutletIds?.length));
   const invalid = touched && (!form.name.trim() || !form.categoryId || !form.unit || !form.linkedOutletIds?.length);
 
   function update(key, value) {
@@ -755,7 +756,7 @@ function InventoryItemModal({ item, categories, outlets, uoms, canCreateUom, onA
           label="UOM"
           value={form.unit}
           disabled={hasCostBasis}
-          helper={hasCostBasis ? "Fixed by this item’s cost history." : undefined}
+          helper={hasCostBasis ? "Stock UOM is fixed once in use. Use Manage Units for purchasing." : undefined}
           options={uoms.filter((uom) => uom.isActive || uom.code === form.unit).map((uom) => ({ value: uom.code, label: uomOptionLabel(uom) }))}
           onChange={(value) => update("unit", value)}
           footerAction={({ close }) => (
@@ -984,6 +985,7 @@ export default function InventoryMasterPage({ auth, ui, outlets }) {
   const [uomWriteStatus, setUomWriteStatus] = useState('Not written');
   const [modal, setModal] = useState(null);
   const [costHistory, setCostHistory] = useState(null);
+  const [uomHistory, setUomHistory] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
   const can = useMemo(() => ({
     importMaster: hasPermission(auth, 'inventory_master.import'), exportMaster: hasPermission(auth, 'inventory_master.export'),
@@ -1641,6 +1643,7 @@ export default function InventoryMasterPage({ auth, ui, outlets }) {
           <td>
             <div className="flex justify-end gap-2" onClick={(event) => event.stopPropagation()}>
               <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => requirePermission(can.editMaster, "edit inventory items") && setModal({ type: "item", item })}>Edit</button>
+              <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => setUomHistory({ item, scopeKey })}>Manage Units</button>
               <button className="btn-secondary h-8 px-2.5 text-xs text-rose-700" type="button" onClick={() => requirePermission(can.deleteMaster, "archive inventory items") && archiveItem(item.id)}>Archive</button>
             </div>
           </td>
@@ -1687,6 +1690,7 @@ export default function InventoryMasterPage({ auth, ui, outlets }) {
           </div>
           <div className="mt-3 flex justify-end gap-2 border-t border-border pt-3" onClick={(event) => event.stopPropagation()}>
             <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => requirePermission(can.editMaster, "edit inventory items") && setModal({ type: "item", item })}>Edit</button>
+              <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => setUomHistory({ item, scopeKey })}>Manage Units</button>
             <button className="btn-secondary h-8 px-2.5 text-xs text-rose-700" type="button" onClick={() => requirePermission(can.deleteMaster, "archive inventory items") && archiveItem(item.id)}>Archive</button>
           </div>
         </div>
@@ -1895,6 +1899,10 @@ export default function InventoryMasterPage({ auth, ui, outlets }) {
       ) : null}
       {modal?.type === "uom" ? <UomModal uom={modal.uom} onClose={() => setModal(modal.returnToSettings ? { type: "uom-settings" } : null)} onSave={saveUom} /> : null}
 
+    {uomHistory?.scopeKey === scopeKey ? <InventoryUomHistoryDrawer
+      key={uomHistory.item.id} item={uomHistory.item} uoms={sortedUoms} canEdit={can.editCost}
+      onClose={() => setUomHistory(null)}
+    /> : null}
     {costHistory?.scopeKey === scopeKey ? <InventoryCostHistoryDrawer
       key={costHistory.item.id}
       item={costHistory.item}

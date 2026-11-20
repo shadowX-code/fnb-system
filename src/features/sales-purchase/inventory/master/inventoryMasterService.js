@@ -359,3 +359,18 @@ export async function reviseInventoryCost({ itemId, cost, unit, effectiveDate, r
   if (error) throw error;
   return data;
 }
+
+export async function loadInventoryUomHistory(itemId) {
+  const { data, error } = await supabase.rpc('inventory_master_uom_history', { p_item_id: itemId });
+  if (error) throw error;
+  return data;
+}
+
+export async function reviseInventoryUom({ itemId, stockUnit, purchaseUnit, factor, effectiveDate, reason, requestId, expectedRevisionId }) {
+  const { data, error } = await supabase.rpc('inventory_master_revise_uom', {
+    p_item_id: itemId, p_stock_unit: stockUnit, p_purchase_unit: purchaseUnit, p_factor: factor,
+    p_effective_date: effectiveDate, p_reason: reason, p_request_id: requestId, p_expected_revision_id: expectedRevisionId,
+  });
+  if (error) throw error;
+  return data;
+}
