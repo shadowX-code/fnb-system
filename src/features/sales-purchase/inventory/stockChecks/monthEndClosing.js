@@ -1,7 +1,24 @@
 export const MONTH_END_CLOSING = "Month-End Closing";
 
 // The controls represent Malaysia business time, even on a device in another zone.
-export const toPhysicalCountCutoff = (localValue) => localValue ? `${localValue}+08:00` : null;
+export function toPhysicalCountCutoff(localValue) {
+  return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(localValue) ? `${localValue}+08:00` : null;
+}
+
+const countDateFormat = new Intl.DateTimeFormat("en-MY", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+const monthFormat = new Intl.DateTimeFormat("en-MY", { month: "short", year: "numeric", timeZone: "UTC" });
+
+export function generateAuditName(type, date, month) {
+  const countDate = countDateFormat.format(new Date(`${date}T00:00:00Z`));
+  if (type !== MONTH_END_CLOSING) return `${type} · ${countDate}`;
+  return `${type} · ${monthFormat.format(new Date(`${month}-01T00:00:00Z`))} · ${countDate}`;
+}
+
+export function updateClosingAuditName(name, previousDate, previousMonth, date, month) {
+  // Existing custom names remain intact when a closing draft is edited.
+  return previousMonth && name === generateAuditName(MONTH_END_CLOSING, previousDate, previousMonth)
+    ? generateAuditName(MONTH_END_CLOSING, date, month) : name;
+}
 
 export function toClosingLocalTime(value) {
   if (!value) return "";

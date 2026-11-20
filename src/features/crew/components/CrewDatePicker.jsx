@@ -12,7 +12,7 @@ const parseDate = (value) => {
   return new Date(year, month - 1, day);
 };
 const monthStart = (value) => {
-  const date = parseDate(value);
+  const date = value ? parseDate(value) : new Date();
   return new Date(date.getFullYear(), date.getMonth(), 1);
 };
 const addMonths = (value, amount) => new Date(value.getFullYear(), value.getMonth() + amount, 1);
@@ -45,6 +45,7 @@ export default function CrewDatePicker({ label, value, min, disabled = false, on
     if (open) setVisibleMonth(monthStart(value));
   }, [open, value]);
 
+  const display = value ? formatCrewDate(`${value}T12:00:00+08:00`, { day: "numeric", month: "short", year: "numeric" }) : t("common.selectDate");
   const monthLabel = formatCrewDate(visibleMonth, { month: "long", year: "numeric" });
   const weekdays = Array.from({ length: 7 }, (_, index) => new Date(2024, 0, index + 1));
   const select = (nextValue) => {
@@ -56,7 +57,7 @@ export default function CrewDatePicker({ label, value, min, disabled = false, on
     <span id={labelId}>{label}</span>
     <button type="button" className="crew-date-picker-trigger" aria-labelledby={labelId} aria-haspopup="dialog" aria-expanded={open} disabled={disabled} onClick={() => setOpen(true)}>
       <CalendarDays size={18} aria-hidden="true" />
-      <strong>{formatCrewDate(`${value}T12:00:00+08:00`, { day: "numeric", month: "short", year: "numeric" })}</strong>
+      <strong>{display}</strong>
     </button>
     {open ? <CrewBottomSheet title={label} description={t("leave.dates")} onClose={() => setOpen(false)} className="crew-date-picker-sheet" contentClassName="crew-date-picker-sheet-content" headerIcon={<CalendarDays size={18} />}>
       <section className="crew-date-picker-calendar" aria-label={monthLabel}>

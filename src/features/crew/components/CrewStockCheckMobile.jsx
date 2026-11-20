@@ -15,7 +15,7 @@ import useCrewInventoryHistory from "../hooks/useCrewInventoryHistory.js";
 import { CrewEmptyState, CrewProgressBar, CrewSearchBar, CrewStatusBadge } from "./CrewMobileUI.jsx";
 
 import ClosingCountFields from "../../sales-purchase/inventory/stockChecks/ClosingCountFields.jsx";
-import { MONTH_END_CLOSING, toClosingLocalTime, toPhysicalCountCutoff } from "../../sales-purchase/inventory/stockChecks/monthEndClosing.js";
+import { generateAuditName, MONTH_END_CLOSING, toClosingLocalTime, toPhysicalCountCutoff, updateClosingAuditName } from "../../sales-purchase/inventory/stockChecks/monthEndClosing.js";
 
 const auditTypes = [MONTH_END_CLOSING, "Full Stock Audit", "Spot Check", "Category Audit", "Custom Audit"];
 const requestId = () => crypto.randomUUID();
@@ -38,7 +38,8 @@ export default function CrewStockCheckMobile({ token, outletId, grants, initialT
   const [review, setReview] = useState(false); const [query, setQuery] = useState(""); const [category, setCategory] = useState("all");
   const [auditOpen, setAuditOpen] = useState(false); const [deleteTarget, setDeleteTarget] = useState(null);
   const [skipTarget, setSkipTarget] = useState(null); const [skipReason, setSkipReason] = useState("");
-  const [auditForm, setAuditForm] = useState({ type: "Spot Check", name: "", date: "", categoryIds: [], notes: "", closingMonth: "", closingCutoff: "" });
+  const [auditForm, setAuditForm] = useState({ type: "Spot Check", date: "", categoryIds: [], notes: "", closingMonth: "", closingCutoff: "" });
+  const [closingDetails, setClosingDetails] = useState({ month: "", cutoff: "" });
   const [notice, setNotice] = useState(""); const [purchase, setPurchase] = useState(null); const pendingRequest = useRef(null); const pendingSkipRequest = useRef(null); const activeRef = useRef(true);
   const historyView = useCrewInventoryHistory(crewService.inventoryStockCheckHistory, token, outletId, tab === "history");
   const [dirty, setDirty] = useState(false);
@@ -72,13 +73,19 @@ export default function CrewStockCheckMobile({ token, outletId, grants, initialT
   const itemById = useMemo(() => new Map((catalog?.items || []).map((item) => [item.id, item])), [catalog]);
   const categoryById = useMemo(() => new Map((catalog?.categories || []).map((item) => [item.id, item.name])), [catalog]);
   const isClosing = check?.audit_type === MONTH_END_CLOSING;
-  const hasClosingDetails = Boolean(check?.accounting_month && check?.physical_count_cutoff);
+  const hasClosingDetails = Boolean(closingDetails.month && toPhysicalCountCutoff(closingDetails.cutoff));
   const completed = rows.filter(row => isDone(row) && (!isClosing || !row.skipped)).length;
   const canComplete = rows.length > 0 && completed === rows.length && (!isClosing || hasClosingDetails);
   const isNewClosing = auditForm.type === MONTH_END_CLOSING;
   const auditItems = (catalog?.items || []).filter(item => isNewClosing || auditForm.categoryIds.includes(item.category_id));
-  const canStartAudit = Boolean(auditForm.name.trim() && auditItems.length
-    && (!isNewClosing || (auditForm.closingMonth && auditForm.closingCutoff)));
+  const canStartAudit = Boolean(auditItems.length && (isNewClosing
+    ? auditForm.closingMonth && toPhysicalCountCutoff(auditForm.closingCutoff)
+    : auditForm.date || catalog?.business_date));
+  const closingLabels = {
+    monthLabel: t("inventory.accountingMonth"), monthPlaceholder: t("inventory.selectAccountingMonth"),
+    countLabel: t("inventory.stockCountDateTime"), countHelper: t("inventory.stockCountDateTimeHelp"),
+    timezone: t("inventory.stockCountTimezone"), dateLabel: t("inventory.stockCountDate"), timeLabel: t("inventory.stockCountTime"),
+  };
   const visibleRows = rows.filter((row) => {
     const item = itemById.get(row.item_id);
     return (category === "all" || row.category_id === category) && `${item?.name || ""} ${item?.sku || ""}`.toLowerCase().includes(query.toLowerCase());
@@ -111,6 +118,9 @@ export default function CrewStockCheckMobile({ token, outletId, grants, initialT
         setError(t("inventory.legacyClosingDraft"));
         return;
       }
+      if (detail.audit_type === MONTH_END_CLOSING) {
+        setClosingDetails({ month: detail.accounting_month?.slice(0, 7) || "", cutoff: toClosingLocalTime(detail.physical_count_cutoff) });
+      }
       setPurchase(null);
       setCheck({ id: detail.id, stock_check_type: detail.type, status: detail.status, group_id: detail.group_id,
         check_name: detail.check_name, audit_name: detail.audit_name, audit_type: detail.audit_type,
@@ -133,10 +143,13 @@ export default function CrewStockCheckMobile({ token, outletId, grants, initialT
   }
   function startAudit() {
     if (!canStartAudit) return;
+    const checkDate = isNewClosing ? auditForm.closingCutoff.slice(0, 10) : auditForm.date || catalog.business_date;
+    const name = generateAuditName(auditForm.type, checkDate, auditForm.closingMonth);
+    if (isNewClosing) setClosingDetails({ month: auditForm.closingMonth, cutoff: auditForm.closingCutoff });
     setCheck({
       stock_check_type: "audit", status: "draft", audit_type: auditForm.type,
-      audit_name: auditForm.name.trim(), check_name: auditForm.name.trim(), audit_category_ids: auditForm.categoryIds,
-      check_date: isNewClosing ? auditForm.closingCutoff.slice(0, 10) : auditForm.date || catalog.business_date,
+      audit_name: name, check_name: name, audit_category_ids: auditForm.categoryIds,
+      check_date: checkDate,
       notes: auditForm.notes,
       ...(isNewClosing ? {
         accounting_month: `${auditForm.closingMonth}-01`,
@@ -148,7 +161,7 @@ export default function CrewStockCheckMobile({ token, outletId, grants, initialT
   }
   function updateRow(itemId, patch) { setRows((current) => current.map((row) => row.item_id === itemId ? { ...row, ...patch } : row)); setDirty(true); }
   function updateClosingDetails(patch) {
-    setCheck(current => ({ ...current, ...patch }));
+    setClosingDetails(current => ({ ...current, ...patch }));
     setDirty(true);
   }
 
@@ -157,6 +170,14 @@ export default function CrewStockCheckMobile({ token, outletId, grants, initialT
     if (isClosing && !hasClosingDetails) { setError(t("inventory.closingDetailsRequired")); return; }
     if (status === "submitted" && !canComplete) { setError(t("inventory.completeCountsFirst")); setReview(false); return; }
     const payload = { ...check, outlet_id: outletId, status };
+    if (isClosing) {
+      const date = closingDetails.cutoff.slice(0, 10);
+      const name = updateClosingAuditName(check.audit_name, check.check_date, check.accounting_month?.slice(0, 7), date, closingDetails.month);
+      Object.assign(payload, {
+        audit_name: name, check_name: name === check.audit_name ? check.check_name : name,
+        accounting_month: `${closingDetails.month}-01`, physical_count_cutoff: toPhysicalCountCutoff(closingDetails.cutoff), check_date: date,
+      });
+    }
     const items = serializeRows(rows);
     const signature = JSON.stringify({ payload, items });
     if (pendingRequest.current?.signature !== signature) pendingRequest.current = { signature, id: requestId() };
@@ -168,7 +189,7 @@ export default function CrewStockCheckMobile({ token, outletId, grants, initialT
       setDirty(false);
       if (status === "submitted") {
         const completedId = result.check.id;
-        setCheck((current) => ({ ...current, id: completedId, status: "completed", submitted_at: result.check.submitted_at })); setReview(false);
+        setCheck({ ...payload, id: completedId, status: "completed", submitted_at: result.check.submitted_at }); setReview(false);
         setNotice(t("inventory.checkCompleted")); void loadPurchaseResult(completedId, check.stock_check_type);
       }
       else {
@@ -219,10 +240,9 @@ export default function CrewStockCheckMobile({ token, outletId, grants, initialT
     {["draft", "in_progress", "completed"].includes(check.status) && <div className="crew-inventory-progress"><span><strong>{t("inventory.progress", { done: completed, total: rows.length })} <em>{rows.length ? Math.round(completed / rows.length * 100) : 0}%</em></strong><CrewStatusBadge tone={check.status === "completed" ? "success" : "info"}>{t(`inventory.${check.status}`)}</CrewStatusBadge></span><CrewProgressBar value={rows.length ? Math.round(completed / rows.length * 100) : 0} /></div>}
     {check.status === "completed" ? <CompletedResult check={check} rows={rows} itemById={itemById} purchase={purchase} canReviewSuggestions={grants?.can_manage_purchase_orders} onRetry={() => void loadPurchaseResult(check.id, check.stock_check_type)} onReview={() => onReviewSuggestions?.(check.id)} onOpenPurchaseOrder={onOpenPurchaseOrder} t={t} language={i18n.language} /> : ["skipped", "missed"].includes(check.status) ? <LifecycleResult check={check} t={t} language={i18n.language} /> : review ? <ReviewRows rows={rows} itemById={itemById} t={t} /> : <>
       {isClosing && <div className="crew-inventory-form">
-        <ClosingCountFields month={check.accounting_month?.slice(0, 7) || ""} cutoff={toClosingLocalTime(check.physical_count_cutoff)}
-          monthLabel={t("inventory.accountingMonth")} cutoffLabel={t("inventory.physicalCountCutoff")}
-          onMonthChange={month => updateClosingDetails({ accounting_month: month ? `${month}-01` : null })}
-          onCutoffChange={cutoff => updateClosingDetails({ physical_count_cutoff: toPhysicalCountCutoff(cutoff), check_date: cutoff.slice(0, 10) })} />
+        <ClosingCountFields {...closingLabels} DateField={CrewDatePicker} month={closingDetails.month} cutoff={closingDetails.cutoff}
+          onMonthChange={month => updateClosingDetails({ month })}
+          onCutoffChange={cutoff => updateClosingDetails({ cutoff })} />
       </div>}
       <CrewSearchBar value={query} onChange={setQuery} placeholder={t("inventory.searchItems")} />
       <div className="crew-v2-chips crew-inventory-chips" role="group" aria-label={t("inventory.categories")}>{[{ id: "all", name: t("inventory.all") }, ...(catalog?.categories || []).filter((item) => rows.some((row) => row.category_id === item.id))].map((item) => <button key={item.id} type="button" className={category === item.id ? "active" : ""} aria-pressed={category === item.id} onClick={() => setCategory(item.id)}>{item.name}</button>)}</div>
@@ -242,7 +262,7 @@ export default function CrewStockCheckMobile({ token, outletId, grants, initialT
       {tab === "required" && (data.can_perform_stock_check ? <>
         {required.length ? <div className="crew-inventory-list">{required.map((group) => <div className="crew-inventory-scheduled-row" key={group.group_id}><CrewInventoryItemThumb item={itemById.get(group.items?.[0]?.item_id)} /><span className="crew-inventory-scheduled-copy"><strong>{group.name}</strong><small>{[group.shift, t("inventory.homeItemCount", { count: group.items?.length || 0 })].filter(Boolean).join(" · ")}</small></span><CrewStatusBadge tone={group.status === "in_progress" ? "info" : "warning"}>{t(`inventory.${group.status}`)}</CrewStatusBadge><div className="crew-inventory-scheduled-actions"><button type="button" className="crew-mobile-secondary" onClick={() => startScheduled(group)}>{group.status === "in_progress" ? t("inventory.resume") : t("inventory.start")}</button>{group.status === "due" && <button type="button" className="crew-inventory-skip-action" onClick={() => { pendingSkipRequest.current = null; setSkipTarget(group); setSkipReason(""); }}>{t("inventory.skip")}</button>}</div></div>)}</div> : <CrewEmptyState title={t("inventory.noRequired")} body={t("inventory.noRequiredBody")} />}
       </> : <CrewEmptyState title={t("inventory.noAccess")} />)}
-      {tab === "audit" && (data.can_create_audit_stock_check ? <><button className="crew-mobile-primary crew-inventory-add" type="button" onClick={() => { setAuditForm({ type: "Spot Check", name: "", date: catalog.business_date, categoryIds: [], notes: "", closingMonth: "", closingCutoff: "" }); setAuditOpen(true); }}><Plus size={18} />{t("inventory.newAudit")}</button><div className="crew-inventory-list">{(data.checks || []).filter((row) => row.type === "audit" && row.status === "draft").map((row) => <div className="crew-inventory-audit-row" key={row.id}><button type="button" onClick={() => void openSaved(row.id)} aria-label={`${t("inventory.homeContinue")}: ${row.name}`}><CrewInventoryItemThumb item={itemById.get(row.cover_item_id)} /><span><strong>{row.name}</strong><small>{row.audit_type} · {t("inventory.homeItemCount", { count: row.item_count || 0 })}</small><small>{t("inventory.homeContinue")}</small></span><CrewStatusBadge tone="warning">{t("inventory.draft")}</CrewStatusBadge><ChevronRight size={16} /></button><button type="button" aria-label={t("inventory.deleteDraft")} onClick={() => setDeleteTarget(row.id)}><Trash2 size={18} /></button></div>)}</div>{!(data.checks || []).some((row) => row.type === "audit" && row.status === "draft") && <CrewEmptyState title={t("inventory.noAuditDrafts")} />}</> : <CrewEmptyState title={t("inventory.noAccess")} />)}
+      {tab === "audit" && (data.can_create_audit_stock_check ? <><button className="crew-mobile-primary crew-inventory-add" type="button" onClick={() => { setAuditForm({ type: "Spot Check", date: catalog.business_date, categoryIds: [], notes: "", closingMonth: "", closingCutoff: "" }); setAuditOpen(true); }}><Plus size={18} />{t("inventory.newAudit")}</button><div className="crew-inventory-list">{(data.checks || []).filter((row) => row.type === "audit" && row.status === "draft").map((row) => <div className="crew-inventory-audit-row" key={row.id}><button type="button" onClick={() => void openSaved(row.id)} aria-label={`${t("inventory.homeContinue")}: ${row.name}`}><CrewInventoryItemThumb item={itemById.get(row.cover_item_id)} /><span><strong>{row.name}</strong><small>{row.audit_type} · {t("inventory.homeItemCount", { count: row.item_count || 0 })}</small><small>{t("inventory.homeContinue")}</small></span><CrewStatusBadge tone="warning">{t("inventory.draft")}</CrewStatusBadge><ChevronRight size={16} /></button><button type="button" aria-label={t("inventory.deleteDraft")} onClick={() => setDeleteTarget(row.id)}><Trash2 size={18} /></button></div>)}</div>{!(data.checks || []).some((row) => row.type === "audit" && row.status === "draft") && <CrewEmptyState title={t("inventory.noAuditDrafts")} />}</> : <CrewEmptyState title={t("inventory.noAccess")} />)}
       {tab === "history" && <><CrewHistoryControls month={historyView.month} onMonthChange={historyView.setMonth} status={historyView.status} onStatusChange={historyView.setStatus} statuses={["completed", "missed", "skipped"]} />{historyView.error && <p className="crew-v2-error" role="alert">{historyView.error}</p>}<div className="crew-inventory-list">{history.map((row) => <div className="crew-inventory-history-entry" key={row.id || `${row.group_id}-${row.check_date}`}><CrewInventoryItemThumb item={itemById.get(row.cover_item_id) || { photo_url: row.cover_photo_url, name: row.name }} inspectable={row.status === "completed"} /><button type="button" onClick={() => row.id ? void openSaved(row.id) : (setCheck({ ...row, stock_check_type: "scheduled", check_name: row.name }), setRows([]))}><span><strong>{row.name}</strong><small>{[row.check_date, t(`inventory.${row.type}`), row.status === "completed" ? t("inventory.homeItemCount", { count: row.item_count || 0 }) : null].filter(Boolean).join(" · ")}</small></span><CrewStatusBadge tone={row.status === "completed" ? "success" : row.status === "missed" ? "danger" : "neutral"}>{t(`inventory.${row.status}`)}</CrewStatusBadge><ChevronRight size={18} /></button></div>)}{!history.length && !historyView.loading && <CrewEmptyState title={t("inventory.noHistory")} />}</div>{historyView.loading && <p className="crew-inventory-state" role="status">{t("common.loading")}</p>}{historyView.hasMore && <button className="crew-mobile-secondary crew-inventory-load-more" type="button" disabled={historyView.loading} onClick={historyView.loadMore}>{t("inventory.loadMore")}</button>}</>}
     </>}
     {auditOpen && <CrewBottomSheet title={t("inventory.newAudit")} onClose={() => setAuditOpen(false)} footer={<>
@@ -251,10 +271,8 @@ export default function CrewStockCheckMobile({ token, outletId, grants, initialT
     </>}>
       <div className="crew-inventory-form">
         <CrewChoicePicker label={t("inventory.auditType")} value={auditForm.type} options={auditTypes.map((value) => ({ value, label: t(`inventory.auditTypes.${value}`) }))} onChange={(type) => setAuditForm((current) => ({ ...current, type }))} />
-        <label>{t("inventory.auditName")}<input value={auditForm.name} onChange={(event) => setAuditForm((current) => ({ ...current, name: event.target.value }))} /></label>
         {isNewClosing ? <>
-          <ClosingCountFields month={auditForm.closingMonth} cutoff={auditForm.closingCutoff}
-            monthLabel={t("inventory.accountingMonth")} cutoffLabel={t("inventory.physicalCountCutoff")}
+          <ClosingCountFields {...closingLabels} DateField={CrewDatePicker} month={auditForm.closingMonth} cutoff={auditForm.closingCutoff}
             onMonthChange={closingMonth => setAuditForm(current => ({ ...current, closingMonth }))}
             onCutoffChange={closingCutoff => setAuditForm(current => ({ ...current, closingCutoff }))} />
           <p>{t("inventory.closingCoverage", { count: auditItems.length })}</p>

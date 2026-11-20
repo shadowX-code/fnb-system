@@ -9,7 +9,7 @@ import DatePickerField from "../../../../components/forms/DatePickerField.jsx";
 import EmptyState from "../../../../components/feedback/EmptyState.jsx";
 import InventoryItemThumbnail from "../InventoryItemThumbnail.jsx";
 import InventoryItemPhotoPreview from "../InventoryItemPhotoPreview.jsx";
-import { SectionCard, Field, TextArea, selectInputText, parseNonNegativeNumber, todayInput, getBusinessDateInput, toDateInputValue } from "../InventorySharedPresentation.jsx";
+import { SectionCard, TextArea, selectInputText, parseNonNegativeNumber, todayInput, getBusinessDateInput, toDateInputValue } from "../InventorySharedPresentation.jsx";
 import { normalizeOutletRecord, uniqueIds, outletConfigForItem, isActiveInventoryItem } from "../inventoryItemModel.js";
 import { stockCheckItemsForGroup } from "../groups/inventoryGroupsModel.js";
 import { linkedPurchaseOrdersForStockCheck } from "../purchaseOrders/inventoryPurchaseOrderHelpers.js";
@@ -22,7 +22,7 @@ import FactoryPagination from "../../../factory/components/FactoryPagination.jsx
 const SHOW_STOCK_CHECK_CARD_DEBUG = import.meta.env.DEV && String(import.meta.env.VITE_SHOW_STOCK_CHECK_CARD_DEBUG ?? "false").toLowerCase() === "true";
 const shifts = ["Opening", "Mid", "Closing", "Any Shift"];
 import ClosingCountFields from "./ClosingCountFields.jsx";
-import { MONTH_END_CLOSING, toClosingLocalTime } from "./monthEndClosing.js";
+import { generateAuditName, MONTH_END_CLOSING, toClosingLocalTime, toPhysicalCountCutoff, updateClosingAuditName } from "./monthEndClosing.js";
 
 const auditTypes = [MONTH_END_CLOSING, "Full Stock Audit", "Spot Check", "Category Audit", "Custom Audit"];
 function parLevelForOutlet(item = {}, outletId) { return outletConfigForItem(item, outletId).parLevel; }
@@ -481,7 +481,6 @@ function AuditStockCheckModal({ outlets, categories, items, onClose, onStart }) 
   const [form, setForm] = useState({
     outletId: outlets[0]?.id || "",
     date: todayInput(),
-    auditName: "",
     auditType: auditTypes[0],
     closingMonth: "",
     closingCutoff: "",
@@ -493,8 +492,9 @@ function AuditStockCheckModal({ outlets, categories, items, onClose, onStart }) 
   const selectedCategories = new Set(form.categoryIds);
   const selectedLinkedItemCount = outletItems.filter((item) => selectedCategories.has(item.categoryId)).length;
   const isClosing = form.auditType === MONTH_END_CLOSING;
-  const canStart = form.outletId && form.auditName.trim() && form.auditType
-    && (isClosing ? outletItems.length > 0 && form.closingMonth && form.closingCutoff : selectedLinkedItemCount > 0);
+  const canStart = form.outletId && form.auditType
+    && (isClosing ? outletItems.length > 0 && form.closingMonth && toPhysicalCountCutoff(form.closingCutoff)
+      : form.date && selectedLinkedItemCount > 0);
 
   function update(key, value) {
     setForm((current) => {
@@ -525,11 +525,12 @@ function AuditStockCheckModal({ outlets, categories, items, onClose, onStart }) 
       <div className="space-y-4">
         <div className="grid gap-3 md:grid-cols-2">
           <SelectField label="Outlet" value={form.outletId} options={outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))} onChange={(value) => update("outletId", value)} searchable />
-          {!isClosing && <DatePickerField label="Audit Date" value={form.date} onChange={(value) => update("date", value)} required />}
-          <Field label="Audit Name" value={form.auditName} onChange={(value) => update("auditName", value)} placeholder="Month-end closing count" required />
           <SelectField label="Audit Type" value={form.auditType} options={auditTypes.map((type) => ({ value: type, label: type }))} onChange={(value) => update("auditType", value)} />
-          {isClosing && <ClosingCountFields month={form.closingMonth} cutoff={form.closingCutoff} onMonthChange={value => update("closingMonth", value)} onCutoffChange={value => update("closingCutoff", value)} inputClassName="control w-full" />}
         </div>
+        {isClosing
+          ? <ClosingCountFields className="md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]" month={form.closingMonth} cutoff={form.closingCutoff}
+              onMonthChange={value => update("closingMonth", value)} onCutoffChange={value => update("closingCutoff", value)} />
+          : <DatePickerField className="max-w-md" label="Audit Date" value={form.date} onChange={(value) => update("date", value)} required />}
         {isClosing ? <p className="type-caption text-text-secondary">Count all {outletItems.length} active outlet items. Enter zero if an item has no stock.</p> : <div className="rounded-2xl border border-border p-3">
           <div className="type-title font-bold text-text-primary">Category Selection</div>
           <p className="mt-1 type-caption text-text-secondary">Audit setup selects categories only. The full item list is generated next, and individual items can be skipped during counting with a reason.</p>
@@ -799,10 +800,12 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
 
   async function startAuditStockCheck(form) {
     const isClosing = form.auditType === MONTH_END_CLOSING;
+    const countDate = isClosing ? form.closingCutoff.slice(0, 10) : form.date;
+    const auditName = generateAuditName(form.auditType, countDate, form.closingMonth);
     const auditGroup = {
       id: makeId("audit_group"),
       outletId: form.outletId,
-      name: form.auditName.trim(),
+      name: auditName,
       description: form.notes || "",
       categoryIds: form.categoryIds,
       itemIds: [],
@@ -813,8 +816,8 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
       status: "active",
       stockCheckType: "audit",
       auditType: form.auditType,
-      auditName: form.auditName.trim(),
-      date: isClosing ? form.closingCutoff.slice(0, 10) : form.date,
+      auditName,
+      date: countDate,
       closingMonth: form.closingMonth,
       closingCutoff: form.closingCutoff,
       notes: form.notes,
@@ -843,7 +846,7 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
       notify("Start a new closing audit", "This draft was created before closing counts required explicit actuals.", "warning");
       return;
     }
-    setClosingDetails({ closingMonth: check.accountingMonth.slice(0, 7), closingCutoff: toClosingLocalTime(check.physicalCountCutoff) });
+    setClosingDetails({ closingMonth: check.accountingMonth?.slice(0, 7) || "", closingCutoff: toClosingLocalTime(check.physicalCountCutoff) });
     setSelectedOutletId(check.outletId);
     setDate(check.date || todayInput());
     setActiveCheckGroupId(null);
@@ -864,6 +867,7 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
       stockCheckType: "audit",
       auditType: check.auditType || "Custom Audit",
       auditName: check.auditName || "Audit Stock Check",
+      closingMonth: check.accountingMonth?.slice(0, 7) || "",
       date: check.date || todayInput(),
       notes: check.notes || "",
     });
@@ -963,8 +967,8 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
     if (savingStockCheck) return;
     const isAudit = activeCheckGroup.stockCheckType === "audit";
     const isClosing = activeCheckGroup.auditType === MONTH_END_CLOSING;
-    if (isClosing && (!closingDetails.closingMonth || !closingDetails.closingCutoff)) {
-      notify("Closing details required", "Enter the Accounting Month and Physical Count Cutoff.", "warning");
+    if (isClosing && (!closingDetails.closingMonth || !toPhysicalCountCutoff(closingDetails.closingCutoff))) {
+      notify("Closing details required", "Enter the Accounting Month and Stock Count Date & Time.", "warning");
       return;
     }
     if (status === "submitted") {
@@ -978,10 +982,13 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
     const existingDraft = isAudit ? null : activeScheduledCheckId
       ? data.checks.find((check) => check.id === activeScheduledCheckId)
       : draftCheckForGroupRun(activeCheckGroup, data.checks, activeCheckGroup.date || date, stockCheckShiftFilter);
+    const checkDate = isClosing ? closingDetails.closingCutoff.slice(0, 10) : activeCheckGroup.date || date;
     const persistGroup = {
       ...activeCheckGroup,
       ...closingDetails,
-      date: isClosing ? closingDetails.closingCutoff.slice(0, 10) : activeCheckGroup.date || date,
+      ...(isClosing ? { auditName: updateClosingAuditName(activeCheckGroup.auditName, activeCheckGroup.date,
+        activeCheckGroup.closingMonth, checkDate, closingDetails.closingMonth) } : {}),
+      date: checkDate,
       existingCheckId: activeCheckGroup.existingCheckId || existingDraft?.id || activeScheduledCheckId || "",
     };
     const rows = buildStockCheckRowsForGroup(persistGroup);
@@ -1044,11 +1051,10 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
     if (activeCheckGroup) {
       const isAudit = activeCheckGroup.stockCheckType === "audit";
       const isClosing = activeCheckGroup.auditType === MONTH_END_CLOSING;
-      const closingFields = isClosing && <div className="mb-3 grid gap-3 md:grid-cols-2">
-        <ClosingCountFields month={closingDetails.closingMonth} cutoff={closingDetails.closingCutoff}
-          onMonthChange={closingMonth => setClosingDetails(current => ({ ...current, closingMonth }))}
-          onCutoffChange={closingCutoff => setClosingDetails(current => ({ ...current, closingCutoff }))} inputClassName="control w-full" />
-      </div>;
+      const closingFields = isClosing && <ClosingCountFields className="mb-3 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]"
+        month={closingDetails.closingMonth} cutoff={closingDetails.closingCutoff}
+        onMonthChange={closingMonth => setClosingDetails(current => ({ ...current, closingMonth }))}
+        onCutoffChange={closingCutoff => setClosingDetails(current => ({ ...current, closingCutoff }))} />;
       const activePersistedCheck = activeScheduledCheckId
         ? data.checks.find((check) => check.id === activeScheduledCheckId)
         : activeCheckGroup.existingCheckId

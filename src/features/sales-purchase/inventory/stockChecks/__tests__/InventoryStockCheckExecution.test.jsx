@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, renderHook, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ load: vi.fn(), persist: vi.fn(), remove: vi.fn() }));
@@ -92,12 +92,14 @@ describe("Stock Check execution scoped read", () => {
     window.history.replaceState(null, "", "/restaurant/inventory/stock-check");
     render(<InventoryStockCheckPage auth={{ ...auth, profile: { role_outlet_access_type: "all" }, hasPermission: () => true }} ui={{ notify: vi.fn() }} outlets={[{ id: "A", name: "QA Outlet" }]} />);
     fireEvent.click(await screen.findByRole("button", { name: "Audit Stock Check" }));
-    fireEvent.change(screen.getByPlaceholderText("Month-end closing count"), { target: { value: "QA Audit" } });
     fireEvent.click(screen.getByRole("button", { name: "Audit Type" }));
     fireEvent.click(await screen.findByRole("option", { name: "Spot Check" }));
+    const setup = within(screen.getByRole("dialog", { name: "Audit Stock Check" }));
+    expect(setup.queryByRole("textbox", { name: /audit name/i })).toBeNull();
+    fireEvent.change(setup.getByPlaceholderText("Select date"), { target: { value: "15 Oct 2026" } });
     fireEvent.click(screen.getByRole("button", { name: /Frozen.*1 items/ }));
     fireEvent.click(screen.getByRole("button", { name: "Start Audit" }));
-    await waitFor(() => expect(mocks.persist).toHaveBeenCalledWith(expect.objectContaining({ stockCheckType: "audit", auditName: "QA Audit" }), expect.any(Array), "draft", "admin", undefined));
+    await waitFor(() => expect(mocks.persist).toHaveBeenCalledWith(expect.objectContaining({ stockCheckType: "audit", auditName: "Spot Check · 15 Oct 2026" }), expect.any(Array), "draft", "admin", undefined));
     fireEvent.click(await screen.findByRole("button", { name: "Skip" }));
     expect((await screen.findByRole("dialog", { name: "Skip stock check item" })).textContent).toContain("Skip Reason");
   });
@@ -109,12 +111,21 @@ describe("Stock Check execution scoped read", () => {
     window.history.replaceState(null, "", "/restaurant/inventory/stock-check");
     render(<InventoryStockCheckPage auth={{ ...auth, profile: { role_outlet_access_type: "all" }, hasPermission: () => true }} ui={{ notify: vi.fn() }} outlets={[{ id: "A", name: "QA Outlet" }]} />);
     fireEvent.click(await screen.findByRole("button", { name: "Audit Stock Check" }));
-    fireEvent.change(screen.getByPlaceholderText("Month-end closing count"), { target: { value: "October Close" } });
-    fireEvent.change(screen.getByLabelText("Accounting Month"), { target: { value: "2026-10" } });
-    fireEvent.change(screen.getByLabelText("Physical Count Cutoff (Malaysia time)"), { target: { value: "2026-11-01T00:00" } });
+    const year = new Date().getFullYear();
+    const setup = within(screen.getByRole("dialog", { name: "Audit Stock Check" }));
+    expect(setup.getByText(/When the physical stock count was taken/)).toBeTruthy();
+    fireEvent.click(setup.getByRole("button", { name: "Accounting Month" }));
+    fireEvent.click(setup.getByRole("gridcell", { name: "Oct" }));
+    fireEvent.change(setup.getByPlaceholderText("Select date"), { target: { value: `1 Nov ${year}` } });
+    expect(setup.getByRole("button", { name: "Start Audit" }).disabled).toBe(true);
+    fireEvent.click(setup.getByRole("button", { name: "Time" }));
+    fireEvent.click(setup.getByRole("button", { name: "Hour" }));
+    fireEvent.click(setup.getByRole("option", { name: "12", exact: true }));
+    fireEvent.click(setup.getByRole("button", { name: "Done" }));
     fireEvent.click(screen.getByRole("button", { name: "Start Audit" }));
     await waitFor(() => expect(mocks.persist).toHaveBeenCalledWith(
-      expect.objectContaining({ closingMonth: "2026-10", date: "2026-11-01" }),
+      expect.objectContaining({ closingMonth: `${year}-10`, date: `${year}-11-01`,
+        closingCutoff: `${year}-11-01T00:00:00`, auditName: `Month-End Closing · Oct ${year} · 1 Nov ${year}` }),
       [expect.objectContaining({ itemId: "item", actualCount: "" }), expect.objectContaining({ itemId: "uncategorized", actualCount: "" })],
       "draft", "admin", undefined,
     ));
