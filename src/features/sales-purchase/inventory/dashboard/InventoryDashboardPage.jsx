@@ -4,7 +4,6 @@ import PageHeader from "../../../../components/layout/PageHeader.jsx";
 import DashboardSection from "../../../../components/layout/DashboardSection.jsx";
 import AdminSummaryGrid from "../../../../components/ui/AdminSummaryGrid.jsx";
 import Badge from "../../../../components/ui/Badge.jsx";
-import EmptyState from "../../../../components/feedback/EmptyState.jsx";
 import DataTable from "../../../../components/tables/DataTable.jsx";
 import SelectField from "../../../../components/forms/SelectField.jsx";
 import AdminFilterToolbar from "../../../../components/layout/AdminFilterToolbar.jsx";
@@ -22,6 +21,7 @@ const calendarDate = new Intl.DateTimeFormat("en-MY", { day: "numeric", month: "
 const calendarMonth = new Intl.DateTimeFormat("en-MY", { month: "long", year: "numeric", timeZone: "UTC" });
 const displayDate = date => date ? calendarDate.format(new Date(`${date}T00:00:00Z`)) : "—";
 const percent = value => value == null ? "—" : `${value}%`;
+const compactMessage = "rounded-lg bg-surface-muted px-3 py-2 type-body-sm text-text-secondary";
 
 function OpenChecks({ outletId, date, checkId, children = "Open checks" }) {
   return <button className="type-body-sm font-semibold text-primary hover:underline" type="button"
@@ -57,7 +57,7 @@ function ActionRequired({ result, evidence, checks, date, canViewChecks, canView
       </div>
       <p className="type-caption text-text-secondary">{action.message}</p>
       {action.link}
-    </li>)}</ul> : <EmptyState title="No stock exceptions or open orders" />}
+    </li>)}</ul> : <p className={compactMessage}>No stock exceptions or open orders.</p>}
   </DashboardSection>;
 }
 
@@ -90,12 +90,12 @@ function CostInsights({ insight, canOpenMaster }) {
         </div>)}
       </dl>
       <h3 className="mb-1 type-body-sm font-semibold">Top 5 Cost Changes</h3>
-      <p className="mb-1 type-caption text-text-secondary">Net change per item, ranked by absolute RM per unit.</p>
-      {data.top_changes.length ? <DataTable columns={columns} rows={data.top_changes} getRowKey={row => row.item_id}
-        density="compact" columnSpacing="compact" mobileLayout="stack" minWidth={0} />
-        : <EmptyState title="No comparable standard cost changes in this period" />}
-    </> : <EmptyState title={insight?.state === "restricted" ? "Standard cost access required" : "Cost insights unavailable"}
-      description={insight?.state === "unavailable" ? "Refresh to retry the standard cost read." : undefined} />}
+      {data.top_changes.length ? <>
+        <p className="mb-1 type-caption text-text-secondary">Net change per item, ranked by absolute RM per unit.</p>
+        <DataTable columns={columns} rows={data.top_changes} getRowKey={row => row.item_id}
+          density="compact" columnSpacing="compact" mobileLayout="stack" minWidth={0} />
+      </> : <p className={compactMessage}>No comparable standard cost changes in this period.</p>}
+    </> : <p className={compactMessage}>{insight?.state === "restricted" ? "Standard cost access required." : "Cost insights unavailable. Refresh to retry."}</p>}
   </DashboardSection>;
 }
 
@@ -140,7 +140,7 @@ function OperationalActivity({ dueRuns, movements, canViewChecks, canViewMovemen
             </div>
             <Badge tone={status === "Overdue" ? "danger" : "warning"}>{status}</Badge>
           </li>
-        ))}</ul> : <EmptyState title="No due or overdue checks in this window" />}
+        ))}</ul> : <p className={compactMessage}>No due or overdue checks in this window.</p>}
         {dueRuns.length > visibleRuns.length && <p className="pt-1 type-caption text-text-secondary">{dueRuns.length - visibleRuns.length} more scheduled runs in this window.</p>}
       </section>
       <section className="min-w-0" aria-label="Recent inventory movements">
@@ -154,7 +154,7 @@ function OperationalActivity({ dueRuns, movements, canViewChecks, canViewMovemen
             <p className="type-caption text-text-secondary">{movement.outlet.name} · {toTitle(movement.type)} · {movement.dateTime ? formatOperationalMoment(movement.dateTime) : displayDate(movement.date)}</p>
           </div>
           <span className="shrink-0 type-body-sm font-semibold tabular-nums">{movement.quantity > 0 ? "+" : ""}{movement.quantity} {movement.unit || movement.item?.unit}</span>
-        </li>)}</ul> : <EmptyState title="No inventory movements in this scope" />}
+        </li>)}</ul> : <p className={compactMessage}>No inventory movements in this scope.</p>}
       </section>
     </div>
   </DashboardSection>;
