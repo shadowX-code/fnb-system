@@ -24,7 +24,7 @@ describe("auditStockCheckValuation", () => {
       { expectedQty: 3, actualCount: 1, unitCostSnapshot: null },
     ]);
     expect(historical.items[1]).toMatchObject({ stockValue: null, varianceValue: null });
-    expect(historical).toMatchObject({ stockValue: null, shortageValue: null, excessValue: null, netVariance: null, stockIncomplete: 1, varianceIncomplete: 1 });
+    expect(historical).toMatchObject({ stockValue: null, knownStockValue: 0, valuedItemCount: 1, missingCostCount: 1, shortageValue: null, excessValue: null, netVariance: null, stockIncomplete: 1, varianceIncomplete: 1 });
   });
 
   it("does not assign value to skipped or unavailable counts", () => {
@@ -33,7 +33,7 @@ describe("auditStockCheckValuation", () => {
       { expectedQty: 5, actualCount: 4, unitCostSnapshot: 3, na: true },
     ]);
     expect(result.items.every((row) => row.stockValue === null && row.varianceValue === null)).toBe(true);
-    expect(result.stockIncomplete).toBe(2);
+    expect(result).toMatchObject({ stockIncomplete: 2, knownStockValue: null, valuedItemCount: 0, missingCostCount: 0 });
   });
 
   it("does not report a complete net variance without a recorded Par quantity", () => {

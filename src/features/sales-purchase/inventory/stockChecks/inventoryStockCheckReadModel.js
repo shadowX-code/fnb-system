@@ -89,6 +89,7 @@ export function mapRemoteStockCheck(row = {}, rows = []) {
     status: row.status || "draft",
     rows: mappedRows,
     createdBy: row.created_by || "",
+    createdByEmployeeId: row.created_by_employee_id || "",
     submittedBy: row.submitted_by || "",
     submittedAt: row.submitted_at || "",
     reviewedAt: row.reviewed_at || "",

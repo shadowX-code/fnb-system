@@ -7,14 +7,14 @@ import InventoryStockCheckResultSurface from '../../inventory/stockChecks/Invent
 import { loadSubmittedStockCheck, loadStockCheckResult } from '../../inventory/stockChecks/inventoryStockCheckResultService.js';
 const auth = { user: { id: 'admin' }, profile: { role_outlet_access_type: 'all' }, hasPermission: () => true };
 const outlets = [{ id: 'outlet', name: 'QA Outlet' }];
-const header = id => ({ id, outlet_id: 'outlet', status: 'submitted', stock_check_type: 'audit', check_date: '2026-09-24', submitted_by: 'employee', submitted_at: '2026-09-24T12:00:00Z' });
+const header = id => ({ id, outlet_id: 'outlet', status: 'submitted', stock_check_type: 'audit', check_date: '2026-09-24', created_by_employee_id: 'creator', submitted_by: 'employee', submitted_at: '2026-09-24T12:00:00Z' });
 const rows = id => [{ id: `row-${id}`, stock_check_id: id, item_id: `item-${id}`, category_id: 'category', actual_count_quantity: 4, par_level_quantity: 10, variance: -6, unit_cost_snapshot: 7, unit: 'kg' }];
 function fixture(table, options) {
   if (table === 'inventory_stock_checks') return { data: [header(options.eq.id)] };
   if (table === 'inventory_stock_check_items') return { data: rows(options.eq.stock_check_id) };
   if (table === 'inventory_items') return { data: options.in.id.map(id => ({ id, item_name: id, category_id: 'category', cost: 999, unit: 'pcs', photo_url: 'https://example.test/photo.jpg' })) };
   if (table === 'inventory_categories') return { data: [{ id: 'category', name: 'Frozen' }] };
-  if (table === 'employees') return { data: [{ id: 'employee', full_name: 'QA Actor' }] };
+  if (table === 'employees') return { data: [{ id: 'employee', full_name: 'QA Submitter' }, { id: 'creator', nickname: 'QA Creator' }] };
   throw new Error(`Unexpected read ${table}`);
 }
 beforeEach(() => {
@@ -28,6 +28,7 @@ afterEach(() => { cleanup(); window.history.replaceState(null, '', '/'); });
 describe('identity-owned submitted result', () => {
   it('loads only identity-scoped evidence and label context, never mutable cost/Par', async () => {
     const data = await loadStockCheckResult('A', ['outlet']);
+    expect(data.actors).toEqual({ createdByName: 'QA Creator', submittedByName: 'QA Submitter' });
     expect(data.check.rows[0]).toMatchObject({ actualCount: 4, expectedQty: 10, variance: -6, unitCostSnapshot: 7, unit: 'kg' });
     expect(read).toHaveBeenCalledWith('inventory_stock_check_items', { eq: { stock_check_id: 'A' }, order: 'created_at' });
     expect(new Set(read.mock.calls.map(([table]) => table))).toEqual(new Set(['inventory_stock_checks', 'inventory_stock_check_items', 'inventory_items', 'inventory_categories', 'employees']));

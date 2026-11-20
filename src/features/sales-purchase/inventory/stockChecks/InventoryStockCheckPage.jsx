@@ -28,6 +28,8 @@ import MonthPickerField from "../../../../components/forms/MonthPickerField.jsx"
 import AuditCountTimestamps, { AuditCountTimestampFields } from "./AuditCountTimestamps.jsx";
 import { formatClosingError, formatClosingMonthLabel, isValidClosingQuantity, MONTH_END_CLOSING, updateClosingAuditName } from "./monthEndClosing.js";
 import { STOCK_CHECK_SKIP_REASONS, stockCheckSkipReason } from "./stockCheckSkipReasons.js";
+import { indexStockCheckActors, stockCheckActorNames } from "./inventoryStockCheckActors.js";
+import { employeeDisplayName } from "../waste/inventoryWasteService.js";
 import { formatQuantity, projectStockCheckCount, stockCheckCountState, summarizeAuditRows } from "./inventoryStockCheckReadModel.js";
 
 const auditTypes = [MONTH_END_CLOSING, "Full Stock Audit", "Spot Check", "Category Audit", "Custom Audit"];
@@ -89,9 +91,7 @@ function formatDateTimeCompact(value) {
   return new Date(value).toLocaleString("en-MY", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
-function employeeDisplayName(employee = {}) {
-  return employee.nickname || employee.full_name || employee.fullName || employee.name || employee.email || "Unknown User";
-}
+
 
 function statusTone(status) {
   if (["active", "normal", "completed", "reviewed", "locked", "delivered", "fully_received"].includes(status)) return "success";
@@ -671,19 +671,11 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
   const categoryById = useMemo(() => new Map(data.categories.map((category) => [category.id, category])), [data.categories]);
   const outletById = useMemo(() => new Map(outlets.map((outlet) => [outlet.id, outlet])), [outlets]);
   const itemById = useMemo(() => new Map(data.items.map((item) => [item.id, item])), [data.items]);
-  const peopleById = useMemo(() => new Map((data.people || []).map((person) => [person.id, person])), [data.people]);
-  const peopleByAuthId = useMemo(() => new Map((data.people || []).filter((person) => person.authUserId).map((person) => [person.authUserId, person])), [data.people]);
-  const currentCheckerName = employeeDisplayName(auth?.profile || { email: auth?.user?.email, name: auth?.user?.email });
-  const actorNameByEmployeeId = (employeeId) => {
-    if (!employeeId) return "Unknown User";
-    if (employeeId === auth?.profile?.id) return currentCheckerName;
-    return peopleById.get(employeeId)?.name || "Unknown User";
-  };
-  const actorNameByAuthUserId = (authUserId) => {
-    if (!authUserId) return "Unknown User";
-    if (authUserId === auth?.user?.id) return currentCheckerName;
-    return peopleByAuthId.get(authUserId)?.name || "Unknown User";
-  };
+  const currentCheckerName = employeeDisplayName(auth?.profile || { email: auth?.user?.email });
+  const actors = useMemo(() => indexStockCheckActors([
+    { id: auth?.profile?.id, authUserId: auth?.user?.id, name: currentCheckerName },
+    ...(data.people || []),
+  ]), [auth?.profile?.id, auth?.user?.id, currentCheckerName, data.people]);
 
   const scopedGroups = data.groups.filter((group) => selectedOutletIds.includes(group.outletId) && (stockCheckShiftFilter === "all" || sameStockCheckShift(group.shift, stockCheckShiftFilter)));
   const dueGroups = scopedGroups.filter((group) => isActionableStockCheckStatus(dueStatus(group, data.checks, date, stockCheckShiftFilter)));
@@ -1065,8 +1057,9 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
         : activeCheckGroup.existingCheckId
         ? data.checks.find((check) => check.id === activeCheckGroup.existingCheckId)
         : draftCheckForGroupRun(activeCheckGroup, data.checks, activeCheckGroup.date || date, stockCheckShiftFilter);
-      const startedByName = activePersistedCheck?.createdBy ? actorNameByAuthUserId(activePersistedCheck.createdBy) : currentCheckerName;
-      const submittedByName = activePersistedCheck?.submittedBy ? actorNameByEmployeeId(activePersistedCheck.submittedBy) : "";
+      const attribution = stockCheckActorNames(activePersistedCheck || {}, actors);
+      const startedByName = activePersistedCheck ? attribution.createdByName : currentCheckerName;
+      const submittedByName = attribution.submittedByName;
       const draftSavedAt = activePersistedCheck?.updatedAt || activePersistedCheck?.createdAt || "";
       const issues = stockCheckValidationIssues(checkRows, isClosing);
       const validationIssues = checkValidationAttempted ? issues : [];
@@ -1317,7 +1310,7 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
       { key: "skipped", header: "Skipped", align: "right", className: "tabular-nums max-[700px]:order-1", render: ({ summary }) => summary.skipped },
       { key: "status", header: "Status", render: ({ check }) =>
         <Badge tone={statusTone(check.status)}>{check.status === "submitted" ? "Completed" : toTitle(check.status)}</Badge> },
-      { key: "createdBy", header: "Created By", className: "max-[700px]:order-1", render: ({ check }) => actorNameByAuthUserId(check.createdBy) },
+      { key: "createdBy", header: "Created By", className: "max-[700px]:order-1", render: ({ check }) => stockCheckActorNames(check, actors).createdByName },
       { key: "actions", header: "Actions", align: "right", className: "max-[700px]:order-1", render: ({ check }) => {
         const openResult = () => navigateAdminRoute("inventory-stock-check-result", { checkId: check.id }, { date });
         if (check.status !== "draft") {
