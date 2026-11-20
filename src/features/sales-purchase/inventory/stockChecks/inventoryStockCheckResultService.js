@@ -27,7 +27,7 @@ async function loadAuditCorrections(checkId) {
   return data;
 }
 
-async function loadClosingContext(checkId) {
+export async function loadClosingContext(checkId) {
   const { data, error } = await supabase.rpc("inventory_closing_context", { p_check_id: checkId });
   throwSupabaseError("inventory.closing.context", error);
   return data;

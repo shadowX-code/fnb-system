@@ -11,10 +11,10 @@ import { businessPoNo, poStatusTone, poProgress, poStatusLabel, poSourceLabel } 
 import { persistRemotePurchaseOrderEdit, persistRemotePurchaseOrderStatus, persistRemotePurchaseOrderCancel, persistRemotePurchaseOrderComplete } from './inventoryPurchaseOrderService.js';
 import useInventoryPurchaseOrdersRead from './useInventoryPurchaseOrdersRead.js';
 
-export default function InventoryPurchaseOrdersWorkspace({ auth, ui, outlets, suppliers }) {
+export default function InventoryPurchaseOrdersWorkspace({ auth, ui, outlets, suppliers, initialOutletId = '' }) {
   const accessible = getAccessibleOutlets(auth, outlets);
   const options = getAccessibleOutletOptions(auth, outlets).filter(option => option.value !== 'all');
-  const [selected, setSelected] = useState('');
+  const [selected, setSelected] = useState(initialOutletId);
   const outletId = options.some(option => option.value === selected) ? selected : options[0]?.value || '';
   const scopeKey = `${auth?.user?.id}:${outletId}`;
   const canView = hasPermission(auth, 'inventory_orders.view');

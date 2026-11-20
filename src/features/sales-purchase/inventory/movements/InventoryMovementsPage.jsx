@@ -20,9 +20,9 @@ import { toTitle, canEditInventoryMovement, persistRemoteInventoryMovement, pers
 const formatDateTimeCompact = value => value ? new Date(value).toLocaleString('en-MY', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '-';
 const makeId = prefix => `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 
-export default function InventoryMovementsPage({ auth, ui, outlets, suppliers }) {
+export default function InventoryMovementsPage({ auth, ui, outlets, suppliers, initialOutletId = '' }) {
   const accessibleOutlets = getAccessibleOutlets(auth, outlets);
-  const [requestedOutletId, setRequestedOutletId] = useState('');
+  const [requestedOutletId, setRequestedOutletId] = useState(initialOutletId);
   const selectedOutletId = accessibleOutlets.some(outlet => outlet.id === requestedOutletId) ? requestedOutletId : accessibleOutlets[0]?.id || '';
   const canView = hasPermission(auth, 'inventory_movements.view');
   const canRecordMovement = hasPermission(auth, 'inventory_movements.create');

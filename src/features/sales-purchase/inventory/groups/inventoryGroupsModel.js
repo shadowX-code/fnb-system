@@ -53,6 +53,20 @@ export const statuses = ["active", "inactive", "archived"];
 export const frequencies = ["custom", "monthly"];
 export const shifts = ["Opening", "Mid", "Closing", "Any Shift"];
 export const weekdays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+export function stockCheckGroupDueOnDate(group, date) {
+  if (group.status !== "active") return false;
+  const [year, month, day] = date.split("-").map(Number);
+  if (group.frequency === "custom") {
+    const weekday = new Date(Date.UTC(year, month - 1, day)).toLocaleDateString("en-MY", { weekday: "long", timeZone: "UTC" });
+    return (group.checkDays || []).includes(weekday);
+  }
+  if (group.frequency === "monthly") {
+    const last = new Date(Date.UTC(year, month, 0)).getUTCDate();
+    return day === (group.monthDay === "last" ? last : Math.min(Math.max(Number(group.monthDay || 1), 1), last));
+  }
+  return false;
+}
+
 export function isActiveInventoryItem(item = {}) { return item.isActive !== false && !["inactive", "archived", "deleted"].includes(String(item.status || "active").toLowerCase()); }
 export function stockCheckItemsForGroup(group = {}, items = []) {
   const selectedItemIds = uniqueIds(group.itemIds || group.item_ids || []);

@@ -37,6 +37,8 @@ const productQueryStateByRouteId = Object.freeze({
   "purchase-comparison": [{ key: "supplier" }],
   inventory_groups: [{ key: "date", aliases: ["stockCheckDate"] }],
   inventory_stock_check: [{ key: "date", aliases: ["stockCheckDate"] }, { key: "outletId" }, { key: "startClosingAudit" }, { key: "accountingMonth" }],
+  inventory_orders: [{ key: "outletId" }],
+  inventory_movements: [{ key: "outletId" }],
 });
 
 const productQueryKeys = new Set(

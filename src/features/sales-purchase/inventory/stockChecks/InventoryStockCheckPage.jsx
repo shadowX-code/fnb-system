@@ -14,7 +14,7 @@ import InventoryItemThumbnail from "../InventoryItemThumbnail.jsx";
 import InventoryItemPhotoPreview from "../InventoryItemPhotoPreview.jsx";
 import { SectionCard, TextArea, selectInputText, parseNonNegativeNumber, todayInput, getBusinessDateInput, toDateInputValue } from "../InventorySharedPresentation.jsx";
 import { normalizeOutletRecord, uniqueIds, outletConfigForItem, isActiveInventoryItem } from "../inventoryItemModel.js";
-import { stockCheckItemsForGroup } from "../groups/inventoryGroupsModel.js";
+import { stockCheckGroupDueOnDate, stockCheckItemsForGroup } from "../groups/inventoryGroupsModel.js";
 import { linkedPurchaseOrdersForStockCheck } from "../purchaseOrders/inventoryPurchaseOrderHelpers.js";
 import { getAccessibleOutletOptions, getAccessibleOutlets, hasPermission, notifyPermissionDenied } from "../../../../utils/accessControl.js";
 import { resolveAdminLocation, navigateAdminRoute } from "../../../../app/routeOwnership.js";
@@ -43,11 +43,6 @@ function normalizeBusinessDate(value, fallback = todayInput()) {
   const isoDate = raw.match(/^(\d{4}-\d{2}-\d{2})/);
   if (isoDate) return isoDate[1];
   return toDateInputValue(raw) || fallback;
-}
-
-function businessDateToLocalDate(value) {
-  const [year, month, day] = normalizeBusinessDate(value).split("-").map(Number);
-  return new Date(year, month - 1, day);
 }
 
 function stockCheckDateFromUrl() {
@@ -98,10 +93,6 @@ function employeeDisplayName(employee = {}) {
   return employee.nickname || employee.full_name || employee.fullName || employee.name || employee.email || "Unknown User";
 }
 
-function weekdayName(value = todayInput()) {
-  return businessDateToLocalDate(value).toLocaleDateString("en-MY", { weekday: "long" });
-}
-
 function statusTone(status) {
   if (["active", "normal", "completed", "reviewed", "locked", "delivered", "fully_received"].includes(status)) return "success";
   if (["draft", "due today", "scheduled", "partial approved", "partial delivery", "partial_delivered", "partial_received"].includes(status)) return "warning";
@@ -120,16 +111,7 @@ function frequencyLabel(group) {
 }
 
 function isGroupDue(group, date) {
-  if (group.status !== "active") return false;
-  const day = weekdayName(date);
-  if (group.frequency === "custom") return (group.checkDays || []).includes(day);
-  if (group.frequency === "monthly") {
-    const target = businessDateToLocalDate(date);
-    const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
-    const configuredDay = group.monthDay === "last" ? lastDay : Math.min(Number(group.monthDay || 1), lastDay);
-    return target.getDate() === configuredDay;
-  }
-  return false;
+  return stockCheckGroupDueOnDate(group, normalizeBusinessDate(date));
 }
 
 function sameStockCheckDate(left, right) {

@@ -21,11 +21,11 @@ function InventoryControlPage({ initialTab, store, auth, ui }) {
   if (route?.definitionId === "inventory-stock-check-restock") return <InventoryStockCheckRestockSurface checkId={route.params.checkId} auth={auth} ui={ui} outlets={outlets} suppliers={suppliers} onClose={() => navigateAdminRoute("inventory_stock_check", {}, route.query)} />;
   if (route?.definitionId === "inventory-stock-check-result") return <InventoryStockCheckResultSurface checkId={route.params.checkId} auth={auth} outlets={outlets} onClose={() => navigateAdminRoute("inventory_stock_check", {}, route.query)} />;
   if (initialTab === "stock-check") return <InventoryStockCheckPage auth={auth} ui={ui} outlets={outlets} />;
-  if (initialTab === "orders") return <InventoryPurchaseOrdersWorkspace auth={auth} ui={ui} outlets={outlets} suppliers={suppliers} />;
+  if (initialTab === "orders") return <InventoryPurchaseOrdersWorkspace auth={auth} ui={ui} outlets={outlets} suppliers={suppliers} initialOutletId={route?.query?.outletId} />;
   if (initialTab === "recipe-intelligence") return <InventoryRecipeIntelligencePage auth={auth} outlets={outlets} />;
   if (initialTab === "recipes") return <InventoryRecipesPage auth={auth} ui={ui} outlets={outlets} />;
   if (initialTab === "master") return <InventoryMasterPage auth={auth} ui={ui} outlets={outlets} suppliers={suppliers} />;
-  if (initialTab === "movements") return <InventoryMovementsPage auth={auth} ui={ui} outlets={outlets} suppliers={suppliers} />;
+  if (initialTab === "movements") return <InventoryMovementsPage auth={auth} ui={ui} outlets={outlets} suppliers={suppliers} initialOutletId={route?.query?.outletId} />;
   if (initialTab === "par-levels") return <InventoryParLevelsPage auth={auth} ui={ui} outlets={outlets} suppliers={suppliers} />;
   if (initialTab === "waste") return <InventoryWastePage auth={auth} ui={ui} outlets={outlets} />;
   if (initialTab === "groups") return <InventoryGroupsPage auth={auth} ui={ui} outlets={outlets} />;
