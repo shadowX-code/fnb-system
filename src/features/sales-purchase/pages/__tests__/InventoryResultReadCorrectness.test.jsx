@@ -128,5 +128,39 @@ it('shows evidence to viewers without granting correction authoring', async () =
   const viewer = { ...auth, hasPermission: (code) => code === 'inventory_stock_check.view' };
   render(<InventoryStockCheckResultSurface checkId="A" auth={viewer} outlets={outlets} onClose={vi.fn()} />);
   expect(await screen.findByText('Current submitted evidence')).toBeTruthy();
+  expect(screen.getByText(/Stock Check edit and submit permissions/)).toBeTruthy();
   expect(screen.queryByRole('button', { name: 'Create Correction' })).toBeNull();
+});
+
+it.each(['draft', 'submitted'])('opens an existing %s correction from its source without creating another', async status => {
+  const entries = [
+    { id: 'A', status: 'submitted', version: 0 },
+    { id: 'B', status, version: 1, correction_of_id: 'A' },
+  ].map(entry => ({ created_at: '2026-09-24T12:00:00Z', ...entry }));
+  rpc.mockResolvedValue({ data: { entries } });
+  const viewer = { ...auth, hasPermission: code => code === 'inventory_stock_check.view' };
+  render(<InventoryStockCheckResultSurface checkId="A" auth={status === 'draft' ? auth : viewer} outlets={outlets} onClose={vi.fn()} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'View Correction', exact: true }));
+  expect(window.location.pathname).toBe('/restaurant/inventory/stock-check/results/B');
+  expect(screen.queryByRole('button', { name: 'Create Correction' })).toBeNull();
+  expect(rpc).toHaveBeenCalledTimes(1);
+});
+
+it.each([null, '2026-08-01'])('offers a fresh closing setup with only recorded scope and month (%s)', async month => {
+  read.mockImplementation(async (table, options) => table === 'inventory_stock_checks'
+    ? { data: [{ ...header('A'), audit_type: 'Month-End Closing', accounting_month: month }] } : fixture(table, options));
+  const blocked = 'This closing lacks a complete frozen roster, count units or pinned costs.';
+  rpc.mockImplementation(async name => ({ data: name === 'inventory_audit_correction_history'
+    ? { blocked_reason: blocked, entries: [{ id: 'A', status: 'submitted', version: 0, created_at: '2026-09-24T12:00:00Z' }] } : null }));
+  const viewer = { ...auth, hasPermission: code => code === 'inventory_stock_check.view' };
+  const view = render(<InventoryStockCheckResultSurface checkId="A" auth={viewer} outlets={outlets} onClose={vi.fn()} />);
+  expect(await screen.findByText(blocked)).toBeTruthy();
+  expect(screen.getByText(/Stock Check submit permission is required to start/)).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Start New Closing Audit' })).toBeNull();
+  view.rerender(<InventoryStockCheckResultSurface checkId="A" auth={auth} outlets={outlets} onClose={vi.fn()} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Start New Closing Audit' }));
+  const query = new URLSearchParams(window.location.search);
+  expect(query.get('outletId')).toBe('outlet');
+  expect(query.get('accountingMonth')).toBe(month?.slice(0, 7) ?? null);
+  expect(query.has('date')).toBe(false);
 });

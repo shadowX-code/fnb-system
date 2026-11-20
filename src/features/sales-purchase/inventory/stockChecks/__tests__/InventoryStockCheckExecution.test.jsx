@@ -12,9 +12,26 @@ import InventoryStockCheckPage, { useStockCheckExecutionData } from "../Inventor
 const auth = { user: { id: "admin" } };
 const snapshot = (name) => ({ items: [], categories: [], groups: [{ id: name, outletId: name }], checks: [], orders: [], people: [], completeness: "complete" });
 const deferred = () => { let resolve; const promise = new Promise((done) => { resolve = done; }); return { promise, resolve }; };
-afterEach(() => { cleanup(); mocks.load.mockReset(); mocks.persist.mockReset(); mocks.remove.mockReset(); });
+afterEach(() => { cleanup(); mocks.load.mockReset(); mocks.persist.mockReset(); mocks.remove.mockReset(); window.history.replaceState(null, "", "/"); });
 
 describe("Stock Check execution scoped read", () => {
+  it.each([
+    ["outletId=B&accountingMonth=2026-08", "Second Outlet", "August 2026"],
+    ["outletId=B&date=2026-09-24", "Second Outlet", "Select month"],
+    ["outletId=unavailable", "Select", "Select month"],
+  ])("opens the existing closing setup with safe preselection (%s)", async (query, outlet, month) => {
+    mocks.load.mockResolvedValue(snapshot("B"));
+    window.history.replaceState(null, "", `/restaurant/inventory/stock-check?startClosingAudit=1&${query}`);
+    render(<InventoryStockCheckPage auth={{ ...auth, profile: { role_outlet_access_type: "all" }, hasPermission: () => true }}
+      ui={{ notify: vi.fn() }} outlets={[{ id: "A", name: "First Outlet" }, { id: "B", name: "Second Outlet" }]} />);
+    const setup = within(await screen.findByRole("dialog", { name: "Audit Stock Check" }));
+    expect(setup.getByRole("button", { name: "Audit Type" }).textContent).toContain("Month-End Closing");
+    expect(setup.getByRole("button", { name: "Outlet" }).textContent).toBe(outlet);
+    expect(setup.getByRole("button", { name: "Accounting Month" }).textContent).toBe(month);
+    expect(window.location.search).not.toContain("startClosingAudit");
+    expect(mocks.persist).not.toHaveBeenCalled();
+  });
+
   it("hides the previous outlet while a new scope is pending and ignores its late response", async () => {
     const first = deferred();
     const lateRefresh = deferred();

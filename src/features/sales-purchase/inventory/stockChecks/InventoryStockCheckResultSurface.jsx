@@ -19,7 +19,8 @@ const formatDateTimeCompact = value => value ? new Date(value).toLocaleString('e
 export default function InventoryStockCheckResultSurface({ checkId, auth, outlets, onClose }) {
   const scope = getAccessibleOutlets(auth, outlets).map(outlet => outlet.id).sort().join('|');
   const canView = hasPermission(auth, 'inventory_stock_check.view');
-  const canCorrect = canView && hasPermission(auth, 'inventory_stock_check.edit') && hasPermission(auth, 'inventory_stock_check.create');
+  const canStartClosing = canView && hasPermission(auth, 'inventory_stock_check.create');
+  const canCorrect = canStartClosing && hasPermission(auth, 'inventory_stock_check.edit');
   const key = `${auth?.user?.id}:${scope}:${canView}:${canCorrect}:${checkId}`;
   const activeKey = useRef(key);
   activeKey.current = key;
@@ -48,6 +49,13 @@ export default function InventoryStockCheckResultSurface({ checkId, auth, outlet
     navigateAdminRoute('inventory-stock-check-result', { checkId: id }, resolveAdminLocation(window.location)?.query || {});
   }
 
+  function startNewClosing() {
+    const { outletId, accountingMonth } = data.check;
+    navigateAdminRoute('inventory_stock_check', {}, {
+      startClosingAudit: '1', outletId, accountingMonth: accountingMonth?.slice(0, 7),
+    });
+  }
+
   async function createCorrection() {
     if (!canCorrect || (createState.key === key && createState.busy)) return;
     if (pending.current?.key !== key) pending.current = { key, requestId: crypto.randomUUID() };
@@ -68,7 +76,8 @@ export default function InventoryStockCheckResultSurface({ checkId, auth, outlet
   if (data.check.status === 'draft') return <AuditCorrectionDraft key={key} check={data.check} source={data.source}
     itemById={data.itemById} onClose={close} onOpenSource={() => openAudit(data.source.id)} onSubmitted={reload} />;
   const history = data.history && <AuditCorrectionHistory check={data.check} history={data.history}
-    published={data.closing?.published} canCorrect={canCorrect} onOpen={openAudit} onCreate={createCorrection}
+    published={data.closing?.published} canCorrect={canCorrect} canStartClosing={canStartClosing}
+    onOpen={openAudit} onCreate={createCorrection} onStartClosing={startNewClosing}
     busy={createState.key === key && createState.busy} error={createState.key === key ? createState.error : ''} />;
   return <><InventoryStockCheckResultModal key={key} onRestock={onRestock} stockCheck={data.check} correctionHistory={history} correctionSource={data.source} closing={data.closing} canApproveClosing={hasPermission(auth, 'inventory_stock_check.approve')} isAuditResult={data.check.stockCheckType === 'audit'} outletName={outlets.find(outlet => outlet.id === data.check.outletId)?.name || 'Outlet'} submittedByName={data.actor ? employeeDisplayName(data.actor) : 'Unknown User'} itemById={data.itemById} categoryById={data.categoryById} formatDate={formatDate} formatDateTimeCompact={formatDateTimeCompact} formatCurrency={formatRestaurantRecipeCurrency} ItemThumbnail={InventoryItemThumbnail} onPhotoPreview={setPreview} onClose={close} /><InventoryItemPhotoPreview preview={preview} onClose={() => setPreview(null)} /></>;
 }

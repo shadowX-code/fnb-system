@@ -101,9 +101,12 @@
 .crew-inventory-progress { display: grid; gap: 5px; margin: 9px 0 10px; }
 .crew-inventory-progress>span { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .crew-inventory-progress strong { font-size: var(--crew-type-secondary); }
-.crew-inventory-progress em { margin-left: 5px; color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); font-style: normal; font-weight: 600; }
 .crew-inventory-progress .crew-ui-progress { height: 5px; }
 .crew-inventory-page .crew-ui-search { min-height: 42px; }
+.crew-inventory-count-filters { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; }
+.crew-inventory-count-filters > .crew-v2-chips { margin: 0; padding: 0; }
+.crew-inventory-count-filters .crew-v2-chips button { min-height: 44px; }
+.crew-inventory-closing-skip-hint { margin: 4px 0 8px; color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); }
 .crew-inventory-chips { display: flex; gap: 6px; overflow-x: auto; padding: 5px 0; scrollbar-width: none; }
 .crew-inventory-chips button { flex: 0 0 auto; min-height: 34px; white-space: nowrap; }
 .crew-inventory-count-group { display: grid; gap: 7px; margin: 10px 0 16px; }
@@ -123,8 +126,8 @@
 .crew-inventory-count-row .crew-ui-quantity-stepper>div { min-height: 42px; }
 .crew-inventory-count-row .crew-ui-quantity-stepper button,.crew-inventory-count-row .crew-ui-quantity-stepper input { min-height: 42px !important; }
 .crew-inventory-row-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 34px; }
-.crew-inventory-row-actions small { color: var(--crew-color-text-secondary); }
-.crew-inventory-row-actions button { min-height: 36px; border: 0; background: transparent; color: var(--crew-color-success); font-weight: 700; }
+.crew-inventory-row-actions small { min-width: 0; overflow-wrap: anywhere; color: var(--crew-color-text-secondary); }
+.crew-inventory-row-actions button { flex: 0 0 auto; min-height: 44px; border: 0; background: transparent; color: var(--crew-color-success); font-weight: 700; }
 
 .crew-inventory-form { display: grid; gap: 12px; margin: 12px 0; }
 .crew-inventory-form label { display: grid; gap: 6px; color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); font-weight: 700; }

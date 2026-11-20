@@ -301,7 +301,7 @@ describe("Crew Inventory mobile authority boundary", () => {
     const input = await screen.findByRole("spinbutton", { name: /Rice.*Actual count/ });
     expect(screen.getByText("Count Started At (MYT)")).toBeTruthy();
     expect(input.value).toBe("");
-    expect(screen.queryByRole("button", { name: "Skip" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Skip Item" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Review (0/1)" }).disabled).toBe(true);
     fireEvent.change(input, { target: { value: "0" } });
     fireEvent.click(screen.getByRole("button", { name: "Review (1/1)" }));
@@ -312,6 +312,88 @@ describe("Crew Inventory mobile authority boundary", () => {
       [expect.objectContaining({ item_id: "item-1", actual_count_quantity: 0 })]));
     expect(api.saveInventoryStockCheck.mock.calls[1][3]).not.toHaveProperty("physical_count_cutoff");
     expect(await screen.findByText(`20 Nov ${year} · 10:00 AM`)).toBeTruthy();
+  });
+
+  it("saves closing skips with a reason and requires explicit counts after undo, even when filtered", async () => {
+    const beans = { id: "item-2", name: "Beans", category_id: "cat-2", unit: "kg" };
+    const closing = {
+      id: "closing-audit", type: "audit", status: "draft", audit_type: "Month-End Closing",
+      audit_name: "Closing QA", accounting_month: "2026-09-01", check_date: "2026-09-24",
+    };
+    let items = [stock.due[0].items[0], { item_id: beans.id, category_id: beans.category_id, unit: beans.unit, actual_count_quantity: 7 }];
+    api.inventoryMobileCatalog.mockResolvedValue({
+      ...catalog, categories: [...catalog.categories, { id: "cat-2", name: "Produce" }], items: [...catalog.items, beans],
+    });
+    api.inventoryStockChecks.mockImplementation(async (_token, _outlet, id) => ({
+      ...stock, can_create_audit_stock_check: true, checks: [{ ...closing, name: closing.audit_name }],
+      detail: id ? { ...closing, items } : null,
+    }));
+    api.saveInventoryStockCheck.mockImplementation(async (_token, _outlet, _request, payload, rows) => {
+      items = rows;
+      return { check: { ...closing, stock_check_type: "audit", status: payload.status } };
+    });
+    render(<CrewStockCheckMobile token="token" outletId="outlet-1" grants={{ can_create_audit_stock_check: true }}
+      initialTarget={{ id: closing.id }} onBack={() => {}} />);
+    const rice = await screen.findByRole("spinbutton", { name: /Rice.*Actual count/ });
+    fireEvent.click(within(rice.closest("article")).getByRole("button", { name: "Skip Item" }));
+    const sheet = within(screen.getByRole("dialog", { name: "Skip Item" }));
+    const reason = sheet.getByRole("textbox", { name: /Reason for skipping/ });
+    const confirm = sheet.getByRole("button", { name: "Skip Item" });
+    fireEvent.change(reason, { target: { value: "  " } });
+    expect(confirm.disabled).toBe(true);
+    fireEvent.change(reason, { target: { value: "  Storage locked  " } });
+    fireEvent.click(confirm);
+    expect(screen.getByText("1 Counted · 1 Skipped · 0 Remaining")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Review (1/2)" }).disabled).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Skipped" }));
+    fireEvent.click(screen.getByRole("button", { name: "Produce" }));
+    expect(screen.queryByText("Storage locked")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Dry Goods" }));
+    expect(screen.getByText("Storage locked")).toBeTruthy();
+    fireEvent.change(screen.getByRole("textbox", { name: "Search items" }), { target: { value: "Beans" } });
+    expect(screen.queryByText("Storage locked")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Save Draft" }));
+    await waitFor(() => expect(api.saveInventoryStockCheck).toHaveBeenCalledWith("token", "outlet-1", expect.any(String),
+      expect.objectContaining({ status: "draft" }), [
+        expect.objectContaining({ item_id: "item-1", skipped: true, skip_reason: "Storage locked", actual_count_quantity: null }),
+        expect.objectContaining({ item_id: "item-2", skipped: false, actual_count_quantity: 7 }),
+      ]));
+    fireEvent.click(await screen.findByRole("tab", { name: "Audit" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Continue: Closing QA" }));
+    expect(await screen.findByText("Storage locked")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Undo Skip" }));
+    const resumed = screen.getByRole("spinbutton", { name: /Rice.*Actual count/ });
+    expect(resumed.value).toBe("");
+    expect(screen.getByText("1 Counted · 0 Skipped · 1 Remaining")).toBeTruthy();
+    fireEvent.change(resumed, { target: { value: "0.0001" } });
+    expect(screen.getByRole("button", { name: "Review (1/2)" }).disabled).toBe(true);
+    fireEvent.change(resumed, { target: { value: "0" } });
+    fireEvent.click(screen.getByRole("button", { name: "Dry Goods" }));
+    fireEvent.click(screen.getByRole("button", { name: "Review (2/2)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Complete Check" }));
+    await waitFor(() => expect(api.saveInventoryStockCheck).toHaveBeenLastCalledWith("token", "outlet-1", expect.any(String),
+      expect.objectContaining({ status: "submitted" }), [
+        expect.objectContaining({ item_id: "item-1", skipped: false, skip_reason: null, actual_count_quantity: 0 }),
+        expect.objectContaining({ item_id: "item-2", actual_count_quantity: 7 }),
+      ]));
+  });
+
+  it("still lets scheduled checks submit a reasoned skip without counting it", async () => {
+    api.saveInventoryStockCheck.mockResolvedValue({ check: { id: "scheduled-qa" } });
+    render(<CrewStockCheckMobile token="token" outletId="outlet-1" grants={{ can_perform_stock_check: true }} onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Start" }));
+    fireEvent.click(screen.getByRole("button", { name: "Skip Item" }));
+    const sheet = within(screen.getByRole("dialog", { name: "Skip Item" }));
+    fireEvent.change(sheet.getByRole("textbox"), { target: { value: "Delivery in progress" } });
+    fireEvent.click(sheet.getByRole("button", { name: "Skip Item" }));
+    expect(screen.getByText("0 Counted · 1 Skipped · 0 Remaining")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Review (0/1)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Complete Check" }));
+    await waitFor(() => expect(api.saveInventoryStockCheck).toHaveBeenCalledWith("token", "outlet-1", expect.any(String),
+      expect.objectContaining({ status: "submitted" }), [expect.objectContaining({
+        skipped: true, skip_reason: "Delivery in progress", actual_count_quantity: null,
+      })]));
+    expect(api.skipInventoryStockCheck).not.toHaveBeenCalled();
   });
 
   it("keeps an existing closing draft's custom name and leaves its historical cutoff to the server", async () => {

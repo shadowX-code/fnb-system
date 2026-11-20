@@ -81,6 +81,9 @@ declare
   v_late_id uuid;
   v_invalid jsonb;
   v_draft jsonb;
+  v_draft_lines jsonb := jsonb_build_array(
+    v_item_line || '{"actual_count_quantity":null,"skipped":true,"status":"skipped","skip_reason":"Awaiting storage access"}', v_second_line
+  );
   v_submit jsonb;
   v_start_request uuid := gen_random_uuid();
   v_submit_request uuid := gen_random_uuid();
@@ -115,17 +118,20 @@ begin
   end loop;
 
   v_draft := v_check || '{"status":"draft","check_date":"1998-01-01","created_at":"1998-01-01T00:00:00Z","physical_count_cutoff":"2001-08-31T22:00:00+08:00"}';
-  v_saved := public.inventory_save_stock_check(v_start_request, v_draft,
-    jsonb_build_array(v_item_line || '{"actual_count_quantity":null}', v_second_line));
+  v_saved := public.inventory_save_stock_check(v_start_request, v_draft, v_draft_lines);
   v_id := (v_saved->'check'->>'id')::uuid;
+  if not exists (
+    select 1 from public.inventory_stock_check_items
+    where stock_check_id = v_id and item_id = v_item and skipped and actual_count_quantity is null
+      and skip_reason = 'Awaiting storage access'
+  ) then raise exception 'A temporary closing skip lost its reason or became a count'; end if;
   v_started := (v_saved->'check'->>'created_at')::timestamptz;
   if v_started is distinct from now() or (v_saved->'check'->>'check_date')::date is distinct from
       (now() at time zone 'Asia/Kuala_Lumpur')::date
     or v_saved->'check'->>'physical_count_cutoff' is not null
     or v_saved->'check'->>'submitted_at' is not null
     or v_saved->'check'->>'audit_name' not like 'Month-End Closing · Aug 2001 · %'
-    or v_saved is distinct from public.inventory_save_stock_check(v_start_request, v_draft,
-      jsonb_build_array(v_item_line || '{"actual_count_quantity":null}', v_second_line)) then
+    or v_saved is distinct from public.inventory_save_stock_check(v_start_request, v_draft, v_draft_lines) then
     raise exception 'Audit start, business date, automatic name, replay or physical evidence boundary is incorrect';
   end if;
   v_saved := public.inventory_save_stock_check(gen_random_uuid(), v_draft || jsonb_build_object('id', v_id), v_lines);

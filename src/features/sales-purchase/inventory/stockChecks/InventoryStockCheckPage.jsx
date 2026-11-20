@@ -469,11 +469,11 @@ function StockCheckMobileView({
 }
 
 
-function AuditStockCheckModal({ outlets, categories, items, onClose, onStart, starting }) {
+function AuditStockCheckModal({ outlets, categories, items, closingSetup, onClose, onStart, starting }) {
   const [form, setForm] = useState({
-    outletId: outlets[0]?.id || "",
-    auditType: auditTypes[0],
-    closingMonth: "",
+    outletId: closingSetup ? outlets.find(outlet => outlet.id === closingSetup.outletId)?.id || "" : outlets[0]?.id || "",
+    auditType: closingSetup ? MONTH_END_CLOSING : auditTypes[0],
+    closingMonth: closingSetup?.accountingMonth || "",
     categoryIds: [],
     notes: "",
   });
@@ -670,6 +670,22 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
       && hasPermission(auth, "inventory_stock_check.create"),
     generatePo: hasPermission(auth, "inventory_orders.create"),
   }), [auth]);
+
+  useEffect(() => {
+    const query = resolveAdminLocation(window.location)?.query;
+    if (query?.startClosingAudit !== "1") return;
+    const { startClosingAudit, accountingMonth, ...listQuery } = query;
+    if (hasPermission(auth, "inventory_stock_check.create")) {
+      setModal({
+        type: "audit-stock-check",
+        closingSetup: {
+          outletId: listQuery.outletId,
+          accountingMonth: /^\d{4}-(0[1-9]|1[0-2])$/.test(accountingMonth) ? accountingMonth : "",
+        },
+      });
+    }
+    navigateAdminRoute("inventory_stock_check", {}, listQuery, { replace: true });
+  }, [auth]);
 
   const sortedCategories = useMemo(() => [...data.categories].sort((a, b) => Number(a.sortOrder ?? 0) - Number(b.sortOrder ?? 0) || a.name.localeCompare(b.name)), [data.categories]);
   const categoryById = useMemo(() => new Map(data.categories.map((category) => [category.id, category])), [data.categories]);
@@ -1419,7 +1435,7 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
     <PageHeader section="INVENTORY CONTROL" title={meta.title} description={meta.description} actions={<button className="btn-primary" type="button" onClick={() => requirePermission(can.createCheck, "create audit stock checks") && setModal({ type: "audit-stock-check" })}><ClipboardCheck size={15} /> Audit Stock Check</button>} />
     {executionRead.state === "refreshing" ? <p role="status" className="text-sm text-text-secondary">Refreshing Stock Checks. Showing the last verified complete read.</p> : null}
     {renderStockCheck()}
-    {modal?.type === "audit-stock-check" ? <AuditStockCheckModal outlets={outlets.filter((outlet) => accessibleOutletIds.includes(outlet.id))} categories={sortedCategories} items={data.items} onClose={() => setModal(null)} onStart={startAuditStockCheck} starting={savingStockCheck} /> : null}
+    {modal?.type === "audit-stock-check" ? <AuditStockCheckModal outlets={outlets.filter((outlet) => accessibleOutletIds.includes(outlet.id))} categories={sortedCategories} items={data.items} closingSetup={modal.closingSetup} onClose={() => setModal(null)} onStart={startAuditStockCheck} starting={savingStockCheck} /> : null}
     {modal?.type === "skip-check-row" ? <SkipReasonModal itemName={modal.itemName} onClose={() => setModal(null)} onSave={(reason) => skipCheckRow(modal.rowIndex, reason)} /> : null}
     <InventoryItemPhotoPreview preview={photoPreview} onClose={() => setPhotoPreview(null)} />
   </div>;
