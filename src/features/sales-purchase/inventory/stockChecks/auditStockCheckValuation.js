@@ -12,13 +12,17 @@ export function auditStockCheckValuation(rows = []) {
   let netVariance = 0;
   let stockIncomplete = 0;
   let varianceIncomplete = 0;
+  let missingCostCount = 0;
 
   const items = rows.map((row) => {
     const actual = quantity(row.actualCount);
     const par = quantity(row.expectedQty);
     const cost = quantity(row.unitCostSnapshot);
     const validCost = cost !== null && cost >= 0;
-    const rowStockValue = !row.skipped && !row.na && actual !== null && validCost ? actual * cost : null;
+    const counted = !row.skipped && !row.na && !["skipped", "na", "pending"].includes(row.status)
+      && actual !== null && actual >= 0;
+    const rowStockValue = counted && validCost ? actual * cost : null;
+    if (!validCost) missingCostCount += 1;
     const rowVarianceValue = rowStockValue !== null && par !== null ? (actual - par) * cost : null;
 
     if (rowStockValue === null) stockIncomplete += 1;
@@ -32,8 +36,12 @@ export function auditStockCheckValuation(rows = []) {
     return { ...row, stockValue: rowStockValue, varianceValue: rowVarianceValue };
   });
 
+  const valuedItemCount = items.length - stockIncomplete;
   return {
     items,
+    knownStockValue: valuedItemCount ? stockValue : null,
+    valuedItemCount,
+    missingCostCount,
     stockValue: stockIncomplete ? null : stockValue,
     shortageValue: varianceIncomplete ? null : shortageValue,
     excessValue: varianceIncomplete ? null : excessValue,

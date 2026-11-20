@@ -38,12 +38,13 @@ function resultStatus(row, isAuditResult, countState) {
 
 
 export default function InventoryStockCheckResultModal({
-  stockCheck, isAuditResult, outletName, submittedByName, itemById, categoryById,
+  stockCheck, isAuditResult, outletName, createdByName, submittedByName, itemById, categoryById,
   formatDate, formatDateTimeCompact, formatCurrency, ItemThumbnail, onPhotoPreview, onClose, onRestock,
   closing, canApproveClosing, correctionHistory, correctionSource,
 }) {
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [valuationFilter, setValuationFilter] = useState("all");
   const [search, setSearch] = useState("");
   const rows = stockCheck.rows || [];
   const valuation = useMemo(() => auditStockCheckValuation(rows), [rows]);
@@ -70,6 +71,7 @@ export default function InventoryStockCheckResultModal({
     const text = `${row.item?.name || ""} ${row.item?.sku || ""} ${category}`.toLowerCase();
     return (categoryFilter === "all" || row.categoryId === categoryFilter)
       && (statusFilter === "all" || row.result.label === statusFilter)
+      && (valuationFilter === "all" || row.stockValue === null)
       && (!search.trim() || text.includes(search.trim().toLowerCase()));
   }) : detailedRows;
   const countItems = [
@@ -82,7 +84,8 @@ export default function InventoryStockCheckResultModal({
   ];
   const amount = (value, signed = false) => value === null ? "—" : `${value < 0 ? "-" : signed && value > 0 ? "+" : ""}${formatCurrency(Math.abs(value))}`;
   const valueItems = [
-    { key: "stock", label: "Total Stock Value", value: amount(valuation.stockValue) },
+    { key: "stock", label: valuation.stockIncomplete ? "Known Stock Value (Partial)" : "Total Stock Value",
+      value: amount(valuation.knownStockValue) },
     { key: "shortage", label: "Shortage Value", value: amount(valuation.shortageValue) },
     { key: "excess", label: "Excess Value", value: amount(valuation.excessValue) },
     { key: "net", label: "Net Variance", value: amount(valuation.netVariance, true) },
@@ -115,7 +118,10 @@ export default function InventoryStockCheckResultModal({
     footer={<><button className="btn-secondary" type="button" onClick={onClose}>Close</button>{onRestock ? <button className="btn-primary" type="button" onClick={onRestock}>Review Purchase Suggestions</button> : null}</>}
   >
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-x-8 gap-y-2 text-sm"><div><span className="text-text-secondary">Checked by</span><div className="font-semibold text-text-primary">{submittedByName}</div></div>{isAuditResult
+      <div className="flex flex-wrap gap-x-8 gap-y-2 text-sm">
+        {isAuditResult && <div><span className="text-text-secondary">Created by</span><div className="font-semibold text-text-primary">{createdByName}</div></div>}
+        <div><span className="text-text-secondary">{isAuditResult ? "Submitted by" : "Checked by"}</span>
+          <div className="font-semibold text-text-primary">{submittedByName}</div></div>{isAuditResult
         ? <AuditCountTimestamps startedAt={stockCheck.createdAt} submittedAt={stockCheck.submittedAt} />
         : <div><span className="text-text-secondary">Submitted at</span><div className="font-semibold text-text-primary">{formatDateTimeCompact(stockCheck.submittedAt)}</div></div>}</div>
       {correctionHistory}
@@ -124,14 +130,19 @@ export default function InventoryStockCheckResultModal({
         canApprove={canApproveClosing} formatCurrency={formatCurrency} />}
       <AdminSummaryGrid variant="compact" ariaLabel="Audit item counts" items={countItems} />
       {isAuditResult ? <>
-        <AdminSummaryGrid variant="compact" ariaLabel="Full Audit valuation" items={valueItems} />
-        {valuation.stockIncomplete || valuation.varianceIncomplete ? <p className="text-xs text-text-secondary" role="note">Valuation incomplete: {Math.max(valuation.stockIncomplete, valuation.varianceIncomplete)} of {rows.length} items lack a pinned configured cost or a usable count/Par quantity. Unavailable totals and row values are shown as —; no missing cost is treated as RM0.</p> : null}
+        <AdminSummaryGrid variant="compact" ariaLabel={valuation.stockIncomplete ? "Partial audit valuation" : "Full Audit valuation"} items={valueItems} />
+        <p className="text-xs text-text-secondary" role="note">
+          {valuation.valuedItemCount} of {rows.length} items valued · {valuation.missingCostCount} missing valid pinned {valuation.missingCostCount === 1 ? "cost" : "costs"}
+          {valuation.stockIncomplete > 0 && " · Physical count reference"}
+          {valuation.varianceIncomplete > 0 && " · Variance totals require complete cost and Par evidence"}
+        </p>
         <AdminFilterToolbar ariaLabel="Audit result filters" denseFields searchAfterFilters
-          filters={<><SelectField label="Category" value={categoryFilter} options={[ALL_FILTER_OPTION, ...categories]} onChange={setCategoryFilter} searchable /><SelectField label="Status" value={statusFilter} options={[ALL_FILTER_OPTION, ...statuses]} onChange={setStatusFilter} /></>}
+          filters={<><SelectField label="Category" value={categoryFilter} options={[ALL_FILTER_OPTION, ...categories]} onChange={setCategoryFilter} searchable /><SelectField label="Status" value={statusFilter} options={[ALL_FILTER_OPTION, ...statuses]} onChange={setStatusFilter} /><SelectField label="Valuation" value={valuationFilter}
+            options={[ALL_FILTER_OPTION, { value: "unvalued", label: "Unvalued" }]} onChange={setValuationFilter} /></>}
           search={<AdminSearchField label="Search Item" value={search} onChange={setSearch} placeholder="Search item or category" />}
         />
       </> : null}
-      <FactoryDataSurface><FactoryTable columns={columns} rows={visibleRows} emptyTitle={rows.length ? "No items match these filters" : "No checked items were saved"} emptyDescription={rows.length ? "Try another category, status, or item search." : "This stock check has no saved item evidence."} /></FactoryDataSurface>
+      <FactoryDataSurface><FactoryTable columns={columns} rows={visibleRows} emptyTitle={rows.length ? "No items match these filters" : "No checked items were saved"} emptyDescription={rows.length ? "Try another category, status, valuation filter, or item search." : "This stock check has no saved item evidence."} /></FactoryDataSurface>
     </div>
   </Modal>;
 }

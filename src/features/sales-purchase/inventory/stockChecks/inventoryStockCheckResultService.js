@@ -1,6 +1,7 @@
 import { supabase } from "../../../../lib/supabase";
 import { throwSupabaseError } from "../../../../services/supabaseError.js";
 import { readCompleteInventoryRows } from '../../../../services/inventoryCompleteRead.js';
+import { indexStockCheckActors, readStockCheckActors, stockCheckActorNames } from "./inventoryStockCheckActors.js";
 import { mapRemoteStockCheck } from './inventoryStockCheckReadModel.js';
 import { mapRemoteInventoryItem } from '../inventoryItemModel.js';
 
@@ -41,11 +42,11 @@ export async function loadStockCheckResult(checkId, outletIds, allowCorrectionDr
   const categoryIds = [...new Set([...check.rows.map(row => row.categoryId), ...items.map(row => row.category_id)].filter(Boolean))];
   const [categories, people, closing, history, source] = await Promise.all([
     categoryIds.length ? readCompleteInventoryRows('inventory_categories', { in: { id: categoryIds } }) : { data: [] },
-    check.submittedBy ? readCompleteInventoryRows('employees', { select: 'id, full_name, nickname, email', eq: { id: check.submittedBy } }) : { data: [] },
+    readStockCheckActors([check.createdByEmployeeId, check.submittedBy], check.createdByEmployeeId ? [] : [check.createdBy]),
     submitted && check.accountingMonth ? loadClosingContext(check.id) : null,
     submitted && check.stockCheckType === 'audit' ? loadAuditCorrections(check.id) : null,
     check.correctionOfId ? readStockCheck(check.correctionOfId, false, [check.outletId]) : null,
   ]);
   const categoryById = new Map(categories.data.map(row => [row.id, row]));
-  return { check, closing, history, source, itemById: new Map(items.map(row => [row.id, mapRemoteInventoryItem(row, [], categoryById)])), categoryById, actor: people.data[0] };
+  return { check, closing, history, source, itemById: new Map(items.map(row => [row.id, mapRemoteInventoryItem(row, [], categoryById)])), categoryById, actors: stockCheckActorNames(check, indexStockCheckActors(people)) };
 }

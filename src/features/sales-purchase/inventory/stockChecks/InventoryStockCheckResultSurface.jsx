@@ -9,7 +9,7 @@ import { inventoryLifecycleService } from '../../../../services/inventoryLifecyc
 import { invalidateInventoryReads } from '../../../../services/inventoryRevalidation.js';
 import InventoryItemThumbnail from '../InventoryItemThumbnail.jsx';
 import InventoryItemPhotoPreview from '../InventoryItemPhotoPreview.jsx';
-import { employeeDisplayName, formatDate } from '../waste/inventoryWasteService.js';
+import { formatDate } from '../waste/inventoryWasteService.js';
 import { formatRestaurantRecipeCurrency } from '../recipes/inventoryRecipeReadModel.js';
 import { navigateAdminRoute, resolveAdminLocation } from '../../../../app/routeOwnership.js';
 
@@ -79,5 +79,5 @@ export default function InventoryStockCheckResultSurface({ checkId, auth, outlet
     published={data.closing?.published} canCorrect={canCorrect} canStartClosing={canStartClosing}
     onOpen={openAudit} onCreate={createCorrection} onStartClosing={startNewClosing}
     busy={createState.key === key && createState.busy} error={createState.key === key ? createState.error : ''} />;
-  return <><InventoryStockCheckResultModal key={key} onRestock={onRestock} stockCheck={data.check} correctionHistory={history} correctionSource={data.source} closing={data.closing} canApproveClosing={hasPermission(auth, 'inventory_stock_check.approve')} isAuditResult={data.check.stockCheckType === 'audit'} outletName={outlets.find(outlet => outlet.id === data.check.outletId)?.name || 'Outlet'} submittedByName={data.actor ? employeeDisplayName(data.actor) : 'Unknown User'} itemById={data.itemById} categoryById={data.categoryById} formatDate={formatDate} formatDateTimeCompact={formatDateTimeCompact} formatCurrency={formatRestaurantRecipeCurrency} ItemThumbnail={InventoryItemThumbnail} onPhotoPreview={setPreview} onClose={close} /><InventoryItemPhotoPreview preview={preview} onClose={() => setPreview(null)} /></>;
+  return <><InventoryStockCheckResultModal key={key} onRestock={onRestock} stockCheck={data.check} correctionHistory={history} correctionSource={data.source} closing={data.closing} canApproveClosing={hasPermission(auth, 'inventory_stock_check.approve')} isAuditResult={data.check.stockCheckType === 'audit'} outletName={outlets.find(outlet => outlet.id === data.check.outletId)?.name || 'Outlet'} createdByName={data.actors.createdByName} submittedByName={data.actors.submittedByName} itemById={data.itemById} categoryById={data.categoryById} formatDate={formatDate} formatDateTimeCompact={formatDateTimeCompact} formatCurrency={formatRestaurantRecipeCurrency} ItemThumbnail={InventoryItemThumbnail} onPhotoPreview={setPreview} onClose={close} /><InventoryItemPhotoPreview preview={preview} onClose={() => setPreview(null)} /></>;
 }

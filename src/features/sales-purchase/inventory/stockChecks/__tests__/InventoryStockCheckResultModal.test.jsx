@@ -10,13 +10,13 @@ const itemById = new Map([
 ]);
 const categoryById = new Map([["dry", { name: "Dry Goods" }], ["wet", { name: "Wet Goods" }]]);
 
-function mount() {
+function mount(costs = [5, 2.5]) {
   return render(<InventoryStockCheckResultModal
     stockCheck={{ date: "2026-09-24", submittedAt: "2026-09-24T09:00:00Z", auditType: "Spot Check", rows: [
-      { id: "row-1", itemId: "one", expectedQty: 10, actualCount: 7, variance: 3, unit: "kg", unitCostSnapshot: 5 },
-      { id: "row-2", itemId: "two", expectedQty: 4, actualCount: 6, variance: -2, unit: "L", unitCostSnapshot: 2.5 },
+      { id: "row-1", itemId: "one", expectedQty: 10, actualCount: 7, variance: 3, unit: "kg", unitCostSnapshot: costs[0] },
+      { id: "row-2", itemId: "two", expectedQty: 4, actualCount: 6, variance: -2, unit: "L", unitCostSnapshot: costs[1] },
     ] }}
-    isAuditResult outletName="QA Outlet" submittedByName="QA Crew" itemById={itemById} categoryById={categoryById}
+    isAuditResult outletName="QA Outlet" createdByName="QA Creator" submittedByName="QA Crew" itemById={itemById} categoryById={categoryById}
     formatDate={(value) => value} formatDateTimeCompact={(value) => value}
     formatCurrency={(value) => `RM${value.toFixed(2)}`} ItemThumbnail={() => <span aria-hidden="true">image</span>}
     onPhotoPreview={vi.fn()} onClose={vi.fn()}
@@ -41,11 +41,29 @@ describe("InventoryStockCheckResultModal", () => {
     expect(within(valuation).getByText("RM5.00")).toBeTruthy();
     expect(within(valuation).getByText("-RM10.00")).toBeTruthy();
     const filterSlots = [...screen.getByRole("region", { name: "Audit result filters" }).querySelectorAll("[data-admin-filter-slot]")];
-    expect(filterSlots.map((field) => field.textContent)).toEqual(["Category All", "Status All", "Search Item"]);
+    expect(filterSlots.map((field) => field.textContent)).toEqual(["Category All", "Status All", "Valuation All", "Search Item"]);
     fireEvent.change(screen.getByPlaceholderText("Search item or category"), { target: { value: "flour" } });
     expect(screen.getByText("Flour")).toBeTruthy();
     expect(screen.queryByText("Oil")).toBeNull();
     expect(within(valuation).getByText("RM50.00")).toBeTruthy();
     expect(within(valuation).getByText("-RM10.00")).toBeTruthy();
+  });
+
+  it("shows partial pinned-cost coverage and keeps a valid zero distinct from an unvalued line", () => {
+    mount([0, null]);
+    const values = screen.getByRole("region", { name: "Partial audit valuation" });
+    expect(within(values).getByText("Known Stock Value (Partial)")).toBeTruthy();
+    expect(within(values).getByText("RM0.00")).toBeTruthy();
+    expect(screen.getByText(/1 of 2 items valued · 1 missing valid pinned cost/)).toBeTruthy();
+    expect(screen.getByText("QA Creator")).toBeTruthy();
+    expect(screen.getByText("QA Crew")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Valuation" }));
+    fireEvent.click(screen.getByRole("option", { name: "Unvalued" }));
+    expect(screen.queryByText("Flour")).toBeNull();
+    const unvalued = screen.getByText("Oil").closest("tr");
+    expect(within(unvalued).getAllByRole("cell")[6].textContent).toBe("—");
+    expect(within(values).getByText("RM0.00")).toBeTruthy();
+    expect(screen.getByText(/1 of 2 items valued/)).toBeTruthy();
   });
 });

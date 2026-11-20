@@ -4,6 +4,7 @@ import { supabase } from "../../../../lib/supabase.ts";
 import { inventoryLifecycleService } from "../../../../services/inventoryLifecycleService.js";
 import { mapRemoteInventoryItem, mapRemoteCategory, uniqueIds, isUuid } from "../inventoryItemModel.js";
 import { mapRemoteStockCheckGroup } from "../groups/inventoryGroupsModel.js";
+import { readStockCheckActors } from "./inventoryStockCheckActors.js";
 import { mapRemoteStockCheck } from "./inventoryStockCheckReadModel.js";
 
 async function readByIds(table, column, ids, options = {}) {
@@ -46,14 +47,16 @@ export async function loadStockCheckExecution(outletIds) {
   ]);
   const draftIds = checksRaw.filter((check) => check.status === "draft").map((check) => check.id);
   const historicalIds = checksRaw.filter((check) => check.status !== "draft").map((check) => check.id);
-  const [itemRows, groupLinks, draftRows, summaries, orderRows, submittedActors, createdActors] = await Promise.all([
+  const [itemRows, groupLinks, draftRows, summaries, orderRows, people] = await Promise.all([
     readByIds("inventory_items", "id", outletLinks.map((link) => link.inventory_item_id), { order: "created_at", ascending: false }),
     readByIds("inventory_stock_check_group_categories", "group_id", groupsRaw.map((group) => group.id)),
     readByIds("inventory_stock_check_items", "stock_check_id", draftIds, { order: "created_at" }),
     readCheckSummaries(historicalIds),
     readByIds("inventory_purchase_orders", "source_stock_check_id", checksRaw.map((check) => check.id), { order: "created_at", ascending: false }),
-    readByIds("employees", "id", checksRaw.map((check) => check.submitted_by), { select: "id, auth_user_id, full_name, nickname, email" }),
-    readByIds("employees", "auth_user_id", checksRaw.map((check) => check.created_by), { select: "id, auth_user_id, full_name, nickname, email" }),
+    readStockCheckActors(
+      checksRaw.flatMap(check => [check.created_by_employee_id, check.submitted_by]),
+      checksRaw.filter(check => !check.created_by_employee_id).map(check => check.created_by),
+    ),
   ]);
   const categories = categoriesRaw.data.map(mapRemoteCategory);
   const categoryById = new Map(categories.map((category) => [category.id, category]));
@@ -76,8 +79,7 @@ export async function loadStockCheckExecution(outletIds) {
       };
     }),
     orders: orderRows.map((row) => ({ id: row.id, sourceType: row.source_type, sourceStockCheckId: row.source_stock_check_id, status: row.status })),
-    people: [...new Map([...submittedActors, ...createdActors].map((row) => [row.id, row])).values()]
-      .map((row) => ({ id: row.id, authUserId: row.auth_user_id || "", name: row.nickname || row.full_name || row.email || "Unknown User" })),
+    people,
     completeness: "complete",
   };
 }
