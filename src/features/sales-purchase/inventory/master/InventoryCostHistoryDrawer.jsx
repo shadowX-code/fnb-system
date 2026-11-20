@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { Pencil } from 'lucide-react';
+import { Curve } from 'recharts';
 import Drawer from '../../../../components/ui/Drawer.jsx';
 import DatePickerField from '../../../../components/forms/DatePickerField.jsx';
 import Badge from '../../../../components/ui/Badge.jsx';
@@ -63,11 +64,6 @@ function CostTrend({ revisions, unit }) {
               : baselineX;
             const y = value => bottom - (bottom - top) * (Number(value) - min) / (scale.max - min);
             const dateLabels = dated.length > 1 && right - datesLeft >= 150 ? [dated[0], dated.at(-1)] : dated.slice(-1);
-            // Connect only dated evidence. The separate baseline has no time span.
-            const stepPath = dated.length > 1 ? dated.slice(1).reduce(
-              (path, row) => `${path}H${x(row)}V${y(row.unit_cost)}`,
-              `M${x(dated[0])},${y(dated[0].unit_cost)}`,
-            ) : null;
             return <>
               <g aria-hidden="true" fill="var(--text-secondary)">
                 {ticks.map(tick => <g key={tick.value}>
@@ -82,7 +78,9 @@ function CostTrend({ revisions, unit }) {
                   {displayDate(row.effective_date)}
                 </text>)}
               </g>
-              {stepPath ? <path className="admin-chart-series" d={stepPath} fill="none" stroke={adminChartColors.emerald} strokeWidth="2" /> : null}
+              {dated.length > 1 && <Curve type="monotoneX" points={dated.map(row => ({ x: x(row), y: y(row.unit_cost) }))}
+                className="admin-chart-series" fill="none" stroke={adminChartColors.emerald} strokeWidth={2}
+                vectorEffect="non-scaling-stroke" pointerEvents="none" aria-hidden="true" />}
               <AdminChartCrosshair followTooltip top={top} bottom={bottom} />
               {revisions.map(row => {
                 const color = row.effective_date ? adminChartColors.emerald : adminChartColors.slate;
@@ -95,7 +93,7 @@ function CostTrend({ revisions, unit }) {
                   onSelect={() => setSelected(row.id)} tooltipAnchor={anchor}>
                   <circle cx={anchor.x} cy={anchor.y} r="12" fill="transparent" />
                   <circle className="chart-focus" cx={anchor.x} cy={anchor.y} r="8" />
-                  <circle className="chart-point" cx={anchor.x} cy={anchor.y} r="4"
+                  <circle className="chart-point" cx={anchor.x} cy={anchor.y} r={row.effective_date ? 3 : 4}
                     fill={row.effective_date ? color : 'var(--surface)'} stroke={color} strokeWidth="2" />
                 </AdminChartMark>;
               })}
@@ -103,6 +101,7 @@ function CostTrend({ revisions, unit }) {
           }}
         </AdminChart>
       ) : <p className="mt-1 type-caption text-text-secondary">Cost revisions will appear here.</p>}
+      {dated.length > 1 && <p className="type-caption text-text-secondary">Only marked points show recorded costs.</p>}
     </section>
   );
 }

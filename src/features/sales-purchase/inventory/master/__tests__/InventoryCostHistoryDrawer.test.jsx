@@ -53,7 +53,9 @@ it('opens and previews a revision from a configured zero, then uses server read-
   expect(onSaved).toHaveBeenCalledOnce();
   expect(update.getAttribute('aria-expanded')).toBe('false');
   expect(within(drawer).queryByLabelText(/new cost/i)).toBeNull();
-  expect(within(drawer).getByRole('group', { name: 'Cost trend, RM per kg' })).toBeTruthy();
+  const sparseChart = within(drawer).getByRole('group', { name: 'Cost trend, RM per kg' });
+  expect(within(sparseChart).getAllByRole('button')).toHaveLength(2);
+  expect(sparseChart.querySelector('.admin-chart-series')).toBeNull();
   expect(within(drawer).getByRole('button', { name: /correct cost for/i })).toBeTruthy();
 });
 
@@ -78,11 +80,22 @@ it('keeps the baseline off the time axis and compares revisions in corrected eff
   const chart = await screen.findByRole('group', { name: 'Cost trend, RM per kg' });
   const marks = within(chart).getAllByRole('button');
   expect(marks).toHaveLength(4);
-  expect(marks[0].getAttribute('aria-label')).toMatch(/^Baseline cost/);
+  expect(marks.map(mark => mark.getAttribute('aria-label'))).toEqual([
+    'Baseline cost · RM 0.00 / kg',
+    'Effective 1 Jan 2025 · RM 3.1254 / kg',
+    'Effective 1 Feb 2025 · RM 4.00 / kg',
+    'Effective 1 Jun 2025 · RM 3.00 / kg',
+  ]);
+  const baselinePoint = marks[0].querySelector('.chart-point');
+  expect(baselinePoint.getAttribute('fill')).toBe('var(--surface)');
+  expect(baselinePoint.getAttribute('stroke')).toBe('var(--chart-slate)');
   const corrected = within(chart).getByRole('button', { name: /Effective.*RM 3.1254/ });
-  const stepPath = chart.querySelector('.admin-chart-series').getAttribute('d');
-  expect(stepPath).toMatch(new RegExp(`^M${corrected.querySelector('.chart-point').getAttribute('cx')},`));
-  expect(stepPath.match(/HV|H|V/g)).toEqual(['H', 'V', 'H', 'V']);
+  const series = chart.querySelector('.admin-chart-series');
+  expect(series.getAttribute('stroke-width')).toBe('2');
+  expect(series.getAttribute('stroke')).toBe('var(--chart-emerald)');
+  const path = series.getAttribute('d');
+  expect(path.match(/[A-Z]/g)).toEqual(['M', 'C', 'C']);
+  expect(Number(path.match(/^M([\d.]+),/)[1])).toBeCloseTo(Number(corrected.querySelector('.chart-point').getAttribute('cx')), 2);
 
   fireEvent.pointerEnter(corrected, { pointerType: 'mouse' });
   const tooltip = within(screen.getByRole('tooltip'));
