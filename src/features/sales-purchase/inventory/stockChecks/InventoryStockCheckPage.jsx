@@ -1,10 +1,11 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, ChevronDown, ClipboardCheck, Eye, Search, Trash2 } from "lucide-react";
+import { AlertTriangle, ChevronDown, ClipboardCheck, Eye, Trash2 } from "lucide-react";
 import PageHeader from "../../../../components/layout/PageHeader.jsx";
 import Modal from "../../../../components/feedback/Modal.jsx";
 import Badge from "../../../../components/ui/Badge.jsx";
 import SelectField from "../../../../components/forms/SelectField.jsx";
 import AdminFilterToolbar from "../../../../components/layout/AdminFilterToolbar.jsx";
+import AdminSearchField from "../../../../components/forms/AdminSearchField.jsx";
 import DatePickerField from "../../../../components/forms/DatePickerField.jsx";
 import EmptyState from "../../../../components/feedback/EmptyState.jsx";
 import InventoryItemThumbnail from "../InventoryItemThumbnail.jsx";
@@ -294,8 +295,8 @@ function StockCheckMobileView({
   activePersistedCheck,
   currentCheckerName,
   validationIssues,
-  checkSearch,
-  onSearchChange,
+  filteredRows,
+  auditFilters,
   onPreviewPhoto,
   onUpdateRow,
   onSkipRow,
@@ -306,11 +307,6 @@ function StockCheckMobileView({
   onSubmit,
 }) {
   const issueByRowIndex = new Map((validationIssues || []).map((issue) => [issue.rowIndex, issue]));
-  const filteredRows = rows.filter((row) => {
-    if (!checkSearch.trim()) return true;
-    const item = itemById.get(row.itemId);
-    return `${item?.name || ""} ${item?.sku || ""}`.toLowerCase().includes(checkSearch.trim().toLowerCase());
-  });
   const isRowCounted = (row = {}) => row.actualCount !== "" && row.actualCount !== null && row.actualCount !== undefined && Number.isFinite(Number(row.actualCount));
   const totalItems = rows.length;
   const skippedCount = rows.filter((row) => row.skipped).length;
@@ -351,14 +347,7 @@ function StockCheckMobileView({
           </div>
         </div>
 
-        {isAudit ? (
-          <label className="mt-3 block">
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={15} />
-              <input className="control h-10 w-full pl-9 text-[13px]" value={checkSearch} onChange={(event) => onSearchChange(event.target.value)} placeholder="Search item" />
-            </div>
-          </label>
-        ) : null}
+        {isAudit && <div className="mt-3">{auditFilters}</div>}
 
         {validationIssues.length ? (
           <div className="mt-3 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-amber-950">
@@ -380,6 +369,7 @@ function StockCheckMobileView({
       </SectionCard>
 
       <div className="space-y-3">
+        {isAudit && !filteredRows.length && <EmptyState title="No items match these filters." />}
         {filteredRows.map((row) => {
           const item = itemById.get(row.itemId);
           const category = categoryById.get(item?.categoryId);
@@ -621,6 +611,7 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
   const [savingStockCheck, setSavingStockCheck] = useState(false);
   const [checkValidationAttempted, setCheckValidationAttempted] = useState(false);
   const [checkSearch, setCheckSearch] = useState("");
+  const [checkCategory, setCheckCategory] = useState("all");
   const [collapsedCheckCategoryIds, setCollapsedCheckCategoryIds] = useState(() => new Set());
   const [photoPreview, setPhotoPreview] = useState(null);
   const stockCheckResponsiveLayout = useStockCheckResponsiveLayout();
@@ -832,6 +823,8 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
       setClosingDetails({ closingMonth: form.closingMonth, closingCutoff: form.closingCutoff });
       setActiveCheckGroupId(null);
       setActiveScheduledCheckId(null);
+      setCheckSearch("");
+      setCheckCategory("all");
       setActiveAuditCheck({ ...auditGroup, id: savedCheck.id, existingCheckId: savedCheck.id });
       setModal(null);
     } catch (error) {
@@ -851,6 +844,8 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
     setDate(check.date || todayInput());
     setActiveCheckGroupId(null);
     setActiveScheduledCheckId(null);
+    setCheckSearch("");
+    setCheckCategory("all");
     setActiveAuditCheck({
       id: check.id,
       existingCheckId: check.id,
@@ -947,14 +942,14 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
     if (!issue) return;
     const item = itemById.get(issue.itemId);
     if (checkSearch.trim()) setCheckSearch("");
-    if (item?.categoryId) {
-      setCollapsedCheckCategoryIds((current) => {
-        if (!current.has(item.categoryId)) return current;
-        const next = new Set(current);
-        next.delete(item.categoryId);
-        return next;
-      });
-    }
+    const categoryId = item?.categoryId || "uncategorized";
+    if (checkCategory !== "all" && checkCategory !== categoryId) setCheckCategory("all");
+    setCollapsedCheckCategoryIds((current) => {
+      if (!current.has(categoryId)) return current;
+      const next = new Set(current);
+      next.delete(categoryId);
+      return next;
+    });
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         document.querySelector(`[data-check-row-index="${issue.rowIndex}"]`)?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -1065,22 +1060,26 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
       const draftSavedAt = activePersistedCheck?.updatedAt || activePersistedCheck?.createdAt || "";
       const validationIssues = checkValidationAttempted ? stockCheckValidationIssues(checkRows, isClosing) : [];
       const validationIssueByRowIndex = new Map(validationIssues.map((issue) => [issue.rowIndex, issue]));
-      const checkRowsWithIndex = checkRows.map((row, index) => ({ ...row, rowIndex: index })).filter((row) => {
-        if (!checkSearch.trim()) return true;
-        const item = itemById.get(row.itemId);
-        return `${item?.name || ""} ${item?.sku || ""}`.toLowerCase().includes(checkSearch.trim().toLowerCase());
-      });
-      const auditRowGroups = (() => {
-        const groups = new Map();
-        checkRowsWithIndex.forEach((row) => {
+      const indexedRows = checkRows.map((row, rowIndex) => ({ ...row, rowIndex }));
+      const search = checkSearch.trim().toLowerCase();
+      const groupByCategory = new Map();
+      if (isAudit) {
+        for (const row of indexedRows) {
           const item = itemById.get(row.itemId);
-          const category = categoryById.get(item?.categoryId);
           const key = item?.categoryId || "uncategorized";
-          if (!groups.has(key)) groups.set(key, { id: key, category, rows: [] });
-          groups.get(key).rows.push(row);
-        });
-        return [...groups.values()].filter((group) => group.rows.length).sort((a, b) => Number(a.category?.sortOrder ?? 9999) - Number(b.category?.sortOrder ?? 9999) || (a.category?.name || "Uncategorized").localeCompare(b.category?.name || "Uncategorized"));
-      })();
+          if (!groupByCategory.has(key)) groupByCategory.set(key, { id: key, category: categoryById.get(key), rows: [] });
+          if (`${item?.name || ""} ${item?.sku || ""}`.toLowerCase().includes(search)) groupByCategory.get(key).rows.push(row);
+        }
+      }
+      const categories = [...groupByCategory.values()].sort((a, b) =>
+        Number(a.category?.sortOrder ?? 9999) - Number(b.category?.sortOrder ?? 9999)
+        || (a.category?.name || "Uncategorized").localeCompare(b.category?.name || "Uncategorized"));
+      const auditRowGroups = categories.filter(group => group.rows.length && (checkCategory === "all" || checkCategory === group.id));
+      const auditFilters = isAudit && <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2">
+        <AdminSearchField hideLabel label="Search item" placeholder="Search item" value={checkSearch} onChange={setCheckSearch} />
+        <SelectField ariaLabel="Category" value={checkCategory} onChange={setCheckCategory}
+          options={[{ value: "all", label: "All Categories" }, ...categories.map(group => ({ value: group.id, label: group.category?.name || "Uncategorized" }))]} />
+      </div>;
       const renderCheckRow = (row) => {
         const index = row.rowIndex;
         const item = itemById.get(row.itemId);
@@ -1160,7 +1159,7 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
           <StockCheckMobileView
             activeCheckGroup={activeCheckGroup}
             isAudit={isAudit}
-            rows={checkRows.map((row, index) => ({ ...row, rowIndex: index }))}
+            rows={indexedRows}
             itemById={itemById}
             categoryById={categoryById}
             outletName={outletById.get(activeCheckGroup.outletId)?.name || "Outlet"}
@@ -1171,8 +1170,8 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
             activePersistedCheck={activePersistedCheck}
             currentCheckerName={currentCheckerName}
             validationIssues={validationIssues}
-            checkSearch={checkSearch}
-            onSearchChange={setCheckSearch}
+            filteredRows={isAudit ? auditRowGroups.flatMap(group => group.rows) : indexedRows}
+            auditFilters={auditFilters}
             onPreviewPhoto={setPhotoPreview}
             onUpdateRow={updateCheckRow}
             onSkipRow={isClosing ? undefined : (rowIndex, itemName) => setModal({ type: "skip-check-row", rowIndex, itemName })}
@@ -1216,12 +1215,7 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
                   <div className="type-body-sm font-bold text-text-primary">Audit item list</div>
                   <div className="type-caption text-text-secondary">{checkRows.length} generated items · {checkRows.filter((row) => row.skipped).length} skipped</div>
                 </div>
-                <label className="md:w-80">
-                  <div className="relative">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={15} />
-                    <input className="control h-9 w-full pl-9 text-[13px]" value={checkSearch} onChange={(event) => setCheckSearch(event.target.value)} placeholder="Search item" />
-                  </div>
-                </label>
+                <div className="md:w-[28rem]">{auditFilters}</div>
               </div>
             ) : null}
             {validationIssues.length ? (
@@ -1257,6 +1251,9 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border text-[13px]">
+                  {isAudit && !auditRowGroups.length && <tr><td colSpan={8}>
+                    <EmptyState title="No items match these filters." />
+                  </td></tr>}
                   {isAudit ? auditRowGroups.map((group) => {
                     const collapsed = collapsedCheckCategoryIds.has(group.id);
                     return (
@@ -1266,6 +1263,7 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
                             <button
                               className="flex w-full items-center justify-between rounded-xl px-2 py-1 text-left transition hover:bg-primary/5"
                               type="button"
+                              aria-expanded={!collapsed}
                               onClick={() => setCollapsedCheckCategoryIds((current) => {
                                 const next = new Set(current);
                                 if (next.has(group.id)) next.delete(group.id);
@@ -1281,7 +1279,7 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
                         {collapsed ? null : group.rows.map(renderCheckRow)}
                       </Fragment>
                     );
-                  }) : checkRowsWithIndex.map(renderCheckRow)}
+                  }) : indexedRows.map(renderCheckRow)}
                 </tbody>
               </table>
             </div>

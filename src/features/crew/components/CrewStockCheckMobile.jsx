@@ -14,7 +14,7 @@ import CrewHistoryControls from "./CrewHistoryControls.jsx";
 import useCrewInventoryHistory from "../hooks/useCrewInventoryHistory.js";
 import { CrewEmptyState, CrewProgressBar, CrewSearchBar, CrewStatusBadge } from "./CrewMobileUI.jsx";
 
-import ClosingCountFields from "../../sales-purchase/inventory/stockChecks/ClosingCountFields.jsx";
+import CrewClosingCountFields from "./CrewClosingCountFields.jsx";
 import { generateAuditName, MONTH_END_CLOSING, toClosingLocalTime, toPhysicalCountCutoff, updateClosingAuditName } from "../../sales-purchase/inventory/stockChecks/monthEndClosing.js";
 
 const auditTypes = [MONTH_END_CLOSING, "Full Stock Audit", "Spot Check", "Category Audit", "Custom Audit"];
@@ -81,11 +81,6 @@ export default function CrewStockCheckMobile({ token, outletId, grants, initialT
   const canStartAudit = Boolean(auditItems.length && (isNewClosing
     ? auditForm.closingMonth && toPhysicalCountCutoff(auditForm.closingCutoff)
     : auditForm.date || catalog?.business_date));
-  const closingLabels = {
-    monthLabel: t("inventory.accountingMonth"), monthPlaceholder: t("inventory.selectAccountingMonth"),
-    countLabel: t("inventory.stockCountDateTime"), countHelper: t("inventory.stockCountDateTimeHelp"),
-    timezone: t("inventory.stockCountTimezone"), dateLabel: t("inventory.stockCountDate"), timeLabel: t("inventory.stockCountTime"),
-  };
   const visibleRows = rows.filter((row) => {
     const item = itemById.get(row.item_id);
     return (category === "all" || row.category_id === category) && `${item?.name || ""} ${item?.sku || ""}`.toLowerCase().includes(query.toLowerCase());
@@ -240,7 +235,7 @@ export default function CrewStockCheckMobile({ token, outletId, grants, initialT
     {["draft", "in_progress", "completed"].includes(check.status) && <div className="crew-inventory-progress"><span><strong>{t("inventory.progress", { done: completed, total: rows.length })} <em>{rows.length ? Math.round(completed / rows.length * 100) : 0}%</em></strong><CrewStatusBadge tone={check.status === "completed" ? "success" : "info"}>{t(`inventory.${check.status}`)}</CrewStatusBadge></span><CrewProgressBar value={rows.length ? Math.round(completed / rows.length * 100) : 0} /></div>}
     {check.status === "completed" ? <CompletedResult check={check} rows={rows} itemById={itemById} purchase={purchase} canReviewSuggestions={grants?.can_manage_purchase_orders} onRetry={() => void loadPurchaseResult(check.id, check.stock_check_type)} onReview={() => onReviewSuggestions?.(check.id)} onOpenPurchaseOrder={onOpenPurchaseOrder} t={t} language={i18n.language} /> : ["skipped", "missed"].includes(check.status) ? <LifecycleResult check={check} t={t} language={i18n.language} /> : review ? <ReviewRows rows={rows} itemById={itemById} t={t} /> : <>
       {isClosing && <div className="crew-inventory-form">
-        <ClosingCountFields {...closingLabels} DateField={CrewDatePicker} month={closingDetails.month} cutoff={closingDetails.cutoff}
+        <CrewClosingCountFields month={closingDetails.month} cutoff={closingDetails.cutoff}
           onMonthChange={month => updateClosingDetails({ month })}
           onCutoffChange={cutoff => updateClosingDetails({ cutoff })} />
       </div>}
@@ -272,7 +267,7 @@ export default function CrewStockCheckMobile({ token, outletId, grants, initialT
       <div className="crew-inventory-form">
         <CrewChoicePicker label={t("inventory.auditType")} value={auditForm.type} options={auditTypes.map((value) => ({ value, label: t(`inventory.auditTypes.${value}`) }))} onChange={(type) => setAuditForm((current) => ({ ...current, type }))} />
         {isNewClosing ? <>
-          <ClosingCountFields {...closingLabels} DateField={CrewDatePicker} month={auditForm.closingMonth} cutoff={auditForm.closingCutoff}
+          <CrewClosingCountFields month={auditForm.closingMonth} cutoff={auditForm.closingCutoff}
             onMonthChange={closingMonth => setAuditForm(current => ({ ...current, closingMonth }))}
             onCutoffChange={closingCutoff => setAuditForm(current => ({ ...current, closingCutoff }))} />
           <p>{t("inventory.closingCoverage", { count: auditItems.length })}</p>

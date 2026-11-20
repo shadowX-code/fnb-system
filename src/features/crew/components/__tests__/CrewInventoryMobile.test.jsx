@@ -271,15 +271,19 @@ describe("Crew Inventory mobile authority boundary", () => {
     fireEvent.click(await screen.findByText("Month-End Closing"));
     const year = new Date().getFullYear();
     const setup = within(screen.getByRole("dialog", { name: "Audit" }));
+    expect(setup.getByText("Actual stock count date and time (MYT).")).toBeTruthy();
+    expect(setup.getByRole("button", { name: "Accounting Month" }).className).toBe(setup.getByRole("button", { name: "Audit type" }).className);
     fireEvent.click(setup.getByRole("button", { name: "Accounting Month" }));
-    fireEvent.keyDown(setup.getByRole("gridcell", { name: "Aug" }), { key: "Escape" });
-    expect(setup.queryByRole("gridcell", { name: "Aug" })).toBeNull();
+    const monthPicker = within(screen.getByRole("dialog", { name: "Accounting Month" }));
+    fireEvent.keyDown(monthPicker.getByRole("button", { name: "Aug" }), { key: "Escape" });
+    expect(screen.queryByRole("dialog", { name: "Accounting Month" })).toBeNull();
     fireEvent.click(setup.getByRole("button", { name: "Accounting Month" }));
-    fireEvent.click(setup.getByRole("gridcell", { name: "Aug" }));
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Accounting Month" })).getByRole("button", { name: "Aug" }));
     fireEvent.click(setup.getByRole("button", { name: "Time" }));
-    fireEvent.click(setup.getByRole("button", { name: "Second" }));
-    fireEvent.click(setup.getByRole("option", { name: "31", exact: true }));
-    fireEvent.click(setup.getByRole("button", { name: "Done" }));
+    const timePicker = within(screen.getByRole("dialog", { name: "Time" }));
+    fireEvent.click(timePicker.getByRole("button", { name: "Second" }));
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Second" })).getByRole("option", { name: "31", exact: true }));
+    fireEvent.click(timePicker.getByRole("button", { name: "Done" }));
     expect(setup.getByRole("button", { name: "Continue" }).disabled).toBe(true);
     fireEvent.click(setup.getByRole("button", { name: "Date" }));
     fireEvent.click(within(screen.getByRole("dialog", { name: "Date" })).getByRole("button", { current: "date" }));
@@ -307,7 +311,7 @@ describe("Crew Inventory mobile authority boundary", () => {
     api.saveInventoryStockCheck.mockResolvedValue({ check: { id: "closing-audit" } });
     render(<CrewStockCheckMobile token="token" outletId="outlet-1" grants={{ can_create_audit_stock_check: true }}
       initialTarget={{ id: "closing-audit" }} onBack={() => {}} />);
-    expect(await screen.findByText("11:59:42 pm")).toBeTruthy();
+    expect(await screen.findByText("23:59:42")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Save Draft" }));
     await waitFor(() => expect(api.saveInventoryStockCheck).toHaveBeenCalledWith("token", "outlet-1", expect.any(String),
       expect.objectContaining({ id: "closing-audit", audit_name: "Legacy closing name", check_name: "Legacy closing check",

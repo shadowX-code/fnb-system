@@ -128,8 +128,7 @@ Object.assign(resources.inventory, {
   accountingMonth: "Accounting Month",
   selectAccountingMonth: "Select month",
   stockCountDateTime: "Stock Count Date & Time",
-  stockCountDateTimeHelp: "When the physical stock count was taken.",
-  stockCountTimezone: "Malaysia time",
+  stockCountDateTimeHelp: "Actual stock count date and time (MYT).",
   stockCountDate: "Date",
   stockCountTime: "Time",
   closingCoverage: "Count all {{count}} active outlet items. Enter zero if an item has no stock.",
@@ -178,3 +177,6 @@ Object.assign(resources.cash, { returnedReadonly: "Returned to the submitting Cr
 Object.assign(resources.cash, {"previousDayAction": "Previous Day · Action Required", "previousDayDependency": "You can count and save today’s cash. Complete or cancel the earlier checkout before finalizing this checkout; the opening carry basis is provisional.", "basisReview": "Opening basis · Review Required", "basisReviewBody": "An earlier resolution changed the carry basis. Recorded opening evidence is preserved; submit this checkout for Manager review.", "cancelCheckout": "Cancel Checkout", "cancelHelp": "End this unresolved checkout. Evidence remains in History; no deposit or carry-forward is created.", "cancelReason": "Reason", "cancelled": "Cancelled", "cancelledReadonly": "This checkout is cancelled and cannot be edited."});
 
 Object.assign(resources.cash, {"inProgress": "In Progress", "ownerContinues": "The submitting Crew can continue this checkout."});
+
+Object.assign(resources.picker, { selectTime: "Select time", hour: "Hour", minute: "Minute", second: "Second", clear: "Clear" });
+Object.assign(resources.schedule, { previousYear: "Previous year", nextYear: "Next year" });

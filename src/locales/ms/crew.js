@@ -134,8 +134,7 @@ Object.assign(resources.inventory, {
   accountingMonth: "Bulan Perakaunan",
   selectAccountingMonth: "Pilih bulan",
   stockCountDateTime: "Tarikh & Masa Kiraan Stok",
-  stockCountDateTimeHelp: "Bila kiraan stok fizikal dilakukan.",
-  stockCountTimezone: "Waktu Malaysia",
+  stockCountDateTimeHelp: "Tarikh dan masa kiraan stok sebenar (MYT).",
   stockCountDate: "Tarikh",
   stockCountTime: "Masa",
   closingCoverage: "Kira semua {{count}} item aktif di cawangan. Masukkan sifar jika item tiada stok.",
@@ -184,3 +183,6 @@ Object.assign(resources.cash, { returnedReadonly: "Dikembalikan kepada Kru yang 
 Object.assign(resources.cash, {"previousDayAction": "Hari Sebelumnya · Tindakan Diperlukan", "previousDayDependency": "Anda boleh mengira dan menyimpan tunai hari ini. Lengkapkan atau batalkan checkout terdahulu sebelum memuktamadkan checkout ini; baki pembukaan masih sementara.", "basisReview": "Asas pembukaan · Semakan Diperlukan", "basisReviewBody": "Penyelesaian terdahulu mengubah asas baki bawa hadapan. Bukti pembukaan dikekalkan; hantar untuk semakan Pengurus.", "cancelCheckout": "Batalkan Checkout", "cancelHelp": "Tamatkan checkout yang belum selesai. Bukti disimpan dalam Sejarah; tiada deposit atau baki bawa hadapan diwujudkan.", "cancelReason": "Sebab", "cancelled": "Dibatalkan", "cancelledReadonly": "Checkout ini dibatalkan dan tidak boleh diedit."});
 
 Object.assign(resources.cash, {"inProgress": "Sedang Dijalankan", "ownerContinues": "Crew yang menyerahkan checkout ini boleh meneruskannya."});
+
+Object.assign(resources.picker, { selectTime: "Pilih masa", hour: "Jam", minute: "Minit", second: "Saat", clear: "Kosongkan" });
+Object.assign(resources.schedule, { previousYear: "Tahun sebelumnya", nextYear: "Tahun berikutnya" });

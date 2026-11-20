@@ -104,9 +104,11 @@ describe("Stock Check execution scoped read", () => {
     expect((await screen.findByRole("dialog", { name: "Skip stock check item" })).textContent).toContain("Skip Reason");
   });
 
-  it("starts every eligible closing item blank and submits explicit zero without category selection", async () => {
+  it("filters closing groups without losing counts, notes, expansion or full-roster validation", async () => {
     const item = { id: "item", name: "QA Item", categoryId: "category", unit: "kg", status: "active", linkedOutletIds: ["A"], outletConfigs: [{ outletId: "A", parLevel: 10 }] };
-    mocks.load.mockResolvedValue({ ...snapshot("A"), groups: [], items: [item, { ...item, id: "uncategorized", categoryId: "", name: "QA Uncategorised" }] });
+    mocks.load.mockResolvedValue({ ...snapshot("A"), groups: [],
+      categories: [{ id: "category", name: "Dry Goods", sortOrder: 1, status: "active" }],
+      items: [item, { ...item, id: "uncategorized", categoryId: "", name: "QA Uncategorised" }] });
     mocks.persist.mockResolvedValue({ id: "audit", outletId: "A", stockCheckType: "audit", status: "draft", rows: [] });
     window.history.replaceState(null, "", "/restaurant/inventory/stock-check");
     render(<InventoryStockCheckPage auth={{ ...auth, profile: { role_outlet_access_type: "all" }, hasPermission: () => true }} ui={{ notify: vi.fn() }} outlets={[{ id: "A", name: "QA Outlet" }]} />);
@@ -134,10 +136,32 @@ describe("Stock Check execution scoped read", () => {
     expect(screen.queryByRole("button", { name: "Full" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Submit Audit Check" }));
     expect(mocks.persist).toHaveBeenCalledTimes(1);
-    for (const input of screen.getAllByRole("spinbutton")) {
-      expect(input.value).toBe("");
-      fireEvent.change(input, { target: { value: "0" } });
-    }
+    const countedRow = within(screen.getByRole("row", { name: /QA Item/ }));
+    fireEvent.change(countedRow.getByRole("spinbutton"), { target: { value: "0" } });
+    fireEvent.change(countedRow.getByPlaceholderText("Optional note"), { target: { value: "Verified shelf" } });
+    const selectCategory = (name) => {
+      fireEvent.click(screen.getByRole("button", { name: "Category" }));
+      fireEvent.click(screen.getByRole("option", { name, exact: true }));
+    };
+    expect(screen.getByRole("button", { name: "Category" }).textContent).toContain("All Categories");
+    fireEvent.click(screen.getByRole("button", { name: /Dry Goods.*1 item/ }));
+    selectCategory("Uncategorized");
+    expect(screen.queryByRole("button", { name: /Dry Goods.*1 item/ })).toBeNull();
+    selectCategory("Dry Goods");
+    expect(screen.getByRole("button", { name: /Dry Goods.*1 item/ }).getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(screen.getByRole("button", { name: /Dry Goods.*1 item/ }));
+    const search = screen.getByRole("searchbox", { name: "Search item" });
+    fireEvent.change(search, { target: { value: "QA Uncategorised" } });
+    expect(screen.getByText("No items match these filters.")).toBeTruthy();
+    fireEvent.change(search, { target: { value: "" } });
+    const shownRow = within(screen.getByRole("row", { name: /QA Item/ }));
+    expect(shownRow.getByRole("spinbutton").value).toBe("0");
+    expect(shownRow.getByPlaceholderText("Optional note").value).toBe("Verified shelf");
+    fireEvent.click(screen.getByRole("button", { name: "Submit Audit Check" }));
+    expect(mocks.persist).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "Category" }).textContent).toContain("All Categories");
+    fireEvent.change(within(screen.getByRole("row", { name: /QA Uncategorised/ })).getByRole("spinbutton"), { target: { value: "0" } });
+    selectCategory("Dry Goods");
     const firstActual = screen.getAllByRole("spinbutton")[0];
     fireEvent.change(firstActual, { target: { value: "-1" } });
     fireEvent.click(screen.getByRole("button", { name: "Submit Audit Check" }));
@@ -146,7 +170,7 @@ describe("Stock Check execution scoped read", () => {
     fireEvent.click(screen.getByRole("button", { name: "Submit Audit Check" }));
     await waitFor(() => expect(mocks.persist).toHaveBeenLastCalledWith(
       expect.objectContaining({ existingCheckId: "audit" }),
-      [expect.objectContaining({ actualCount: 0 }), expect.objectContaining({ actualCount: 0 })],
+      [expect.objectContaining({ actualCount: 0, notes: "Verified shelf" }), expect.objectContaining({ actualCount: 0 })],
       "submitted", "admin", undefined,
     ));
   });

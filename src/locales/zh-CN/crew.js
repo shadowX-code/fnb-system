@@ -134,8 +134,7 @@ Object.assign(resources.inventory, {
   accountingMonth: "会计月份",
   selectAccountingMonth: "选择月份",
   stockCountDateTime: "盘点日期与时间",
-  stockCountDateTimeHelp: "实际进行库存盘点的时间。",
-  stockCountTimezone: "马来西亚时间",
+  stockCountDateTimeHelp: "实际库存盘点日期和时间（马来西亚时间）。",
   stockCountDate: "日期",
   stockCountTime: "时间",
   closingCoverage: "盘点门店所有 {{count}} 个在用物品。无库存时请输入零。",
@@ -184,3 +183,6 @@ Object.assign(resources.cash, { returnedReadonly: "已退回给提交结账的�
 Object.assign(resources.cash, {"previousDayAction": "前一营业日 · 需要处理", "previousDayDependency": "今天仍可点算并保存现金。完成或取消之前的结账后，才能完成本次结账；期初结转金额目前为暂定值。", "basisReview": "期初依据 · 需要审核", "basisReviewBody": "之前的结账处理改变了结转依据。原期初记录保留，请提交经理审核。", "cancelCheckout": "取消结账", "cancelHelp": "结束尚未完成的结账。历史证据保留，不产生存款或结转。", "cancelReason": "原因", "cancelled": "已取消", "cancelledReadonly": "此结账已取消，无法编辑。"});
 
 Object.assign(resources.cash, {"inProgress": "进行中", "ownerContinues": "提交此结账的员工可继续处理。"});
+
+Object.assign(resources.picker, { selectTime: "选择时间", hour: "小时", minute: "分钟", second: "秒", clear: "清除" });
+Object.assign(resources.schedule, { previousYear: "上一年", nextYear: "下一年" });
