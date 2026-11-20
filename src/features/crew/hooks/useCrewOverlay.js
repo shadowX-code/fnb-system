@@ -31,6 +31,7 @@ export default function useCrewOverlay({ onClose, closeDisabled, initialFocusRef
     const onKeyDown = (event) => {
       if (!isTop()) return;
       if (event.key === "Escape") {
+        if (event.target.closest?.("[data-floating-ancestors]")) return;
         event.preventDefault();
         event.stopImmediatePropagation();
         if (!latest.current.closeDisabled) latest.current.onClose();

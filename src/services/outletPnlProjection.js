@@ -7,6 +7,7 @@ export function projectOutletPnl(dataset) {
       const metric = month.financials[source];
       row[name] = metric.presence === "present" ? metric.amount : null;
     }
+    row.closingStock = month.closingStock ?? null;
     row.grossProfit = row.revenue !== null && row.cogs !== null ? row.revenue - row.cogs : null;
     row.margin = row.netProfit !== null && row.revenue > 0 ? row.netProfit / row.revenue * 100 : null;
     return row;

@@ -19,6 +19,18 @@ describe("legacy financial truthfulness", () => {
     expect(screen.queryByText("RM 0.00")).toBeNull();
     expect(screen.getByText(/EBITDA trend unavailable/)).toBeTruthy();
   });
+  it("renders published zero beneath EBITDA without changing financial completeness", async () => {
+    read.mockResolvedValue(buildYearlyFinancialDataset({
+      year: 2026, currentYear: 2026, currentMonth: 1,
+      monthlyContracts: [{ period: { year: 2026, month: 1 }, closing_stock: 0 }],
+    }));
+    render(<OutletPnlPage store={store} />);
+    const [january, february] = await screen.findAllByText("Closing Stock");
+    expect(january.parentElement.textContent).toMatch(/Closing StockRM\s*0\.00/);
+    expect(january.parentElement.previousElementSibling.textContent).toBe("EBITDA—");
+    expect(february.parentElement.textContent).toBe("Closing Stock—");
+    expect(screen.getByText(/Incomplete financial evidence/)).toBeTruthy();
+  });
   it("reports a failed Reporting read, not a valid empty financial result", async () => {
     read.mockRejectedValue(new Error("Reporting unavailable"));
     render(<OutletPnlPage store={store} ui={{ notify: vi.fn() }} />);

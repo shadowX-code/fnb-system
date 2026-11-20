@@ -1,17 +1,20 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, ChevronDown, ClipboardCheck, Eye, Search, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AlertTriangle, ChevronDown, ClipboardCheck, Eye, Info, Minus, Plus, Trash2 } from "lucide-react";
 import PageHeader from "../../../../components/layout/PageHeader.jsx";
 import Modal from "../../../../components/feedback/Modal.jsx";
 import Badge from "../../../../components/ui/Badge.jsx";
+import InfoTooltip from "../../../../components/ui/InfoTooltip.jsx";
+import DataTable from "../../../../components/tables/DataTable.jsx";
 import SelectField from "../../../../components/forms/SelectField.jsx";
 import AdminFilterToolbar from "../../../../components/layout/AdminFilterToolbar.jsx";
+import AdminSearchField from "../../../../components/forms/AdminSearchField.jsx";
 import DatePickerField from "../../../../components/forms/DatePickerField.jsx";
 import EmptyState from "../../../../components/feedback/EmptyState.jsx";
 import InventoryItemThumbnail from "../InventoryItemThumbnail.jsx";
 import InventoryItemPhotoPreview from "../InventoryItemPhotoPreview.jsx";
-import { SectionCard, Field, TextArea, selectInputText, parseNonNegativeNumber, todayInput, getBusinessDateInput, toDateInputValue } from "../InventorySharedPresentation.jsx";
+import { SectionCard, TextArea, selectInputText, parseNonNegativeNumber, todayInput, getBusinessDateInput, toDateInputValue } from "../InventorySharedPresentation.jsx";
 import { normalizeOutletRecord, uniqueIds, outletConfigForItem, isActiveInventoryItem } from "../inventoryItemModel.js";
-import { stockCheckItemsForGroup } from "../groups/inventoryGroupsModel.js";
+import { stockCheckGroupDueOnDate, stockCheckItemsForGroup } from "../groups/inventoryGroupsModel.js";
 import { linkedPurchaseOrdersForStockCheck } from "../purchaseOrders/inventoryPurchaseOrderHelpers.js";
 import { getAccessibleOutletOptions, getAccessibleOutlets, hasPermission, notifyPermissionDenied } from "../../../../utils/accessControl.js";
 import { resolveAdminLocation, navigateAdminRoute } from "../../../../app/routeOwnership.js";
@@ -21,7 +24,17 @@ import FactoryPagination from "../../../factory/components/FactoryPagination.jsx
 
 const SHOW_STOCK_CHECK_CARD_DEBUG = import.meta.env.DEV && String(import.meta.env.VITE_SHOW_STOCK_CHECK_CARD_DEBUG ?? "false").toLowerCase() === "true";
 const shifts = ["Opening", "Mid", "Closing", "Any Shift"];
-const auditTypes = ["Month-End Closing", "Full Stock Audit", "Spot Check", "Category Audit", "Custom Audit"];
+import MonthPickerField from "../../../../components/forms/MonthPickerField.jsx";
+import AuditCountTimestamps, { AuditCountTimestampFields } from "./AuditCountTimestamps.jsx";
+import { formatClosingError, isValidClosingQuantity, MONTH_END_CLOSING, updateClosingAuditName } from "./monthEndClosing.js";
+import { STOCK_CHECK_SKIP_REASONS, stockCheckSkipReason } from "./stockCheckSkipReasons.js";
+import { formatQuantity, projectStockCheckCount, stockCheckCountState } from "./inventoryStockCheckReadModel.js";
+
+const auditTypes = [MONTH_END_CLOSING, "Full Stock Audit", "Spot Check", "Category Audit", "Custom Audit"];
+const countStatusOptions = [
+  { value: "all", label: "All Statuses" }, { value: "pending", label: "Pending" },
+  { value: "counted", label: "Counted" }, { value: "skipped", label: "Skipped" },
+];
 function parLevelForOutlet(item = {}, outletId) { return outletConfigForItem(item, outletId).parLevel; }
 function normalizeBusinessDate(value, fallback = todayInput()) {
   if (value instanceof Date) return toDateInputValue(value) || fallback;
@@ -30,11 +43,6 @@ function normalizeBusinessDate(value, fallback = todayInput()) {
   const isoDate = raw.match(/^(\d{4}-\d{2}-\d{2})/);
   if (isoDate) return isoDate[1];
   return toDateInputValue(raw) || fallback;
-}
-
-function businessDateToLocalDate(value) {
-  const [year, month, day] = normalizeBusinessDate(value).split("-").map(Number);
-  return new Date(year, month - 1, day);
 }
 
 function stockCheckDateFromUrl() {
@@ -85,10 +93,6 @@ function employeeDisplayName(employee = {}) {
   return employee.nickname || employee.full_name || employee.fullName || employee.name || employee.email || "Unknown User";
 }
 
-function weekdayName(value = todayInput()) {
-  return businessDateToLocalDate(value).toLocaleDateString("en-MY", { weekday: "long" });
-}
-
 function statusTone(status) {
   if (["active", "normal", "completed", "reviewed", "locked", "delivered", "fully_received"].includes(status)) return "success";
   if (["draft", "due today", "scheduled", "partial approved", "partial delivery", "partial_delivered", "partial_received"].includes(status)) return "warning";
@@ -107,16 +111,7 @@ function frequencyLabel(group) {
 }
 
 function isGroupDue(group, date) {
-  if (group.status !== "active") return false;
-  const day = weekdayName(date);
-  if (group.frequency === "custom") return (group.checkDays || []).includes(day);
-  if (group.frequency === "monthly") {
-    const target = businessDateToLocalDate(date);
-    const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
-    const configuredDay = group.monthDay === "last" ? lastDay : Math.min(Number(group.monthDay || 1), lastDay);
-    return target.getDate() === configuredDay;
-  }
-  return false;
+  return stockCheckGroupDueOnDate(group, normalizeBusinessDate(date));
 }
 
 function sameStockCheckDate(left, right) {
@@ -195,11 +190,8 @@ function stockCheckCardActionState(status) {
   return "none";
 }
 
-function varianceStatus(parLevel, count) {
-  const variance = Number(parLevel || 0) - Number(count || 0);
-  if (variance <= 0) return { label: variance < 0 ? "Excess" : "Normal", tone: variance < 0 ? "info" : "success", variance };
-  if (variance >= Math.max(3, Number(parLevel || 0) * 0.35)) return { label: "Critical", tone: "danger", variance };
-  return { label: "Shortage", tone: "warning", variance };
+function enteredActual(value, isClosing) {
+  return isClosing && value !== "" ? Number(value) : parseNonNegativeNumber(value);
 }
 
 function itemHasActiveOutletLink(item = {}, outletId) {
@@ -276,7 +268,7 @@ export function useStockCheckExecutionData(auth, outletIds) {
 function StockCheckMobileView({
   activeCheckGroup,
   isAudit,
-  rows,
+  totals,
   itemById,
   categoryById,
   outletName,
@@ -287,29 +279,21 @@ function StockCheckMobileView({
   activePersistedCheck,
   currentCheckerName,
   validationIssues,
-  checkSearch,
-  onSearchChange,
+  filteredRows,
+  auditFilters,
   onPreviewPhoto,
   onUpdateRow,
   onSkipRow,
   onUnskipRow,
+  closingFields,
+  readyToSubmit,
   onBack,
   onSaveDraft,
   onSubmit,
 }) {
   const issueByRowIndex = new Map((validationIssues || []).map((issue) => [issue.rowIndex, issue]));
-  const filteredRows = rows.filter((row) => {
-    if (!checkSearch.trim()) return true;
-    const item = itemById.get(row.itemId);
-    return `${item?.name || ""} ${item?.sku || ""}`.toLowerCase().includes(checkSearch.trim().toLowerCase());
-  });
-  const isRowCounted = (row = {}) => row.actualCount !== "" && row.actualCount !== null && row.actualCount !== undefined && Number.isFinite(Number(row.actualCount));
-  const totalItems = rows.length;
-  const skippedCount = rows.filter((row) => row.skipped).length;
-  const completedCount = rows.filter((row) => row.skipped || isRowCounted(row)).length;
-  const remainingCount = Math.max(0, totalItems - completedCount);
-  const progressPercent = totalItems ? Math.round((completedCount / totalItems) * 100) : 0;
-  const isComplete = totalItems > 0 && completedCount === totalItems;
+  const { total: totalItems, counted, skipped: skippedCount, pending: remainingCount } = totals;
+  const progressPercent = totalItems ? Math.round((counted / totalItems) * 100) : 0;
 
   return (
     <div className="space-y-3 pb-[calc(7rem+env(safe-area-inset-bottom))]">
@@ -340,16 +324,11 @@ function StockCheckMobileView({
               </div>
             </div>
           </div>
+          {isAudit && <AuditCountTimestamps startedAt={activePersistedCheck?.createdAt} submittedAt={activePersistedCheck?.submittedAt} />}
         </div>
+        {closingFields && <div className="mt-3 max-w-xs">{closingFields}</div>}
 
-        {isAudit ? (
-          <label className="mt-3 block">
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={15} />
-              <input className="control h-10 w-full pl-9 text-[13px]" value={checkSearch} onChange={(event) => onSearchChange(event.target.value)} placeholder="Search item" />
-            </div>
-          </label>
-        ) : null}
+        {isAudit && <div className="mt-3">{auditFilters}</div>}
 
         {validationIssues.length ? (
           <div className="mt-3 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-amber-950">
@@ -371,13 +350,13 @@ function StockCheckMobileView({
       </SectionCard>
 
       <div className="space-y-3">
+        {isAudit && !filteredRows.length && <EmptyState title="No items match these filters." />}
         {filteredRows.map((row) => {
           const item = itemById.get(row.itemId);
           const category = categoryById.get(item?.categoryId);
-          const parLevel = parLevelForOutlet(item, activeCheckGroup.outletId);
-          const result = row.skipped ? { label: "Skipped", tone: "neutral", variance: 0 } : varianceStatus(parLevel, row.actualCount);
+          const { count: result, parLevel } = row;
           const issue = issueByRowIndex.get(row.rowIndex);
-          const rowCompleted = row.skipped || isRowCounted(row);
+          const rowCompleted = result.state === "na" || result.state === "counted";
           return (
             <div key={row.itemId} data-check-row-index={row.rowIndex} className={`rounded-2xl border bg-white p-3 shadow-sm transition ${issue ? "border-amber-300 bg-amber-50/70" : "border-border"}`}>
               <div className="flex items-start gap-3">
@@ -387,14 +366,14 @@ function StockCheckMobileView({
                   <div className="type-caption text-text-secondary">{category?.name ?? "Uncategorized"}{item?.sku ? ` · ${item.sku}` : ""}</div>
                 </div>
                 <div className="flex flex-col items-end gap-1">
-                  <Badge tone={row.skipped ? "neutral" : rowCompleted ? "success" : "warning"}>{row.skipped ? "Skipped" : rowCompleted ? "Recorded" : "Pending"}</Badge>
+                  <Badge tone={rowCompleted ? "success" : result.tone}>{rowCompleted ? "Recorded" : result.label}</Badge>
                   {rowCompleted && !row.skipped ? <Badge tone={row.na ? "neutral" : result.tone}>{row.na ? "Not Available" : result.label}</Badge> : null}
                 </div>
               </div>
 
               <div className="mt-3 grid grid-cols-3 gap-2 rounded-xl bg-slate-50 p-2 text-center">
                 <div><div className="type-micro font-black uppercase text-text-muted">Par</div><div className="type-body-sm font-bold text-text-primary">{parLevel}</div></div>
-                <div><div className="type-micro font-black uppercase text-text-muted">Variance</div><div className="type-body-sm font-bold text-text-primary">{row.skipped ? "Skipped" : row.na ? "Not Available" : result.variance}</div></div>
+                <div><div className="type-micro font-black uppercase text-text-muted">Variance</div><div className="type-body-sm font-bold text-text-primary">{formatQuantity(result.variance)}</div></div>
                 <div><div className="type-micro font-black uppercase text-text-muted">UOM</div><div className="type-body-sm font-bold text-text-primary">{item?.unit || "-"}</div></div>
               </div>
 
@@ -402,7 +381,7 @@ function StockCheckMobileView({
                 <div className="mb-1 type-caption font-semibold text-text-secondary">Actual Count</div>
                 <div className="flex items-center gap-2">
                   <button className="icon-btn h-10 w-10" type="button" disabled={row.skipped} onClick={() => onUpdateRow(row.rowIndex, (entry) => ({ ...entry, actualCount: Math.max(0, Number(entry.actualCount || 0) - 1), na: false }))}>-</button>
-                  <input className="control h-10 min-w-0 flex-1 text-center text-[15px] font-bold" type="number" min="0" disabled={row.skipped} value={row.actualCount ?? ""} placeholder="Qty" onFocus={selectInputText} onChange={(event) => onUpdateRow(row.rowIndex, (entry) => ({ ...entry, actualCount: parseNonNegativeNumber(event.target.value), na: false }))} />
+                  <input className="control h-10 min-w-0 flex-1 text-center text-[15px] font-bold" type="number" min="0" disabled={row.skipped} value={row.actualCount ?? ""} placeholder="Qty" onFocus={selectInputText} onChange={(event) => onUpdateRow(row.rowIndex, (entry) => ({ ...entry, actualCount: enteredActual(event.target.value, Boolean(closingFields)), na: false }))} />
                   <button className="icon-btn h-10 w-10" type="button" disabled={row.skipped} onClick={() => onUpdateRow(row.rowIndex, (entry) => ({ ...entry, actualCount: Number(entry.actualCount || 0) + 1, na: false }))}>+</button>
                 </div>
                 {issue ? <div className="mt-2 type-caption font-bold text-amber-700">{issue.reason === "Count not entered" ? "Count required" : issue.reason}</div> : null}
@@ -411,21 +390,20 @@ function StockCheckMobileView({
               {!row.skipped ? (
                 <div className="mt-3 flex flex-wrap gap-1">
                   {[
-                    ["Full", parLevel],
-                    ["Half", Math.round(Number(parLevel || 0) / 2)],
+                    ...(closingFields ? [] : [["Full", parLevel], ["Half", Math.round(Number(parLevel || 0) / 2)]]),
                     ["Empty", 0],
                   ].map(([label, value]) => (
                     <button key={label} className="rounded-full border border-border px-2.5 py-1 text-[11px] font-semibold text-text-secondary hover:border-primary/30 hover:text-primary" type="button" onClick={() => onUpdateRow(row.rowIndex, (entry) => ({ ...entry, actualCount: Number(value || 0), na: false }))}>{label}</button>
                   ))}
-                  <button className="rounded-full border border-border px-2.5 py-1 text-[11px] font-semibold text-text-secondary hover:border-primary/30 hover:text-primary" type="button" onClick={() => onSkipRow(row.rowIndex, item?.name)}>Skip</button>
+                  {onSkipRow && <button className="rounded-full border border-border px-2.5 py-1 text-[11px] font-semibold text-text-secondary hover:border-primary/30 hover:text-primary" type="button" onClick={() => onSkipRow(row.rowIndex, item?.name)}>Skip</button>}
                 </div>
-              ) : <div className="mt-3 rounded-xl bg-slate-50 px-3 py-2 type-caption font-semibold text-text-muted">Not Available · {row.skipReason}</div>}
+              ) : <div className="mt-3 break-words type-caption text-text-secondary">{row.skipReason || "Skip reason required"}</div>}
 
               <input className="control mt-3 h-10 w-full text-[13px]" value={row.notes} onChange={(event) => onUpdateRow(row.rowIndex, (entry) => ({ ...entry, notes: event.target.value }))} placeholder="Optional note" />
 
               {row.skipped ? (
                 <div className="mt-3 flex justify-end">
-                  <button className="btn-secondary h-9 px-3 text-xs" type="button" onClick={() => onUnskipRow(row.rowIndex)}>Unskip</button>
+                  <button className="btn-secondary h-9 px-3 text-xs" type="button" onClick={() => onUnskipRow(row.rowIndex)}>Undo Skip</button>
                 </div>
               ) : null}
             </div>
@@ -437,26 +415,26 @@ function StockCheckMobileView({
         <div className="mb-2 flex items-center justify-between gap-3">
           <div>
             <div className="type-micro font-black uppercase tracking-wide text-text-muted">Progress</div>
-            <div className="type-body-sm font-black text-text-primary">{completedCount} / {totalItems} completed</div>
+            <div className="type-body-sm font-black text-text-primary">{counted} / {totalItems} counted</div>
           </div>
-          <Badge tone={isComplete ? "success" : "info"}>{isComplete ? "Ready to submit" : `${progressPercent}%`}</Badge>
+          <Badge tone={readyToSubmit ? "success" : "info"}>{readyToSubmit ? "Ready to submit" : `${progressPercent}%`}</Badge>
         </div>
         <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-          <div className={`h-full rounded-full transition-all ${isComplete ? "bg-emerald-500" : "bg-primary"}`} style={{ width: `${progressPercent}%` }} />
+          <div className={`h-full rounded-full transition-all ${readyToSubmit ? "bg-emerald-500" : "bg-primary"}`} style={{ width: `${progressPercent}%` }} />
         </div>
         <div className="mt-2 grid grid-cols-2 gap-2 type-caption font-semibold text-text-secondary">
           <div>{skippedCount} skipped</div>
-          <div className="text-right">{isComplete ? "Ready to submit" : `${remainingCount} remaining`}</div>
+          <div className="text-right">{remainingCount} remaining</div>
         </div>
       </div>
 
       <div className="sticky bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-20 rounded-2xl border border-border bg-white/95 p-3 shadow-card backdrop-blur">
         <div className="mb-2">
-          <div className="type-body-sm font-black text-text-primary">{completedCount} / {totalItems} completed</div>
+          <div className="type-body-sm font-black text-text-primary">{counted} / {totalItems} counted</div>
           <div className="mt-0.5 flex flex-wrap gap-2 type-caption font-semibold text-text-secondary">
             <span>{skippedCount} skipped</span>
             <span>·</span>
-            <span>{isComplete ? "Ready to submit" : `${remainingCount} remaining`}</span>
+            <span>{remainingCount} remaining</span>
           </div>
         </div>
         <div className="grid grid-cols-2 gap-2">
@@ -469,12 +447,11 @@ function StockCheckMobileView({
 }
 
 
-function AuditStockCheckModal({ outlets, categories, items, onClose, onStart }) {
+function AuditStockCheckModal({ outlets, categories, items, closingSetup, onClose, onStart, starting }) {
   const [form, setForm] = useState({
-    outletId: outlets[0]?.id || "",
-    date: todayInput(),
-    auditName: "",
-    auditType: auditTypes[0],
+    outletId: closingSetup ? outlets.find(outlet => outlet.id === closingSetup.outletId)?.id || "" : outlets[0]?.id || "",
+    auditType: closingSetup ? MONTH_END_CLOSING : auditTypes[0],
+    closingMonth: closingSetup?.accountingMonth || "",
     categoryIds: [],
     notes: "",
   });
@@ -482,7 +459,10 @@ function AuditStockCheckModal({ outlets, categories, items, onClose, onStart }) 
   const outletItems = items.filter((item) => isActiveInventoryItem(item) && itemHasActiveOutletLink(item, form.outletId));
   const selectedCategories = new Set(form.categoryIds);
   const selectedLinkedItemCount = outletItems.filter((item) => selectedCategories.has(item.categoryId)).length;
-  const canStart = form.outletId && form.auditName.trim() && form.auditType && selectedLinkedItemCount > 0;
+  const isClosing = form.auditType === MONTH_END_CLOSING;
+  const canStart = form.outletId && form.auditType
+    && (isClosing ? outletItems.length > 0 && form.closingMonth
+      : selectedLinkedItemCount > 0);
 
   function update(key, value) {
     setForm((current) => {
@@ -502,22 +482,22 @@ function AuditStockCheckModal({ outlets, categories, items, onClose, onStart }) 
       title="Audit Stock Check"
       description="Run a special non-scheduled stock check for closing, spot checks or control audits."
       size="xl"
-      onClose={onClose}
+      onClose={starting ? undefined : onClose}
       footer={(
         <>
-          <button className="btn-secondary" type="button" onClick={onClose}>Cancel</button>
-          <button className="btn-primary" type="button" disabled={!canStart} onClick={() => onStart(form)}>Start Audit</button>
+          <button className="btn-secondary" type="button" disabled={starting} onClick={onClose}>Cancel</button>
+          <button className="btn-primary" type="button" disabled={starting || !canStart} onClick={() => onStart(form)}>{starting ? "Starting…" : "Start Audit"}</button>
         </>
       )}
     >
       <div className="space-y-4">
         <div className="grid gap-3 md:grid-cols-2">
           <SelectField label="Outlet" value={form.outletId} options={outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))} onChange={(value) => update("outletId", value)} searchable />
-          <DatePickerField label="Audit Date" value={form.date} onChange={(value) => update("date", value)} required />
-          <Field label="Audit Name" value={form.auditName} onChange={(value) => update("auditName", value)} placeholder="Month-end closing count" required />
           <SelectField label="Audit Type" value={form.auditType} options={auditTypes.map((type) => ({ value: type, label: type }))} onChange={(value) => update("auditType", value)} />
         </div>
-        <div className="rounded-2xl border border-border p-3">
+        {isClosing && <MonthPickerField className="max-w-xs" label="Closing Month" emptyLabel="Select Closing Month"
+          value={form.closingMonth} onChange={value => update("closingMonth", value)} />}
+        {isClosing ? <p className="type-caption text-text-secondary">Count all {outletItems.length} active outlet items. Enter zero if an item has no stock.</p> : <div className="rounded-2xl border border-border p-3">
           <div className="type-title font-bold text-text-primary">Category Selection</div>
           <p className="mt-1 type-caption text-text-secondary">Audit setup selects categories only. The full item list is generated next, and individual items can be skipped during counting with a reason.</p>
           <div className="mt-3 grid gap-2 md:grid-cols-2">
@@ -540,7 +520,7 @@ function AuditStockCheckModal({ outlets, categories, items, onClose, onStart }) 
               );
             })}
           </div>
-        </div>
+        </div>}
         <TextArea label="Notes" value={form.notes} onChange={(value) => update("notes", value)} placeholder="Optional audit objective or instruction" />
       </div>
     </Modal>
@@ -548,8 +528,9 @@ function AuditStockCheckModal({ outlets, categories, items, onClose, onStart }) 
 }
 
 function SkipReasonModal({ itemName, onClose, onSave }) {
-  const [reason, setReason] = useState("");
-  const examples = ["Item not available for counting", "Locked storage", "Damaged label", "Staff unable to locate", "Other"];
+  const [selection, setSelection] = useState("");
+  const [explanation, setExplanation] = useState("");
+  const reason = stockCheckSkipReason(selection, explanation);
   return (
     <Modal
       title="Skip stock check item"
@@ -558,13 +539,13 @@ function SkipReasonModal({ itemName, onClose, onSave }) {
       footer={(
         <>
           <button className="btn-secondary" type="button" onClick={onClose}>Cancel</button>
-          <button className="btn-primary" type="button" disabled={!reason.trim()} onClick={() => onSave(reason)}>Save Reason</button>
+          <button className="btn-primary" type="button" disabled={!reason} onClick={() => onSave(reason)}>Skip Item</button>
         </>
       )}
     >
       <div className="space-y-3">
-        <SelectField label="Reason Example" value="" options={[{ value: "", label: "Choose common reason" }, ...examples.map((entry) => ({ value: entry, label: entry }))]} onChange={setReason} />
-        <TextArea label="Skip Reason" value={reason} onChange={setReason} placeholder="Explain why this item was skipped" />
+        <SelectField label="Skip Reason" placeholder="Select a reason" value={selection} options={STOCK_CHECK_SKIP_REASONS} onChange={setSelection} />
+        {selection === "other" && <TextArea label="Explanation (required)" value={explanation} onChange={setExplanation} />}
       </div>
     </Modal>
   );
@@ -602,10 +583,14 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
   const [activeCheckGroupId, setActiveCheckGroupId] = useState(null);
   const [activeScheduledCheckId, setActiveScheduledCheckId] = useState(null);
   const [activeAuditCheck, setActiveAuditCheck] = useState(null);
+  const [closingMonth, setClosingMonth] = useState("");
+  const pendingAuditRequest = useRef(null);
   const [checkRows, setCheckRows] = useState([]);
   const [savingStockCheck, setSavingStockCheck] = useState(false);
   const [checkValidationAttempted, setCheckValidationAttempted] = useState(false);
   const [checkSearch, setCheckSearch] = useState("");
+  const [checkCategory, setCheckCategory] = useState("all");
+  const [checkStatus, setCheckStatus] = useState("all");
   const [collapsedCheckCategoryIds, setCollapsedCheckCategoryIds] = useState(() => new Set());
   const [photoPreview, setPhotoPreview] = useState(null);
   const stockCheckResponsiveLayout = useStockCheckResponsiveLayout();
@@ -661,8 +646,26 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
     createCheck: hasPermission(auth, "inventory_stock_check.create") || hasPermission(auth, "inventory_stock_check.audit"),
     editCheck: hasPermission(auth, "inventory_stock_check.edit"),
     reviewCheck: hasPermission(auth, "inventory_stock_check.review"),
+    correctAudit: hasPermission(auth, "inventory_stock_check.view") && hasPermission(auth, "inventory_stock_check.edit")
+      && hasPermission(auth, "inventory_stock_check.create"),
     generatePo: hasPermission(auth, "inventory_orders.create"),
   }), [auth]);
+
+  useEffect(() => {
+    const query = resolveAdminLocation(window.location)?.query;
+    if (query?.startClosingAudit !== "1") return;
+    const { startClosingAudit, accountingMonth, ...listQuery } = query;
+    if (hasPermission(auth, "inventory_stock_check.create")) {
+      setModal({
+        type: "audit-stock-check",
+        closingSetup: {
+          outletId: listQuery.outletId,
+          accountingMonth: /^\d{4}-(0[1-9]|1[0-2])$/.test(accountingMonth) ? accountingMonth : "",
+        },
+      });
+    }
+    navigateAdminRoute("inventory_stock_check", {}, listQuery, { replace: true });
+  }, [auth]);
 
   const sortedCategories = useMemo(() => [...data.categories].sort((a, b) => Number(a.sortOrder ?? 0) - Number(b.sortOrder ?? 0) || a.name.localeCompare(b.name)), [data.categories]);
   const categoryById = useMemo(() => new Map(data.categories.map((category) => [category.id, category])), [data.categories]);
@@ -696,11 +699,10 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
         ? data.checks.find((check) => check.id === activeCheckGroup.existingCheckId)
         : draftCheckForGroupRun(activeCheckGroup, data.checks, activeCheckGroup.date || date, stockCheckShiftFilter);
     if (draft?.rows?.length) {
-      setCheckRows(draft.rows.map((row) => ({ itemId: row.itemId, actualCount: row.actualCount, status: row.status ?? "normal", notes: row.notes ?? "", na: Boolean(row.na), skipped: Boolean(row.skipped), skipReason: row.skipReason ?? "" })));
+      setCheckRows(draft.rows.map((row) => ({ itemId: row.itemId, actualCount: row.skipped ? "" : row.actualCount, status: row.status ?? "normal", notes: row.notes ?? "", na: Boolean(row.na), skipped: Boolean(row.skipped), skipReason: row.skipReason ?? "" })));
       return;
     }
-    const items = stockCheckItemsForGroup(activeCheckGroup, data.items);
-    setCheckRows(items.map((item) => ({ itemId: item.id, actualCount: parLevelForOutlet(item, activeCheckGroup.outletId), status: "normal", notes: "", na: false, skipped: false, skipReason: "" })));
+    setCheckRows(initialStockCheckRowsForGroup(activeCheckGroup));
   }, [activeCheckGroupId, activeScheduledCheckId, activeAuditCheck, activeCheckGroup, data.checks, data.items, date, stockCheckShiftFilter]);
 
   function notify(title, message = "", tone = "success") {
@@ -735,10 +737,15 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
   }
 
   function initialStockCheckRowsForGroup(group) {
-    return stockCheckItemsForGroup(group, data.items).map((item) => ({
+    const isClosing = group.auditType === MONTH_END_CLOSING;
+    const items = isClosing
+      ? data.items.filter((item) => isActiveInventoryItem(item) && itemHasActiveOutletLink(item, group.outletId))
+        .sort((a, b) => a.name.localeCompare(b.name))
+      : stockCheckItemsForGroup(group, data.items);
+    return items.map((item) => ({
       itemId: item.id,
       categoryId: item.categoryId,
-      actualCount: parLevelForOutlet(item, group.outletId),
+      actualCount: isClosing ? "" : parLevelForOutlet(item, group.outletId),
       status: "normal",
       notes: "",
       na: false,
@@ -766,7 +773,7 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
     }
     try {
       const initialRows = initialStockCheckRowsForGroup({ ...group, date });
-      const savedCheck = await persistRemoteStockCheck({ ...group, date, existingCheckId: "" }, buildStockCheckRowsForGroup({ ...group, date }, initialRows), "draft", auth?.user?.id, auth?.profile?.id);
+      const savedCheck = await persistRemoteStockCheck({ ...group, date, existingCheckId: "" }, buildStockCheckRowsForGroup({ ...group, date }, initialRows), "draft");
       setData((current) => ({ ...current, checks: [savedCheck, ...current.checks.filter((check) => check.id !== savedCheck.id)] }));
       await refreshExecution();
       setActiveAuditCheck(null);
@@ -779,11 +786,20 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
     }
   }
 
+  async function persistAudit(group, rows, status) {
+    const signature = JSON.stringify([group, rows.map(({ id, ...row }) => row), status]);
+    if (pendingAuditRequest.current?.signature !== signature) {
+      pendingAuditRequest.current = { signature, id: crypto.randomUUID() };
+    }
+    const saved = await persistRemoteStockCheck(group, rows, status, pendingAuditRequest.current.id);
+    pendingAuditRequest.current = null;
+    return saved;
+  }
+
   async function startAuditStockCheck(form) {
+    if (savingStockCheck) return;
     const auditGroup = {
-      id: makeId("audit_group"),
       outletId: form.outletId,
-      name: form.auditName.trim(),
       description: form.notes || "",
       categoryIds: form.categoryIds,
       itemIds: [],
@@ -794,33 +810,48 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
       status: "active",
       stockCheckType: "audit",
       auditType: form.auditType,
-      auditName: form.auditName.trim(),
-      date: form.date,
+      closingMonth: form.closingMonth,
       notes: form.notes,
     };
     try {
+      setSavingStockCheck(true);
       const initialRows = initialStockCheckRowsForGroup(auditGroup);
-      const savedCheck = await persistRemoteStockCheck(auditGroup, buildStockCheckRowsForGroup(auditGroup, initialRows), "draft", auth?.user?.id, auth?.profile?.id);
+      const savedCheck = await persistAudit(auditGroup, buildStockCheckRowsForGroup(auditGroup, initialRows), "draft");
       setData((current) => ({ ...current, checks: [savedCheck, ...current.checks.filter((check) => check.id !== savedCheck.id)] }));
       await refreshExecution();
       setSelectedOutletId(form.outletId);
-      setDate(form.date);
+      setDate(savedCheck.date);
+      setClosingMonth(savedCheck.accountingMonth?.slice(0, 7) || "");
       setActiveCheckGroupId(null);
       setActiveScheduledCheckId(null);
-      setActiveAuditCheck({ ...auditGroup, id: savedCheck.id, existingCheckId: savedCheck.id });
+      setCheckSearch("");
+      setCheckCategory("all");
+      setCheckStatus("all");
+      setActiveAuditCheck({ ...auditGroup, id: savedCheck.id, existingCheckId: savedCheck.id,
+        date: savedCheck.date, name: savedCheck.auditName, auditName: savedCheck.auditName });
       setModal(null);
     } catch (error) {
       console.warn("[StockCheckExecution] Unable to start audit stock check.", error);
       debugLog("[AuditStockCheckDebug]", { action: "start-audit", form, error });
-      notify("Unable to start audit stock check", error.message || "Please try again.", "error");
+      notify("Unable to start audit stock check", formatClosingError(error.message) || "Please try again.", "error");
+    } finally {
+      setSavingStockCheck(false);
     }
   }
 
   function continueAuditStockCheck(check) {
+    if (check.auditType === MONTH_END_CLOSING && !check.accountingMonth) {
+      notify("Start a new closing audit", "This draft was created before closing counts required explicit actuals.", "warning");
+      return;
+    }
+    setClosingMonth(check.accountingMonth?.slice(0, 7) || "");
     setSelectedOutletId(check.outletId);
     setDate(check.date || todayInput());
     setActiveCheckGroupId(null);
     setActiveScheduledCheckId(null);
+    setCheckSearch("");
+    setCheckCategory("all");
+    setCheckStatus("all");
     setActiveAuditCheck({
       id: check.id,
       existingCheckId: check.id,
@@ -837,6 +868,7 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
       stockCheckType: "audit",
       auditType: check.auditType || "Custom Audit",
       auditName: check.auditName || "Audit Stock Check",
+      closingMonth: check.accountingMonth?.slice(0, 7) || "",
       date: check.date || todayInput(),
       notes: check.notes || "",
     });
@@ -872,6 +904,7 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
   function skipCheckRow(rowIndex, reason) {
     setCheckRows((current) => current.map((entry, index) => index === rowIndex ? {
       ...entry,
+      actualCount: "",
       skipped: true,
       skipReason: reason,
       status: "skipped",
@@ -890,20 +923,26 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
     } : entry));
   }
 
-  function stockCheckValidationIssues(rows = checkRows, isAudit = false) {
+  function stockCheckValidationIssues(rows = checkRows, isClosing = false) {
     return rows
       .map((row, rowIndex) => {
         const countMissing = row.actualCount === "" || row.actualCount === null || row.actualCount === undefined;
         const negative = Number(row.actualCount || 0) < 0;
         const item = itemById.get(row.itemId);
+        if (isClosing && (row.skipped || row.na)) {
+          return { rowIndex, itemId: row.itemId, itemName: item?.name || "Inventory item", reason: row.skipped ? "Undo Skip and enter the actual quantity" : "Closing items must be counted", action: "Enter the actual quantity" };
+        }
         if (row.skipped) {
           if (!row.skipReason?.trim()) {
             return { rowIndex, itemId: row.itemId, itemName: item?.name || "Inventory item", reason: "Skip reason required", action: "Add a skip reason" };
           }
           return null;
         }
-        if (countMissing) return { rowIndex, itemId: row.itemId, itemName: item?.name || "Inventory item", reason: "Count not entered", action: "Complete count or click Skip" };
+        if (countMissing) return { rowIndex, itemId: row.itemId, itemName: item?.name || "Inventory item", reason: "Count not entered", action: isClosing ? "Enter the actual quantity" : "Complete count or click Skip" };
         if (negative) return { rowIndex, itemId: row.itemId, itemName: item?.name || "Inventory item", reason: "Count cannot be negative", action: "Enter a non-negative count" };
+        if (isClosing && !isValidClosingQuantity(row.actualCount)) {
+          return { rowIndex, itemId: row.itemId, itemName: item?.name || "Inventory item", reason: "Invalid closing quantity", action: "Enter a quantity up to 99,999,999,999.999 with no more than three decimal places" };
+        }
         return null;
       })
       .filter(Boolean);
@@ -913,17 +952,19 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
     if (!issue) return;
     const item = itemById.get(issue.itemId);
     if (checkSearch.trim()) setCheckSearch("");
-    if (item?.categoryId) {
-      setCollapsedCheckCategoryIds((current) => {
-        if (!current.has(item.categoryId)) return current;
-        const next = new Set(current);
-        next.delete(item.categoryId);
-        return next;
-      });
-    }
+    const categoryId = item?.categoryId || "uncategorized";
+    if (checkCategory !== "all" && checkCategory !== categoryId) setCheckCategory("all");
+    const countState = stockCheckCountState(checkRows[issue.rowIndex], activeCheckGroup?.auditType === MONTH_END_CLOSING);
+    if (checkStatus !== "all" && checkStatus !== countState) setCheckStatus("all");
+    setCollapsedCheckCategoryIds((current) => {
+      if (!current.has(categoryId)) return current;
+      const next = new Set(current);
+      next.delete(categoryId);
+      return next;
+    });
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        document.querySelector(`[data-check-row-index="${issue.rowIndex}"]`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+        document.querySelector(`[data-check-row-index="${issue.rowIndex}"]`)?.scrollIntoView?.({ behavior: "smooth", block: "center" });
       });
     });
   }
@@ -932,8 +973,13 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
     if (!activeCheckGroup) return;
     if (savingStockCheck) return;
     const isAudit = activeCheckGroup.stockCheckType === "audit";
+    const isClosing = activeCheckGroup.auditType === MONTH_END_CLOSING;
+    if (isClosing && !closingMonth) {
+      notify("Closing Month required", "Select the Closing Month for this audit.", "warning");
+      return;
+    }
     if (status === "submitted") {
-      const invalidRows = stockCheckValidationIssues(checkRows, isAudit);
+      const invalidRows = stockCheckValidationIssues(checkRows, isClosing);
       if (invalidRows.length) {
         setCheckValidationAttempted(true);
         revealFirstInvalidStockCheckRow(invalidRows[0]);
@@ -943,15 +989,19 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
     const existingDraft = isAudit ? null : activeScheduledCheckId
       ? data.checks.find((check) => check.id === activeScheduledCheckId)
       : draftCheckForGroupRun(activeCheckGroup, data.checks, activeCheckGroup.date || date, stockCheckShiftFilter);
+    const checkDate = activeCheckGroup.date || date;
     const persistGroup = {
       ...activeCheckGroup,
-      date: activeCheckGroup.date || date,
+      ...(isClosing ? { closingMonth, auditName: updateClosingAuditName(activeCheckGroup.auditName, checkDate,
+        activeCheckGroup.closingMonth, checkDate, closingMonth) } : {}),
+      date: checkDate,
       existingCheckId: activeCheckGroup.existingCheckId || existingDraft?.id || activeScheduledCheckId || "",
     };
     const rows = buildStockCheckRowsForGroup(persistGroup);
     try {
       setSavingStockCheck(true);
-      const savedCheck = await persistRemoteStockCheck(persistGroup, rows, status, auth?.user?.id, auth?.profile?.id);
+      const savedCheck = await (isAudit ? persistAudit(persistGroup, rows, status)
+        : persistRemoteStockCheck(persistGroup, rows, status));
       const refreshedInventory = await refreshExecution();
       if (status === "submitted") {
         debugLog("[SubmittedScheduledChecksDebug]");
@@ -985,7 +1035,7 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
         status === "submitted"
           ? (isAudit ? "Failed to submit Audit Stock Check" : "Failed to submit Stock Check")
           : (isAudit ? "Failed to save Audit Stock Check draft" : "Failed to save Stock Check draft"),
-        error.message || "Please try again.",
+        formatClosingError(error.message) || "Please try again.",
         "error",
       );
     } finally {
@@ -1007,6 +1057,9 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
 
     if (activeCheckGroup) {
       const isAudit = activeCheckGroup.stockCheckType === "audit";
+      const isClosing = activeCheckGroup.auditType === MONTH_END_CLOSING;
+      const closingFields = isClosing && <MonthPickerField label="Closing Month"
+        emptyLabel="Select Closing Month" value={closingMonth} onChange={setClosingMonth} />;
       const activePersistedCheck = activeScheduledCheckId
         ? data.checks.find((check) => check.id === activeScheduledCheckId)
         : activeCheckGroup.existingCheckId
@@ -1015,94 +1068,99 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
       const startedByName = activePersistedCheck?.createdBy ? actorNameByAuthUserId(activePersistedCheck.createdBy) : currentCheckerName;
       const submittedByName = activePersistedCheck?.submittedBy ? actorNameByEmployeeId(activePersistedCheck.submittedBy) : "";
       const draftSavedAt = activePersistedCheck?.updatedAt || activePersistedCheck?.createdAt || "";
-      const validationIssues = checkValidationAttempted ? stockCheckValidationIssues(checkRows, isAudit) : [];
+      const issues = stockCheckValidationIssues(checkRows, isClosing);
+      const validationIssues = checkValidationAttempted ? issues : [];
       const validationIssueByRowIndex = new Map(validationIssues.map((issue) => [issue.rowIndex, issue]));
-      const checkRowsWithIndex = checkRows.map((row, index) => ({ ...row, rowIndex: index })).filter((row) => {
-        if (!checkSearch.trim()) return true;
+      const indexedRows = checkRows.map((row, rowIndex) => {
         const item = itemById.get(row.itemId);
-        return `${item?.name || ""} ${item?.sku || ""}`.toLowerCase().includes(checkSearch.trim().toLowerCase());
-      });
-      const auditRowGroups = (() => {
-        const groups = new Map();
-        checkRowsWithIndex.forEach((row) => {
-          const item = itemById.get(row.itemId);
-          const category = categoryById.get(item?.categoryId);
-          const key = item?.categoryId || "uncategorized";
-          if (!groups.has(key)) groups.set(key, { id: key, category, rows: [] });
-          groups.get(key).rows.push(row);
-        });
-        return [...groups.values()].filter((group) => group.rows.length).sort((a, b) => Number(a.category?.sortOrder ?? 9999) - Number(b.category?.sortOrder ?? 9999) || (a.category?.name || "Uncategorized").localeCompare(b.category?.name || "Uncategorized"));
-      })();
-      const renderCheckRow = (row) => {
-        const index = row.rowIndex;
-        const item = itemById.get(row.itemId);
-        const category = categoryById.get(item?.categoryId);
         const parLevel = parLevelForOutlet(item, activeCheckGroup.outletId);
-        const result = row.skipped ? { label: "Skipped", tone: "neutral", variance: 0 } : varianceStatus(parLevel, row.actualCount);
-        const validationIssue = validationIssueByRowIndex.get(index);
-        return (
-          <tr
-            key={row.itemId}
-            data-check-row-index={index}
-            className={`align-middle transition ${validationIssue ? "bg-amber-50/80 ring-1 ring-inset ring-amber-300" : ""}`}
-          >
-            <td className="py-4">
-              <div className="flex min-w-[220px] items-center gap-3">
-                <InventoryItemThumbnail item={item} category={category} onPreview={setPhotoPreview} />
-                <div className="min-w-0">
-                  <div className="font-bold text-text-primary">{item?.name || "Inventory item"}</div>
-                  <div className="type-caption text-text-secondary">
-                    {category?.name ?? "Uncategorized"}{item?.sku ? ` · ${item.sku}` : ""}
-                  </div>
-                </div>
-              </div>
-            </td>
-            <td className="py-4 align-middle">{parLevel}</td>
-            <td className="py-4 align-middle">
-              <div className="flex items-center gap-1">
-                <button className="icon-btn h-8 w-8" type="button" disabled={row.skipped} onClick={() => setCheckRows((current) => current.map((entry, rowIndex) => rowIndex === index ? { ...entry, actualCount: Math.max(0, Number(entry.actualCount || 0) - 1), na: false } : entry))}>-</button>
-                <input className="control h-8 w-20 text-center text-[13px]" type="number" min="0" disabled={row.skipped} value={row.actualCount ?? ""} placeholder="Qty" onFocus={selectInputText} onChange={(event) => setCheckRows((current) => current.map((entry, rowIndex) => rowIndex === index ? { ...entry, actualCount: parseNonNegativeNumber(event.target.value), na: false } : entry))} />
-                <button className="icon-btn h-8 w-8" type="button" disabled={row.skipped} onClick={() => setCheckRows((current) => current.map((entry, rowIndex) => rowIndex === index ? { ...entry, actualCount: Number(entry.actualCount || 0) + 1, na: false } : entry))}>+</button>
-              </div>
-              {validationIssue ? <div className="mt-2 type-caption font-bold text-amber-700">{validationIssue.reason === "Count not entered" ? "Count required" : validationIssue.reason}</div> : null}
-              {!row.skipped ? (
-                <div className="mt-2 flex flex-wrap gap-1">
-                  {[
-                    ["Full", parLevel],
-                    ["Half", Math.round(Number(parLevel || 0) / 2)],
-                    ["Empty", 0],
-                    ...(!isAudit ? [["NA", row.actualCount]] : []),
-                  ].map(([label, value]) => (
-                    <button key={label} className="rounded-full border border-border px-2 py-0.5 text-[11px] font-semibold text-text-secondary hover:border-primary/30 hover:text-primary" type="button" onClick={() => setCheckRows((current) => current.map((entry, rowIndex) => rowIndex === index ? { ...entry, actualCount: Number(value || 0), na: label === "NA" } : entry))}>{label}</button>
-                  ))}
-                </div>
-              ) : <div className="mt-2 type-caption font-semibold text-text-muted">Skipped: {row.skipReason}</div>}
-            </td>
-            <td className="py-4 align-middle font-semibold">{row.skipped ? "Skipped" : row.na ? "NA" : result.variance}</td>
-            <td className="py-4 align-middle">{item?.unit}</td>
-            <td className="py-4 align-middle"><Badge tone={row.skipped ? "neutral" : row.na ? "neutral" : result.tone}>{row.skipped ? "Skipped" : row.na ? "NA" : result.label}</Badge></td>
-            <td className="py-4 align-middle"><input className="control h-8 w-full text-[13px]" value={row.notes} onChange={(event) => setCheckRows((current) => current.map((entry, rowIndex) => rowIndex === index ? { ...entry, notes: event.target.value } : entry))} placeholder="Optional note" /></td>
-            {isAudit ? (
-              <td className="py-4 align-middle">
-                {row.skipped ? (
-                  <div className="space-y-1">
-                    <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => unskipCheckRow(index)}>Unskip</button>
-                    {validationIssue?.reason === "Skip reason required" ? <div className="type-caption font-bold text-amber-700">Skip reason required</div> : null}
-                  </div>
-                ) : (
-                  <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => setModal({ type: "skip-check-row", rowIndex: index, itemName: item?.name })}>Skip</button>
-                )}
-              </td>
-            ) : null}
-          </tr>
-        );
-      };
+        return { ...row, rowIndex, item, parLevel, count: projectStockCheckCount(row, parLevel, isClosing) };
+      });
+      const totals = indexedRows.reduce((summary, row) => {
+        summary[row.count.state] += 1;
+        return summary;
+      }, { total: indexedRows.length, counted: 0, skipped: 0, pending: 0, na: 0 });
+      const readyToSubmit = totals.total > 0 && !issues.length && (!isClosing || Boolean(closingMonth));
+
+      const search = checkSearch.trim().toLowerCase();
+      const groupByCategory = new Map();
+      if (isAudit) {
+        for (const row of indexedRows) {
+          const key = row.item?.categoryId || "uncategorized";
+          if (!groupByCategory.has(key)) groupByCategory.set(key, { id: key, category: categoryById.get(key), rows: [] });
+          const matchesSearch = `${row.item?.name || ""} ${row.item?.sku || ""}`.toLowerCase().includes(search);
+          if (matchesSearch && (checkStatus === "all" || checkStatus === row.count.state)) groupByCategory.get(key).rows.push(row);
+        }
+      }
+      const categories = [...groupByCategory.values()].sort((a, b) =>
+        Number(a.category?.sortOrder ?? 9999) - Number(b.category?.sortOrder ?? 9999)
+        || (a.category?.name || "Uncategorized").localeCompare(b.category?.name || "Uncategorized"));
+      const auditRowGroups = categories.filter(group => group.rows.length && (checkCategory === "all" || checkCategory === group.id));
+      const auditFilters = isAudit && <AdminFilterToolbar ariaLabel="Audit item filters" presentation="inline" compact denseFields
+        search={<AdminSearchField hideLabel label="Search item" placeholder="Search item" value={checkSearch} onChange={setCheckSearch} />}
+        filters={<>
+          <SelectField ariaLabel="Category" value={checkCategory} onChange={setCheckCategory}
+            options={[{ value: "all", label: "All Categories" }, ...categories.map(group => ({ value: group.id, label: group.category?.name || "Uncategorized" }))]} />
+          <SelectField ariaLabel="Status" value={checkStatus} onChange={setCheckStatus} options={countStatusOptions} searchable={false} />
+        </>}
+      />;
       const updateCheckRow = (index, updater) => {
-        setCheckRows((current) => current.map((entry, rowIndex) => {
-          if (rowIndex !== index) return entry;
-          return typeof updater === "function" ? updater(entry) : { ...entry, ...updater };
-        }));
+        setCheckRows(current => current.map((entry, rowIndex) =>
+          rowIndex !== index ? entry : typeof updater === "function" ? updater(entry) : { ...entry, ...updater }));
       };
+      const openSkipReason = (rowIndex, itemName) => setModal({ type: "skip-check-row", rowIndex, itemName });
+      const itemName = row => row.item?.name || "Inventory item";
+      const columns = [
+        { key: "item", header: "Item", render: row => <div className="flex min-w-0 items-center gap-2.5">
+          <InventoryItemThumbnail item={row.item} category={categoryById.get(row.item?.categoryId)} onPreview={setPhotoPreview} size="sm" />
+          <div className="min-w-0 break-words">
+            <div className="type-body-sm font-semibold text-text-primary">{itemName(row)}</div>
+            {row.item?.sku && <small className="type-caption text-text-secondary">{row.item.sku}</small>}
+          </div>
+        </div> },
+        { key: "par", header: "Par", width: 72, align: "right", className: "tabular-nums", render: row => formatQuantity(row.parLevel) },
+        { key: "actual", header: "Actual Count", width: 188, render: row => {
+          const issue = validationIssueByRowIndex.get(row.rowIndex);
+          return <>
+            {row.skipped ? <span className="text-text-secondary">—</span> : <>
+              <div className="grid grid-cols-[2rem_minmax(0,1fr)_2rem] items-center gap-1">
+                <button className="icon-btn h-8 w-8" type="button" aria-label={`Decrease count for ${itemName(row)}`}
+                  onClick={() => updateCheckRow(row.rowIndex, { actualCount: Math.max(0, Number(row.actualCount || 0) - 1), na: false })}><Minus size={14} /></button>
+                <input className="control h-8 w-full min-w-0 text-center tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+                  type="number" min="0" step="any" inputMode="decimal" value={row.actualCount ?? ""} placeholder="Qty"
+                  aria-label={`Actual Count for ${itemName(row)}`} aria-invalid={issue ? true : undefined} onFocus={selectInputText}
+                  onChange={event => updateCheckRow(row.rowIndex, { actualCount: enteredActual(event.target.value, isClosing), na: false })} />
+                <button className="icon-btn h-8 w-8" type="button" aria-label={`Increase count for ${itemName(row)}`}
+                  onClick={() => updateCheckRow(row.rowIndex, { actualCount: Number(row.actualCount || 0) + 1, na: false })}><Plus size={14} /></button>
+              </div>
+              <div className="mt-1 flex flex-wrap gap-1">
+                {[
+                  ...(isClosing ? [] : [["Full", row.parLevel], ["Half", Math.round(Number(row.parLevel || 0) / 2)]]),
+                  ["Empty", 0],
+                  ...(!isAudit ? [["NA", row.actualCount]] : []),
+                ].map(([label, value]) => (
+                  <button key={label} className="rounded-full border border-border px-2 py-0.5 font-medium text-text-secondary hover:border-primary/30 hover:text-primary"
+                    type="button" onClick={() => updateCheckRow(row.rowIndex, { actualCount: Number(value || 0), na: label === "NA" })}>{label}</button>
+                ))}
+              </div>
+            </>}
+            {issue && <div className="mt-1 type-caption font-semibold text-amber-800">{issue.reason === "Count not entered" ? "Count required" : issue.reason}</div>}
+          </>;
+        } },
+        { key: "variance", header: "Variance", width: 88, align: "right", className: "tabular-nums", render: row => formatQuantity(row.count.variance) },
+        { key: "uom", header: "UOM", width: 64, render: row => row.item?.unit || "—" },
+        { key: "status", header: "Status", width: 104, render: row => <Badge tone={row.count.tone}>{row.count.label}</Badge> },
+        { key: "notes", header: "Notes", width: "18%", render: row => <input className="control h-8 w-full min-w-0" value={row.notes}
+          onChange={event => updateCheckRow(row.rowIndex, { notes: event.target.value })} placeholder="Optional note"
+          aria-label={`Notes for ${itemName(row)}`} /> },
+        ...(isAudit ? [{ key: "skip", header: "Skip", width: 118, render: row => row.skipped
+          ? <div className="flex items-center gap-1">
+            <button className="btn-secondary h-8 whitespace-nowrap px-2 text-xs" type="button" onClick={() => unskipCheckRow(row.rowIndex)}>Undo Skip</button>
+            <InfoTooltip label={`Skip reason: ${row.skipReason || "Reason required"}`}><Info size={15} aria-hidden="true" /></InfoTooltip>
+          </div>
+          : <button className="btn-secondary h-8 px-2 text-xs" type="button" onClick={() => openSkipReason(row.rowIndex, itemName(row))}>Skip</button>,
+        }] : []),
+      ];
       const closeActiveCheck = () => {
         setActiveCheckGroupId(null);
         setActiveScheduledCheckId(null);
@@ -1113,7 +1171,7 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
           <StockCheckMobileView
             activeCheckGroup={activeCheckGroup}
             isAudit={isAudit}
-            rows={checkRows.map((row, index) => ({ ...row, rowIndex: index }))}
+            totals={totals}
             itemById={itemById}
             categoryById={categoryById}
             outletName={outletById.get(activeCheckGroup.outletId)?.name || "Outlet"}
@@ -1124,11 +1182,13 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
             activePersistedCheck={activePersistedCheck}
             currentCheckerName={currentCheckerName}
             validationIssues={validationIssues}
-            checkSearch={checkSearch}
-            onSearchChange={setCheckSearch}
+            filteredRows={isAudit ? auditRowGroups.flatMap(group => group.rows) : indexedRows}
+            auditFilters={auditFilters}
             onPreviewPhoto={setPhotoPreview}
             onUpdateRow={updateCheckRow}
-            onSkipRow={(rowIndex, itemName) => setModal({ type: "skip-check-row", rowIndex, itemName })}
+            onSkipRow={openSkipReason}
+            closingFields={closingFields}
+            readyToSubmit={readyToSubmit}
             onUnskipRow={unskipCheckRow}
             onBack={closeActiveCheck}
             onSaveDraft={() => requirePermission(can.editCheck, "save stock check drafts") && saveStockCheck("draft")}
@@ -1143,38 +1203,40 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
             description={`${outletById.get(activeCheckGroup.outletId)?.name} · ${isAudit ? activeCheckGroup.auditType : activeCheckGroup.shift} · ${formatDate(activeCheckGroup.date || date)}`}
             action={<button className="btn-secondary" type="button" onClick={closeActiveCheck}>Back to Due Checks</button>}
           >
-            <div className="mb-3 grid gap-2 rounded-2xl border border-border bg-slate-50 p-3 md:grid-cols-3">
-              <div>
-                <div className="type-micro font-black uppercase text-text-muted">Checked by</div>
-                <div className="type-body-sm font-bold text-text-primary">{currentCheckerName}</div>
-              </div>
-              <div>
-                <div className="type-micro font-black uppercase text-text-muted">Started by</div>
-                <div className="type-body-sm font-bold text-text-primary">{startedByName}</div>
-              </div>
-              <div>
-                <div className="type-micro font-black uppercase text-text-muted">{activePersistedCheck?.status === "submitted" ? "Submitted" : "Draft saved"}</div>
-                <div className="type-body-sm font-bold text-text-primary">
-                  {activePersistedCheck?.status === "submitted"
-                    ? `${submittedByName || "Unknown User"} · ${formatDateTimeCompact(activePersistedCheck.submittedAt)}`
-                    : (draftSavedAt ? formatDateTimeCompact(draftSavedAt) : "Not saved yet")}
+            <div className="mb-3 flex flex-wrap items-end gap-x-6 gap-y-3 rounded-xl border border-border bg-surface-muted px-3 py-2.5">
+              <dl aria-label={isAudit ? "Audit summary" : "Stock Check summary"}
+                className={`grid min-w-0 flex-1 grid-cols-2 gap-x-4 gap-y-2 ${isAudit ? "lg:grid-cols-3 2xl:grid-cols-5" : "md:grid-cols-3"}`}>
+                <div className="min-w-0">
+                  <dt className="type-caption text-text-secondary">Checked by</dt>
+                  <dd className="type-body-sm break-words font-semibold">{currentCheckerName}</dd>
                 </div>
-              </div>
+                <div className="min-w-0">
+                  <dt className="type-caption text-text-secondary">Started by</dt>
+                  <dd className="type-body-sm break-words font-semibold">{startedByName}</dd>
+                </div>
+                <div className="min-w-0">
+                  <dt className="type-caption text-text-secondary">{activePersistedCheck?.status === "submitted" ? "Submitted" : "Draft saved"}</dt>
+                  <dd className="type-body-sm font-semibold tabular-nums">
+                    {activePersistedCheck?.status === "submitted"
+                      ? `${submittedByName || "Unknown User"} · ${formatDateTimeCompact(activePersistedCheck.submittedAt)}`
+                      : draftSavedAt ? <time dateTime={draftSavedAt}>{formatDateTimeCompact(draftSavedAt)}</time> : "Not saved yet"}
+                  </dd>
+                </div>
+                {isAudit && <AuditCountTimestampFields startedAt={activePersistedCheck?.createdAt} submittedAt={activePersistedCheck?.submittedAt} />}
+              </dl>
+              {closingFields && <div className="w-44 shrink-0">{closingFields}</div>}
             </div>
-            {isAudit ? (
-              <div className="mb-3 flex flex-col gap-2 rounded-2xl border border-border bg-slate-50 p-3 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <div className="type-body-sm font-bold text-text-primary">Audit item list</div>
-                  <div className="type-caption text-text-secondary">{checkRows.length} generated items · {checkRows.filter((row) => row.skipped).length} skipped</div>
-                </div>
-                <label className="md:w-80">
-                  <div className="relative">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={15} />
-                    <input className="control h-9 w-full pl-9 text-[13px]" value={checkSearch} onChange={(event) => setCheckSearch(event.target.value)} placeholder="Search item" />
+            {isAudit && <div className="mb-2 flex flex-wrap items-center gap-x-6 gap-y-2">
+              <dl aria-label="Audit item counts" className="flex flex-wrap gap-x-4 gap-y-1 self-center">
+                {[["Total", totals.total], ["Counted", totals.counted], ["Skipped", totals.skipped], ["Remaining", totals.pending]].map(([label, value]) => (
+                  <div key={label} className="flex items-baseline gap-1.5">
+                    <dt className="type-caption text-text-secondary">{label}</dt>
+                    <dd className="type-body-sm font-semibold tabular-nums text-text-primary">{value}</dd>
                   </div>
-                </label>
-              </div>
-            ) : null}
+                ))}
+              </dl>
+              <div className="min-w-0 flex-[1_1_31rem]">{auditFilters}</div>
+            </div>}
             {validationIssues.length ? (
               <div className="mb-3 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-amber-950">
                 <div className="flex items-start gap-3">
@@ -1188,62 +1250,43 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
                       ))}
                       {validationIssues.length > 8 ? <li className="font-semibold">+{validationIssues.length - 8} more item{validationIssues.length - 8 === 1 ? "" : "s"}</li> : null}
                     </ul>
-                    <div className="mt-2 type-caption font-semibold">{isAudit ? "Complete count or click Skip." : "Complete the count before submitting."}</div>
+                    <div className="mt-2 type-caption font-semibold">{isClosing ? "Enter an explicit count for every item before submitting." : isAudit ? "Complete count or click Skip." : "Complete the count before submitting."}</div>
                   </div>
                 </div>
               </div>
             ) : null}
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[880px] text-left">
-                <thead className="text-[11px] uppercase tracking-wide text-text-muted">
-                  <tr className="border-b border-border">
-                    <th className="py-2">Item</th>
-                    <th>Par</th>
-                    <th>Actual</th>
-                    <th>Variance</th>
-                    <th>UOM</th>
-                    <th>Status</th>
-                    <th>Notes</th>
-                    {isAudit ? <th>Skip</th> : null}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border text-[13px]">
-                  {isAudit ? auditRowGroups.map((group) => {
-                    const collapsed = collapsedCheckCategoryIds.has(group.id);
-                    return (
-                      <Fragment key={group.id}>
-                        <tr className="bg-slate-50">
-                          <td className="py-2" colSpan={8}>
-                            <button
-                              className="flex w-full items-center justify-between rounded-xl px-2 py-1 text-left transition hover:bg-primary/5"
-                              type="button"
-                              onClick={() => setCollapsedCheckCategoryIds((current) => {
-                                const next = new Set(current);
-                                if (next.has(group.id)) next.delete(group.id);
-                                else next.add(group.id);
-                                return next;
-                              })}
-                            >
-                              <span className="type-body-sm font-black text-text-primary">{group.category?.name || "Uncategorized"} <span className="font-semibold text-text-secondary">· {group.rows.length} item{group.rows.length === 1 ? "" : "s"}</span></span>
-                              <ChevronDown className={`text-text-muted transition ${collapsed ? "-rotate-90" : ""}`} size={16} />
-                            </button>
-                          </td>
-                        </tr>
-                        {collapsed ? null : group.rows.map(renderCheckRow)}
-                      </Fragment>
-                    );
-                  }) : checkRowsWithIndex.map(renderCheckRow)}
-                </tbody>
-              </table>
-            </div>
+            <DataTable columns={columns} density="compact" columnSpacing="compact" tableClassName="table-fixed" minWidth={isAudit ? 948 : 830}
+              rows={isAudit ? auditRowGroups.flatMap(group => [{ group }, ...(collapsedCheckCategoryIds.has(group.id) ? [] : group.rows)]) : indexedRows}
+              getRowKey={row => row.group ? `category-${row.group.id}` : row.itemId}
+              getRowProps={row => ({ "data-check-row-index": row.rowIndex })}
+              getRowClassName={row => validationIssueByRowIndex.has(row.rowIndex) ? "!bg-amber-50/80" : ""}
+              renderGroupRow={({ group }) => {
+                if (!group) return null;
+                const collapsed = collapsedCheckCategoryIds.has(group.id);
+                return { content: <button type="button" aria-expanded={!collapsed}
+                  onClick={() => setCollapsedCheckCategoryIds(current => {
+                    const next = new Set(current);
+                    if (next.has(group.id)) next.delete(group.id);
+                    else next.add(group.id);
+                    return next;
+                  })}>
+                  <ChevronDown className={`text-text-muted transition ${collapsed ? "-rotate-90" : ""}`} size={14} />
+                  <span>{group.category?.name || "Uncategorized"}</span>
+                  <small>{group.rows.length} item{group.rows.length === 1 ? "" : "s"}</small>
+                </button> };
+              }}
+            />
+            {isAudit && !auditRowGroups.length && <EmptyState title="No items match these filters." />}
           </SectionCard>
-          <div className="sticky bottom-4 z-20 flex flex-col gap-2 rounded-2xl border border-border bg-white/95 p-3 shadow-card backdrop-blur sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex flex-wrap gap-2 type-caption font-semibold text-text-secondary">
-              <span>{checkRows.length} items</span>
-              <span>·</span>
-              <span>{checkRows.filter((row) => row.skipped).length} skipped</span>
-              <span>·</span>
-              <span>{checkRows.filter((row) => !row.skipped && varianceStatus(parLevelForOutlet(itemById.get(row.itemId), activeCheckGroup.outletId), row.actualCount).tone === "danger").length} critical items</span>
+          <div className="sticky bottom-4 z-20 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-surface p-3">
+            <div aria-label="Stock check progress" className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1">
+              {totals.total > 0 && <progress className="h-1.5 w-20 accent-primary" aria-label="Counted items" value={totals.counted} max={totals.total} />}
+              <div>
+                <div className="type-body-sm font-semibold tabular-nums">{totals.counted} / {totals.total} counted</div>
+                <div className="type-caption text-text-secondary">{totals.pending} remaining · {totals.skipped} skipped
+                  {isClosing && !readyToSubmit && " · Closing requires a valid count for every item."}
+                </div>
+              </div>
             </div>
             <div className="flex gap-2">
               <button className="btn-secondary" type="button" disabled={savingStockCheck} onClick={() => requirePermission(can.editCheck, "save stock check drafts") && saveStockCheck("draft")}>{savingStockCheck ? "Saving…" : "Save Draft"}</button>
@@ -1342,7 +1385,9 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
             <><div className="overflow-x-auto"><table className="w-full min-w-[900px] text-left"><thead className="table-head"><tr><th className="px-3 py-2">Date</th><th>Audit Type</th><th>Items Checked</th><th>Skipped</th><th>Variance Items</th><th>Status</th><th>Created By</th><th className="text-right">Actions</th></tr></thead><tbody className="divide-y divide-border text-[13px]">{auditChecks.slice((auditPage - 1) * auditPageSize, auditPage * auditPageSize).map((check) => {
               const varianceCount = check.rowSummary?.shortage ?? (check.rows || []).filter((row) => !row.skipped && Number(row.variance || 0) > 0).length;
               const skippedCount = check.rowSummary?.skipped ?? (check.rows || []).filter((row) => row.skipped).length;
-              return <tr key={check.id}><td className="px-3 py-3 font-semibold">{formatDate(check.date)}</td><td>{check.auditType || check.auditName || "Custom Audit"}</td><td>{check.rowSummary?.total ?? check.rows?.length ?? 0}</td><td>{skippedCount}</td><td>{varianceCount}</td><td><Badge tone={statusTone(check.status)}>{check.status === "submitted" ? "Completed" : toTitle(check.status)}</Badge></td><td>{actorNameByAuthUserId(check.createdBy)}</td><td><div className="flex items-center justify-end gap-2">{check.status === "draft" ? <><button className="btn-primary h-9 px-2.5 text-xs" type="button" onClick={() => continueAuditStockCheck(check)}>Continue Audit</button><button className="icon-btn h-9 w-9 text-rose-700" type="button" title="Delete draft" aria-label={`Delete draft audit ${check.auditName || check.date}`} onClick={() => deleteAuditDraft(check)}><Trash2 size={16} /></button></> : <button className="icon-btn h-9 w-9" type="button" title="View audit result" aria-label={`View audit result ${check.auditName || check.date}`} onClick={() => navigateAdminRoute('inventory-stock-check-result', { checkId: check.id }, { date })}><Eye size={16} /></button>}</div></td></tr>;
+              return <tr key={check.id}><td className="px-3 py-3 font-semibold">{formatDate(check.date)}</td><td>{check.auditType || check.auditName || "Custom Audit"}{check.correctionOfId && <div className="type-caption text-text-secondary">Correction</div>}</td><td>{check.rowSummary?.total ?? check.rows?.length ?? 0}</td><td>{skippedCount}</td><td>{varianceCount}</td><td><Badge tone={statusTone(check.status)}>{check.status === "submitted" ? "Completed" : toTitle(check.status)}</Badge></td><td>{actorNameByAuthUserId(check.createdBy)}</td><td><div className="flex items-center justify-end gap-2">{check.status === "draft" ? (!check.correctionOfId || can.correctAudit) && <><button className="btn-primary h-9 px-2.5 text-xs" type="button" onClick={() => check.correctionOfId
+                ? navigateAdminRoute('inventory-stock-check-result', { checkId: check.id }, { date })
+                : continueAuditStockCheck(check)}>Continue Audit</button><button className="icon-btn h-9 w-9 text-rose-700" type="button" title="Delete draft" aria-label={`Delete draft audit ${check.auditName || check.date}`} onClick={() => deleteAuditDraft(check)}><Trash2 size={16} /></button></> : <button className="icon-btn h-9 w-9" type="button" title="View audit result" aria-label={`View audit result ${check.auditName || check.date}`} onClick={() => navigateAdminRoute('inventory-stock-check-result', { checkId: check.id }, { date })}><Eye size={16} /></button>}</div></td></tr>;
             })}</tbody></table></div><FactoryPagination page={auditPage} pageSize={auditPageSize} total={auditChecks.length} onPageChange={setAuditPage} onPageSizeChange={(value) => { setAuditPageSize(value); setAuditPage(1); }} /></>
           ) : <EmptyState title="No audit stock checks yet." description="Use Audit Stock Check for month-end closing, full outlet counts or spot checks." />}
         </SectionCard>
@@ -1362,7 +1407,7 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
     <PageHeader section="INVENTORY CONTROL" title={meta.title} description={meta.description} actions={<button className="btn-primary" type="button" onClick={() => requirePermission(can.createCheck, "create audit stock checks") && setModal({ type: "audit-stock-check" })}><ClipboardCheck size={15} /> Audit Stock Check</button>} />
     {executionRead.state === "refreshing" ? <p role="status" className="text-sm text-text-secondary">Refreshing Stock Checks. Showing the last verified complete read.</p> : null}
     {renderStockCheck()}
-    {modal?.type === "audit-stock-check" ? <AuditStockCheckModal outlets={outlets.filter((outlet) => accessibleOutletIds.includes(outlet.id))} categories={sortedCategories} items={data.items} onClose={() => setModal(null)} onStart={startAuditStockCheck} /> : null}
+    {modal?.type === "audit-stock-check" ? <AuditStockCheckModal outlets={outlets.filter((outlet) => accessibleOutletIds.includes(outlet.id))} categories={sortedCategories} items={data.items} closingSetup={modal.closingSetup} onClose={() => setModal(null)} onStart={startAuditStockCheck} starting={savingStockCheck} /> : null}
     {modal?.type === "skip-check-row" ? <SkipReasonModal itemName={modal.itemName} onClose={() => setModal(null)} onSave={(reason) => skipCheckRow(modal.rowIndex, reason)} /> : null}
     <InventoryItemPhotoPreview preview={photoPreview} onClose={() => setPhotoPreview(null)} />
   </div>;

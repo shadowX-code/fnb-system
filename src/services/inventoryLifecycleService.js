@@ -43,6 +43,24 @@ export const inventoryLifecycleService = {
     });
   },
 
+  async createAuditCorrection({ checkId, requestId: suppliedRequestId }) {
+    return call("inventory.audit.correction.create", "inventory_create_audit_correction", {
+      p_check_id: requireUuid(checkId, "Audit Stock Check"),
+      p_request_id: suppliedRequestId || requestId(),
+    });
+  },
+
+  async approveClosingStock({ checkId, requestId: suppliedRequestId, reconciliation, supersedesId, reason, physicalCountCutoff }) {
+    return call("inventory.closing.approve", "inventory_approve_closing_stock", {
+      p_check_id: requireUuid(checkId, "Stock Check"),
+      p_request_id: suppliedRequestId || requestId(),
+      p_reconciliation: reconciliation,
+      p_supersedes_id: supersedesId,
+      p_correction_reason: reason,
+      ...(physicalCountCutoff ? { p_physical_count_cutoff: physicalCountCutoff } : {}),
+    });
+  },
+
   async savePurchaseOrder({ order, requestId: suppliedRequestId }) {
     return call("inventory.purchase_order.save", "inventory_save_purchase_order", {
       p_request_id: suppliedRequestId || requestId(),

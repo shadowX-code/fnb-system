@@ -2,9 +2,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { subscribeInventoryRevalidation } from "../../../../services/inventoryRevalidation.js";
 import { loadInventoryDashboard } from "./inventoryDashboardService.js";
 
-export default function useInventoryDashboardRead({ outletIds, actorId, enabled }) {
+export default function useInventoryDashboardRead({ outletIds, actorId, enabled, canReadCosts = false, closingMonth = "" }) {
   const outletKey = outletIds.join("|");
-  const scopeKey = `${actorId}:${outletKey}`;
+  const scopeKey = `${actorId}:${outletKey}:${canReadCosts}:${closingMonth}`;
   const [snapshot, setSnapshot] = useState({ scopeKey: "", data: null, state: "loading", error: "" });
   const request = useRef(0);
   const currentScope = useRef(scopeKey);
@@ -14,7 +14,7 @@ export default function useInventoryDashboardRead({ outletIds, actorId, enabled 
     const id = ++request.current;
     setSnapshot((previous) => ({ scopeKey, data: previous.scopeKey === scopeKey ? previous.data : null, state: previous.scopeKey === scopeKey && previous.data ? "refreshing" : "loading", error: "" }));
     try {
-      const data = await loadInventoryDashboard(outletIds);
+      const data = await loadInventoryDashboard(outletIds, { canReadCosts, closingMonth });
       if (id !== request.current || currentScope.current !== scopeKey) return null;
       setSnapshot({ scopeKey, data, state: "ready", error: "" });
       return data;

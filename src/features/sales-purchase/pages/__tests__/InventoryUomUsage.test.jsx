@@ -5,6 +5,10 @@ const mocks = vi.hoisted(() => ({ tables: {}, usageItems: [], usageFailure: null
 
 vi.mock("../../../../lib/supabase.ts", () => ({
   supabase: {
+    async rpc(name) {
+      if (name !== "inventory_master_cost_changes") throw new Error(`Unexpected RPC ${name}`);
+      return { data: {}, error: null };
+    },
     from(table) {
       let projection = "*";
       let selectOptions = {};

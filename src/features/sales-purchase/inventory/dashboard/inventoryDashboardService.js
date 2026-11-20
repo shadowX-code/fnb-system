@@ -3,8 +3,9 @@ import { supabase } from "../../../../lib/supabase.ts";
 import { isActiveInventoryItem, mapRemoteInventoryItem, outletConfigForItem, uniqueIds } from "../inventoryItemModel.js";
 import { mapRemoteStockCheckGroup } from "../groups/inventoryGroupsModel.js";
 import { mapRemoteStockCheck } from "../stockChecks/inventoryStockCheckReadModel.js";
+import { loadClosingContext } from "../stockChecks/inventoryStockCheckResultService.js";
+import { MONTH_END_CLOSING } from "../stockChecks/monthEndClosing.js";
 import { mapRemoteInventoryMovement } from "../movements/inventoryMovementService.js";
-import { mapRemoteWasteRecord } from "../waste/inventoryWasteService.js";
 
 async function readByIds(table, column, ids, options = {}) {
   const unique = uniqueIds(ids);
@@ -32,8 +33,8 @@ async function readRecentMovements(outletIds) {
   // This is an explicitly bounded recent-activity widget, not a complete
   // movement history or a stock-balance authority.
   const { data, error } = await supabase.from("inventory_movements").select("*")
-    .in("outlet_id", outletIds).order("created_at", { ascending: false })
-    .order("id", { ascending: true }).limit(6);
+    .in("outlet_id", outletIds).order("created_at", { ascending: false, nullsFirst: false })
+    .order("id", { ascending: true }).limit(5);
   if (error || !Array.isArray(data)) throw Object.assign(
     new Error(`Recent inventory movements: ${error?.message || "read failed"}`),
     { readState: "error", cause: error },
@@ -41,27 +42,67 @@ async function readRecentMovements(outletIds) {
   return data;
 }
 
-// Dashboard is a read-only projection. Every contributing collection must be
-// verified complete before any aggregate becomes visible.
-export async function loadInventoryDashboard(outletIds) {
+async function readCostInsights(outletIds) {
+  try {
+    const { data, error } = await supabase.rpc("inventory_dashboard_cost_insights", { p_outlet_ids: outletIds });
+    if (error || !data?.start_date || !data?.end_date || !Array.isArray(data.top_changes)
+        || ![data.increases, data.decreases, data.missing_costs].every(Number.isInteger)) {
+      return { state: "unavailable" };
+    }
+    return { state: "ready", data };
+  } catch {
+    return { state: "unavailable" };
+  }
+}
+
+async function readClosingStatuses(checks, outletIds, closingMonth) {
+  const byOutlet = new Map();
+  for (const check of checks) {
+    if (check.auditType !== MONTH_END_CLOSING || check.accountingMonth !== closingMonth
+        || !["draft", "submitted"].includes(check.status)) continue;
+    const current = byOutlet.get(check.outletId);
+    if (!current || (check.status === "submitted" && (current.status !== "submitted"
+      || check.submittedAt > current.submittedAt))) byOutlet.set(check.outletId, check);
+  }
+  return Object.fromEntries(await Promise.all(outletIds.map(async outletId => {
+    const check = byOutlet.get(outletId);
+    if (!check) return [outletId, { status: "No submission" }];
+    if (check.status !== "submitted") return [outletId, { status: "Draft" }];
+    try {
+      const context = await loadClosingContext(check.id);
+      if (!context || !Object.hasOwn(context, "published")) return [outletId, { status: "Unavailable" }];
+      return [outletId, context.published
+        ? { status: "Published", checkId: context.published.source_audit_id }
+        : { status: "Submitted", checkId: check.id }];
+    } catch {
+      return [outletId, { status: "Unavailable" }];
+    }
+  })));
+}
+
+// Require complete operations evidence. Restricted or failed optional insights
+// carry their own state without replacing complete operational counts.
+export async function loadInventoryDashboard(outletIds, { canReadCosts = false, closingMonth = "" } = {}) {
   if (!outletIds.length) throw new Error("No accessible outlet.");
-  const [links, groups, checks, orders, waste, stockEvidence, recentMovements] = await Promise.all([
+  const [links, groups, checkRows, orders, stockEvidence, recentMovements, costInsights] = await Promise.all([
     readByIds("inventory_item_outlets", "outlet_id", outletIds, { select: "*, outlets:outlet_id(*)" }),
     readByIds("inventory_stock_check_groups", "outlet_id", outletIds, { order: "created_at", ascending: false }),
-    readByIds("inventory_stock_checks", "outlet_id", outletIds, { order: "created_at", ascending: false }),
+    readByIds("inventory_stock_checks", "outlet_id", outletIds, {
+      select: "id,group_id,outlet_id,stock_check_type,audit_type,accounting_month,status,check_date,created_at,submitted_at",
+      order: "created_at", ascending: false,
+    }),
     readByIds("inventory_purchase_orders", "outlet_id", outletIds, { select: "id, outlet_id, status, created_at", order: "created_at", ascending: false }),
-    readByIds("inventory_waste_records", "outlet_id", outletIds, { order: "waste_date", ascending: false }),
     readStockEvidence(outletIds),
     readRecentMovements(outletIds),
+    canReadCosts ? readCostInsights(outletIds) : { state: "restricted" },
   ]);
-  const [itemRows, groupLinks] = await Promise.all([
-    readByIds("inventory_items", "id", links.map((link) => link.inventory_item_id)),
-    readByIds("inventory_stock_check_group_categories", "group_id", groups.map((group) => group.id)),
+  const checks = checkRows.map((row) => mapRemoteStockCheck(row, []));
+  const [itemRows, closingStatuses] = await Promise.all([
+    readByIds("inventory_items", "id", [...links.map(link => link.inventory_item_id), ...recentMovements.map(row => row.inventory_item_id)]),
+    closingMonth ? readClosingStatuses(checks, outletIds, closingMonth) : null,
   ]);
   const linksByItem = new Map();
   for (const link of links) linksByItem.set(link.inventory_item_id, [...(linksByItem.get(link.inventory_item_id) || []), link]);
-  const categoryIdsByGroup = new Map();
-  for (const link of groupLinks) categoryIdsByGroup.set(link.group_id, [...(categoryIdsByGroup.get(link.group_id) || []), link.category_id]);
   const items = itemRows.map((row) => mapRemoteInventoryItem(row, linksByItem.get(row.id) || []));
   const expectedPositions = new Set();
   for (const item of items.filter(isActiveInventoryItem)) for (const outletId of item.linkedOutletIds || []) {
@@ -85,11 +126,12 @@ export async function loadInventoryDashboard(outletIds) {
   }
   return {
     items,
-    groups: groups.map((row) => mapRemoteStockCheckGroup(row, categoryIdsByGroup.get(row.id) || [])),
-    checks: checks.map((row) => mapRemoteStockCheck(row, [])),
+    groups: groups.map(row => mapRemoteStockCheckGroup(row)),
+    checks,
     orders: orders.map((row) => ({ id: row.id, outletId: row.outlet_id, status: row.status })),
     movements: recentMovements.map(mapRemoteInventoryMovement),
-    waste: waste.map(mapRemoteWasteRecord),
     stockEvidence,
+    closingStatuses,
+    costInsights,
   };
 }

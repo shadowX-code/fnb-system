@@ -21,19 +21,40 @@ describe("Inventory Dashboard scoped complete read", () => {
 
   it("reads only Dashboard evidence under the accessible outlet scope", async () => {
     const data = await loadInventoryDashboard(["outlet-a"]);
-    expect(data).toEqual({ items: [], groups: [], checks: [], orders: [], movements: [], waste: [], stockEvidence: [] });
+    expect(data).toEqual({ items: [], groups: [], checks: [], orders: [], movements: [], stockEvidence: [],
+      closingStatuses: null, costInsights: { state: "restricted" } });
     const tables = mocks.read.mock.calls.map(([table]) => table);
     expect(tables).toEqual(expect.arrayContaining([
       "inventory_item_outlets", "inventory_stock_check_groups", "inventory_stock_checks",
-      "inventory_purchase_orders", "inventory_waste_records",
+      "inventory_purchase_orders",
     ]));
     expect(tables).not.toEqual(expect.arrayContaining(["inventory_categories", "inventory_purchase_receipts", "inventory_purchase_receipt_items", "inventory_stock_check_items", "inventory_movements", "employees", "inventory_uoms"]));
     expect(mocks.rpc).toHaveBeenCalledWith("inventory_dashboard_stock_evidence", { p_outlet_ids: ["outlet-a"] });
+    expect(mocks.recent).toHaveBeenCalledWith(5);
     for (const [table, options] of mocks.read.mock.calls) {
       if (["inventory_item_outlets", "inventory_stock_check_groups", "inventory_stock_checks", "inventory_purchase_orders", "inventory_waste_records"].includes(table)) {
         expect(options.in.outlet_id).toEqual(["outlet-a"]);
       }
     }
+  });
+
+  it("resolves verified closing publication and standard cost only for the requested scope", async () => {
+    const cost = { start_date: "2026-10-30", end_date: "2026-11-28", increases: 1, decreases: 0, missing_costs: 0, top_changes: [] };
+    mocks.read.mockImplementation(async table => ({ data: table === "inventory_stock_checks" ? [{
+      id: "latest", outlet_id: "outlet-a", stock_check_type: "audit", audit_type: "Month-End Closing",
+      accounting_month: "2026-10-01", status: "submitted",
+    }] : [], completeness: "complete" }));
+    mocks.rpc.mockImplementation(async name => ({ data: name === "inventory_dashboard_cost_insights" ? cost
+      : name === "inventory_closing_context" ? { published: { source_audit_id: "published", amount: 0 } }
+        : { position_count: 0, positions: [] } }));
+    const data = await loadInventoryDashboard(["outlet-a", "outlet-b"], { canReadCosts: true, closingMonth: "2026-10-01" });
+    expect(mocks.rpc).toHaveBeenCalledWith("inventory_dashboard_cost_insights", { p_outlet_ids: ["outlet-a", "outlet-b"] });
+    expect(mocks.rpc).toHaveBeenCalledWith("inventory_closing_context", { p_check_id: "latest" });
+    expect(data.costInsights).toEqual({ state: "ready", data: cost });
+    expect(data.closingStatuses).toEqual({
+      "outlet-a": { status: "Published", checkId: "published" },
+      "outlet-b": { status: "No submission" },
+    });
   });
 
   it("propagates incomplete evidence instead of returning a partial dashboard", async () => {

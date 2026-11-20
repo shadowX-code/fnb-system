@@ -130,16 +130,17 @@ describe("Inventory lifecycle persistence contracts", () => {
   it("sends submitted stock checks through one trusted RPC with current values and a request ID", async () => {
     rpcResponse("inventory_save_stock_check", { data: { check: { id: ids.check, outlet_id: ids.outlet, group_id: ids.group, stock_check_type: "scheduled", check_name: "Morning", check_date: "2026-08-10", status: "submitted" }, items: [] } });
 
-    const saved = await inventoryLifecycleContracts.persistRemoteStockCheck({ id: ids.group, outletId: ids.outlet, name: "Morning", date: "2026-08-10", shift: "Opening", stockCheckType: "scheduled" }, [{ itemId: ids.item, expectedQty: 10, actualCount: 8, variance: -2, unit: "kg" }], "submitted", "user-1", "employee-1");
+    const saved = await inventoryLifecycleContracts.persistRemoteStockCheck({ id: ids.group, outletId: ids.outlet, name: "Morning", date: "2026-08-10", shift: "Opening", stockCheckType: "scheduled" }, [{ itemId: ids.item, expectedQty: 10, actualCount: 8, variance: -2, unit: "kg" }], "submitted", ids.receipt);
 
-    expect(mocks.operations).toEqual([expect.objectContaining({ kind: "rpc", name: "inventory_save_stock_check", payload: expect.objectContaining({ p_request_id: expect.any(String), p_check: expect.objectContaining({ outlet_id: ids.outlet, group_id: ids.group, stock_check_type: "scheduled", status: "submitted" }), p_items: [expect.objectContaining({ item_id: ids.item, actual_count_quantity: 8, variance: -2, unit: "kg" })] }) })]);
+    expect(mocks.operations).toEqual([expect.objectContaining({ kind: "rpc", name: "inventory_save_stock_check", payload: expect.objectContaining({ p_request_id: ids.receipt, p_check: expect.objectContaining({ outlet_id: ids.outlet, group_id: ids.group, stock_check_type: "scheduled", status: "submitted" }), p_items: [expect.objectContaining({ item_id: ids.item, actual_count_quantity: 8, variance: -2, unit: "kg" })] }) })]);
     expect(saved.status).toBe("submitted");
+    expect(mocks.operations[0].payload.p_check).not.toHaveProperty("submitted_at");
   });
 
   it("surfaces a rejected stock-check RPC without client-side header or row writes", async () => {
     rpcResponse("inventory_save_stock_check", { data: null, error: new Error("stock check rejected") });
 
-    await expect(inventoryLifecycleContracts.persistRemoteStockCheck({ id: ids.group, outletId: ids.outlet, name: "Morning", date: "2026-08-10", stockCheckType: "scheduled" }, [{ itemId: ids.item, expectedQty: 10, actualCount: 8, variance: -2, unit: "kg" }], "draft", "user-1", "employee-1")).rejects.toThrow("stock check rejected");
+    await expect(inventoryLifecycleContracts.persistRemoteStockCheck({ id: ids.group, outletId: ids.outlet, name: "Morning", date: "2026-08-10", stockCheckType: "scheduled" }, [{ itemId: ids.item, expectedQty: 10, actualCount: 8, variance: -2, unit: "kg" }], "draft")).rejects.toThrow("stock check rejected");
 
     expect(mutation("inventory_stock_checks", "insert")).toHaveLength(0);
     expect(mutation("inventory_stock_check_items", "insert")).toHaveLength(0);

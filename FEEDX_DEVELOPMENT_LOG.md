@@ -1,5 +1,21 @@
 # FeedX Development Log
 
+## 2026-11-20 — Audit Stock Check corrections
+
+Added Admin correction drafts and submitted evidence lineage to Audit Stock Check. Corrections preserve original count and valuation evidence, and Month-End Closing continues through the existing scoped approval and publication workflow. See [Inventory and Assets](docs/domains/inventory-and-assets.md#lifecycle-and-business-rules).
+
+## 2026-11-20 — Audit Stock Check timestamps
+
+Admin and Crew audit starts now use the saved draft creation timestamp, and both surfaces display server submission time in MYT. Month-End Closing continues to capture Closing Month before counting, while the approver confirms the separate physical count cutoff using supporting evidence. See [Inventory and Assets](docs/domains/inventory-and-assets.md#lifecycle-and-business-rules).
+
+## 2026-11-20 — Restaurant Master Inventory Cost History
+
+Added scoped, append-only global unit cost maintenance in Master Inventory, with a Cost History drawer, confirmed-cost baselines, explicit corrections and a compatibility projection for existing consumers. Submitted Audit costs and published Closing Stock retain their original evidence. See [Inventory and Assets](docs/domains/inventory-and-assets.md#master-inventory-cost-history).
+
+## 2026-11-20 — Restaurant Month-End Closing Stock
+
+Added full-outlet Month-End Closing counts in Admin and Crew, scoped approval with item-level reconciliation and immutable valuation revisions, and a reference line below EBITDA in Outlet P&L. Canonical owners are the [Inventory](docs/domains/inventory-and-assets.md) and [Restaurant Finance](docs/domains/restaurant-finance-and-purchasing.md) domains.
+
 ## 2026-10-29 — External Agent Gateway connection management
 
 Added Admin Settings → Integrations → External Agents over the existing machine identity, credential, Role Settings and audit authorities. The provider-neutral registry classifies tools by domain, permission, capability and approval requirement; this phase registers only the five MeSTI Read tools. Administrators can inspect credential state separately from observed MCP access, explicitly rotate/revoke credentials and test endpoint reachability or a supplied credential. Issuance is one-time and hash-only at rest, with concurrency/replay guards and no secret-bearing ordinary reads or logs. Safe endpoint telemetry distinguishes external access from signed Admin probes; Factory business reads and redaction remain unchanged. Staging QA uses disposable identities and preserves the working QA Executive credential. Canonical owners: docs/architecture/trusted-authorities.md and docs/architecture/platform.md.

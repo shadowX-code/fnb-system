@@ -2,7 +2,7 @@
 .admin-chart {position:relative;min-width:0;width:100%;margin:12px 0;}
 .admin-chart > svg {display:block;width:100%;height:auto;overflow:visible;}
 .admin-chart-mark {cursor:pointer;outline:none;transition:opacity 180ms ease-out;}
-.admin-chart-tooltip {position:fixed;z-index:100;width:max-content;max-width:min(260px,calc(100vw - 16px));padding:8px 10px;border:1px solid var(--border,#d7e2e8);border-radius:6px;background:var(--surface,white);color:var(--text-primary,#173442);font-size:12px;pointer-events:none;line-height:1.35;}
+.admin-chart-tooltip {position:fixed;z-index:var(--z-tooltip,160);width:max-content;max-width:min(260px,calc(100vw - 16px));padding:8px 10px;border:1px solid var(--border,#d7e2e8);border-radius:6px;background:var(--surface,white);color:var(--text-primary,#173442);font-size:12px;pointer-events:none;line-height:1.35;}
 .admin-chart-tooltip strong,.admin-chart-tooltip span {display:block;}
 .admin-chart-tooltip span {color:var(--text-secondary,#526473);}
 @media(prefers-reduced-motion:reduce){.admin-chart * {transition:none!important;animation:none!important;}}
