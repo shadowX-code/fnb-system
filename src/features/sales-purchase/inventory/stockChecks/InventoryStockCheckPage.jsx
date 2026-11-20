@@ -24,7 +24,8 @@ const SHOW_STOCK_CHECK_CARD_DEBUG = import.meta.env.DEV && String(import.meta.en
 const shifts = ["Opening", "Mid", "Closing", "Any Shift"];
 import MonthPickerField from "../../../../components/forms/MonthPickerField.jsx";
 import AuditCountTimestamps from "./AuditCountTimestamps.jsx";
-import { formatClosingError, MONTH_END_CLOSING, updateClosingAuditName } from "./monthEndClosing.js";
+import { formatClosingError, isValidClosingQuantity, MONTH_END_CLOSING, updateClosingAuditName } from "./monthEndClosing.js";
+import { STOCK_CHECK_SKIP_REASONS, stockCheckSkipReason } from "./stockCheckSkipReasons.js";
 
 const auditTypes = [MONTH_END_CLOSING, "Full Stock Audit", "Spot Check", "Category Audit", "Custom Audit"];
 function parLevelForOutlet(item = {}, outletId) { return outletConfigForItem(item, outletId).parLevel; }
@@ -303,18 +304,20 @@ function StockCheckMobileView({
   onSkipRow,
   onUnskipRow,
   closingFields,
+  readyToSubmit,
   onBack,
   onSaveDraft,
   onSubmit,
 }) {
   const issueByRowIndex = new Map((validationIssues || []).map((issue) => [issue.rowIndex, issue]));
-  const isRowCounted = (row = {}) => row.actualCount !== "" && row.actualCount !== null && row.actualCount !== undefined && Number.isFinite(Number(row.actualCount));
+  const isRowCounted = row => !row.skipped && !row.na && (closingFields
+    ? isValidClosingQuantity(row.actualCount)
+    : row.actualCount != null && row.actualCount !== "" && Number.isFinite(Number(row.actualCount)));
   const totalItems = rows.length;
   const skippedCount = rows.filter((row) => row.skipped).length;
-  const completedCount = rows.filter((row) => row.skipped || isRowCounted(row)).length;
-  const remainingCount = Math.max(0, totalItems - completedCount);
-  const progressPercent = totalItems ? Math.round((completedCount / totalItems) * 100) : 0;
-  const isComplete = totalItems > 0 && completedCount === totalItems;
+  const counted = rows.filter(isRowCounted).length;
+  const remainingCount = rows.filter(row => !row.skipped && !row.na && !isRowCounted(row)).length;
+  const progressPercent = totalItems ? Math.round((counted / totalItems) * 100) : 0;
 
   return (
     <div className="space-y-3 pb-[calc(7rem+env(safe-area-inset-bottom))]">
@@ -378,7 +381,7 @@ function StockCheckMobileView({
           const parLevel = parLevelForOutlet(item, activeCheckGroup.outletId);
           const result = row.skipped ? { label: "Skipped", tone: "neutral", variance: 0 } : varianceStatus(parLevel, row.actualCount);
           const issue = issueByRowIndex.get(row.rowIndex);
-          const rowCompleted = row.skipped || isRowCounted(row);
+          const rowCompleted = row.na || isRowCounted(row);
           return (
             <div key={row.itemId} data-check-row-index={row.rowIndex} className={`rounded-2xl border bg-white p-3 shadow-sm transition ${issue ? "border-amber-300 bg-amber-50/70" : "border-border"}`}>
               <div className="flex items-start gap-3">
@@ -419,13 +422,13 @@ function StockCheckMobileView({
                   ))}
                   {onSkipRow && <button className="rounded-full border border-border px-2.5 py-1 text-[11px] font-semibold text-text-secondary hover:border-primary/30 hover:text-primary" type="button" onClick={() => onSkipRow(row.rowIndex, item?.name)}>Skip</button>}
                 </div>
-              ) : <div className="mt-3 rounded-xl bg-slate-50 px-3 py-2 type-caption font-semibold text-text-muted">Not Available · {row.skipReason}</div>}
+              ) : <div className="mt-3 break-words type-caption text-text-secondary">{row.skipReason || "Skip reason required"}</div>}
 
               <input className="control mt-3 h-10 w-full text-[13px]" value={row.notes} onChange={(event) => onUpdateRow(row.rowIndex, (entry) => ({ ...entry, notes: event.target.value }))} placeholder="Optional note" />
 
               {row.skipped ? (
                 <div className="mt-3 flex justify-end">
-                  <button className="btn-secondary h-9 px-3 text-xs" type="button" onClick={() => onUnskipRow(row.rowIndex)}>Unskip</button>
+                  <button className="btn-secondary h-9 px-3 text-xs" type="button" onClick={() => onUnskipRow(row.rowIndex)}>Undo Skip</button>
                 </div>
               ) : null}
             </div>
@@ -437,26 +440,26 @@ function StockCheckMobileView({
         <div className="mb-2 flex items-center justify-between gap-3">
           <div>
             <div className="type-micro font-black uppercase tracking-wide text-text-muted">Progress</div>
-            <div className="type-body-sm font-black text-text-primary">{completedCount} / {totalItems} completed</div>
+            <div className="type-body-sm font-black text-text-primary">{counted} / {totalItems} counted</div>
           </div>
-          <Badge tone={isComplete ? "success" : "info"}>{isComplete ? "Ready to submit" : `${progressPercent}%`}</Badge>
+          <Badge tone={readyToSubmit ? "success" : "info"}>{readyToSubmit ? "Ready to submit" : `${progressPercent}%`}</Badge>
         </div>
         <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-          <div className={`h-full rounded-full transition-all ${isComplete ? "bg-emerald-500" : "bg-primary"}`} style={{ width: `${progressPercent}%` }} />
+          <div className={`h-full rounded-full transition-all ${readyToSubmit ? "bg-emerald-500" : "bg-primary"}`} style={{ width: `${progressPercent}%` }} />
         </div>
         <div className="mt-2 grid grid-cols-2 gap-2 type-caption font-semibold text-text-secondary">
           <div>{skippedCount} skipped</div>
-          <div className="text-right">{isComplete ? "Ready to submit" : `${remainingCount} remaining`}</div>
+          <div className="text-right">{remainingCount} remaining</div>
         </div>
       </div>
 
       <div className="sticky bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-20 rounded-2xl border border-border bg-white/95 p-3 shadow-card backdrop-blur">
         <div className="mb-2">
-          <div className="type-body-sm font-black text-text-primary">{completedCount} / {totalItems} completed</div>
+          <div className="type-body-sm font-black text-text-primary">{counted} / {totalItems} counted</div>
           <div className="mt-0.5 flex flex-wrap gap-2 type-caption font-semibold text-text-secondary">
             <span>{skippedCount} skipped</span>
             <span>·</span>
-            <span>{isComplete ? "Ready to submit" : `${remainingCount} remaining`}</span>
+            <span>{remainingCount} remaining</span>
           </div>
         </div>
         <div className="grid grid-cols-2 gap-2">
@@ -550,8 +553,9 @@ function AuditStockCheckModal({ outlets, categories, items, closingSetup, onClos
 }
 
 function SkipReasonModal({ itemName, onClose, onSave }) {
-  const [reason, setReason] = useState("");
-  const examples = ["Item not available for counting", "Locked storage", "Damaged label", "Staff unable to locate", "Other"];
+  const [selection, setSelection] = useState("");
+  const [explanation, setExplanation] = useState("");
+  const reason = stockCheckSkipReason(selection, explanation);
   return (
     <Modal
       title="Skip stock check item"
@@ -560,13 +564,13 @@ function SkipReasonModal({ itemName, onClose, onSave }) {
       footer={(
         <>
           <button className="btn-secondary" type="button" onClick={onClose}>Cancel</button>
-          <button className="btn-primary" type="button" disabled={!reason.trim()} onClick={() => onSave(reason)}>Save Reason</button>
+          <button className="btn-primary" type="button" disabled={!reason} onClick={() => onSave(reason)}>Skip Item</button>
         </>
       )}
     >
       <div className="space-y-3">
-        <SelectField label="Reason Example" value="" options={[{ value: "", label: "Choose common reason" }, ...examples.map((entry) => ({ value: entry, label: entry }))]} onChange={setReason} />
-        <TextArea label="Skip Reason" value={reason} onChange={setReason} placeholder="Explain why this item was skipped" />
+        <SelectField label="Skip Reason" placeholder="Select a reason" value={selection} options={STOCK_CHECK_SKIP_REASONS} onChange={setSelection} />
+        {selection === "other" && <TextArea label="Explanation (required)" value={explanation} onChange={setExplanation} />}
       </div>
     </Modal>
   );
@@ -719,7 +723,7 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
         ? data.checks.find((check) => check.id === activeCheckGroup.existingCheckId)
         : draftCheckForGroupRun(activeCheckGroup, data.checks, activeCheckGroup.date || date, stockCheckShiftFilter);
     if (draft?.rows?.length) {
-      setCheckRows(draft.rows.map((row) => ({ itemId: row.itemId, actualCount: row.actualCount, status: row.status ?? "normal", notes: row.notes ?? "", na: Boolean(row.na), skipped: Boolean(row.skipped), skipReason: row.skipReason ?? "" })));
+      setCheckRows(draft.rows.map((row) => ({ itemId: row.itemId, actualCount: row.skipped ? "" : row.actualCount, status: row.status ?? "normal", notes: row.notes ?? "", na: Boolean(row.na), skipped: Boolean(row.skipped), skipReason: row.skipReason ?? "" })));
       return;
     }
     setCheckRows(initialStockCheckRowsForGroup(activeCheckGroup));
@@ -922,6 +926,7 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
   function skipCheckRow(rowIndex, reason) {
     setCheckRows((current) => current.map((entry, index) => index === rowIndex ? {
       ...entry,
+      actualCount: "",
       skipped: true,
       skipReason: reason,
       status: "skipped",
@@ -947,7 +952,7 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
         const negative = Number(row.actualCount || 0) < 0;
         const item = itemById.get(row.itemId);
         if (isClosing && (row.skipped || row.na)) {
-          return { rowIndex, itemId: row.itemId, itemName: item?.name || "Inventory item", reason: "Closing items must be counted", action: "Enter the actual quantity" };
+          return { rowIndex, itemId: row.itemId, itemName: item?.name || "Inventory item", reason: row.skipped ? "Undo Skip and enter the actual quantity" : "Closing items must be counted", action: "Enter the actual quantity" };
         }
         if (row.skipped) {
           if (!row.skipReason?.trim()) {
@@ -957,6 +962,9 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
         }
         if (countMissing) return { rowIndex, itemId: row.itemId, itemName: item?.name || "Inventory item", reason: "Count not entered", action: isClosing ? "Enter the actual quantity" : "Complete count or click Skip" };
         if (negative) return { rowIndex, itemId: row.itemId, itemName: item?.name || "Inventory item", reason: "Count cannot be negative", action: "Enter a non-negative count" };
+        if (isClosing && !isValidClosingQuantity(row.actualCount)) {
+          return { rowIndex, itemId: row.itemId, itemName: item?.name || "Inventory item", reason: "Invalid closing quantity", action: "Enter a quantity up to 99,999,999,999.999 with no more than three decimal places" };
+        }
         return null;
       })
       .filter(Boolean);
@@ -976,7 +984,7 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
     });
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        document.querySelector(`[data-check-row-index="${issue.rowIndex}"]`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+        document.querySelector(`[data-check-row-index="${issue.rowIndex}"]`)?.scrollIntoView?.({ behavior: "smooth", block: "center" });
       });
     });
   }
@@ -1080,7 +1088,8 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
       const startedByName = activePersistedCheck?.createdBy ? actorNameByAuthUserId(activePersistedCheck.createdBy) : currentCheckerName;
       const submittedByName = activePersistedCheck?.submittedBy ? actorNameByEmployeeId(activePersistedCheck.submittedBy) : "";
       const draftSavedAt = activePersistedCheck?.updatedAt || activePersistedCheck?.createdAt || "";
-      const validationIssues = checkValidationAttempted ? stockCheckValidationIssues(checkRows, isClosing) : [];
+      const issues = stockCheckValidationIssues(checkRows, isClosing);
+      const validationIssues = checkValidationAttempted ? issues : [];
       const validationIssueByRowIndex = new Map(validationIssues.map((issue) => [issue.rowIndex, issue]));
       const indexedRows = checkRows.map((row, rowIndex) => ({ ...row, rowIndex }));
       const search = checkSearch.trim().toLowerCase();
@@ -1128,11 +1137,11 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
             </td>
             <td className="py-4 align-middle">{parLevel}</td>
             <td className="py-4 align-middle">
-              <div className="flex items-center gap-1">
-                <button className="icon-btn h-8 w-8" type="button" disabled={row.skipped} onClick={() => setCheckRows((current) => current.map((entry, rowIndex) => rowIndex === index ? { ...entry, actualCount: Math.max(0, Number(entry.actualCount || 0) - 1), na: false } : entry))}>-</button>
-                <input className="control h-8 w-20 text-center text-[13px]" type="number" min="0" disabled={row.skipped} value={row.actualCount ?? ""} placeholder="Qty" onFocus={selectInputText} onChange={(event) => setCheckRows((current) => current.map((entry, rowIndex) => rowIndex === index ? { ...entry, actualCount: enteredActual(event.target.value, isClosing), na: false } : entry))} />
-                <button className="icon-btn h-8 w-8" type="button" disabled={row.skipped} onClick={() => setCheckRows((current) => current.map((entry, rowIndex) => rowIndex === index ? { ...entry, actualCount: Number(entry.actualCount || 0) + 1, na: false } : entry))}>+</button>
-              </div>
+              {row.skipped ? <span className="text-text-secondary">—</span> : <div className="flex items-center gap-1">
+                <button className="icon-btn h-8 w-8" type="button" onClick={() => setCheckRows((current) => current.map((entry, rowIndex) => rowIndex === index ? { ...entry, actualCount: Math.max(0, Number(entry.actualCount || 0) - 1), na: false } : entry))}>-</button>
+                <input className="control h-8 w-20 text-center text-[13px]" type="number" min="0" value={row.actualCount ?? ""} placeholder="Qty" onFocus={selectInputText} onChange={(event) => setCheckRows((current) => current.map((entry, rowIndex) => rowIndex === index ? { ...entry, actualCount: enteredActual(event.target.value, isClosing), na: false } : entry))} />
+                <button className="icon-btn h-8 w-8" type="button" onClick={() => setCheckRows((current) => current.map((entry, rowIndex) => rowIndex === index ? { ...entry, actualCount: Number(entry.actualCount || 0) + 1, na: false } : entry))}>+</button>
+              </div>}
               {validationIssue ? <div className="mt-2 type-caption font-bold text-amber-700">{validationIssue.reason === "Count not entered" ? "Count required" : validationIssue.reason}</div> : null}
               {!row.skipped ? (
                 <div className="mt-2 flex flex-wrap gap-1">
@@ -1144,22 +1153,22 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
                     <button key={label} className="rounded-full border border-border px-2 py-0.5 text-[11px] font-semibold text-text-secondary hover:border-primary/30 hover:text-primary" type="button" onClick={() => setCheckRows((current) => current.map((entry, rowIndex) => rowIndex === index ? { ...entry, actualCount: Number(value || 0), na: label === "NA" } : entry))}>{label}</button>
                   ))}
                 </div>
-              ) : <div className="mt-2 type-caption font-semibold text-text-muted">Skipped: {row.skipReason}</div>}
+              ) : null}
             </td>
-            <td className="py-4 align-middle font-semibold">{row.skipped ? "Skipped" : row.na ? "NA" : result.variance}</td>
+            <td className="py-4 align-middle font-semibold">{row.skipped ? "—" : row.na ? "NA" : result.variance}</td>
             <td className="py-4 align-middle">{item?.unit}</td>
             <td className="py-4 align-middle"><Badge tone={row.skipped ? "neutral" : row.na ? "neutral" : result.tone}>{row.skipped ? "Skipped" : row.na ? "NA" : result.label}</Badge></td>
             <td className="py-4 align-middle"><input className="control h-8 w-full text-[13px]" value={row.notes} onChange={(event) => setCheckRows((current) => current.map((entry, rowIndex) => rowIndex === index ? { ...entry, notes: event.target.value } : entry))} placeholder="Optional note" /></td>
             {isAudit ? (
               <td className="py-4 align-middle">
                 {row.skipped ? (
-                  <div className="space-y-1">
-                    <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => unskipCheckRow(index)}>Unskip</button>
-                    {validationIssue?.reason === "Skip reason required" ? <div className="type-caption font-bold text-amber-700">Skip reason required</div> : null}
+                  <div className="max-w-[10rem] space-y-1">
+                    <div className="break-words type-caption text-text-secondary">{row.skipReason || "Skip reason required"}</div>
+                    <button className="btn-secondary h-8 whitespace-nowrap px-2.5 text-xs" type="button" onClick={() => unskipCheckRow(index)}>Undo Skip</button>
                   </div>
-                ) : !isClosing ? (
+                ) : (
                   <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => setModal({ type: "skip-check-row", rowIndex: index, itemName: item?.name })}>Skip</button>
-                ) : null}
+                )}
               </td>
             ) : null}
           </tr>
@@ -1196,8 +1205,9 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
             auditFilters={auditFilters}
             onPreviewPhoto={setPhotoPreview}
             onUpdateRow={updateCheckRow}
-            onSkipRow={isClosing ? undefined : (rowIndex, itemName) => setModal({ type: "skip-check-row", rowIndex, itemName })}
+            onSkipRow={(rowIndex, itemName) => setModal({ type: "skip-check-row", rowIndex, itemName })}
             closingFields={closingFields}
+            readyToSubmit={checkRows.length > 0 && !issues.length && (!isClosing || Boolean(closingMonth))}
             onUnskipRow={unskipCheckRow}
             onBack={closeActiveCheck}
             onSaveDraft={() => requirePermission(can.editCheck, "save stock check drafts") && saveStockCheck("draft")}
@@ -1255,7 +1265,7 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
                       ))}
                       {validationIssues.length > 8 ? <li className="font-semibold">+{validationIssues.length - 8} more item{validationIssues.length - 8 === 1 ? "" : "s"}</li> : null}
                     </ul>
-                    <div className="mt-2 type-caption font-semibold">{isAudit ? "Complete count or click Skip." : "Complete the count before submitting."}</div>
+                    <div className="mt-2 type-caption font-semibold">{isClosing ? "Enter an explicit count for every item before submitting." : isAudit ? "Complete count or click Skip." : "Complete the count before submitting."}</div>
                   </div>
                 </div>
               </div>

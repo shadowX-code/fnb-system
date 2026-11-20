@@ -1,5 +1,11 @@
 export const MONTH_END_CLOSING = "Month-End Closing";
 
+export function isValidClosingQuantity(value) {
+  const quantity = Number(value);
+  return value != null && value !== "" && quantity >= 0 && quantity <= 99999999999.999
+    && quantity === Number(quantity.toFixed(3));
+}
+
 export function formatClosingError(message, invalidMonth = "Select a valid Closing Month.") {
   if (message?.includes("A valid Accounting Month is required.")) return invalidMonth;
   if (message?.includes("Approval opens after the accounting month ends.")) return "Approval opens after the Closing Month ends.";

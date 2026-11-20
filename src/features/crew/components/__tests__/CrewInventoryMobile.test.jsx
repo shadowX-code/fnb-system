@@ -340,8 +340,14 @@ describe("Crew Inventory mobile authority boundary", () => {
     const rice = await screen.findByRole("spinbutton", { name: /Rice.*Actual count/ });
     fireEvent.click(within(rice.closest("article")).getByRole("button", { name: "Skip Item" }));
     const sheet = within(screen.getByRole("dialog", { name: "Skip Item" }));
-    const reason = sheet.getByRole("textbox", { name: /Reason for skipping/ });
     const confirm = sheet.getByRole("button", { name: "Skip Item" });
+    expect(confirm.disabled).toBe(true);
+    expect(sheet.queryByRole("textbox")).toBeNull();
+    expect(sheet.getAllByRole("option").map(option => option.textContent)).toEqual([
+      "Stock In Use", "Cannot Access", "Pending Verification", "Item Not Found", "Other",
+    ]);
+    fireEvent.click(sheet.getByRole("option", { name: "Other" }));
+    const reason = sheet.getByRole("textbox", { name: "Explanation (required)" });
     fireEvent.change(reason, { target: { value: "  " } });
     expect(confirm.disabled).toBe(true);
     fireEvent.change(reason, { target: { value: "  Storage locked  " } });
@@ -350,20 +356,20 @@ describe("Crew Inventory mobile authority boundary", () => {
     expect(screen.getByRole("button", { name: "Review (1/2)" }).disabled).toBe(true);
     fireEvent.click(screen.getByRole("button", { name: "Skipped" }));
     fireEvent.click(screen.getByRole("button", { name: "Produce" }));
-    expect(screen.queryByText("Storage locked")).toBeNull();
+    expect(screen.queryByText("Other: Storage locked")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Dry Goods" }));
-    expect(screen.getByText("Storage locked")).toBeTruthy();
+    expect(screen.getByText("Other: Storage locked")).toBeTruthy();
     fireEvent.change(screen.getByRole("textbox", { name: "Search items" }), { target: { value: "Beans" } });
-    expect(screen.queryByText("Storage locked")).toBeNull();
+    expect(screen.queryByText("Other: Storage locked")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Save Draft" }));
     await waitFor(() => expect(api.saveInventoryStockCheck).toHaveBeenCalledWith("token", "outlet-1", expect.any(String),
       expect.objectContaining({ status: "draft" }), [
-        expect.objectContaining({ item_id: "item-1", skipped: true, skip_reason: "Storage locked", actual_count_quantity: null }),
+        expect.objectContaining({ item_id: "item-1", skipped: true, skip_reason: "Other: Storage locked", actual_count_quantity: null }),
         expect.objectContaining({ item_id: "item-2", skipped: false, actual_count_quantity: 7 }),
       ]));
     fireEvent.click(await screen.findByRole("tab", { name: "Audit" }));
     fireEvent.click(await screen.findByRole("button", { name: "Continue: Closing QA" }));
-    expect(await screen.findByText("Storage locked")).toBeTruthy();
+    expect(await screen.findByText("Other: Storage locked")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Undo Skip" }));
     const resumed = screen.getByRole("spinbutton", { name: /Rice.*Actual count/ });
     expect(resumed.value).toBe("");
@@ -387,14 +393,15 @@ describe("Crew Inventory mobile authority boundary", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Start" }));
     fireEvent.click(screen.getByRole("button", { name: "Skip Item" }));
     const sheet = within(screen.getByRole("dialog", { name: "Skip Item" }));
-    fireEvent.change(sheet.getByRole("textbox"), { target: { value: "Delivery in progress" } });
+    fireEvent.click(sheet.getByRole("option", { name: "Stock In Use" }));
+    expect(sheet.queryByRole("textbox")).toBeNull();
     fireEvent.click(sheet.getByRole("button", { name: "Skip Item" }));
     expect(screen.getByText("0 Counted · 1 Skipped · 0 Remaining")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Review (0/1)" }));
     fireEvent.click(screen.getByRole("button", { name: "Complete Check" }));
     await waitFor(() => expect(api.saveInventoryStockCheck).toHaveBeenCalledWith("token", "outlet-1", expect.any(String),
       expect.objectContaining({ status: "submitted" }), [expect.objectContaining({
-        skipped: true, skip_reason: "Delivery in progress", actual_count_quantity: null,
+        skipped: true, skip_reason: "Stock In Use", actual_count_quantity: null,
       })]));
     expect(api.skipInventoryStockCheck).not.toHaveBeenCalled();
   });

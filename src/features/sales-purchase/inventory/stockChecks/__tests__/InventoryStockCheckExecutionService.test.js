@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ read: vi.fn(), rpc: vi.fn() }));
+const mocks = vi.hoisted(() => ({ read: vi.fn(), rpc: vi.fn(), save: vi.fn() }));
 vi.mock("../../../../../services/inventoryCompleteRead.js", () => ({ readCompleteInventoryRows: mocks.read }));
-vi.mock("../../../../../services/inventoryLifecycleService.js", () => ({ inventoryLifecycleService: {} }));
+vi.mock("../../../../../services/inventoryLifecycleService.js", () => ({ inventoryLifecycleService: { saveInventoryStockCheck: mocks.save } }));
 vi.mock("../../../../../lib/supabase.ts", () => ({ supabase: { rpc: mocks.rpc } }));
-import { loadStockCheckExecution } from "../inventoryStockCheckExecutionService.js";
+import { loadStockCheckExecution, persistRemoteStockCheck } from "../inventoryStockCheckExecutionService.js";
 const read = mocks.read;
 
 const rows = {
@@ -21,6 +21,24 @@ const rows = {
 beforeEach(() => {
   read.mockReset().mockImplementation(async (table) => ({ data: rows[table] || [], completeness: "complete" }));
   mocks.rpc.mockReset().mockResolvedValue({ data: { check_count: 1, summaries: [{ check_id: "check", total: 1, skipped: 0, shortage: 1 }] }, error: null });
+});
+
+it("writes a skipped row without an actual or variance and preserves explicit zero on counted rows", async () => {
+  const outletId = "00000000-0000-4000-8000-000000000001";
+  const skippedId = "00000000-0000-4000-8000-000000000002";
+  const countedId = "00000000-0000-4000-8000-000000000003";
+  mocks.save.mockResolvedValue({ check: { outlet_id: outletId }, items: [] });
+  await persistRemoteStockCheck({ stockCheckType: "audit", outletId, auditType: "Month-End Closing", closingMonth: "2026-10" }, [
+    { itemId: skippedId, actualCount: 5, skipped: true, skipReason: "Pending Verification", variance: 2 },
+    { itemId: countedId, actualCount: 0, skipped: false },
+  ], "draft");
+  expect(mocks.save).toHaveBeenCalledWith(expect.objectContaining({
+    check: expect.objectContaining({ status: "draft", accounting_month: "2026-10-01" }),
+    items: [
+      expect.objectContaining({ item_id: skippedId, actual_count_quantity: null, variance: null, skipped: true, skip_reason: "Pending Verification" }),
+      expect.objectContaining({ item_id: countedId, actual_count_quantity: 0, skipped: false, skip_reason: null }),
+    ],
+  }));
 });
 
 describe("Stock Check execution read boundary", () => {

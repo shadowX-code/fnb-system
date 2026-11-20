@@ -127,17 +127,34 @@ describe("Stock Check execution scoped read", () => {
     expect(mocks.persist.mock.calls[0][3]).toBe(mocks.persist.mock.calls[1][3]);
     expect(mocks.persist.mock.calls[0][0]).not.toHaveProperty("date");
     fireEvent.click(await screen.findByRole("button", { name: "Skip" }));
-    expect((await screen.findByRole("dialog", { name: "Skip stock check item" })).textContent).toContain("Skip Reason");
+    const skip = within(await screen.findByRole("dialog", { name: "Skip stock check item" }));
+    expect(skip.getByRole("button", { name: "Skip Item" }).disabled).toBe(true);
+    expect(skip.queryByRole("textbox")).toBeNull();
+    fireEvent.click(skip.getByRole("button", { name: "Skip Reason" }));
+    fireEvent.click(screen.getByRole("option", { name: "Other" }));
+    expect(skip.getByRole("button", { name: "Skip Item" }).disabled).toBe(true);
+    fireEvent.change(skip.getByRole("textbox", { name: "Explanation (required)" }), { target: { value: "  Delivery in progress  " } });
+    fireEvent.click(skip.getByRole("button", { name: "Skip Item" }));
+    expect(screen.getByText("Other: Delivery in progress")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Submit Audit Check" }));
+    expect(mocks.persist).toHaveBeenLastCalledWith(expect.anything(), [
+      expect.objectContaining({ skipped: true, skipReason: "Other: Delivery in progress", actualCount: "" }),
+    ], "submitted", expect.any(String));
   });
 
   it("filters closing groups without losing counts, notes, expansion or full-roster validation", async () => {
     const item = { id: "item", name: "QA Item", categoryId: "category", unit: "kg", status: "active", linkedOutletIds: ["A"], outletConfigs: [{ outletId: "A", parLevel: 10 }] };
-    mocks.load.mockResolvedValue({ ...snapshot("A"), groups: [],
+    const data = { ...snapshot("A"), groups: [],
       categories: [{ id: "category", name: "Dry Goods", sortOrder: 1, status: "active" }],
-      items: [item, { ...item, id: "uncategorized", categoryId: "", name: "QA Uncategorised" }] });
+      items: [item, { ...item, id: "uncategorized", categoryId: "", name: "QA Uncategorised" }] };
     const year = new Date().getFullYear();
-    mocks.persist.mockResolvedValue({ id: "audit", outletId: "A", stockCheckType: "audit", status: "draft", rows: [],
-      date: `${year}-11-02`, accountingMonth: `${year}-10-01`, auditName: `Month-End Closing · Oct ${year} · 2 Nov ${year}` });
+    let draft;
+    mocks.load.mockImplementation(async () => ({ ...data, checks: draft ? [draft] : [] }));
+    mocks.persist.mockImplementation(async (_group, rows, status) => {
+      draft = { id: "audit", outletId: "A", stockCheckType: "audit", auditType: "Month-End Closing", status, rows,
+        date: `${year}-11-02`, accountingMonth: `${year}-10-01`, auditName: `Month-End Closing · Oct ${year} · 2 Nov ${year}` };
+      return draft;
+    });
     window.history.replaceState(null, "", "/restaurant/inventory/stock-check");
     render(<InventoryStockCheckPage auth={{ ...auth, profile: { role_outlet_access_type: "all" }, hasPermission: () => true }} ui={{ notify: vi.fn() }} outlets={[{ id: "A", name: "QA Outlet" }]} />);
     fireEvent.click(await screen.findByRole("button", { name: "Audit Stock Check" }));
@@ -154,7 +171,7 @@ describe("Stock Check execution scoped read", () => {
       "draft", expect.any(String),
     ));
     await screen.findByText("QA Uncategorised");
-    expect(screen.queryByRole("button", { name: "Skip" })).toBeNull();
+    expect(screen.getAllByRole("button", { name: "Skip" })).toHaveLength(2);
     expect(screen.queryByRole("button", { name: "Full" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Submit Audit Check" }));
     expect(mocks.persist).toHaveBeenCalledTimes(1);
@@ -182,12 +199,35 @@ describe("Stock Check execution scoped read", () => {
     fireEvent.click(screen.getByRole("button", { name: "Submit Audit Check" }));
     expect(mocks.persist).toHaveBeenCalledTimes(1);
     expect(screen.getByRole("button", { name: "Category" }).textContent).toContain("All Categories");
-    fireEvent.change(within(screen.getByRole("row", { name: /QA Uncategorised/ })).getByRole("spinbutton"), { target: { value: "0" } });
+    const uncountedRow = within(screen.getByRole("row", { name: /QA Uncategorised/ }));
+    fireEvent.click(uncountedRow.getByRole("button", { name: "Skip" }));
+    const skip = within(screen.getByRole("dialog", { name: "Skip stock check item" }));
+    fireEvent.click(skip.getByRole("button", { name: "Skip Reason" }));
+    fireEvent.click(screen.getByRole("option", { name: "Cannot Access" }));
+    expect(skip.queryByRole("textbox")).toBeNull();
+    fireEvent.click(skip.getByRole("button", { name: "Skip Item" }));
+    expect(uncountedRow.getByText("Cannot Access")).toBeTruthy();
+    expect(uncountedRow.queryByRole("spinbutton")).toBeNull();
+    selectCategory("Dry Goods");
+    fireEvent.click(screen.getByRole("button", { name: "Save Draft" }));
+    await waitFor(() => expect(mocks.persist).toHaveBeenLastCalledWith(expect.anything(), [
+      expect.objectContaining({ itemId: "item", actualCount: 0, notes: "Verified shelf" }),
+      expect.objectContaining({ itemId: "uncategorized", actualCount: "", skipped: true, skipReason: "Cannot Access" }),
+    ], "draft", expect.any(String)));
+    fireEvent.click(await screen.findByRole("button", { name: "Continue Audit" }));
+    expect(await screen.findByText("Cannot Access")).toBeTruthy();
+    selectCategory("Dry Goods");
+    fireEvent.click(screen.getByRole("button", { name: "Submit Audit Check" }));
+    expect(mocks.persist).toHaveBeenCalledTimes(2);
+    const resumedRow = within(screen.getByRole("row", { name: /QA Uncategorised/ }));
+    fireEvent.click(resumedRow.getByRole("button", { name: "Undo Skip" }));
+    expect(resumedRow.getByRole("spinbutton").value).toBe("");
+    fireEvent.change(resumedRow.getByRole("spinbutton"), { target: { value: "0" } });
     selectCategory("Dry Goods");
     const firstActual = screen.getAllByRole("spinbutton")[0];
-    fireEvent.change(firstActual, { target: { value: "-1" } });
+    fireEvent.change(firstActual, { target: { value: "0.0001" } });
     fireEvent.click(screen.getByRole("button", { name: "Submit Audit Check" }));
-    expect(mocks.persist).toHaveBeenCalledTimes(1);
+    expect(mocks.persist).toHaveBeenCalledTimes(2);
     fireEvent.change(firstActual, { target: { value: "0" } });
     fireEvent.click(screen.getByRole("button", { name: "Submit Audit Check" }));
     await waitFor(() => expect(mocks.persist).toHaveBeenLastCalledWith(
