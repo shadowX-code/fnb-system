@@ -47,6 +47,7 @@ test('asset answer must match the authorized outlet and saved canonical quantity
  const turn={...rank.turn,evidence,reply:'Fixture Corner has 72 kilograms of Spoon.'};
  assert.equal(certifyScenario('asset_spoon',{turn,source}).status,'FAIL');
  assert.equal(certifyScenario('asset_spoon',{turn:{...turn,reply:'Fixture Corner has 72 units of Spoon.'},source}).status,'PASS');
+ assert.equal(certifyScenario('asset_spoon',{turn:{...turn,reply:'The current balance of spoons at Fixture Corner is 72 units.'},source}).status,'PASS');
  assert.equal(certifyScenario('asset_spoon',{turn:{...turn,reply:'Fixture Corner has 72 units of Spoon, asset code: asset-spoon.'},source}).status,'FAIL');
  assert.equal(certifyScenario('asset_spoon',{turn:{...turn,reply:'Other Corner has 72 units of Spoon.'},source}).status,'FAIL');
 });

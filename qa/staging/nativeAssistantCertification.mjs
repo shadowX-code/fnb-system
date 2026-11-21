@@ -47,7 +47,7 @@ export const scenarios={
   assert.equal(asset.current_quantity,source.quantity);
   assert.equal(asset.unit,source.unit);
   assert.match(reply,new RegExp(escaped(source.outlet),'i'));
-  assert.match(reply,new RegExp(`\\b${escaped(source.name)}\\b`,'i'));
+  assert.match(reply,new RegExp(`\\b${escaped(source.name)}s?\\b`,'i'));
   assert.match(reply,new RegExp(`${number(source.quantity)}\\s*(?:${escaped(source.unit)}s?|spoons?)\\b`,'i'));
   if(source.code==null)assert.doesNotMatch(reply,/\b(?:asset\s+)?(?:code|sku)\s*[:=]?\s*asset-spoon\b/i);
  }),
