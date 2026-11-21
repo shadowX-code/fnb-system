@@ -7,6 +7,7 @@ import {crewGapReads} from '../_shared/crew/gapReads.js';
 import {factoryGapReads} from '../_shared/factory/gapReads.js';
 import {marketingGapReads} from '../_shared/marketing/gapReads.js';
 import {restaurantCatalogueReads} from '../_shared/restaurant/catalogueReads.js';
+import {assetCatalogueRead} from '../_shared/restaurant/assetCatalogueRead.js';
 import {peopleCatalogueReads} from '../_shared/people/catalogueReads.js';
 import {factoryCatalogueReads} from '../_shared/factory/catalogueReads.js';
 import {factoryPlatformReads} from '../_shared/factory/platformReads.js';
@@ -25,7 +26,7 @@ import {finishedGoodsRead} from '../_shared/factory/finishedGoodsRead.js';
 
 // Composition of implemented module contracts, not a permission or grant store.
 // Discovery never makes a module executable. ACTION tools create previews only.
-export const operations = [employeeDirectoryRead,...restaurantGapReads,...peopleGapReads,...financeGapReads,...marketingGapReads,...factoryGapReads,...crewGapReads,finishedGoodsRead,cleaningRead,employmentRead,leaveRead,reportRead,plannerRead,draftAction,captionAction,...factoryPlatformReads,...crewPlatformReads,...marketingPlatformReads,...peoplePlatformReads,...factoryCatalogueReads,...peopleCatalogueReads,...restaurantCatalogueReads,...financePlatformReads];
+export const operations = [employeeDirectoryRead,...restaurantGapReads,...peopleGapReads,...financeGapReads,...marketingGapReads,...factoryGapReads,...crewGapReads,finishedGoodsRead,cleaningRead,employmentRead,leaveRead,reportRead,plannerRead,draftAction,captionAction,...factoryPlatformReads,...crewPlatformReads,...marketingPlatformReads,...peoplePlatformReads,...factoryCatalogueReads,...peopleCatalogueReads,...restaurantCatalogueReads,assetCatalogueRead,...financePlatformReads];
 export function validateBusinessArguments(id,args){
  if(isQueryEnvelope(id)){const parsed=queryEnvelopeArguments(id,args);if(id==='run_business_query')businessOperation(parsed.operation);return parsed;}
  const operation=operations.find(item=>item.id===id);

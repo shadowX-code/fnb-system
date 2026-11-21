@@ -7,6 +7,7 @@ const {uom,sort}=stockRankFields;
 
 export const rawMaterialRead=readContract({
  id:'read_factory_raw_catalogue',module_id:'factory_raw_inventory',label:'Raw Material Inventory stock and rankings',
+ discoveryPhrases:['raw material inventory'],
  permission:'factory_raw_inventory.view',source:'/factory',version:2,
  scope:'Factory shared raw-material catalogue under current human permission and row visibility.',
  description:'Read Raw Material Inventory (RM): current stock, search, exact SKU detail and complete filtered counts. For highest or lowest stock use list and balance sort in one recorded unit. No costs, site stock, historical stock, reserved stock or ATP.',

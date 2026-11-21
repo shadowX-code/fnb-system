@@ -1,6 +1,19 @@
 // Coverage evidence is separate from server-enforced AI access policy.
 export const coverageLabels = {"full": "Full", "partial": "Partial", "shared": "Shared", "missing": "Not integrated", "blocked": "Not integrated", "not_applicable": "Not applicable"};
 export const assistantCoverageReview = {
+  "space_station": {
+    "classification": "not_applicable",
+    "missing": "Virtual workspace navigation and simulation have no independent business records. The linked business modules keep their own access controls.",
+    "reads": [],
+    "evidence": ["src/features/space-station/SpaceStationPage.jsx", "docs/architecture/platform.md"]
+  },
+  "asset_tracking": {
+    "classification": "partial",
+    "available": "Current outlet asset quantities by exact name or code, current asset counts and paginated catalogue records.",
+    "missing": "Movement history, condition totals and asset valuation are outside the Assistant read. Ingredient and Factory stock belong to other modules.",
+    "reads": ["read_asset_catalogue"],
+    "evidence": ["src/services/assetTrackingService.js", "supabase/functions/_shared/restaurant/assetCatalogueRead.js"]
+  },
   "employees": {
     "classification": "partial",
     "available": "Authorized unique headcount and employment-status totals, filtered employee directory and effective-dated assignment details. Summary totals cover the requested human scope; directory pages contain at most 20 employees.",

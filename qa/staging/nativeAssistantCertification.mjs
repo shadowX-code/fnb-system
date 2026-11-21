@@ -34,6 +34,23 @@ function incompleteFinance(e,reply,source){
  }
 }
 export const scenarios={
+ asset_spoon:scenario('Restaurant',['read_asset_catalogue'],'What is the current balance of asset-spoon at Friends Corner?',([e],reply,source)=>{
+  assert.equal(e.source,'/operations/asset-tracking');
+  assert.equal(e.requested_scope?.mode,'detail');
+  assert.equal(e.outlet.id,source.outletId);
+  assert.equal(e.match_status,'matched');
+  assert.equal(e.rows.length,1);
+  const [asset]=e.rows;
+  assert.equal(asset.outlet_id,source.outletId);
+  assert.equal(asset.name,source.name);
+  assert.equal(asset.asset_code,source.code);
+  assert.equal(asset.current_quantity,source.quantity);
+  assert.equal(asset.unit,source.unit);
+  assert.match(reply,new RegExp(escaped(source.outlet),'i'));
+  assert.match(reply,new RegExp(`\\b${escaped(source.name)}\\b`,'i'));
+  assert.match(reply,new RegExp(`${number(source.quantity)}\\s*(?:${escaped(source.unit)}s?|spoons?)\\b`,'i'));
+  if(source.code==null)assert.doesNotMatch(reply,/\b(?:asset\s+)?(?:code|sku)\s*[:=]?\s*asset-spoon\b/i);
+ }),
  fg_rank:scenario('Factory',['read_factory_finished_goods'],'Which Factory finished goods have the three highest stock balances in kg? Include SKU and balance.',ranked('product_code')),
  rm_rank:scenario('Factory',['read_factory_raw_catalogue'],'Follow up to FG ranking: What about the three highest active raw materials, using the same kg unit? List SKU and balance.',ranked('material_code')),
  mixed_units:scenario('Factory',['read_factory_raw_catalogue'],'Which raw materials have the highest balances across all units?',([e],reply,source)=>{
@@ -137,6 +154,7 @@ export function assertScenarioContracts(){
  for(const {operations:ids} of Object.values(scenarios))
   for(const id of ids)assert.equal(registry.get(id)?.kind,'READ',id);
  const supported={
+  read_asset_catalogue:['summary','count','detail','search','list'],
   read_factory_finished_goods:['rank','list'],
   read_factory_raw_catalogue:['rank','filter'],
   read_employee_directory:['summary','group'],

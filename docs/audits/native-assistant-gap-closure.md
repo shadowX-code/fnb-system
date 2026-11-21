@@ -22,7 +22,7 @@ Coverage: {"partial":108,"shared":8,"blocked":9,"not_applicable":3}. Full covera
 | purchase-input | partial | read_purchase_records | Only listed operations and their stated scope are covered; no blanket module access or unlisted workflow is implied. |
 | purchase-categories | partial | read_purchase_categories | Only listed operations and their stated scope are covered; no blanket module access or unlisted workflow is implied. |
 | suppliers | partial | read_supplier_directory | Only listed operations and their stated scope are covered; no blanket module access or unlisted workflow is implied. |
-| asset_tracking | partial | read_asset_catalogue | Only listed operations and their stated scope are covered; no blanket module access or unlisted workflow is implied. |
+| asset_tracking | partial | read_asset_catalogue | Current quantities, exact asset matches, counts and list pages are scoped to one authorized outlet. Movement history, condition aggregates and valuation are outside this READ. |
 | data-health | partial | read_restaurant_data_health | No financial month closing authority; special-month annotations excluded. Underlying source permissions remain independently required. |
 | operating-expenses | partial | read_operating_expenses | Only listed operations and their stated scope are covered; no blanket module access or unlisted workflow is implied. |
 | inventory_dashboard | partial | read_inventory_stock_evidence | Only listed operations and their stated scope are covered; no blanket module access or unlisted workflow is implied. |
@@ -37,7 +37,7 @@ Coverage: {"partial":108,"shared":8,"blocked":9,"not_applicable":3}. Full covera
 | inventory_waste | partial | read_inventory_waste | Only listed operations and their stated scope are covered; no blanket module access or unlisted workflow is implied. |
 | outlets | partial | read_outlet_directory | Only listed operations and their stated scope are covered; no blanket module access or unlisted workflow is implied. |
 | hr_dashboard | partial | read_workforce_distribution, read_payroll_run_status | Individual payroll amounts and unrestricted employee enumeration are intentionally excluded. |
-| employees | partial | read_employee_assignment | Only listed operations and their stated scope are covered; no blanket module access or unlisted workflow is implied. |
+| employees | partial | read_employee_directory, read_employee_assignment | Unique headcount and separate employment status/type breakdowns, paginated directory and assignments. No contacts, credentials, compensation, sensitive records or historical headcount reconstruction. |
 | employee_employment_documents | partial | read_employment_document_status | Only listed operations and their stated scope are covered; no blanket module access or unlisted workflow is implied. |
 | employee_disciplinary | partial | read_employee_notice_status | Only listed operations and their stated scope are covered; no blanket module access or unlisted workflow is implied. |
 | payroll | partial | read_payroll_holiday_policy | Only listed operations and their stated scope are covered; no blanket module access or unlisted workflow is implied. |

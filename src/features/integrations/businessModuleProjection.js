@@ -1,9 +1,9 @@
 import {moduleRegistry,moduleWorkspace,workspaceLabels} from '../../../config/modules.ts';
 import {canonicalRouteId} from '../../app/routeOwnership.js';
-import factoryModules from '../../../config/factoryAgentModules.json';
-import factoryActions from '../../../config/factoryAgentActions.json';
-import hrActions from '../../../config/hrAgentActions.json';
-import restaurantActions from '../../../config/restaurantAgentActions.json';
+import factoryModules from '../../../config/factoryAgentModules.json' with { type: 'json' };
+import factoryActions from '../../../config/factoryAgentActions.json' with { type: 'json' };
+import hrActions from '../../../config/hrAgentActions.json' with { type: 'json' };
+import restaurantActions from '../../../config/restaurantAgentActions.json' with { type: 'json' };
 
 export const businessWorkspaceLabels={...workspaceLabels,platform:'Platform'};
 // Presentation ownership only. Evidence: routeOwnership.js, routes.jsx and

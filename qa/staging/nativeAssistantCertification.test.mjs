@@ -1,8 +1,19 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {assertScenarioContracts,certifyRun,certifyScenario} from './nativeAssistantCertification.mjs';
+import {moduleCoverage} from '../../scripts/assistantBusinessMatrix.mjs';
 
 test('certification scenarios stay bound to implemented READ contracts',()=>assertScenarioContracts());
+
+test('every canonical module has reviewed coverage and only registered operations',()=>{
+ const modules=moduleCoverage();
+ assert.equal(modules.find(row=>row.module.id==='space_station').coverage,'not_applicable');
+ assert.equal(modules.find(row=>row.module.id==='asset_tracking').direct[0].id,'read_asset_catalogue');
+ for(const {coverage,direct,shared} of modules){
+  assert.equal(coverage==='partial',direct.length>0);
+  if(coverage==='shared')assert(shared.length>0);
+ }
+});
 
 const rank={
  turn:{request_id:'fixture',created_at:'2026-11-17T00:00:00Z',model:'fixture',state:'completed',tool_state:'completed',

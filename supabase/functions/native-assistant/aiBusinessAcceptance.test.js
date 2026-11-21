@@ -9,6 +9,7 @@ import {rawMaterialStockStatus} from '../_shared/factory/stockCatalogue.js';
 
 const reads=operations.filter(o=>o.kind==='READ');
 const id='10000000-0000-4000-8000-000000000001';
+const otherId='10000000-0000-4000-8000-000000000002';
 const config={revision:1,enabled:true,provider:'openai',model:'gpt-4o-mini',credential_ref:'native-assistant-openai',
  capability_connections:Object.fromEntries(reads.map(o=>[o.id,true]))};
 const access={factory:true,permissions:Object.fromEntries(reads.map(o=>[o.permission,true]))};
@@ -31,6 +32,8 @@ for(const op of reads)test(`${op.id}: discovery, argument fencing, AI policy and
  assert.deepEqual(exposed?.parameters,op.tool.parameters);
  assert.equal(exposed?.module,op.module_id);
  assert.equal(discovered.not_business_evidence,true);
+ const byBusinessLabel=await business.execute('find_business_queries',{search:op.label.slice(0,80),page:1});
+ assert(byBusinessLabel.operations.some(row=>row.operation===op.id),'The documented business label must surface its operation');
  const args=argsFor(op);
  op.validate(args);
  const noSource=()=>assert.fail('Denied read reached a domain source');
@@ -57,6 +60,13 @@ const finance={period:{year:2026,month:11},financial_completeness:'incomplete',
 const leave={total_count:24,rows:[{id,status:'approved',start_date:'2026-11-01',reason:'DO_NOT_EXPOSE'}]};
 const plan={tasks:[{id,title:'Fixture task',status:'completed',review_feedback:'DO_NOT_EXPOSE'}]};
 const sales=[{id,outlet_id:id,year:2026,month:11,amount:125,remark:'DO_NOT_EXPOSE'}];
+const outlets=[{id,name:'Fixture Corner',code:'FC'},{id:otherId,name:'Different Outlet',code:'DO'}];
+const assets=[
+ {id:'spoon',outlet_id:id,name:'Spoon',asset_code:null,current_quantity:15,unit:'unit',status:'active',supplier:'DO_NOT_EXPOSE'},
+ {id:'fork',outlet_id:id,name:'Fork',asset_code:'FORK-1',current_quantity:0,unit:'unit',status:'active'},
+ {id:'archived',outlet_id:id,name:'Spoon',current_quantity:500,unit:'unit',status:'archived'},
+ {id:'different',outlet_id:otherId,name:'Spoon',current_quantity:900,unit:'unit',status:'active'},
+];
 const fixtures={
  employee_directory_query:employee,reporting_monthly_scope_financials:finance,
  crew_leave_requests_admin_page:leave,marketing_planner_read:plan,
@@ -65,7 +75,7 @@ const stock=Array.from({length:26},(_,i)=>({id:`item-${i}`,product_code:`FG-${i}
  product_name:`Product ${i}`,name:`Material ${i}`,status:'active',uom:'kg',current_balance:i,
  min_stock_level:5,manual_unit_cost:'DO_NOT_EXPOSE'})).concat({id:'mixed',uom:'ml',current_balance:999,status:'active'});
 
-function source({scope=true,brand=true,snapshot}={}){
+function source({scope=true,brand=true,snapshot,assetRows=assets}={}){
  const calls=[];
  const caller={
   rpc(name,args){
@@ -83,6 +93,21 @@ function source({scope=true,brand=true,snapshot}={}){
   },
   from(table){
    calls.push([table]);
+   if(table==='outlets'||table==='asset_items'){
+    let rows=table==='outlets'?outlets:assetRows;
+    let head=false;
+    const builder={
+     select(_,options){head=options?.head;return this;},
+     eq(field,value){rows=rows.filter(row=>row[field]===value);return this;},
+     neq(field,value){rows=rows.filter(row=>row[field]!==value);return this;},
+     ilike(field,pattern){rows=rows.filter(row=>row[field]?.toLowerCase()===pattern.replace(/\\([%_\\])/g,'$1').toLowerCase());return this;},
+     limit(max){rows=rows.slice(0,max);return this;},
+     order(){return this;},
+     range(start,end){rows=rows.slice(start,end+1);return this;},
+     abortSignal:async()=>({data:head?null:rows,count:rows.length}),
+    };
+    return builder;
+   }
    let included;
    const builder=new Proxy({}, {get:(_,method)=>method==='abortSignal'
     ?async()=>({data:(snapshot?.tables[table]||(table==='sales_records'?sales:stock)).filter(row=>!included||included.includes(row.id))})
@@ -97,6 +122,10 @@ const cases=[
  ['read_factory_finished_goods','Rank FG stock in kg',{mode:'list',sort:'balance_desc',uom:'kg'},r=>assert.equal(r.rows[0].product_code,'FG-25')],
  ['read_factory_raw_catalogue','Rank active RM by lowest stock in kg',{mode:'list',status:'active',sort:'balance_asc',uom:'kg'},r=>assert.equal(r.rows[0].material_code,'RM-0')],
  ['read_employee_directory','Count employees by status and type',{mode:'summary'},r=>{assert.deepEqual(r.summary,employee.summary);assert.deepEqual(r.employment_types,employee.employment_types);}],
+ ['read_asset_catalogue','What is the current balance of asset-spoon at Fixture Corner?',{mode:'detail',outlet_name:'Fixture Corner',query:'asset-spoon'},r=>{
+  assert.equal(r.match_status,'matched');assert.equal(r.matched_by,'name');
+  assert.equal(r.outlet.code,'FC');assert.deepEqual(r.rows.map(row=>[row.name,row.current_quantity,row.unit]),[['Spoon',15,'unit']]);
+ }],
  ['read_crew_leave','How many leave requests overlapped these dates?',{outlet_id:id,from:'2026-11-01',to:'2026-11-02'},r=>{assert.equal(r.total_matching,24);assert.equal(r.rows.length,1);}],
  ['read_sales_records','Show monthly sales input for this outlet',{outlet_id:id,month:'2026-11-01',page:1},r=>{assert.equal(r.rows[0].amount,125);assert.equal(r.completeness.aggregate_scope,'not_asserted');}],
  ['read_operational_financials','What finance figures exist for this reporting period?',{outlet_id:id,year:2026,month:11},r=>assert.deepEqual(r.report,finance)],
@@ -116,8 +145,11 @@ for(const [operation,question,args,check] of cases)test(`${operation}: evidence 
   transport:async(_,init)=>{
    const body=JSON.parse(init.body);
    assert(body.input.some(message=>message.content===question));
-   if(++n===1)return response([functionCall('find_business_queries',{search:operation,page:1},'discover')]);
-   if(n===2)return response([functionCall('run_business_query',envelope(operation,args),'query')]);
+   if(++n===1)return response([functionCall('find_business_queries',{search:operation==='read_asset_catalogue'?question:operation,page:1},'discover')]);
+   if(n===2){
+    assert.equal(JSON.parse(body.input.at(-1).output).operations[0].operation,operation);
+    return response([functionCall('run_business_query',envelope(operation,args),'query')]);
+   }
    const value=JSON.parse(body.input.at(-1).output);
    check(value);
    assert.equal(value.capability,operation);
@@ -171,7 +203,12 @@ test('natural discovery ignores query verbs, handles domain aliases, and never s
  const b=createBusinessDispatcher({config,access});
  for(const [search,operation] of [['top FG stock','read_factory_finished_goods'],['highest raw material stock','read_factory_raw_catalogue'],
   ['highest active raw materials in kg','read_factory_raw_catalogue'],
-  ['员工','read_employee_directory'],['HR employees','read_employee_directory'],['Restaurant sales input','read_sales_records'],['marketing plan','read_marketing_plan']]){
+  ['员工','read_employee_directory'],['HR employees','read_employee_directory'],['Restaurant sales input','read_sales_records'],['marketing plan','read_marketing_plan'],
+  ['Which three raw materials have the highest balances in kg?','read_factory_raw_catalogue'],
+  ['How many finished goods are below minimum?','read_factory_finished_goods'],
+  ['Give me employee headcount by employment-status in my scope','read_employee_directory'],
+  ['帮我查看Friends Corner的asset-spoon目前有多少balance','read_asset_catalogue'],
+  ['What is the current balance of asset-spoon at Friends Corner?','read_asset_catalogue']]){
   const result=await b.execute('find_business_queries',{search,page:1});
   assert.equal(result.operations[0]?.operation,operation,search);
  }
@@ -187,6 +224,29 @@ test('cross-outlet and cross-brand rejection create no business evidence',async(
  }
  const missing=createBusinessDispatcher({config,access,caller:{rpc:name=>({abortSignal:async()=>({data:name==='current_user_has_permission'?true:null})})}});
  await assert.rejects(missing.execute('read_employee_directory',{mode:'summary'}),{code:'business_read_unavailable'});
+});
+
+test('asset counts, exact codes and ambiguous names use only the authorized current outlet',async()=>{
+ const operation='read_asset_catalogue';
+ const {caller}=source();
+ const business=createBusinessDispatcher({config,access,caller});
+ const summary=await business.execute(operation,{outlet_name:'FC',mode:'summary'});
+ assert.deepEqual([summary.total_matching,summary.aggregate_complete,summary.rows.length],[2,true,0]);
+ const zero=await business.execute(operation,{outlet_id:id,mode:'detail',query:'fork-1'});
+ assert.deepEqual([zero.matched_by,zero.rows[0].current_quantity],['asset_code',0]);
+ const missing=await business.execute(operation,{outlet_id:id,mode:'detail',query:'unknown'});
+ assert.equal(missing.match_status,'not_found');assert.deepEqual(missing.rows,[]);
+ const escaped=await business.execute(operation,{outlet_id:id,mode:'detail',query:'%'});
+ assert.equal(escaped.match_status,'not_found');
+ const ambiguous=createBusinessDispatcher({config,access,caller:source({assetRows:[...assets,{...assets[0],id:'second-spoon'}]}).caller});
+ const duplicate=await ambiguous.execute(operation,{outlet_name:'FC',mode:'detail',query:'asset-spoon'});
+ assert.equal(duplicate.match_status,'ambiguous');assert.deepEqual(duplicate.rows,[]);
+ const denied=source({scope:false});
+ const restricted=createBusinessDispatcher({config,access,caller:denied.caller});
+ for(const scope of [{outlet_name:'FC'},{outlet_id:id}]){
+  await assert.rejects(restricted.execute(operation,{...scope,mode:'detail',query:'asset-spoon'}),{code:'business_read_denied'});
+ }
+ assert(!denied.calls.some(([source])=>source==='asset_items'));
 });
 
 test('OpenAI Voice can discover newly authorized operations with a narrow starting snapshot',async()=>{

@@ -16,6 +16,10 @@ export async function permitted(caller,permission,signal){
  const {data,error}=await caller.rpc('current_user_has_permission',{permission_code:permission}).abortSignal(signal);
  if(error||data!==true)throw new AssistantError('business_read_denied',403);
 }
+export async function permittedOutlet(caller,outletId,signal){
+ const {data,error}=await caller.rpc('current_user_can_access_outlet',{target_outlet_id:outletId}).abortSignal(signal);
+ if(error||data!==true)throw new AssistantError('business_read_denied',403);
+}
 // Fixed domain contracts supply RPC/parameters/projection; callers never choose SQL or RPC names.
 export function readContract(def){
  const moduleInterface=declareReadInterface(def);
@@ -29,10 +33,15 @@ export function readContract(def){
   validate,tool:{type:'function',name:def.id,description:def.description,strict:true,parameters},
   async execute(caller,args,signal){
    args=validate(args);await permitted(caller,def.permission,signal);signal?.throwIfAborted();
-   if(def.outletScope){const scope=await caller.rpc('current_user_can_access_outlet',{target_outlet_id:args.outlet_id}).abortSignal(signal);if(scope.error||scope.data!==true)throw new AssistantError('business_read_denied',403);}
-   let query=def.query?def.query(caller,args):caller.rpc(def.rpc,def.arguments(args));
-   if(def.range)query=query.range(0,def.range-1);
-   const {data,error}=await query.abortSignal(signal);
+   if(def.outletScope)await permittedOutlet(caller,args.outlet_id,signal);
+   let result;
+   if(def.load)result={data:await def.load(caller,args,signal)};
+   else {
+    let query=def.query?def.query(caller,args):caller.rpc(def.rpc,def.arguments(args));
+    if(def.range)query=query.range(0,def.range-1);
+    result=await query.abortSignal(signal);
+   }
+   const {data,error}=result;
    if(error||data==null)throw new AssistantError(error?.code==='42501'?'business_read_denied':'business_read_unavailable',error?.code==='42501'?403:503);
    let projected;
    try{projected=def.project(data,args);}catch(error){

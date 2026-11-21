@@ -1,10 +1,10 @@
-import hrAgentActions from './hrAgentActions.json';
-import hrAgentModules from './hrAgentModules.json';
-import factoryAgentModules from "./factoryAgentModules.json";
-import factoryAgentCoverage from "./factoryAgentCoverage.json";
-import restaurantAgentActions from "./restaurantAgentActions.json";
-import restaurantAgentModules from "./restaurantAgentModules.json";
-import factoryAgentActions from "./factoryAgentActions.json";
+import hrAgentActions from './hrAgentActions.json' with { type: 'json' };
+import hrAgentModules from './hrAgentModules.json' with { type: 'json' };
+import factoryAgentModules from "./factoryAgentModules.json" with { type: 'json' };
+import factoryAgentCoverage from "./factoryAgentCoverage.json" with { type: 'json' };
+import restaurantAgentActions from "./restaurantAgentActions.json" with { type: 'json' };
+import restaurantAgentModules from "./restaurantAgentModules.json" with { type: 'json' };
+import factoryAgentActions from "./factoryAgentActions.json" with { type: 'json' };
 export type ModuleAction =
   | "list"
   | "read"

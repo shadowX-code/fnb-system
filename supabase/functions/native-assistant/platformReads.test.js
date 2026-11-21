@@ -5,7 +5,7 @@ import {operations,createBusinessDispatcher} from './business.js';
 import {validateBody} from './handler.js';
 const id='10000000-0000-4000-8000-000000000001';
 const op=name=>operations.find(o=>o.id===name);
-const args=o=>Object.fromEntries(Object.entries(o.properties||{}).map(([k,s])=>[k,s.nullable?null:s.type==='number'?(s.minimum||1):s.enum?s.enum[0]:k==='page'?1:k.includes('id')?id:k==='from'?'2026-11-01':k==='to'?'2026-11-02':'2026-11-01']));
+const args=o=>Object.fromEntries(Object.entries(o.properties||{}).map(([k,s])=>[k,s.nullable?null:s.type==='number'?(s.minimum||1):s.enum?s.enum[0]:k==='page'?1:k.includes('id')?id:k==='query'?'':k==='from'?'2026-11-01':k==='to'?'2026-11-02':'2026-11-01']));
 test('fixed connection allowlist covers exactly the shipped contracts',()=>{
  const sql=fs.readFileSync(new URL('../../migrations/20261117061932_native_assistant_gap_read_contracts.sql',import.meta.url),'utf8');
  const ids=[...sql.match(/\$new\$coalesce\(p_payload->>'operation',''\) not in \((.*?)\)\$new\$/)[1].matchAll(/'([^']+)'/g)].map(m=>m[1]);
@@ -30,7 +30,7 @@ test('FAQ source safety decisions are preserved; unavailable operational claims 
  const p=op('read_marketing_usable_faq').project({faqs:[{id,is_active:true,use_issue:null,question:'Q',answer:'A',revision:3},{is_active:true,use_issue:'Operational information unavailable',answer:'GUESS'},{is_active:false,use_issue:null,answer:'OLD'}]});assert.equal(p.rows.length,1);assert.equal(p.rows[0].revision,3);assert(!JSON.stringify(p).includes('GUESS'));
 });
 test('table adapters are fixed, page-bound and use exact human client',async()=>{
- for(const o of operations.filter(o=>o.query&&!o.id.match(/read_(recipe_ingredients|restaurant_|sales_comparison|purchase_comparison|role_directory|audit_event_metadata|factory_raw_catalogue)/))){
+ for(const o of operations.filter(o=>o.query?.toString().includes('.from(')&&!o.id.match(/read_(recipe_ingredients|restaurant_|sales_comparison|purchase_comparison|role_directory|audit_event_metadata|factory_raw_catalogue)/))){
   const trace=[];const q=new Proxy({}, {get:(_,method)=>method==='abortSignal'?async()=>({data:[]}):(...a)=>{trace.push([method,...a]);return q;}});
   const caller={rpc:()=>({abortSignal:async()=>({data:true})}),from:(...a)=>{trace.push(['from',...a]);return q;}};
   await o.execute(caller,args(o));assert.equal(trace.filter(x=>x[0]==='from').length,1);assert(trace.some(x=>x[0]==='select'&&!x[1].includes('*')));assert.deepEqual(trace.find(x=>x[0]==='range'),['range',0,20]);

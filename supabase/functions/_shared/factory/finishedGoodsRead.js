@@ -46,6 +46,7 @@ export const finishedGoodsRead = Object.freeze({
  moduleInterface:declareReadInterface({module_id:'factory_finished_goods',version:3,permission:'factory_finished_goods.view',scope:'Factory shared catalogue',source:'/factory/warehouse/finished-goods',properties:inventoryTool.parameters.properties,interface:{queryKinds:['summary','count','list','search','detail','filter','rank'],authority:'factory_get_master_id_snapshot + scoped inventory rows',aggregates:'complete_filtered_scope',fields:['rows','total_scoped_products','total_matching','unknown_minimum_count','low_stock_count','out_of_stock_count','ranking'],pagination:'Complete identity/count-checked catalogue; rows paginated at20. Non-atomic source snapshot.'}}),
  id:inventoryTool.name, module_id:'factory_finished_goods', kind:'READ', version:3,
  label:'Factory Finished Goods', permission:'factory_finished_goods.view',
+ discoveryPhrases:['finished goods'],
  scope:'Factory shared catalogue · current Admin permissions',
  tool:inventoryTool, validate:inventoryArguments, execute:readInventory,
  testArguments:{query:'',availability:'all'}, authorized:access=>!!access.factory, deniedCode:'factory_read_denied',
