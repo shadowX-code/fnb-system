@@ -686,7 +686,7 @@ function UomSettingsModal({ uoms, remoteRows, visibleRows, lastWriteStatus, canA
 
 
 
-function InventoryItemModal({ item, categories, outlets, uoms, canCreateUom, onAddUom, onClose, onSave, onUomChanged }) {
+function InventoryItemModal({ item, categories, outlets, uoms, canCreateUom, onAddUom, onClose, onSave, onUomChanged, onUpdateCost }) {
   const initialItem = normalizeInventoryItem(item ?? {
     id: "",
     name: "",
@@ -758,10 +758,11 @@ function InventoryItemModal({ item, categories, outlets, uoms, canCreateUom, onA
         <Field label="SKU Code" value={form.sku} onChange={(value) => update("sku", value)} placeholder="RAW-SAM-001" />
         <SelectField label="Category" value={form.categoryId} options={categories.map((category) => ({ value: category.id, label: category.name }))} onChange={(value) => update("categoryId", value)} searchable required />
         {item && statusField}
-        {item ? <InventoryItemUomSection key={item.id} item={item} uoms={uoms} onSavingChange={setSavingUom}
-          onChanged={unit => {
+        {item ? <InventoryItemUomSection key={item.id} item={item} uoms={uoms} onSavingChange={setSavingUom} onUpdateCost={onUpdateCost}
+          onChanged={history => {
+            const { unit } = history;
             setForm(current => ({ ...current, unit, uom_code: unit, uomCode: unit }));
-            onUomChanged(item.id, unit);
+            onUomChanged(item.id, history);
           }} /> : <SelectField
           label="UOM"
           value={form.unit}
@@ -1860,9 +1861,11 @@ export default function InventoryMasterPage({ auth, ui, outlets }) {
       {modal?.type === "item" && (!modal.item || modal.scopeKey === scopeKey) ? <InventoryItemModal
         item={modal.item} categories={sortedCategories} outlets={outlets} uoms={sortedUoms} canCreateUom={can.createUom}
         onAddUom={saveQuickUom} onClose={() => setModal(null)} onSave={saveItem}
-        onUomChanged={(itemId, unit) => {
+        onUpdateCost={modal.item && can.editCost ? () => setCostHistory({ item: modal.item, scopeKey, fromEdit: true }) : undefined}
+        onUomChanged={(itemId, history) => {
+          const { unit, current_cost: cost, current_cost_revision_id: costRevisionId } = history;
           setData(current => ({ ...current, items: current.items.map(item => item.id === itemId
-            ? { ...item, unit, uomCode: unit, uom_code: unit } : item) }));
+            ? { ...item, unit, uomCode: unit, uom_code: unit, cost, costRevisionId, costPreviousAmount: null } : item) }));
           notify("Inventory UOM updated");
           invalidateInventoryReads({ source: "inventory-master", itemId });
         }}
@@ -1913,13 +1916,14 @@ export default function InventoryMasterPage({ auth, ui, outlets }) {
       ) : null}
       {modal?.type === "uom" ? <UomModal uom={modal.uom} onClose={() => setModal(modal.returnToSettings ? { type: "uom-settings" } : null)} onSave={saveUom} /> : null}
 
-    {costHistory?.scopeKey === scopeKey ? <InventoryCostHistoryDrawer
+    {costHistory?.scopeKey === scopeKey ? <div className={costHistory.fromEdit ? '[--z-drawer:calc(var(--z-modal)+1)]' : undefined}><InventoryCostHistoryDrawer
       key={costHistory.item.id}
       item={costHistory.item}
       canEdit={can.editCost}
+      initialUpdate={Boolean(costHistory.fromEdit)}
       onClose={() => setCostHistory(null)}
       onSaved={() => { refreshInventory(); notify("Inventory cost updated", costHistory.item.name); }}
-    /> : null}
+    /></div> : null}
     <InventoryItemPhotoPreview preview={photoPreview} onClose={() => setPhotoPreview(null)} />
   </div>;
 }

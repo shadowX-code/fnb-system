@@ -104,7 +104,7 @@ export default function InventoryStockCheckResultModal({
       {correctionSource && auditItemChanged(row, sourceByItem.get(row.itemId)) && <div className="type-caption text-text-secondary">Changed</div>}
     </> },
     { key: "variance", label: "Variance", align: "right", className: "min-w-[85px] tabular-nums", render: row => formatQuantity(row.displayVariance) },
-    { key: "uom", label: "UOM", className: "min-w-[65px]", render: (row) => row.unit || row.item?.unit || "—" },
+    { key: "uom", label: "UOM", className: "min-w-[65px]", render: (row) => row.unit || "—" },
     { key: "status", label: "Status", className: "min-w-[100px]", render: (row) => <FactoryStatusBadge status={row.result.label} tone={row.result.tone}>{row.result.label}</FactoryStatusBadge> },
     ...(isAuditResult ? [
       { key: "stockValue", label: "Stock Value", align: "right", className: "min-w-[115px] tabular-nums", render: (row) => amount(row.stockValue) },

@@ -1,4 +1,5 @@
--- Run only on the verified Staging project. All fixtures roll back.
+-- Contract test for the earlier single-UOM guard (20261120163904).
+-- For the current cutover workflow, run restaurantVersionedInventoryUom.rollback.sql.
 begin;
 do $$
 declare

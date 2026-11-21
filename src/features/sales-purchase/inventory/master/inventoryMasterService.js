@@ -144,8 +144,6 @@ export async function persistRemoteInventoryItem(item, userId, accessibleOutletI
       return {
         inventory_item_id: remoteItemId,
         outlet_id: outletId,
-        par_unit: normalized.unit || null,
-        par_level: config.parLevel === "" || config.parLevel === null || config.parLevel === undefined ? null : Number(config.parLevel),
         storage_location: config.storageLocation || null,
         is_active: true,
       };
@@ -367,10 +365,11 @@ export async function loadInventoryStockUomHistory(itemId) {
   return data;
 }
 
-export async function changeInventoryStockUom({ itemId, unit, reason, expectedUnit, expectedChangeId, requestId }) {
+export async function changeInventoryStockUom({ itemId, unit, reason, expectedUnit, expectedChangeId, oldQuantity, newQuantity, expectedCostRevisionId, verified, requestId }) {
   const { data, error } = await supabase.rpc('inventory_master_change_stock_uom', {
     p_item_id: itemId, p_unit: unit, p_reason: reason, p_expected_unit: expectedUnit,
     p_expected_change_id: expectedChangeId, p_request_id: requestId,
+    p_old_quantity: oldQuantity, p_new_quantity: newQuantity, p_expected_cost_revision_id: expectedCostRevisionId, p_conversion_verified: verified,
   });
   if (error) throw error;
   return data;

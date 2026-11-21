@@ -12,7 +12,7 @@ const uoms = [
   { code: 'pcs', displayName: 'Pieces', isActive: true },
   { code: 'pack', displayName: 'Pack', isActive: true },
 ];
-const history = { unit: 'pcs', blocked_reason: null, changes: [] };
+const history = { unit: 'pcs', blocked_reason: null, current_cost: 10, current_cost_revision_id: 'cost-old', changes: [] };
 
 it('records an actual UOM change with a reason and shows the server history', async () => {
   const onChanged = vi.fn();
@@ -32,16 +32,22 @@ it('records an actual UOM change with a reason and shows the server history', as
   expect(screen.queryByRole('option', { name: /Pieces/ })).toBeNull();
   fireEvent.click(screen.getByRole('option', { name: 'pack · Pack' }));
 
+  fireEvent.change(screen.getByRole('spinbutton', { name: /Equivalent quantity/ }), { target: { value: '2' } });
+  expect(screen.getByText('1 pcs = 2 pack')).toBeTruthy();
+  expect(screen.getByText(/RM 10.00 \/ pcs.*RM 5.00 \/ pack/)).toBeTruthy();
   const save = screen.getByRole('button', { name: 'Save UOM Change' });
   expect(save.disabled).toBe(true);
   fireEvent.change(screen.getByRole('textbox', { name: /^Reason/ }), { target: { value: 'Corrected the catalogue unit' } });
+  expect(save.disabled).toBe(true);
+  fireEvent.click(screen.getByRole('checkbox', { name: /verified the conversion/ }));
   fireEvent.click(save);
   await screen.findByRole('button', { name: 'Change UOM' });
   expect(changeInventoryStockUom).toHaveBeenCalledWith(expect.objectContaining({
     itemId: item.id, expectedUnit: 'pcs', expectedChangeId: null, unit: 'pack',
-    reason: 'Corrected the catalogue unit', requestId: expect.any(String),
+    reason: 'Corrected the catalogue unit', oldQuantity: 1, newQuantity: 2, verified: true,
+    expectedCostRevisionId: 'cost-old', requestId: expect.any(String),
   }));
-  expect(onChanged).toHaveBeenCalledWith('pack');
+  expect(onChanged).toHaveBeenCalledWith(expect.objectContaining({ unit: 'pack' }));
   fireEvent.click(disclosure);
   expect(screen.getByText('Alex Tan')).toBeTruthy();
   expect(screen.getByText('Corrected the catalogue unit')).toBeTruthy();

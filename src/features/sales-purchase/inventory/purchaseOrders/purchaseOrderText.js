@@ -3,7 +3,7 @@ export function formatPurchaseOrderText(order, { supplierName, outletName, itemB
     ? [`Status: ${order.status === "cancelled" ? "Cancelled" : "Completed"}`] : [];
   const itemLines = (order.lines || []).map((line, index) => {
     const item = itemById.get(line.itemId);
-    const base = `${index + 1}. ${item?.name || "Inventory item"} — ${Number(line.requestedQty || 0)} ${line.unit || item?.unit || ""}`.trim();
+    const base = `${index + 1}. ${item?.name || "Inventory item"} — ${Number(line.requestedQty || 0)} ${line.unit || ""}`.trim();
     return line.remark ? `${base}\n   Remark: ${line.remark}` : base;
   });
   const remarks = order.remark || order.notes || "";

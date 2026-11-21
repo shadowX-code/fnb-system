@@ -1,5 +1,9 @@
 # FeedX Development Log
 
+## 2026-11-21 — Restaurant Master Inventory versioned UOM changes
+
+Edit Item can change the unit of a used inventory item using verified equivalent quantities. The atomic cutover preserves prior evidence, converts compatible Par and active recipes, and records an equivalent cost basis in Cost History without creating a price change. See [Inventory and Assets](docs/domains/inventory-and-assets.md#master-inventory-item-uom).
+
 ## 2026-11-20 — Audit Stock Check corrections
 
 Added Admin correction drafts and submitted evidence lineage to Audit Stock Check. Corrections preserve original count and valuation evidence, and Month-End Closing continues through the existing scoped approval and publication workflow. See [Inventory and Assets](docs/domains/inventory-and-assets.md#lifecycle-and-business-rules).

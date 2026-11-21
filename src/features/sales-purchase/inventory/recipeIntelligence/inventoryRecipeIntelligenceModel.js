@@ -86,7 +86,7 @@ export function createRecipeIntelligenceProjection(input) {
           id: key,
           ingredient: item.name || "Inventory item",
           category: category?.name || "Uncategorized",
-          uom: item.unit || line.unit || "",
+          uom: line.unit || "",
           unitCost,
           estimatedUsage: 0,
           totalCost: 0,
@@ -104,7 +104,7 @@ export function createRecipeIntelligenceProjection(input) {
         const matchKey = normalizeProductRecipeKey(mapping.product_name);
         const product = salesByName.get(matchKey);
         const recipeRow = recipeCostById.get(mapping.recipe_id);
-        if (!product || !recipeRow) return;
+        if (!product || !recipeRow || recipeRow.summary.totalCost == null) return;
         const { recipe, summary } = recipeRow;
         const recipeCost = Number(summary.totalCost || 0);
         const sellingPrice = Number(recipe.sellingPrice ?? recipe.selling_price ?? 0);
