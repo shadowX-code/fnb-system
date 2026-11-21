@@ -115,7 +115,7 @@
     "read_reporting_product_sales": "fdd6e6611a9c74bedf0aa38fcf7c78e6bbe287f4a53e4ed3b497ebf7408372ad"
   },
   "sources": {
-    "src/features/ai-assistant/sdkVoiceHistory.js": "3cfaafe1f206cd6ebec5d982adcb95b4491163b922996bf9c881fd05bcc4953c",
+    "src/features/ai-assistant/sdkVoiceHistory.js": "204b3be5b304158166ce3a5fc2781f97ee02c0a51b2f39114f96aee89ac48e25",
     "src/features/company-users/pages/UsersPage.jsx": "a7ffc404ae3386ac717776d6b6647fcb6b9cf053ffb0a5fd12e280543c052fdb",
     "src/features/sales-purchase/pages/AssetTrackingPage.jsx": "101e7f74a9e40d9686358995ad3617518a7a57f7988d85217bf59b890038c6a4",
     "src/features/sales-purchase/utils/analytics.js": "115e56907e9aeaee3f15c62308464ee7d7363d5027b0847189332d6f5261b5db",
@@ -181,9 +181,9 @@
     "supabase/functions/_shared/restaurant/catalogueReads.js": "d34e536b1b0524753b3583c2a0e94235c3fe4ae094d430ffd792e004332886c5",
     "supabase/functions/_shared/restaurant/dataHealth.js": "f7315f9e4b4c4193eb59902b31f7c0d76206605c7fcba357da649d430310d720",
     "supabase/functions/_shared/restaurant/gapReads.js": "0f4a424cf756504320bdfeed5014da07d2658336d72f8172df20b3643df04ad4",
-    "supabase/functions/native-assistant/business.js": "8e09ff963bf0d7007f57521e6338b1767513b4fe0e4e3fdad3b6596b8ab6849c",
+    "supabase/functions/native-assistant/business.js": "db3b76cd6ca54cc39d43e8ec771dd63a2690f184a0769e3250d66417fadbd92a",
     "supabase/functions/native-assistant/handler.js": "a5ceb15059aa553d0e150d219b3d51e2b872e31ef602fd5d20b87dbbbb5f6694",
-    "supabase/functions/native-assistant/provider.js": "ef9b079e30eb2f89640948f4be73af027dab64b8d557d7791a65295aa5016059",
+    "supabase/functions/native-assistant/provider.js": "d69494483cb60174262ec1726e46767072206114059b8248699fbb86627e75bc",
     "supabase/functions/native-assistant/realtime.js": "8009e7ed490b3e5c224ef68088b5ab6e7af9c5427cb542df375344c85ceb6f4b",
     "supabase/migrations/202605110001_core_dependency_baseline.sql": "0c58b3e0c264bd7913b97991a119ed672d776dff3f9d4adfa6b0d47f677addab",
     "supabase/migrations/202605120001_company_user_rbac.sql": "edb0232adc92eb43242ae1d0142085b5ba275dcd0e1d5083380fdcca4e503793",

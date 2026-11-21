@@ -136,8 +136,10 @@ export function createSdkVoiceHistory({ write, read, state, trace, activity = ()
     const reason = error.diagnostic?.stage === 'evidence'
      ? 'The operation result could not be saved to this conversation.'
      : toolFailureReasons[code] || 'The tool request did not finish successfully.';
-    return { result: { error: code, operation: capability, operation_label: label, reason, no_evidence: true,
-     instruction: 'Briefly explain the actual failure in the user’s language. Do not switch domains, invent evidence, or retry automatically.' } };
+    const instruction=code==='tool_not_allowed'&&operation==='run_business_query'
+     ? 'Discover the intended domain with find_business_queries and use a returned operation ID and schema. No business read occurred.'
+     : 'Briefly explain the actual failure in the user’s language. Do not switch domains, invent evidence, or retry automatically.';
+    return { result: { error: code, operation: capability, operation_label: label, reason, no_evidence: true, instruction } };
    } finally {
     turn.toolPending = false;
     if (ownsTurn()) state('thinking');

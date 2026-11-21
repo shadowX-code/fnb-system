@@ -2,6 +2,8 @@
 
 Run the existing contract and orchestration gate with `npm run test:assistant-business`. It verifies implemented capability behavior under fixtures and ensures certification scenarios still correspond to module-owned READ contracts.
 
+Regenerate the module and operation matrix with `node scripts/assistantBusinessMatrix.mjs`. Its inventory comes from the Admin module projection, the reviewed module coverage and the current shared READ bindings. Update the owning coverage declaration when adding a module. A registered query must be discoverable by its business label and retain its authorization and completeness semantics. Contract and deterministic SDK results remain separate from authenticated answers.
+
 Review the [110-operation matrix](../audits/native-assistant-business-acceptance-matrix.md) and [scenario definitions](../../qa/staging/nativeAssistantCertification.mjs) before starting the live run. In an authorized canonical Staging account, establish the expected result from the domain-owned source, record scope and time, then ask the scenario through Native Assistant Text. Submit follow-ups in the same conversation. For isolated scopes use existing test accounts and permissions. Record any disabled capability, blocked scope, missing fixture, or active request budget as BLOCKED.
 
 Record the canonical deployment SHA and the actual saved turn identity, user-facing reply, model, completion state, tool state and evidence. Export only the reviewed fields through an authorized read path. Do not record provider secrets or private employee records. Store the run outside Git. The JSON maps scenario IDs to `{turn, source}` or `{blocker}`. Each scenario defines the fields expected in its independently obtained source result.

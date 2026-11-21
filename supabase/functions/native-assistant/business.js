@@ -72,6 +72,11 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
  return {
   capabilities,
   tools:(()=>{const offered=operations.filter(operation=>capabilities.find(item=>item.id===operation.id)?.availability==='connected');return offered.length>8?queryDiscoveryTools:offered.map(operation=>operation.tool);})(),
+  toolsForPrompt(prompt){
+   if(typeof prompt!=='string'||!prompt.trim())return [];
+   const match=discoverQueries(operations,capabilities,{search:prompt.slice(0,240),page:1});
+   return match.operations.filter(item=>item.kind==='READ').slice(0,2).map(item=>resolve(item.operation).tool);
+  },
   async execute(id,args,signal){
    const enveloped=id==='run_business_query';
    if(isQueryEnvelope(id)){

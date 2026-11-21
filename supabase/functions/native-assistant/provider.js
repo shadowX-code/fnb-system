@@ -49,9 +49,16 @@ export async function generateText(claim,key,{transport=fetch,signal,business,on
  let previous=(claim.assembled?.recent||recentContext(claim.context)).flatMap(x=>[{role:'user',content:x.prompt},{role:'assistant',content:x.reply}]);
  const current={role:'user',content:claim.prompt};
  const exchanges=[], discoveryOutputs=[];
+ const configuredTools=business?.tools||[];
+ const usesDiscovery=configuredTools.some(tool=>tool.name==='find_business_queries');
+ const matchingTools=usesDiscovery?business.toolsForPrompt?.(claim.prompt)||[]:[];
+ const discovered=new Set();
  const max=claim.kind==='test'?32:500;
  const bytes=value=>new TextEncoder().encode(JSON.stringify(value)).length;
- const payload=(remaining,allowTools)=>({model:claim.model,instructions:claim.kind==='test'?'Reply with READY only.':instructions+businessEvidenceInstructions+domainQueryInstructions+contextInstructions(claim.assembled)+memoryContext(claim.memory),input:[...previous,current,...exchanges],max_output_tokens:remaining,store:false,...(business?.tools.length&&claim.kind!=='test'&&allowTools?{tools:business.tools,tool_choice:'auto',parallel_tool_calls:false}:{})});
+ const payload=(remaining,allowTools)=>{
+  const tools=claim.kind!=='test'&&allowTools?[...matchingTools,...configuredTools.filter(tool=>tool.name!=='run_business_query'||discovered.size)]:[];
+  return {model:claim.model,instructions:claim.kind==='test'?'Reply with READY only.':instructions+businessEvidenceInstructions+domainQueryInstructions+contextInstructions(claim.assembled)+memoryContext(claim.memory),input:[...previous,current,...exchanges],max_output_tokens:remaining,store:false,...(tools.length?{tools,tool_choice:'auto',parallel_tool_calls:false}:{})};
+ };
  function boundedPayload(remaining,allowTools){
   let body=payload(remaining,allowTools);
   // Keep the current question and paired tool calls/results intact.
@@ -80,7 +87,7 @@ export async function generateText(claim,key,{transport=fetch,signal,business,on
    outputTokens=outputTokens===null||count('output_tokens')===null?null:outputTokens+count('output_tokens');
    const calls=data.output.filter(x=>x.type==='function_call');
    if(calls.length){
-    if(attempt>=4||calls.length!==1||!business?.tools.some(tool=>tool.name===calls[0].name)||typeof calls[0].call_id!=='string')throw new AssistantError('tool_not_allowed',403);
+    if(attempt>=4||calls.length!==1||!body.tools?.some(tool=>tool.name===calls[0].name)||typeof calls[0].call_id!=='string')throw new AssistantError('tool_not_allowed',403);
     if(seenCalls.has(calls[0].call_id))throw new AssistantError('duplicate_tool_call',409);seenCalls.add(calls[0].call_id);
     let args,evidence;
     try{args=JSON.parse(calls[0].arguments);}catch{}
@@ -88,6 +95,7 @@ export async function generateText(claim,key,{transport=fetch,signal,business,on
     if(!discovery)await onTool?.('executing');
     try{
      if(args===undefined)throw new AssistantError('tool_arguments_invalid',400);
+     if(calls[0].name==='run_business_query'&&!discovered.has(args?.operation))throw new AssistantError('tool_not_allowed',403);
      const signature=JSON.stringify([calls[0].name,args]);
      if(seenReads.has(signature))evidence=seenReads.get(signature);
      else {
@@ -111,10 +119,13 @@ export async function generateText(claim,key,{transport=fetch,signal,business,on
     const output={type:'function_call_output',call_id:calls[0].call_id,output:JSON.stringify(evidence)};
     onTrace(calls[0].name,args,evidence.error || (evidence.discovery_only?'discovery':'returned'),evidence.discovery_only?evidence.total_operations:undefined);
     exchanges.push(...data.output,output);
-    if(discovery&&evidence.discovery_only)discoveryOutputs.push({output,compact:JSON.stringify({
+    if(discovery&&evidence.discovery_only){
+     for(const entry of evidence.operations)discovered.add(entry.operation);
+     discoveryOutputs.push({output,compact:JSON.stringify({
      discovery_only:true,not_business_evidence:true,operations:evidence.operations.map(entry=>({operation:entry.operation,module:entry.module})),
      instruction:'Earlier schema list compacted. Use a recent exact schema for new arguments.',
-    })});
+     })});
+    }
     continue;
    }
    const reply=data.output.filter(x=>x.type==='message').flatMap(x=>x.content||[]).filter(x=>x.type==='output_text').map(x=>x.text||'').join('').trim();

@@ -249,6 +249,31 @@ test('asset counts, exact codes and ambiguous names use only the authorized curr
  assert(!denied.calls.some(([source])=>source==='asset_items'));
 });
 
+test('a scoped question gets the registered schema before the generic runner can be used',async()=>{
+ const question='What is the current balance of asset-spoon at Fixture Corner?';
+ const {caller}=source();
+ const business=createBusinessDispatcher({config,access,caller});
+ let requests=0;
+ const reply=await generateText({prompt:question,kind:'turn',model:config.model},'fixture-secret',{
+  business,transport:async(_,init)=>{
+   const body=JSON.parse(init.body);
+   if(++requests===1){
+    assert.deepEqual(body.tools.map(tool=>tool.name),['read_asset_catalogue','find_business_queries']);
+    return response([functionCall('read_asset_catalogue',{
+     page:1,outlet_id:null,outlet_name:'Fixture Corner',mode:'detail',query:'asset-spoon',
+    },'asset-current')]);
+   }
+   const result=JSON.parse(body.input.at(-1).output);
+   assert.equal(result.capability,'read_asset_catalogue');
+   assert.equal(result.rows[0].current_quantity,15);
+   return response([{type:'message',content:[{type:'output_text',text:'Fixture Corner has 15 Spoon units.'}]}]);
+  },
+ });
+ assert.equal(requests,2);assert.equal(reply.reply,'Fixture Corner has 15 Spoon units.');
+ const disconnected=createBusinessDispatcher({config:{...config,capability_connections:{...config.capability_connections,read_asset_catalogue:false}},access,caller});
+ assert(!disconnected.toolsForPrompt(question).some(tool=>tool.name==='read_asset_catalogue'));
+});
+
 test('OpenAI Voice can discover newly authorized operations with a narrow starting snapshot',async()=>{
  const initial={...config,capability_connections:{}};
  const voice=await dispatch({action:'realtime_sdk_connect',provider:'openai',session_id:id,request_id:id,
