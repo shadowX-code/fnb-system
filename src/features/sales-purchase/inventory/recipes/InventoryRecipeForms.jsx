@@ -135,7 +135,7 @@ export function RecipeIngredientPreviewPill({ recipe, itemById }) {
     const item = itemById.get(line.itemId);
     const quantity = Number(line.quantityUsed ?? line.quantity_used ?? 0);
     const displayQty = Number.isFinite(quantity) ? String(quantity).replace(/\.0+$/, "") : "-";
-    const unit = line.unit || item?.unit || "";
+    const unit = line.unit || "—";
     const cost = recipeIngredientCost(line, item);
     return `${item?.name || "Inventory item"} · ${displayQty} ${unit}`.trim() + ` · ${formatRestaurantRecipeCurrency(cost.totalCost)}`;
   });
@@ -209,7 +209,7 @@ export function RecipeIngredientCloneModal({ recipes, items, outletById, exclude
           return <button key={entry.id} className={`flex w-full items-start justify-between gap-3 rounded-xl border p-3 text-left transition ${selected ? "border-primary bg-primary/5" : "border-border bg-white hover:border-primary/40"}`} type="button" onClick={() => setSelectedRecipeId(entry.id)}><span className="min-w-0"><span className="block font-bold text-text-primary">{recipeNameEn(entry) || recipeNameCn(entry) || recipeCode(entry) || "Recipe"}</span><span className="mt-0.5 block type-caption text-text-secondary">{recipeCode(entry) || "No code"} · {outletById.get(entry.outletId)?.name || "Outlet"}</span></span><Badge tone={count ? "success" : "neutral"}>{count} ingredient{count === 1 ? "" : "s"}</Badge></button>;
         }) : <EmptyState title="No matching recipes" description="Try another recipe name or code." />}
       </div>
-      {selectedRecipe ? <div className="rounded-xl border border-border bg-slate-50 p-3"><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="font-bold text-text-primary">{recipeNameEn(selectedRecipe) || recipeNameCn(selectedRecipe) || recipeCode(selectedRecipe) || "Recipe"}</div><div className="mt-1 type-caption text-text-secondary">{outletById.get(selectedRecipe.outletId)?.name || "Outlet"} · {ingredients.length} ingredient{ingredients.length === 1 ? "" : "s"}</div></div><Badge tone="success">Cost {formatRestaurantRecipeCurrency(summary?.totalCost || 0)}</Badge></div>{ingredients.length ? <div className="mt-3 divide-y divide-border rounded-lg border border-border bg-white">{ingredients.map((line) => { const item = items.find((entry) => entry.id === (line.itemId || line.inventory_item_id)); return <div key={line.id || `${line.itemId}-${line.quantityUsed}`} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm"><span className="font-semibold text-text-primary">{item?.name || "Unavailable inventory item"}</span><span className="text-text-secondary">{line.quantityUsed ?? line.quantity_used ?? 0} {line.unit || item?.unit || ""} · {line.wastagePercent ?? line.wastage_percent ?? 0}% wastage{line.remark ? ` · ${line.remark}` : ""}</span></div>; })}</div> : <div className="mt-3 type-caption text-text-secondary">This recipe has no ingredients to clone.</div>}</div> : null}
+      {selectedRecipe ? <div className="rounded-xl border border-border bg-slate-50 p-3"><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="font-bold text-text-primary">{recipeNameEn(selectedRecipe) || recipeNameCn(selectedRecipe) || recipeCode(selectedRecipe) || "Recipe"}</div><div className="mt-1 type-caption text-text-secondary">{outletById.get(selectedRecipe.outletId)?.name || "Outlet"} · {ingredients.length} ingredient{ingredients.length === 1 ? "" : "s"}</div></div><Badge tone="success">Cost {formatRestaurantRecipeCurrency(summary?.totalCost || 0)}</Badge></div>{ingredients.length ? <div className="mt-3 divide-y divide-border rounded-lg border border-border bg-white">{ingredients.map((line) => { const item = items.find((entry) => entry.id === (line.itemId || line.inventory_item_id)); return <div key={line.id || `${line.itemId}-${line.quantityUsed}`} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm"><span className="font-semibold text-text-primary">{item?.name || "Unavailable inventory item"}</span><span className="text-text-secondary">{line.quantityUsed ?? line.quantity_used ?? 0} {line.unit || "—"} · {line.wastagePercent ?? line.wastage_percent ?? 0}% wastage{line.remark ? ` · ${line.remark}` : ""}</span></div>; })}</div> : <div className="mt-3 type-caption text-text-secondary">This recipe has no ingredients to clone.</div>}</div> : null}
     </div>
   </Modal>;
 }
@@ -311,7 +311,7 @@ export function RecipeModal({ recipe, outletId, outlet, items, menuCategories, e
         id: makeId("recipe_item"),
         itemId,
         quantityUsed: line.quantityUsed ?? line.quantity_used ?? 0,
-        unit: line.unit || items.find((item) => item.id === itemId)?.unit || "",
+        unit: line.unit || "",
         wastagePercent: line.wastagePercent ?? line.wastage_percent ?? 0,
         remark: line.remark || "",
         cloneUnavailable: !available,
@@ -582,7 +582,7 @@ export function RecipeModal({ recipe, outletId, outlet, items, menuCategories, e
                     />
                     <label>
                       <div className="mb-1 type-caption font-semibold text-text-secondary">Unit</div>
-                      <div className="control flex h-9 items-center text-[13px] font-semibold text-text-secondary">{item?.unit || line.unit || "-"}</div>
+                      <div className="control flex h-9 items-center text-[13px] font-semibold text-text-secondary">{line.unit || "—"}</div>
                     </label>
                     <label>
                       <div className="mb-1 type-caption font-semibold text-text-secondary">Unit Cost</div>
@@ -619,7 +619,7 @@ export function RecipeModal({ recipe, outletId, outlet, items, menuCategories, e
 
 export function RecipeDetailModal({ recipe, outlet, items, categories, onClose, onEdit }) {
   const ingredients = recipe?.ingredients || [];
-  const summary = recipeCostSummary(recipe, items);
+  const summary = recipeCostSummary(recipe, items, { recorded: true });
   const margin = recipeMarginPercent(recipe?.sellingPrice ?? recipe?.selling_price, summary.totalCost);
   const photoUrl = recipe?.recipePhotoUrl || recipe?.recipe_photo_url || "";
   const code = recipeCode(recipe);
@@ -661,7 +661,7 @@ export function RecipeDetailModal({ recipe, outlet, items, categories, onClose, 
               </div>
             </div>
             <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              <MetricCard label="Estimated Cost" value={formatRestaurantRecipeCurrency(summary.totalCost)} helper="Ingredient + wastage" tone="success" size="compact" />
+              <MetricCard label="Recorded Cost" value={formatRestaurantRecipeCurrency(summary.totalCost)} helper="Pinned ingredient cost + wastage" tone="success" size="compact" />
               <MetricCard label="Selling Price" value={recipe?.sellingPrice !== "" && recipe?.sellingPrice !== null && recipe?.sellingPrice !== undefined ? formatRestaurantRecipeCurrency(recipe.sellingPrice) : "—"} helper="Menu price" size="compact" />
               <MetricCard label="Margin %" value={formatRecipeMargin(margin)} helper="Price vs cost" tone={recipeMarginTone(margin)} size="compact" />
               <MetricCard label="Ingredients" value={ingredients.length} helper="BOM rows" size="compact" />
@@ -688,13 +688,13 @@ export function RecipeDetailModal({ recipe, outlet, items, categories, onClose, 
               {ingredients.map((line) => {
                 const item = items.find((entry) => entry.id === line.itemId);
                 const category = categories.find((entry) => entry.id === item?.categoryId);
-                const cost = recipeIngredientCost(line, item);
+                const cost = recipeIngredientCost(line, item, { recorded: true });
                 return (
                   <tr key={line.id || line.itemId}>
                     <td className="px-3 py-2 font-bold text-text-primary">{item?.name || "Inventory item"}</td>
                     <td>{category?.name || "Uncategorized"}</td>
                     <td>{line.quantityUsed}</td>
-                    <td>{line.unit || item?.unit || "-"}</td>
+                    <td>{line.unit || "—"}</td>
                     <td>{formatRestaurantRecipeCurrency(cost.unitCost)}</td>
                     <td>{formatRestaurantRecipeCurrency(cost.totalCost)}</td>
                     <td>{line.wastagePercent || 0}%</td>

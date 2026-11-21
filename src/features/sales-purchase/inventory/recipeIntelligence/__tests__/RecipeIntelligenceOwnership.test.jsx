@@ -8,7 +8,7 @@ import useRecipeIntelligenceRead, {loadRecipeIntelligence} from "../useRecipeInt
 import {createRecipeIntelligenceProjection} from "../inventoryRecipeIntelligenceModel.js";
 import {invalidateInventoryReads} from "../../../../../services/inventoryRevalidation.js";
 const scope={outletId:"a",scopeKey:"user",enabled:true,recipeAnalysisPeriod:"last3",recipeReportMonth:9,recipeReportYear:2026,recipeTrendYear:2026};
-const recipe={id:"r",outletId:"a",recipeCode:"R",recipeNameEn:"Rice",status:"active",sellingPrice:10,ingredients:[{itemId:"i",quantityUsed:2,wastagePercent:10}]};
+const recipe={id:"r",outletId:"a",recipeCode:"R",recipeNameEn:"Rice",status:"active",sellingPrice:10,ingredients:[{itemId:"i",quantityUsed:2,unit:"kg",wastagePercent:10}]};
 beforeEach(()=>{
   vi.useFakeTimers({toFake:["Date"]}); vi.setSystemTime(new Date("2026-09-28T00:00:00Z"));
   mocks.sources.mockReset().mockResolvedValue([recipe]);

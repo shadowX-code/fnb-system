@@ -85,3 +85,26 @@ describe("Crew PO month history", () => {
     expect(screen.queryByRole("button", { name: /H-20/ })).toBeNull();
   });
 });
+
+it("preserves the stored unit and quantity when receiving a legacy pinned order", async () => {
+  const converted = { ...detail, lines: [{
+    ...detail.lines[0], unit: "carton", stock_unit: "pcs", stock_units_per_purchase_unit: 12,
+  }] };
+  crewService.inventoryPurchaseOrders.mockImplementation(async (_token, _outlet, id) => id
+    ? { detail: converted, can_receive_purchase_orders: true }
+    : { orders: [order], can_receive_purchase_orders: true });
+  crewService.inventoryMobileCatalog.mockResolvedValue({ items: [], categories: [], suppliers: [] });
+  crewService.receiveInventoryPurchaseOrder.mockResolvedValue({});
+  render(<CrewPurchaseOrdersMobile token="qa-token" outletId="outlet-1" grants={{ can_receive_purchase_orders: true }} onBack={() => {}} />);
+  fireEvent.click((await screen.findByText("Test Supplier")).closest("button"));
+  expect(await screen.findByText(/5 carton/)).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Receive PO" }));
+  fireEvent.change(screen.getByRole("spinbutton", { name: "Received now" }), { target: { value: "0.5" } });
+  expect(screen.queryByText(/stock equivalent/i)).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Record Receipt" }));
+  await waitFor(() => expect(crewService.receiveInventoryPurchaseOrder).toHaveBeenCalledWith(
+    "qa-token", "outlet-1", "order-1", expect.any(String), "", [
+      { purchase_order_item_id: "line-1", item_id: "item-1", received_qty: 0.5, unit: "carton" },
+    ],
+  ));
+});

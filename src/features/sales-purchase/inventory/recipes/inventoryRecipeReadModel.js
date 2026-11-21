@@ -3,6 +3,7 @@ const makeId = prefix => `${prefix}_${Date.now()}_${Math.random().toString(36).s
 export const recipeMenuCategories = ["Main Dish", "Beverage", "Side Dish", "Sauce", "Dessert", "Prep Item", "Combo", "Other"];
 
 export function formatRestaurantRecipeCurrency(value) {
+  if (value == null) return "—";
   const amount = Number(value);
   return `RM${(Number.isFinite(amount) ? amount : 0).toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
@@ -13,6 +14,8 @@ export function mapRemoteRecipeItem(row = {}) {
     itemId: row.inventory_item_id || "",
     quantityUsed: row.quantity_used === null || row.quantity_used === undefined ? 0 : Number(row.quantity_used),
     unit: row.unit || "",
+    stockUomChangeId: row.stock_uom_change_id ?? null,
+    unitCostSnapshot: row.unit_cost_snapshot == null ? null : Number(row.unit_cost_snapshot),
     wastagePercent: row.wastage_percent === null || row.wastage_percent === undefined ? 0 : Number(row.wastage_percent),
     remark: row.remark || "",
     createdAt: row.created_at || "",
@@ -154,35 +157,35 @@ export function mapRemoteRecipe(row = {}, items = []) {
   };
 }
 
-export function recipeIngredientCost(line = {}, item) {
+export function recipeIngredientCost(line = {}, item, { recorded = false } = {}) {
   const quantity = Number(line.quantityUsed || 0);
-  const unitCost = Number(item?.cost || 0);
-  const totalCost = quantity * unitCost;
-  const wastageCost = totalCost * (Number(line.wastagePercent || 0) / 100);
-  return {
-    quantity,
-    unitCost,
-    totalCost,
-    wastageCost,
-  };
+  const recordedUnit = line.unit?.trim().toLowerCase();
+  const currentUnit = item?.unit?.trim().toLowerCase();
+  const comparable = recordedUnit && currentUnit === recordedUnit
+    && (line.stockUomChangeId === undefined || (line.stockUomChangeId ?? null) === (item.stockUomChangeId ?? null));
+  const unitCost = recorded || !comparable ? (line.unitCostSnapshot ?? null) : Number(item.cost || 0);
+  const totalCost = unitCost == null ? null : quantity * unitCost;
+  const wastageCost = totalCost == null ? null : totalCost * (Number(line.wastagePercent || 0) / 100);
+  return { quantity, unitCost, totalCost, wastageCost };
 }
 
-export function recipeCostSummary(recipe = {}, items = []) {
+export function recipeCostSummary(recipe = {}, items = [], { recorded = Boolean(recipe.status && recipe.status !== "active") } = {}) {
   const itemById = new Map(items.map((item) => [item.id, item]));
-  return (recipe.ingredients || []).reduce((summary, line) => {
-    const cost = recipeIngredientCost(line, itemById.get(line.itemId));
-    return {
-      ingredientCost: summary.ingredientCost + cost.totalCost,
-      wastageCost: summary.wastageCost + cost.wastageCost,
-      totalCost: summary.totalCost + cost.totalCost + cost.wastageCost,
-    };
-  }, { ingredientCost: 0, wastageCost: 0, totalCost: 0 });
+  const summary = { ingredientCost: 0, wastageCost: 0, totalCost: 0 };
+  for (const line of recipe.ingredients || []) {
+    const cost = recipeIngredientCost(line, itemById.get(line.itemId), { recorded });
+    if (cost.totalCost == null) return { ingredientCost: null, wastageCost: null, totalCost: null };
+    summary.ingredientCost += cost.totalCost;
+    summary.wastageCost += cost.wastageCost;
+  }
+  summary.totalCost = summary.ingredientCost + summary.wastageCost;
+  return summary;
 }
 
 export function recipeMarginPercent(sellingPrice, cost) {
   const price = Number(sellingPrice || 0);
   const totalCost = Number(cost || 0);
-  if (!price || price <= 0) return null;
+  if (!price || price <= 0 || cost == null) return null;
   return ((price - totalCost) / price) * 100;
 }
 
@@ -231,14 +234,15 @@ export function createRecipeWorkspaceProjection({data, outletById, activeRecipeO
       const margin = recipeMarginPercent(recipe.sellingPrice ?? recipe.selling_price, summary.totalCost);
       return { recipe, summary, margin };
     });
-    const averageRecipeCost = recipeCostRows.length
-      ? recipeCostRows.reduce((sum, row) => sum + row.summary.totalCost, 0) / recipeCostRows.length
-      : 0;
+    const costedRecipes = recipeCostRows.filter(row => row.summary.totalCost != null);
+    const averageRecipeCost = costedRecipes.length
+      ? costedRecipes.reduce((sum, row) => sum + row.summary.totalCost, 0) / costedRecipes.length
+      : null;
     const pricedMargins = recipeCostRows.filter((row) => row.margin !== null && Number.isFinite(Number(row.margin)));
     const averageMargin = pricedMargins.length
       ? pricedMargins.reduce((sum, row) => sum + row.margin, 0) / pricedMargins.length
       : null;
-    const highestCostRecipe = recipeCostRows.reduce((highest, row) => !highest || row.summary.totalCost > highest.summary.totalCost ? row : highest, null);
+    const highestCostRecipe = costedRecipes.reduce((highest, row) => !highest || row.summary.totalCost > highest.summary.totalCost ? row : highest, null);
     const selectedPeriod = recipeAnalysisPeriodOptions.find((option) => option.value === recipeAnalysisPeriod) || recipeAnalysisPeriodOptions[1];
     const analysisStartSerial = businessMonthSerial(-(selectedPeriod.months - 1));
     const analysisEndSerial = businessMonthSerial(0);

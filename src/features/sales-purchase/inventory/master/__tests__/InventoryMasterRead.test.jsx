@@ -1,11 +1,12 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { invalidateInventoryReads } from "../../../../../services/inventoryRevalidation.js";
 
-const mocks = vi.hoisted(() => ({ load: vi.fn() }));
+const mocks = vi.hoisted(() => ({ load: vi.fn(), unitHistory: vi.fn() }));
 vi.mock("../inventoryMasterService.js", async (importOriginal) => ({
   ...(await importOriginal()),
   loadInventoryMaster: mocks.load,
+  loadInventoryStockUomHistory: mocks.unitHistory,
 }));
 
 import InventoryMasterPage from "../InventoryMasterPage.jsx";
@@ -32,6 +33,19 @@ beforeEach(() => mocks.load.mockReset());
 afterEach(cleanup);
 
 describe("Master Inventory scoped complete projection", () => {
+  it("opens the existing editor with Current UOM, Change UOM and UOM History", async () => {
+    mocks.load.mockResolvedValue(snapshot("Current Item"));
+    mocks.unitHistory.mockResolvedValue({ unit: "kg", blocked_reason: null, changes: [] });
+    render(mount("first-user"));
+    const [edit] = await screen.findAllByRole("button", { name: "Edit" });
+    expect(screen.queryByRole("button", { name: "Manage Units" })).toBeNull();
+    fireEvent.click(edit);
+    expect(screen.getByRole("dialog", { name: "Edit Inventory Item" })).toBeTruthy();
+    expect(screen.getByText("Current UOM")).toBeTruthy();
+    expect(await screen.findByText("UOM History")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Change UOM" })).toBeTruthy();
+  });
+
   it("does not expose previous-scope rows or actions while a new scope is pending", async () => {
     const next = deferred();
     mocks.load.mockResolvedValueOnce(snapshot("Previous Item")).mockReturnValueOnce(next.promise);

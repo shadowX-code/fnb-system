@@ -102,7 +102,7 @@ export default function InventoryMovementsPage({ auth, ui, outlets, suppliers, i
                         <div className="font-bold text-text-primary">{quantity < 0 ? "Transfer Out" : "Transfer In"}</div>
                         <div className="mt-1 type-caption text-text-secondary">{outletById.get(row.outletId)?.name || "Outlet"} · {item?.name || "Inventory item"}</div>
                       </div>
-                      <Badge tone="info">{quantity > 0 ? "+" : ""}{quantity} {row.unit || item?.unit || ""}</Badge>
+                      <Badge tone="info">{quantity > 0 ? "+" : ""}{quantity} {row.unit || "—"}</Badge>
                     </div>
                     {row.notes ? <div className="mt-2 type-body-sm text-text-secondary">{row.notes}</div> : null}
                   </div>

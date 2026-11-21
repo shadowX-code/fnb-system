@@ -15,6 +15,7 @@ import { getAccessibleOutletOptions, getAccessibleOutlets, hasAllOutletAccess, h
 import { IMAGE_UPLOAD_ACCEPT, isImageDataUrl as isStandardImageDataUrl, optimizeImageFileForPreview, removeStorageObjectFromPublicUrl, uploadOptimizedImage } from '../../../../utils/imageUpload.js';
 import { normalizeOutletRecord, normalizeInventoryItem, uniqueIds, buildOutletConfig, isActiveInventoryItem, categoryForItem, canonical, isUuid, outletDisplayCode, outletDisplayName } from '../inventoryItemModel.js';
 import { InventoryCategoryIcon, SectionCard, TextArea, Field, csvEscape, downloadTextFile, todayInput } from '../InventorySharedPresentation.jsx';
+import InventoryItemUomSection from './InventoryItemUomSection.jsx';
 import InventoryCostHistoryDrawer from './InventoryCostHistoryDrawer.jsx';
 import { formatInventoryCost, formatInventoryCostChange, parseInventoryCostInput } from './inventoryCostPresentation.js';
 import InventoryItemPhotoPreview from '../InventoryItemPhotoPreview.jsx';
@@ -423,8 +424,8 @@ function buildInventoryImportPreview(rows, { categories, outlets, items, uoms })
     if (rawCost && (parsedCost === null || !existing?.costRevisionId || parsedCost !== existing.cost)) {
       errors.push("Clear the Cost cell and use Cost History to set the unit cost.");
     }
-    if (existing?.costRevisionId && existing.unit && canonical(existing.unit) !== canonical(uom?.code || unit)) {
-      errors.push("Use a separate item for a different UOM when an item has cost history.");
+    if (existing && existing.unit !== (uom?.code || unit)) {
+      errors.push("Use Change UOM in Edit Item before importing a different unit for an existing item.");
     }
 
     return {
@@ -685,7 +686,7 @@ function UomSettingsModal({ uoms, remoteRows, visibleRows, lastWriteStatus, canA
 
 
 
-function InventoryItemModal({ item, categories, outlets, uoms, canCreateUom, onAddUom, onClose, onSave }) {
+function InventoryItemModal({ item, categories, outlets, uoms, canCreateUom, onAddUom, onClose, onSave, onUomChanged, onUpdateCost }) {
   const initialItem = normalizeInventoryItem(item ?? {
     id: "",
     name: "",
@@ -702,8 +703,8 @@ function InventoryItemModal({ item, categories, outlets, uoms, canCreateUom, onA
   const [form, setForm] = useState(initialItem);
   const [quickUomOpen, setQuickUomOpen] = useState(false);
   const [touched, setTouched] = useState(false);
-  const hasCostBasis = Boolean(item?.costRevisionId && item.unit);
-  const invalid = touched && (!form.name.trim() || !form.categoryId || !form.unit || !form.linkedOutletIds?.length);
+  const [savingUom, setSavingUom] = useState(false);
+  const invalid = touched && (!form.name.trim() || !form.categoryId || (!item && !form.unit) || !form.linkedOutletIds?.length);
 
   function update(key, value) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -723,21 +724,26 @@ function InventoryItemModal({ item, categories, outlets, uoms, canCreateUom, onA
     });
   }
 
+  const statusField = <SelectField label="Status" value={form.status}
+    options={statuses.map(status => ({ value: status, label: toTitle(status) }))}
+    onChange={value => update("status", value)} />;
+
   return (
     <Modal
       title={item ? "Edit Inventory Item" : "Add Inventory Item"}
       description="Define the global item identity. Par levels are managed separately in Par Level Setup."
       size="lg"
-      onClose={onClose}
+      onClose={savingUom ? undefined : onClose}
       footer={(
         <>
-          <button className="btn-secondary" type="button" onClick={onClose}>Cancel</button>
+          <button className="btn-secondary" type="button" disabled={savingUom} onClick={onClose}>Cancel</button>
           <button
             className="btn-primary"
             type="button"
+            disabled={savingUom}
             onClick={() => {
               setTouched(true);
-              if (!form.name.trim() || !form.categoryId || !form.unit || !form.linkedOutletIds?.length) return;
+              if (!form.name.trim() || !form.categoryId || (!item && !form.unit) || !form.linkedOutletIds?.length) return;
               const id = form.id || makeId("item");
               onSave({ ...form, id, outletConfigs: (form.outletConfigs || []).map((config) => ({ ...config, inventoryItemId: id })) });
             }}
@@ -751,11 +757,15 @@ function InventoryItemModal({ item, categories, outlets, uoms, canCreateUom, onA
         <Field label="Item Name" value={form.name} required onChange={(value) => update("name", value)} placeholder="Sambal Sauce" />
         <Field label="SKU Code" value={form.sku} onChange={(value) => update("sku", value)} placeholder="RAW-SAM-001" />
         <SelectField label="Category" value={form.categoryId} options={categories.map((category) => ({ value: category.id, label: category.name }))} onChange={(value) => update("categoryId", value)} searchable required />
-        <SelectField
+        {item && statusField}
+        {item ? <InventoryItemUomSection key={item.id} item={item} uoms={uoms} onSavingChange={setSavingUom} onUpdateCost={onUpdateCost}
+          onChanged={history => {
+            const { unit } = history;
+            setForm(current => ({ ...current, unit, uom_code: unit, uomCode: unit }));
+            onUomChanged(item.id, history);
+          }} /> : <SelectField
           label="UOM"
           value={form.unit}
-          disabled={hasCostBasis}
-          helper={hasCostBasis ? "Fixed by this item’s cost history." : undefined}
           options={uoms.filter((uom) => uom.isActive || uom.code === form.unit).map((uom) => ({ value: uom.code, label: uomOptionLabel(uom) }))}
           onChange={(value) => update("unit", value)}
           footerAction={({ close }) => (
@@ -771,8 +781,8 @@ function InventoryItemModal({ item, categories, outlets, uoms, canCreateUom, onA
               <Plus size={14} /> Add New UOM
             </button>
           )}
-        />
-        <SelectField label="Status" value={form.status} options={statuses.map((status) => ({ value: status, label: toTitle(status) }))} onChange={(value) => update("status", value)} />
+        />}
+        {!item && statusField}
         <div className="md:col-span-2">
           <ItemPhotoPicker
             value={form.photo}
@@ -1640,7 +1650,7 @@ export default function InventoryMasterPage({ auth, ui, outlets }) {
           <td><Badge tone={statusTone(item.status)}>{toTitle(item.status)}</Badge></td>
           <td>
             <div className="flex justify-end gap-2" onClick={(event) => event.stopPropagation()}>
-              <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => requirePermission(can.editMaster, "edit inventory items") && setModal({ type: "item", item })}>Edit</button>
+              <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => requirePermission(can.editMaster, "edit inventory items") && setModal({ type: "item", item, scopeKey })}>Edit</button>
               <button className="btn-secondary h-8 px-2.5 text-xs text-rose-700" type="button" onClick={() => requirePermission(can.deleteMaster, "archive inventory items") && archiveItem(item.id)}>Archive</button>
             </div>
           </td>
@@ -1686,8 +1696,8 @@ export default function InventoryMasterPage({ auth, ui, outlets }) {
             </div>
           </div>
           <div className="mt-3 flex justify-end gap-2 border-t border-border pt-3" onClick={(event) => event.stopPropagation()}>
-            <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => requirePermission(can.editMaster, "edit inventory items") && setModal({ type: "item", item })}>Edit</button>
-            <button className="btn-secondary h-8 px-2.5 text-xs text-rose-700" type="button" onClick={() => requirePermission(can.deleteMaster, "archive inventory items") && archiveItem(item.id)}>Archive</button>
+            <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => requirePermission(can.editMaster, "edit inventory items") && setModal({ type: "item", item, scopeKey })}>Edit</button>
+              <button className="btn-secondary h-8 px-2.5 text-xs text-rose-700" type="button" onClick={() => requirePermission(can.deleteMaster, "archive inventory items") && archiveItem(item.id)}>Archive</button>
           </div>
         </div>
       );
@@ -1848,7 +1858,18 @@ export default function InventoryMasterPage({ auth, ui, outlets }) {
     {read.state === 'refreshing' ? <p role="status" className="text-sm text-text-secondary">Refreshing Master Inventory. Showing the last verified complete read.</p> : null}
     {read.state === 'stale-error' ? <div className="card p-3" role="alert">{read.error} Showing the last verified Master Inventory read. <button type="button" className="btn-secondary ml-2" onClick={refreshInventory}>Retry</button></div> : null}
     {renderMasterInventory()}
-      {modal?.type === "item" ? <InventoryItemModal item={modal.item} categories={sortedCategories} outlets={outlets} uoms={sortedUoms} canCreateUom={can.createUom} onAddUom={saveQuickUom} onClose={() => setModal(null)} onSave={saveItem} /> : null}
+      {modal?.type === "item" && (!modal.item || modal.scopeKey === scopeKey) ? <InventoryItemModal
+        item={modal.item} categories={sortedCategories} outlets={outlets} uoms={sortedUoms} canCreateUom={can.createUom}
+        onAddUom={saveQuickUom} onClose={() => setModal(null)} onSave={saveItem}
+        onUpdateCost={modal.item && can.editCost ? () => setCostHistory({ item: modal.item, scopeKey, fromEdit: true }) : undefined}
+        onUomChanged={(itemId, history) => {
+          const { unit, current_cost: cost, current_cost_revision_id: costRevisionId } = history;
+          setData(current => ({ ...current, items: current.items.map(item => item.id === itemId
+            ? { ...item, unit, uomCode: unit, uom_code: unit, cost, costRevisionId, costPreviousAmount: null } : item) }));
+          notify("Inventory UOM updated");
+          invalidateInventoryReads({ source: "inventory-master", itemId });
+        }}
+      /> : null}
       {modal?.type === "inventory-import" ? (
         <InventoryImportModal
           categories={sortedCategories}
@@ -1895,13 +1916,14 @@ export default function InventoryMasterPage({ auth, ui, outlets }) {
       ) : null}
       {modal?.type === "uom" ? <UomModal uom={modal.uom} onClose={() => setModal(modal.returnToSettings ? { type: "uom-settings" } : null)} onSave={saveUom} /> : null}
 
-    {costHistory?.scopeKey === scopeKey ? <InventoryCostHistoryDrawer
+    {costHistory?.scopeKey === scopeKey ? <div className={costHistory.fromEdit ? '[--z-drawer:calc(var(--z-modal)+1)]' : undefined}><InventoryCostHistoryDrawer
       key={costHistory.item.id}
       item={costHistory.item}
       canEdit={can.editCost}
+      initialUpdate={Boolean(costHistory.fromEdit)}
       onClose={() => setCostHistory(null)}
       onSaved={() => { refreshInventory(); notify("Inventory cost updated", costHistory.item.name); }}
-    /> : null}
+    /></div> : null}
     <InventoryItemPhotoPreview preview={photoPreview} onClose={() => setPhotoPreview(null)} />
   </div>;
 }

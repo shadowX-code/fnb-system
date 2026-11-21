@@ -24,15 +24,20 @@ export function inventoryEffectiveCostHistory(revisions) {
   // Same-date versions retain the server's newest-first recording order.
   const rows = [...revisions].sort((a, b) => (b.effective_date ?? '').localeCompare(a.effective_date ?? ''));
   const effective = rows.filter(row => !supersededIds.has(row.id)).reverse();
-  const previousByDate = new Map();
-  let previous;
+  const previousByBasisAndDate = new Map();
+  const previousByBasis = new Map();
+  const basisKey = row => row.stock_uom_change_id ?? '';
   for (const row of effective) {
-    if (row.effective_date) previousByDate.set(row.effective_date, previous);
-    previous = row;
+    const key = basisKey(row);
+    if (row.effective_date && !row.is_uom_conversion) {
+      previousByBasisAndDate.set(`${key}:${row.effective_date}`, previousByBasis.get(key));
+    }
+    previousByBasis.set(key, row);
   }
   const changes = new Map();
   for (const row of rows) {
-    const basis = previousByDate.get(row.effective_date);
+    if (row.is_uom_conversion) continue;
+    const basis = previousByBasisAndDate.get(`${basisKey(row)}:${row.effective_date}`);
     const unit = row.unit?.trim().toLowerCase();
     if (unit && unit === basis?.unit?.trim().toLowerCase()) {
       changes.set(row.id, formatInventoryCostChange(row.unit_cost, basis.unit_cost));

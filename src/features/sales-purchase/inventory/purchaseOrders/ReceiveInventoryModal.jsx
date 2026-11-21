@@ -109,7 +109,7 @@ export function ReceiveInventoryModal({ order, supplier, outlet, items, displayP
                     </td>
                     <td className={balance > 0 && receiveNow > 0 ? "font-bold text-amber-700" : "font-semibold text-text-secondary"}>{balance}</td>
                     <td><Badge tone={rowStatus === "Full Receive" ? "success" : rowStatus === "Partial Receive" ? "warning" : "neutral"}>{rowStatus}</Badge></td>
-                    <td>{row.unit || item?.unit || ""}</td>
+                    <td>{row.unit || "—"}</td>
                     <td><input className="control h-8 min-w-40 text-[13px]" value={row.receiveRemark} onChange={(event) => updateRow(row.id || row.itemId, { receiveRemark: event.target.value })} placeholder="Optional" /></td>
                   </tr>
                 );

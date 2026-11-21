@@ -127,7 +127,7 @@ export function PurchaseSuggestionsModal({ suggestions, suppliers, outlet, exist
                         <td>{row.actualCount}</td>
                         <td className="font-bold text-amber-700">{row.shortageQty}</td>
                         <td>
-                          <input className="control h-8 w-24 text-[13px]" type="number" min="0" value={row.suggestedOrderQty ?? ""} placeholder="Qty" onFocus={selectInputText} onChange={(event) => updateRow(row.id, { suggestedOrderQty: parseNonNegativeNumber(event.target.value) })} />
+                          <input className="control h-8 w-24 text-[13px]" type="number" min="0" value={row.suggestedOrderQty ?? ""} placeholder="Qty" aria-label={`Order quantity for ${row.itemName}`} onFocus={selectInputText} onChange={(event) => updateRow(row.id, { suggestedOrderQty: parseNonNegativeNumber(event.target.value) })} />
                         </td>
                         <td>
                           <SelectField
@@ -226,7 +226,7 @@ export function PurchaseOrderEditModal({ order, suppliers, items, onClose, onSav
       </> : (
         <>
           <button className="btn-secondary" type="button" disabled={saving} onClick={onClose}>Cancel</button>
-          <button className="btn-primary" type="button" disabled={saving || form.status !== "draft" || !form.lines.length} onClick={submit}>{saving ? "Saving…" : "Save Draft PO"}</button>
+          <button className="btn-primary" type="button" disabled={saving || form.status !== "draft" || !form.lines.length || form.lines.some(line => !(Number(line.requestedQty) > 0))} onClick={submit}>{saving ? "Saving…" : "Save Draft PO"}</button>
         </>
       )}
     >
@@ -246,12 +246,12 @@ export function PurchaseOrderEditModal({ order, suppliers, items, onClose, onSav
               <div key={line.id || `${line.itemId}-${index}`} className="grid gap-2 rounded-2xl border border-border p-3 md:grid-cols-[1.4fr_120px_1fr_auto] md:items-end">
                 <SelectField label="Item" value={line.itemId} options={[...availableItems.map((entry) => ({ value: entry.id, label: entry.name, searchText: `${entry.name} ${entry.sku || ""}` })), ...(!availableItems.some((entry) => entry.id === line.itemId) && line.itemId ? [{ value: line.itemId, label: item?.name || "Existing item", disabled: true }] : [])]} onChange={(value) => {
                   const nextItem = items.find((entry) => entry.id === value);
-                  updateLine(index, { itemId: value, unit: nextItem?.unit || line.unit });
+                  updateLine(index, { id: makeId("po_item"), itemId: value, unit: nextItem?.unit || "", uomRevisionId: null, requestedQty: "" });
                 }} searchable disabled={form.status !== "draft"} />
                 <Field label="Order Qty" type="number" value={line.requestedQty} placeholder="Enter quantity" onChange={(value) => updateLine(index, { requestedQty: parseNonNegativeNumber(value) })} />
                 <Field label="Remark" value={line.remark || ""} onChange={(value) => updateLine(index, { remark: value })} />
                 <button className="btn-secondary h-9 px-2.5 text-xs" type="button" disabled={form.status !== "draft"} onClick={() => setForm((current) => ({ ...current, lines: current.lines.filter((_, lineIndex) => lineIndex !== index) }))}>Remove</button>
-                <div className="type-caption text-text-secondary md:col-span-4">Unit: <span className="font-bold text-text-primary">{line.unit || item?.unit || "-"}</span></div>
+                <div className="type-caption text-text-secondary md:col-span-4">{line.unit || '—'}</div>
               </div>
             );
           })}

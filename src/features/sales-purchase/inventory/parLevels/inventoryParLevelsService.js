@@ -8,6 +8,7 @@ export async function persistRemoteParLevelConfig(item, outletId, patch) {
   const payload = {
     inventory_item_id: normalized.id,
     outlet_id: outletId,
+    par_unit: normalized.unit || null,
     par_level: Object.prototype.hasOwnProperty.call(patch, "parLevel")
       ? (patch.parLevel === "" || patch.parLevel === null || patch.parLevel === undefined ? null : Number(patch.parLevel))
       : (existing.parLevel === "" || existing.parLevel === null || existing.parLevel === undefined ? null : Number(existing.parLevel)),

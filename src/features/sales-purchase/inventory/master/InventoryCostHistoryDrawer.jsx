@@ -106,7 +106,7 @@ function CostTrend({ revisions, unit }) {
   );
 }
 
-function CostRevisions({ currentRevisionId, model, canUpdate, formOpen, onCorrect }) {
+function CostRevisions({ currentBasisId, currentRevisionId, model, canUpdate, formOpen, onCorrect }) {
   const { rows, changes, supersededIds } = model;
   const columns = [
     { key: 'effective_date', header: 'Effective date', className: 'whitespace-nowrap', render: row => <>
@@ -125,6 +125,7 @@ function CostRevisions({ currentRevisionId, model, canUpdate, formOpen, onCorrec
       render: row => <CostChangePercent change={changes.get(row.id)} /> },
     { key: 'reason', header: 'Reason', className: 'max-[700px]:w-full [overflow-wrap:anywhere]', render: row => <>
       {row.reason}
+      {row.is_uom_conversion && <div className="type-caption text-text-secondary">Equivalent cost after UOM change</div>}
       {row.supersedes_revision_id ? <div className="type-caption text-text-secondary">Correction</div> : null}
     </> },
     { key: 'recorded_at', header: 'Recorded by / at', className: '[overflow-wrap:anywhere]', render: row => (
@@ -133,7 +134,7 @@ function CostRevisions({ currentRevisionId, model, canUpdate, formOpen, onCorrec
   ];
   if (canUpdate) columns.push({
     key: 'correct', header: '', align: 'right',
-    render: row => row.effective_date && !supersededIds.has(row.id) ? <button type="button"
+    render: row => row.effective_date && !row.is_uom_conversion && (row.stock_uom_change_id ?? null) === currentBasisId && !supersededIds.has(row.id) ? <button type="button"
       className="btn-secondary h-9 min-h-9 px-2.5 type-caption" disabled={formOpen}
       aria-label={`Correct cost for ${displayDate(row.effective_date)}`}
       onClick={event => onCorrect(row, event.currentTarget)}>Correct</button> : null,
@@ -168,8 +169,10 @@ function CostUpdateForm({ id, item, history, correction, onSaved, onCancel, onRe
   const amount = parseInventoryCostInput(cost);
   const change = formatInventoryCostChange(amount, previous);
   const invalidDate = date > today ? 'Choose today or an earlier date (MYT).'
-    : !correction && date && latest?.effective_date >= date
-      ? `Choose a date after ${displayDate(latest.effective_date)}, or correct a revision below.` : '';
+    : date && history.basis_effective_date && date < history.basis_effective_date
+      ? `Choose ${displayDate(history.basis_effective_date)} or later for this UOM.`
+      : !correction && date && latest?.effective_date && !latest.is_uom_conversion && latest.effective_date >= date
+        ? `Choose a date after ${displayDate(latest.effective_date)}, or correct a revision below.` : '';
   const update = (setValue, value) => {
     setValue(value);
     setRequestId(null);
@@ -236,11 +239,11 @@ function CostUpdateForm({ id, item, history, correction, onSaved, onCancel, onRe
   );
 }
 
-export default function InventoryCostHistoryDrawer({ item, canEdit, onSaved, onClose }) {
+export default function InventoryCostHistoryDrawer({ item, canEdit, onSaved, onClose, initialUpdate = false }) {
   const [history, setHistory] = useState(null);
   const [error, setError] = useState(null);
   const [reload, setReload] = useState(0);
-  const [form, setForm] = useState(null);
+  const [form, setForm] = useState(initialUpdate ? { correction: null } : null);
   const [saving, setSaving] = useState(false);
   const formId = useId();
   const updateButton = useRef(null);
@@ -312,8 +315,8 @@ export default function InventoryCostHistoryDrawer({ item, canEdit, onSaved, onC
       {canUpdate && form ? <CostUpdateForm id={formId} key={form.correction?.id || 'new'} item={item} history={history} correction={form.correction}
         onCancel={() => setForm(null)} onReload={reloadHistory} onSaving={setSaving}
         onSaved={result => { setHistory(result); setForm(null); onSaved(); }} /> : null}
-      <CostTrend revisions={model.effective} unit={history.unit} />
-      <CostRevisions currentRevisionId={history.current_revision_id} model={model} canUpdate={canUpdate}
+      <CostTrend revisions={model.effective.filter(row => (row.stock_uom_change_id ?? null) === (history.stock_uom_change_id ?? null))} unit={history.unit} />
+      <CostRevisions currentBasisId={history.stock_uom_change_id ?? null} currentRevisionId={history.current_revision_id} model={model} canUpdate={canUpdate}
         formOpen={Boolean(form)} onCorrect={openForm} />
     </> : null}
   </Drawer>;

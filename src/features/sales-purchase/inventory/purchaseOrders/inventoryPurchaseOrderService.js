@@ -83,6 +83,8 @@ export async function persistRemotePurchaseOrderEdit(order = {}) {
       source_stock_check_id: order.sourceStockCheckId || null,
       lines: (order.lines || []).map((line) => ({
         item_id: line.itemId,
+        line_id: isUuid(line.id) ? line.id : null,
+        uom_revision_id: line.uomRevisionId || null,
         requested_qty: Number(line.requestedQty || 0),
         unit: line.unit || null,
         remark: line.remark || null,
@@ -138,6 +140,7 @@ export function mapRemotePurchaseOrderItem(row = {}) {
     requestedQty: row.requested_qty === null || row.requested_qty === undefined ? 0 : Number(row.requested_qty),
     receivedQty: row.received_qty === null || row.received_qty === undefined ? 0 : Number(row.received_qty),
     unit: row.unit || "",
+    uomRevisionId: row.uom_revision_id ?? null,
     remark: row.remark || "",
     sourceStockCheckItemId: row.source_stock_check_item_id || "",
     createdAt: row.created_at || "",
@@ -153,6 +156,8 @@ export function mapRemotePurchaseReceiptItem(row = {}) {
     itemId: row.item_id || "",
     receivedQty: row.received_qty === null || row.received_qty === undefined ? 0 : Number(row.received_qty),
     unit: row.unit || "",
+    stockUnit: row.stock_unit ?? null,
+    stockQuantity: row.stock_quantity ?? null,
     remark: row.remark || "",
     createdAt: row.created_at || "",
   };

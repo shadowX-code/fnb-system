@@ -44,7 +44,7 @@ export async function persistRemoteInventoryItem(item, userId, accessibleOutletI
     item_name: normalized.name,
     sku_code: normalized.sku || null,
     category_id: isUuid(normalized.categoryId) ? normalized.categoryId : null,
-    unit: normalized.unit || null,
+    ...(mode === "create" ? { unit: normalized.unit || null } : {}),
     photo_url: normalized.photo || normalized.photo_url || null,
     description: normalized.description || null,
     inventory_type: normalized.inventoryType || null,
@@ -144,7 +144,6 @@ export async function persistRemoteInventoryItem(item, userId, accessibleOutletI
       return {
         inventory_item_id: remoteItemId,
         outlet_id: outletId,
-        par_level: config.parLevel === "" || config.parLevel === null || config.parLevel === undefined ? null : Number(config.parLevel),
         storage_location: config.storageLocation || null,
         is_active: true,
       };
@@ -355,6 +354,22 @@ export async function reviseInventoryCost({ itemId, cost, unit, effectiveDate, r
     p_request_id: requestId,
     p_expected_revision_id: expectedRevisionId,
     p_correct_revision_id: correctedRevisionId,
+  });
+  if (error) throw error;
+  return data;
+}
+
+export async function loadInventoryStockUomHistory(itemId) {
+  const { data, error } = await supabase.rpc('inventory_master_stock_uom_history', { p_item_id: itemId });
+  if (error) throw error;
+  return data;
+}
+
+export async function changeInventoryStockUom({ itemId, unit, expectedUnit, expectedChangeId, conversion, expectedCostRevisionId, requestId }) {
+  const { data, error } = await supabase.rpc('inventory_master_change_stock_uom', {
+    p_item_id: itemId, p_unit: unit, p_expected_unit: expectedUnit,
+    p_expected_change_id: expectedChangeId, p_request_id: requestId,
+    p_current_quantity_per_new_unit: conversion, p_expected_cost_revision_id: expectedCostRevisionId,
   });
   if (error) throw error;
   return data;

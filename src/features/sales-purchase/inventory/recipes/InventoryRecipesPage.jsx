@@ -121,15 +121,12 @@ async function saveRecipe(recipe) {
         recipe_photo_url: recipePhotoUrl,
         sellingPrice: recipe.sellingPrice === "" || recipe.sellingPrice === null || recipe.sellingPrice === undefined ? "" : Number(recipe.sellingPrice),
         selling_price: recipe.sellingPrice === "" || recipe.sellingPrice === null || recipe.sellingPrice === undefined ? "" : Number(recipe.sellingPrice),
-        ingredients: (recipe.ingredients || []).map((line) => {
-          const item = itemById.get(line.itemId);
-          return {
-            ...line,
-            unit: line.unit || item?.unit || "",
-            quantityUsed: Number(line.quantityUsed || 0),
-            wastagePercent: Number(line.wastagePercent || 0),
-          };
-        }),
+        ingredients: (recipe.ingredients || []).map(line => ({
+          ...line,
+          unit: line.unit || "",
+          quantityUsed: Number(line.quantityUsed || 0),
+          wastagePercent: Number(line.wastagePercent || 0),
+        })),
       };
       const savedRecipe = await persistRemoteRecipe(normalized, auth?.user?.id);
 
