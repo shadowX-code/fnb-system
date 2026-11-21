@@ -20,15 +20,16 @@ export function queryEnvelopeArguments(id,a){
 }
 export function discoverQueries(operations,capabilities,args){
  const query=discoveryWords(args.search);
+ const competing=excludeCompetingQueries(operations,args.search);
  const ranking=/\b(?:top|highest|lowest|rank(?:ing)?)\b|最高|最低/i.test(args.search);
  const available=new Set(capabilities.filter(c=>c.availability==='connected').map(c=>c.id));
- const rows=operations.filter(o=>available.has(o.id)).flatMap(operation=>{
+ const rows=operations.filter(o=>available.has(o.id)&&!competing.has(o.id)).flatMap(operation=>{
   if(!args.search.trim())return [{operation,score:0}];
   if(operation.id.toLowerCase()===args.search.trim().toLowerCase())return [{operation,score:1000}];
   const section=operation.moduleInterface?.source?.split('/')[1];
   const workspace={people:'HR',inventory:'Restaurant','sales-purchase':'Restaurant'}[section] || section;
   const identity=discoveryWords([operation.id,operation.module_id,operation.label,workspace].join(' '));
-  const explicitResource=(operation.discoveryPhrases||[]).map(discoveryWords).some(words=>words.length>1&&words.every(word=>query.includes(word)));
+  const explicitResource=matchesResource(operation,query);
   const exactTerms=query.every(word=>identity.includes(word));
   if(!query.length||!explicitResource&&!exactTerms)return [];
   const label=discoveryWords(operation.label);
@@ -39,6 +40,18 @@ export function discoverQueries(operations,capabilities,args){
  const start=(args.page-1)*8;
  return {discovery_only:true,not_business_evidence:true,total_operations:rows.length,page:args.page,has_more:rows.length>start+8,operations:rows.slice(start,start+8).map(o=>({operation:o.id,module:o.module_id,kind:o.kind,description:o.tool.description,parameters:o.tool.parameters,queries:o.moduleInterface?.query,scope:o.scope})),
   ...(!rows.length?{instruction:'No operation matched this search. Retry discovery with just the resource or module name. No business source was queried. If no matching operation is available, explain that the capability could not be found; do not report missing records, zero or permission denial.'}:{})};
+}
+
+function matchesResource(operation,query){
+ return (operation.discoveryPhrases||[]).map(discoveryWords).some(words=>words.length>1&&words.every(word=>query.includes(word)));
+}
+
+export function excludeCompetingQueries(operations,prompt){
+ if(typeof prompt!=='string'||!prompt.trim())return new Set();
+ const query=discoveryWords(prompt);
+ const matched=new Set(operations.filter(operation=>operation.discoveryFamily&&matchesResource(operation,query)));
+ const namedFamilies=new Set([...matched].map(operation=>operation.discoveryFamily));
+ return new Set(operations.filter(operation=>namedFamilies.has(operation.discoveryFamily)&&!matched.has(operation)).map(operation=>operation.id));
 }
 
 const grammar = new Set(('a an the of by in from for to show list all top highest lowest count summary how many compare rank ranking status current currently stock balance balances read records operations please what which is are have has '+

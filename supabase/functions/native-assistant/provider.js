@@ -49,9 +49,11 @@ export async function generateText(claim,key,{transport=fetch,signal,business,on
  let previous=(claim.assembled?.recent||recentContext(claim.context)).flatMap(x=>[{role:'user',content:x.prompt},{role:'assistant',content:x.reply}]);
  const current={role:'user',content:claim.prompt};
  const exchanges=[], discoveryOutputs=[];
- const configuredTools=business?.tools||[];
+ const excluded=business?.excludedForPrompt?.(claim.prompt)||new Set();
+ const configuredTools=(business?.tools||[]).filter(tool=>!excluded.has(tool.name));
  const usesDiscovery=configuredTools.some(tool=>tool.name==='find_business_queries');
- let matchingTools=usesDiscovery?business.toolsForPrompt?.(claim.prompt)||[]:[];
+ const promptTools=usesDiscovery?business.toolsForPrompt?.(claim.prompt,excluded)||[]:[];
+ let matchingTools=promptTools;
  const discovered=new Set();
  const max=claim.kind==='test'?32:500;
  const bytes=value=>new TextEncoder().encode(JSON.stringify(value)).length;
@@ -99,7 +101,7 @@ export async function generateText(claim,key,{transport=fetch,signal,business,on
      const signature=JSON.stringify([calls[0].name,args]);
      if(seenReads.has(signature))evidence=seenReads.get(signature);
      else {
-      evidence=await business.execute(calls[0].name,args,controller.signal,{correctArguments:true});
+      evidence=await business.execute(calls[0].name,args,controller.signal,{correctArguments:true,excluded});
       if(!evidence.not_business_evidence&&!evidence.no_evidence){
        const resultBytes=bytes(evidence);
        if(evidenceBytes+resultBytes>14000)throw new AssistantError('business_result_limit',413);
@@ -121,8 +123,9 @@ export async function generateText(claim,key,{transport=fetch,signal,business,on
     exchanges.push(...data.output,output);
     if(discovery&&evidence.discovery_only){
      for(const entry of evidence.operations)discovered.add(entry.operation);
-     matchingTools=evidence.operations.filter(entry=>entry.kind==='READ'&&entry.parameters).slice(0,2)
+     const schemas=evidence.operations.filter(entry=>entry.kind==='READ'&&entry.parameters)
       .map(entry=>({type:'function',name:entry.operation,parameters:entry.parameters,description:entry.description,strict:true}));
+     matchingTools=[...promptTools,...schemas.filter(tool=>!promptTools.some(named=>named.name===tool.name))].slice(0,4);
      discoveryOutputs.push({output,compact:JSON.stringify({
      discovery_only:true,not_business_evidence:true,operations:evidence.operations.map(entry=>({operation:entry.operation,module:entry.module})),
      instruction:'Earlier schema list compacted. Use a recent exact schema for new arguments.',

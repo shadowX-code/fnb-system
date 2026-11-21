@@ -39,3 +39,14 @@ test('unknown data and policy blocks cannot become passing scenario evidence',()
  assert.equal(certifyScenario('fg_rank',{...rank,source:null}).status,'FAIL');
  assert.equal(certifyScenario('fg_rank',{...rank,turn:{...rank.turn,voice_lease_id:'fixture'}}).status,'FAIL');
 });
+
+test('asset answer must match the authorized outlet and saved canonical quantity',()=>{
+ const source={outletId:'outlet-1',outlet:'Fixture Corner',code:null,name:'Spoon',quantity:72,unit:'unit'};
+ const evidence={capability:'read_asset_catalogue',source:'/operations/asset-tracking',requested_scope:{mode:'detail'},
+  outlet:{id:source.outletId},match_status:'matched',rows:[{outlet_id:source.outletId,name:'Spoon',asset_code:null,current_quantity:72,unit:'unit'}]};
+ const turn={...rank.turn,evidence,reply:'Fixture Corner has 72 kilograms of Spoon.'};
+ assert.equal(certifyScenario('asset_spoon',{turn,source}).status,'FAIL');
+ assert.equal(certifyScenario('asset_spoon',{turn:{...turn,reply:'Fixture Corner has 72 units of Spoon.'},source}).status,'PASS');
+ assert.equal(certifyScenario('asset_spoon',{turn:{...turn,reply:'Fixture Corner has 72 units of Spoon, asset code: asset-spoon.'},source}).status,'FAIL');
+ assert.equal(certifyScenario('asset_spoon',{turn:{...turn,reply:'Other Corner has 72 units of Spoon.'},source}).status,'FAIL');
+});

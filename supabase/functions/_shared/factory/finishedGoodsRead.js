@@ -47,6 +47,7 @@ export const finishedGoodsRead = Object.freeze({
  id:inventoryTool.name, module_id:'factory_finished_goods', kind:'READ', version:3,
  label:'Factory Finished Goods', permission:'factory_finished_goods.view',
  discoveryPhrases:['finished goods'],
+ discoveryFamily:'factory_stock_catalogue',
  scope:'Factory shared catalogue · current Admin permissions',
  tool:inventoryTool, validate:inventoryArguments, execute:readInventory,
  testArguments:{query:'',availability:'all'}, authorized:access=>!!access.factory, deniedCode:'factory_read_denied',

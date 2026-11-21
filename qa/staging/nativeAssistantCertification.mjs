@@ -51,8 +51,23 @@ export const scenarios={
   assert.match(reply,new RegExp(`${number(source.quantity)}\\s*(?:${escaped(source.unit)}s?|spoons?)\\b`,'i'));
   if(source.code==null)assert.doesNotMatch(reply,/\b(?:asset\s+)?(?:code|sku)\s*[:=]?\s*asset-spoon\b/i);
  }),
+ asset_count:scenario('Restaurant',['read_asset_catalogue'],'Follow up in the same conversation: How many current asset records are registered at the same outlet? Count asset records, not quantities.',([e],reply,source)=>{
+  assert.equal(e.requested_scope?.mode,'summary');
+  assert.equal(e.outlet.id,source.outletId);
+  assert.equal(e.aggregate_complete,true);
+  assert.equal(e.total_matching,source.count);
+  assert.equal(e.rows.length,0);
+  assert.match(reply,new RegExp(escaped(source.outlet),'i'));
+  assert.match(reply,new RegExp(`${number(source.count)}\\s+(?:current\\s+)?asset records?`,'i'));
+ }),
  fg_rank:scenario('Factory',['read_factory_finished_goods'],'Which Factory finished goods have the three highest stock balances in kg? Include SKU and balance.',ranked('product_code')),
  rm_rank:scenario('Factory',['read_factory_raw_catalogue'],'Follow up to FG ranking: What about the three highest active raw materials, using the same kg unit? List SKU and balance.',ranked('material_code')),
+ employees_rm:scenario('HR / Factory',['read_employee_directory','read_factory_raw_catalogue'],'What is the total authorized Employees headcount, and which three active Factory raw materials have the highest current stock balances in kg? Include SKU and balance for each raw material.',([employees,raw],reply,source)=>{
+  assert.equal(employees.aggregate_complete,true);
+  assert.equal(employees.summary.total,source.total);
+  named(reply,'total(?: employees| headcount)?',source.total);
+  ranked('material_code')([raw],reply,source.ranking);
+ }),
  mixed_units:scenario('Factory',['read_factory_raw_catalogue'],'Which raw materials have the highest balances across all units?',([e],reply,source)=>{
   assert.equal(e.ranking?.status,'unit_required');
   assert.deepEqual(e.ranking.available_units,source.units);

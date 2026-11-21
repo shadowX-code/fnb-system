@@ -319,6 +319,36 @@ test('Employees discovery promotes the strict typed schema and rejects malformed
  assert.equal(src.calls.filter(([name])=>name==='employee_directory_query').length,1);
 });
 
+test('mixed Employees and Raw Materials questions cannot substitute Finished Goods',async()=>{
+ const hr='read_employee_directory',rm='read_factory_raw_catalogue',fg='read_factory_finished_goods';
+ const question='What is the total authorized Employees headcount, and which three active Factory raw materials have the highest current stock balances in kg?';
+ const src=source(),business=createBusinessDispatcher({config,access,caller:src.caller});
+ const excluded=business.excludedForPrompt(question);
+ assert.deepEqual([...excluded],[fg]);
+ assert.equal(business.excludedForPrompt('Compare finished goods and raw materials').size,0);
+ const mismatch=await business.execute('find_business_queries',{search:'finished goods',page:1},undefined,{excluded});
+ assert(!mismatch.operations.some(op=>op.operation===fg));
+ await assert.rejects(business.execute('run_business_query',envelope(fg,{}),undefined,{excluded}),{code:'tool_not_allowed'});
+ const committed=[];
+ let requests=0;
+ await generateText({prompt:question,kind:'turn',model:config.model},'fixture-secret',{
+  business,onTool:(state,evidence)=>{if(state==='completed')committed.push(evidence);},
+  transport:async(_,init)=>{
+   const body=JSON.parse(init.body);
+   assert.equal(body.tools.some(tool=>tool.name===fg),false);
+   if(++requests===1){
+    assert(body.tools.some(tool=>tool.name===hr));assert(body.tools.some(tool=>tool.name===rm));
+    return response([functionCall(hr,{mode:'summary'},'hr')]);
+   }
+   if(requests===2)return response([functionCall(rm,{mode:'list',status:'active',sort:'balance_desc',uom:'kg'},'raw')]);
+   return response([{type:'message',content:[{type:'output_text',text:'6 employees; RM-25 has 25 kg of raw material.'}]}]);
+  },
+ });
+ assert.deepEqual(committed.map(item=>item.capability),[hr,rm]);
+ assert.equal(committed[1].rows[0].material_code,'RM-25');
+ assert(!src.calls.some(([table])=>table==='factory_finished_goods'));
+});
+
 test('OpenAI Voice can discover newly authorized operations with a narrow starting snapshot',async()=>{
  const initial={...config,capability_connections:{}};
  const voice=await dispatch({action:'realtime_sdk_connect',provider:'openai',session_id:id,request_id:id,

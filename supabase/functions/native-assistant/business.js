@@ -1,4 +1,4 @@
-import {queryDiscoveryTools,isQueryEnvelope,queryEnvelopeArguments,discoverQueries} from '../_shared/assistant/queryDiscovery.js';
+import {queryDiscoveryTools,isQueryEnvelope,queryEnvelopeArguments,discoverQueries,excludeCompetingQueries} from '../_shared/assistant/queryDiscovery.js';
 import {employeeDirectoryRead} from '../_shared/people/employeeDirectoryRead.js';
 import {restaurantGapReads} from '../_shared/restaurant/gapReads.js';
 import {financeGapReads} from '../_shared/finance/gapReads.js';
@@ -72,19 +72,21 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
  return {
   capabilities,
   tools:(()=>{const offered=operations.filter(operation=>capabilities.find(item=>item.id===operation.id)?.availability==='connected');return offered.length>8?queryDiscoveryTools:offered.map(operation=>operation.tool);})(),
-  toolsForPrompt(prompt){
+  excludedForPrompt:prompt=>excludeCompetingQueries(operations,prompt),
+  toolsForPrompt(prompt,excluded=new Set()){
    if(typeof prompt!=='string'||!prompt.trim())return [];
-   const match=discoverQueries(operations,capabilities,{search:prompt.slice(0,240),page:1});
+   const match=discoverQueries(operations.filter(operation=>!excluded.has(operation.id)),capabilities,{search:prompt.slice(0,240),page:1});
    return match.operations.filter(item=>item.kind==='READ').slice(0,2).map(item=>resolve(item.operation).tool);
   },
-  async execute(id,args,signal,{correctArguments=false}={}){
+  async execute(id,args,signal,{correctArguments=false,excluded=new Set()}={}){
    const enveloped=id==='run_business_query';
    if(isQueryEnvelope(id)){
     const parsed=queryEnvelopeArguments(id,args);
-    if(id==='find_business_queries'){const current=loadConfig?await loadConfig():config||{};return discoverQueries(operations,businessCapabilities(current,access||{}),parsed);}
+    if(id==='find_business_queries'){const current=loadConfig?await loadConfig():config||{};return discoverQueries(operations.filter(operation=>!excluded.has(operation.id)),businessCapabilities(current,access||{}),parsed);}
     id=parsed.operation;args=parsed.args;
    }
    const operation=resolve(id);
+   if(excluded.has(id))throw new AssistantError('tool_not_allowed',403);
    // ACTION requires a separate, server-owned execution authority and confirmed
    // intent. Neither a tool argument nor the human's existing permission grants it.
 
