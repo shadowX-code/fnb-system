@@ -78,7 +78,7 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
    const match=discoverQueries(operations.filter(operation=>!excluded.has(operation.id)),capabilities,{search:prompt.slice(0,240),page:1});
    return match.operations.filter(item=>item.kind==='READ').slice(0,2).map(item=>resolve(item.operation).tool);
   },
-  async execute(id,args,signal,{correctArguments=false,excluded=new Set()}={}){
+  async execute(id,args,signal,{correctArguments=false,excluded=new Set(),prompt}={}){
    const enveloped=id==='run_business_query';
    if(isQueryEnvelope(id)){
     const parsed=queryEnvelopeArguments(id,args);
@@ -94,6 +94,7 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
    if(operation.kind==='ACTION'&&current.ai_action_authorizations?.[id]!==true)throw new AssistantError('action_not_authorized',403);
    if(!capabilityConnected(current,id))throw new AssistantError('capability_disconnected',403);
    if(!operation.authorized(access||{}))throw new AssistantError(operation.deniedCode,403);
+   if(operation.kind==='READ'&&typeof prompt==='string'&&operation.scopeTextArguments)args=operation.scopeTextArguments(args,prompt);
    try{
     if(args===undefined)throw new AssistantError('tool_arguments_invalid',400);
     operation.validate(args);

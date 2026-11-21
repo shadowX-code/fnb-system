@@ -338,15 +338,19 @@ test('mixed Employees and Raw Materials questions cannot substitute Finished Goo
    assert.equal(body.tools.some(tool=>tool.name===fg),false);
    if(++requests===1){
     assert(body.tools.some(tool=>tool.name===hr));assert(body.tools.some(tool=>tool.name===rm));
-    return response([functionCall(hr,{mode:'summary'},'hr')]);
+    return response([functionCall(hr,{mode:'summary',status:'active'},'hr')]);
    }
    if(requests===2)return response([functionCall(rm,{mode:'list',status:'active',sort:'balance_desc',uom:'kg'},'raw')]);
    return response([{type:'message',content:[{type:'output_text',text:'6 employees; RM-25 has 25 kg of raw material.'}]}]);
   },
  });
  assert.deepEqual(committed.map(item=>item.capability),[hr,rm]);
+ assert.equal(committed[0].requested_scope.status,'all');
+ assert.equal(committed[1].requested_scope.status,'active');
  assert.equal(committed[1].rows[0].material_code,'RM-25');
  assert(!src.calls.some(([table])=>table==='factory_finished_goods'));
+ const explicitlyActive=await business.execute(hr,{mode:'summary',status:'active'},undefined,{prompt:'What is the total active employee headcount?'});
+ assert.equal(explicitlyActive.requested_scope.status,'active');
 });
 
 test('OpenAI Voice can discover newly authorized operations with a narrow starting snapshot',async()=>{

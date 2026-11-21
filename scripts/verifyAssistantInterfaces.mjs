@@ -14,7 +14,7 @@ for(const o of operations){
  if(o.kind==='READ'&&(!o.moduleInterface.human_permission||!o.moduleInterface.source||!o.moduleInterface.exposure))throw Error(`Incomplete READ declaration: ${o.id}`);
  if(o.kind==='ACTION'&&!o.moduleInterface.execution_policy)throw Error(`Missing ACTION execution policy: ${o.id}`);
 }
-const current={version:1,operations:Object.fromEntries(operations.map(o=>[o.id,hash(serialize({interface:o.moduleInterface,tool:o.tool,discovery:o.discoveryPhrases,discoveryFamily:o.discoveryFamily,load:o.load,query:o.query,rpc:o.rpc,arguments:o.arguments,project:o.project,check:o.check,normalize:o.normalizeArguments,policyGroup:o.policyGroup,execute:o.execute,authorize:o.authorized}))])),sources:Object.fromEntries([...new Set([...domainFiles,...consumers,...fixed])].sort().map(p=>[p,hash(fs.readFileSync(p))]))};
+const current={version:1,operations:Object.fromEntries(operations.map(o=>[o.id,hash(serialize({interface:o.moduleInterface,tool:o.tool,discovery:o.discoveryPhrases,discoveryFamily:o.discoveryFamily,textScope:o.scopeTextArguments,load:o.load,query:o.query,rpc:o.rpc,arguments:o.arguments,project:o.project,check:o.check,normalize:o.normalizeArguments,policyGroup:o.policyGroup,execute:o.execute,authorize:o.authorized}))])),sources:Object.fromEntries([...new Set([...domainFiles,...consumers,...fixed])].sort().map(p=>[p,hash(fs.readFileSync(p))]))};
 const file='docs/testing/native-assistant-interface-baseline.json';
 if(process.argv.includes('--record-reviewed')){fs.writeFileSync(file,JSON.stringify(current,null,2)+'\n');console.log(`Recorded reviewed interfaces: ${operations.length}; dependencies: ${Object.keys(current.sources).length}`);}
 else {
