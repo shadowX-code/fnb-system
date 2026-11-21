@@ -6,7 +6,7 @@ import {memoryContext,preferences} from './context.js';
 import {credentialEnvironment,verifyVoiceProvider,providerVoices} from './providerRegistry.js';
 import {createGrokSession,grokReady,grokVoices} from './grokVoice.js';
 import {finishedGoodsRead} from '../_shared/factory/finishedGoodsRead.js';
-import {queryDiscoveryTools} from '../_shared/assistant/queryDiscovery.js';
+import {isQueryEnvelope,queryDiscoveryTools} from '../_shared/assistant/queryDiscovery.js';
 import {createBusinessDispatcher,validateBusinessArguments,businessOperation,businessToolIdentity,businessToolArgumentShape} from './business.js';
 import {realtimeModel,realtimeTranscriptionModel,realtimeReady,realtimeVoices,voiceInstructions} from './realtime.js';
 import {AssistantError,connection,publicRuntime,generateText,models} from './provider.js';
@@ -57,7 +57,11 @@ export function validateBody(body){
  if(body.action==='realtime_turn'&&body.details!==undefined&&(body.details===null||typeof body.details!=='object'||Array.isArray(body.details)||Object.keys(body.details).some(k=>k!=='reason')||!['provider_completed','missing_assistant_transcript','provider_cancelled','provider_incomplete','provider_failed','max_output_tokens','content_filter','session_ended','session_expired','transport_disconnected','provider_error','lease_failed','turn_limit'].includes(body.details.reason)))throw new AssistantError('invalid_request',400);
  if(body.action==='action_confirm'&&(typeof body.fingerprint!=='string'||!/^[a-f0-9]{32}$/.test(body.fingerprint)))throw new AssistantError('invalid_request',400);
  if(body.action==='action_policy'&&(businessOperation(body.operation).kind!=='ACTION'||typeof body.enabled!=='boolean'||!Number.isSafeInteger(body.expected_revision)))throw new AssistantError('configuration_invalid',400);
- if(body.action==='realtime_tool')validateBusinessArguments(voiceToolOperation(body),body.arguments);
+ if(body.action==='realtime_tool'){
+  const operation=voiceToolOperation(body);
+  if(body.provider==='openai'&&!isQueryEnvelope(operation))businessOperation(operation);
+  else validateBusinessArguments(operation,body.arguments);
+ }
  return body;
 }
 function voiceToolOperation(args) {
@@ -133,7 +137,7 @@ export async function dispatch(body,{voiceUsage,rpc,get,signal,transport,caller,
     stage = 'lease';
     await reserveRealtime('tool',args);
     stage = 'dispatch';
-    const evidence=await business.execute(tool,args.arguments,signal);
+    const evidence=await business.execute(tool,args.arguments,signal,{correctArguments:args.provider==='openai'});
     if(args.turn_id&&!evidence.not_business_evidence){
      stage = 'evidence';
      await voiceHistory({...args,step:'evidence',evidence});

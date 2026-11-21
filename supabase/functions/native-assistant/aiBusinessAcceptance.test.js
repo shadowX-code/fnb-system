@@ -260,11 +260,12 @@ test('a scoped question gets the registered schema before the generic runner can
    if(++requests===1){
     assert.deepEqual(body.tools.map(tool=>tool.name),['read_asset_catalogue','find_business_queries']);
     return response([functionCall('read_asset_catalogue',{
-     page:1,outlet_id:null,outlet_name:'Fixture Corner',mode:'detail',query:'asset-spoon',
+     page:1,outlet_id:null,outlet_name:'Fixture Corner',mode:'summary',query:'asset-spoon',
     },'asset-current')]);
    }
    const result=JSON.parse(body.input.at(-1).output);
    assert.equal(result.capability,'read_asset_catalogue');
+   assert.equal(result.requested_scope.mode,'detail');
    assert.equal(result.rows[0].current_quantity,15);
    return response([{type:'message',content:[{type:'output_text',text:'Fixture Corner has 15 Spoon units.'}]}]);
   },
@@ -272,6 +273,20 @@ test('a scoped question gets the registered schema before the generic runner can
  assert.equal(requests,2);assert.equal(reply.reply,'Fixture Corner has 15 Spoon units.');
  const disconnected=createBusinessDispatcher({config:{...config,capability_connections:{...config.capability_connections,read_asset_catalogue:false}},access,caller});
  assert(!disconnected.toolsForPrompt(question).some(tool=>tool.name==='read_asset_catalogue'));
+});
+
+test('named Text and SDK schema errors return exact correction only after authorization',async()=>{
+ const operation='read_asset_catalogue';
+ const args={mode:'detail',outlet_name:'Fixture Corner'};
+ const src=source();
+ const expected=await createBusinessDispatcher({config,access,caller:src.caller}).execute(operation,args,undefined,{correctArguments:true});
+ assert.equal(expected.operation,operation);
+ assert.equal(expected.error,'tool_arguments_invalid');
+ assert.equal(expected.no_evidence,true);
+ const voice=await dispatch(voiceRequest(operation,args),{get:()=>undefined,access,caller:src.caller,
+  rpc:async()=>({config}),reserveRealtime:async()=>{},voiceHistory:async()=>assert.fail('No evidence to save')});
+ assert.deepEqual(voice,expected);
+ assert.equal(src.calls.length,0);
 });
 
 test('OpenAI Voice can discover newly authorized operations with a narrow starting snapshot',async()=>{

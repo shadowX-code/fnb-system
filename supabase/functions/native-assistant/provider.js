@@ -99,7 +99,7 @@ export async function generateText(claim,key,{transport=fetch,signal,business,on
      const signature=JSON.stringify([calls[0].name,args]);
      if(seenReads.has(signature))evidence=seenReads.get(signature);
      else {
-      evidence=await business.execute(calls[0].name,args,controller.signal);
+      evidence=await business.execute(calls[0].name,args,controller.signal,{correctArguments:true});
       if(!evidence.not_business_evidence&&!evidence.no_evidence){
        const resultBytes=bytes(evidence);
        if(evidenceBytes+resultBytes>14000)throw new AssistantError('business_result_limit',413);

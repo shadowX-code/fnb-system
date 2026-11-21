@@ -60,10 +60,18 @@ export const assetCatalogueRead=readContract({
  discoveryPhrases:['asset tracking','restaurant assets'],
  permission:'asset_tracking.view',source:'/operations/asset-tracking',scope:'Current human permission and one authorized outlet; non-archived Asset Tracking records',
  description:'Read Restaurant Asset Tracking quantities (assets such as spoons and equipment, separate from ingredient or Factory stock). For a named asset or asset code use detail and the exact user phrase as query. Resolve the outlet by its exact name/code using outlet_name, or a verified outlet_id. For count use summary; for catalogue pages use list. Never present an ambiguous or unmatched asset as zero.',
- properties:{page,outlet_id:{...uuid,nullable:true},outlet_name:{type:'string',maxLength:120,nullable:true},mode:{type:'string',enum:['list','summary','detail']},query:{type:'string',maxLength:80}},
- normalizeArguments:a=>a&&typeof a==='object'&&!Array.isArray(a)?{page:1,outlet_id:null,outlet_name:null,mode:'list',query:'',...a,
-  ...(typeof a.query==='string'?{query:a.query.trim()}:{}),...(typeof a.outlet_name==='string'?{outlet_name:a.outlet_name.trim()}:{}),
- }:a,
+ properties:{page,outlet_id:{...uuid,nullable:true,description:'Use null when the user names the outlet.'},outlet_name:{type:'string',maxLength:120,nullable:true,description:'Exact outlet name or code as supplied by the user, or null when using a verified ID.'},mode:{type:'string',enum:['list','summary','detail'],description:'Use detail for the quantity of one named asset. Summary without a query counts asset records.'},query:{type:'string',maxLength:80,description:'Exact asset code or name; empty for unfiltered counts and catalogue pages.'}},
+ normalizeArguments(a){
+  if(!a||typeof a!=='object'||Array.isArray(a))return a;
+  const normalized={page:1,outlet_id:null,outlet_name:null,mode:'list',query:'',...a};
+  if(typeof normalized.query==='string'){
+   normalized.query=normalized.query.trim();
+   // An explicit asset identity is narrower than an unfiltered summary or list.
+   if(normalized.query&&['list','summary'].includes(normalized.mode))normalized.mode='detail';
+  }
+  if(typeof normalized.outlet_name==='string')normalized.outlet_name=normalized.outlet_name.trim()||null;
+  return normalized;
+ },
  check:a=>{if((a.mode==='detail')!==!!a.query||a.mode!=='list'&&a.page!==1||a.outlet_id&&a.outlet_name)throw new AssistantError('tool_arguments_invalid',400);},
  load:loadAssetCatalogue,project:d=>d,
  interface:{authority:'Outlet-scoped Asset Tracking asset_items read model',queryKinds:['count','summary','list','search','detail','filter'],fields,

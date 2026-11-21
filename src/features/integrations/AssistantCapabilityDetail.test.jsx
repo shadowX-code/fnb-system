@@ -88,7 +88,7 @@ it('ordinary module policy explicitly groups reviewed reads without hiding mixed
 it('explains an unsupported module without showing an empty access-control section',()=>{
  const module=capabilityInventory().find(row=>row.id==='space_station');
  render(<AssistantCapabilityDetail row={module} data={{config:{revision:4}}} canEdit onFeature={vi.fn()} onClose={()=>{}}/>);
- expect(screen.getByText('No Assistant operations are available for this module.')).toBeTruthy();
+ expect(screen.getByText(/virtual workspace navigation and simulation have no independent business records/i)).toBeTruthy();
  expect(screen.queryByRole('region',{name:'AI Read Access'})).toBeNull();
  expect(screen.queryByRole('region',{name:'AI Actions'})).toBeNull();
 });

@@ -77,7 +77,7 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
    const match=discoverQueries(operations,capabilities,{search:prompt.slice(0,240),page:1});
    return match.operations.filter(item=>item.kind==='READ').slice(0,2).map(item=>resolve(item.operation).tool);
   },
-  async execute(id,args,signal){
+  async execute(id,args,signal,{correctArguments=false}={}){
    const enveloped=id==='run_business_query';
    if(isQueryEnvelope(id)){
     const parsed=queryEnvelopeArguments(id,args);
@@ -96,7 +96,7 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
     if(args===undefined)throw new AssistantError('tool_arguments_invalid',400);
     operation.validate(args);
    }catch(error){
-    if(enveloped&&error.code==='tool_arguments_invalid')return {error:'tool_arguments_invalid',not_business_evidence:true,no_evidence:true,operation:id,operation_label:operation.label,parameters:operation.tool.parameters,instruction:'Encode a valid JSON object with this exact schema. Preserve only explicit, supported filters. Null optional scope filters mean the current authorized scope. No business read or action occurred.'};
+    if((enveloped||correctArguments)&&error.code==='tool_arguments_invalid')return {error:'tool_arguments_invalid',not_business_evidence:true,no_evidence:true,operation:id,operation_label:operation.label,parameters:operation.tool.parameters,instruction:'Use this exact schema and operation description. Preserve explicit, supported filters. No business read or action occurred.'};
     throw error;
    }
    signal?.throwIfAborted();
