@@ -1,3 +1,4 @@
+import {createVoiceMetering} from '../../../supabase/functions/_shared/assistant/voiceMetering.js';
 import {createVoiceAudioMeter} from './voiceAudioMeter.js';
 import {assistantErrors} from './nativeAssistantService.js';
 import { createSdkVoiceHistory } from './sdkVoiceHistory.js';
@@ -12,7 +13,22 @@ export function createSdkVoiceBaseline({ call, getSession, post, onChange }) {
   post('voice_state', { state: state === 'thinking' ? 'transcribing' : state });
  }
 
- function stop(message = '', state = 'idle', reason = 'session_ended') {
+ function reportUsage(run, cleanEnd = false) {
+  const metering = run.metering.snapshot(cleanEnd);
+  if (!metering.revision || (!cleanEnd && run.reportedRevision === metering.revision)) return Promise.resolve();
+  run.reportedRevision = metering.revision;
+  return call('voice_usage_report', {
+   request_id: run.lease.request_id,
+   input_audio_tokens: run.report.usageReported ? run.report.inputAudio : null,
+   output_audio_tokens: run.report.usageReported ? run.report.outputAudio : null,
+   duration_ms: Math.round(performance.now() - run.started),
+   metering,
+  }, AbortSignal.timeout(4000)).catch(() => {
+   if (run.reportedRevision === metering.revision) run.reportedRevision = undefined;
+  });
+ }
+
+ function stop(message = '', state = 'idle', reason = 'session_ended', explicit = true) {
   const run = active;
   if (!run) return closing;
   active = null;
@@ -27,7 +43,7 @@ export function createSdkVoiceBaseline({ call, getSession, post, onChange }) {
   show('ending','Releasing the voice connection…');
   closing = Promise.all([run.observations, run.history?.close(reason)]).then(async()=>{
    if(!run.requested)return;
-   await call('voice_usage_report',{request_id:run.lease.request_id,input_audio_tokens:run.report.usageReported?run.report.inputAudio:null,output_audio_tokens:run.report.usageReported?run.report.outputAudio:null,duration_ms:run.report.durationMs}).catch(()=>{});
+   await reportUsage(run, explicit && reason === 'session_ended' && state === 'idle' && run.connected === true);
    await call('realtime_end',run.lease);
   }).catch(()=>{message='Voice ended locally. Server cleanup is pending; check availability before reconnecting.';state='error';}).finally(()=>{
    finishing=false;show(state,message,run.report);
@@ -41,6 +57,7 @@ export function createSdkVoiceBaseline({ call, getSession, post, onChange }) {
   const lease = { session_id, request_id: crypto.randomUUID(), provider };
   const run = {
    lease,
+   metering: createVoiceMetering(),
    observations:Promise.resolve(),
    controller: new AbortController(),
    started: performance.now(),
@@ -130,6 +147,7 @@ export function createSdkVoiceBaseline({ call, getSession, post, onChange }) {
    });
    session.on('transport_event', raw => {
     if (active !== run) return;
+    run.metering.receive(raw);
     const { type, response } = raw;
     if (type === 'input_audio_buffer.speech_started' && run.report.detectedTurns >= 12) {
      stop('This call reached its 12-turn safety limit. Start voice to continue.', 'idle', 'turn_limit');
@@ -207,6 +225,7 @@ export function createSdkVoiceBaseline({ call, getSession, post, onChange }) {
     return checking;
    };
    if(authorization.webrtc_url)run.heartbeat=setInterval(()=>{
+    void reportUsage(run);
     // Keep the bounded lease alive in background tabs; visualization alone is suspended.
     if(document.hidden){void call('realtime_heartbeat',lease).then(()=>{if(active===run)run.lastLease=Date.now();}).catch(leaseFailure);}
     else void run.reconcile();

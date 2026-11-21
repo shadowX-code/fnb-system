@@ -24,7 +24,7 @@ it('tab away/return during listening and speaking retains one SDK connection and
   f.hide(false);await f.voice.reconcile();expect(f.onChange.mock.lastCall[0].state).toBe(speaking?'speaking':'listening');
  }
  expect(sdk.sessions).toHaveLength(1);expect(f.call.mock.calls.filter(([a])=>a==='realtime_sdk_connect')).toHaveLength(1);
- await f.voice.stop();await f.voice.stop();expect(f.call.mock.calls.filter(([a])=>a==='realtime_end')).toHaveLength(1);expect(f.call.mock.calls.filter(([a])=>a==='voice_usage_report')).toHaveLength(1);expect(sdk.transports[0].track.stop).toHaveBeenCalledTimes(1);expect(vi.getTimerCount()).toBe(0);
+ await f.voice.stop();await f.voice.stop();expect(f.call.mock.calls.filter(([a])=>a==='realtime_end')).toHaveLength(1);expect(f.call.mock.calls.filter(([a])=>a==='voice_usage_report')).toHaveLength(0);expect(sdk.transports[0].track.stop).toHaveBeenCalledTimes(1);expect(vi.getTimerCount()).toBe(0);
 });
 it('a failed peer releases state and can restart without refresh; return does not auto-create a call',async()=>{
  const f=fixture();await f.voice.start('openai','cedar');await f.voice.reconcile();sdk.transports[0].peer.connectionState='failed';await f.voice.reconcile();

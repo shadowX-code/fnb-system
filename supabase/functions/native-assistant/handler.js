@@ -1,3 +1,5 @@
+import {normalizeVoiceMetering} from '../_shared/assistant/voiceMetering.js';
+import {priceVoiceMetering} from './voicePricing.js';
 import {modulePolicyMembers} from './business.js';
 import {assembleContext,contextInstructions,explicitRecallQuery,estimatedTextCost} from './conversationContext.js';
 import {memoryContext,preferences} from './context.js';
@@ -6,7 +8,7 @@ import {createGrokSession,grokReady,grokVoices} from './grokVoice.js';
 import {finishedGoodsRead} from '../_shared/factory/finishedGoodsRead.js';
 import {queryDiscoveryTools} from '../_shared/assistant/queryDiscovery.js';
 import {createBusinessDispatcher,validateBusinessArguments,businessOperation,businessToolIdentity,businessToolArgumentShape} from './business.js';
-import {realtimeModel,realtimeReady,realtimeVoices,voiceInstructions} from './realtime.js';
+import {realtimeModel,realtimeTranscriptionModel,realtimeReady,realtimeVoices,voiceInstructions} from './realtime.js';
 import {AssistantError,connection,publicRuntime,generateText,models} from './provider.js';
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 function textAdmission(error) {
@@ -15,13 +17,18 @@ function textAdmission(error) {
  reset.setUTCHours(24,0,0,0);
  throw new AssistantError(error.code,error.status,{reset_at:reset.toISOString()});
 }
-const fields={action_list:['session_id'],action_confirm:['intent_id','fingerprint'],action_cancel:['intent_id'],action_policy:['operation','enabled','expected_revision'],voice_usage_report:['request_id','input_audio_tokens','output_audio_tokens','duration_ms'],voice_usage:[],voice_policy_save:['revision','enabled','maximum_seconds','concurrency','daily_sessions'],voice_allowance_request:['cents','reason'],voice_allowance_review:['id','decision'],realtime_heartbeat:['session_id','request_id','provider'],realtime_sdk_observe:['session_id','request_id','provider','milestone'],realtime_sdk_connect:['session_id','request_id','provider','voice','connection_protocol'],provider_list:[],provider_put:['provider','credential','approval_reference'],provider_revoke:['provider'],provider_test:['provider','session_id','request_id','sdp'],provider_activate:['provider','voice'],realtime_connect:['session_id','request_id','voice','provider'],realtime_tool:['session_id','request_id','provider','arguments','turn_id','operation'],realtime_turn:['session_id','request_id','provider','turn_id','step','text','details'],realtime_end:['session_id','request_id','provider'],capability_connection:['operation','enabled','expected_revision'],capability_test:['operation','arguments'],configuration:[],configure:['provider','model','credential_ref','enabled','expected_revision'],status:[],test:['request_id'],history_recall:['query','exclude_session_id'],session_list:['query','before_activity','before_id'],session_new:[],session_rename:['session_id','title'],session_delete:['session_id'],memory_get:[],memory_save:['enabled',...Object.keys(preferences)],memory_delete:[],storage_usage:[],history:['session_id','before_seq'],begin:['session_id','request_id','text'],respond:['session_id','turn_id'],cancel:['session_id','turn_id'],turn_status:['session_id','turn_id']};
+const fields={action_list:['session_id'],action_confirm:['intent_id','fingerprint'],action_cancel:['intent_id'],action_policy:['operation','enabled','expected_revision'],voice_usage_report:['request_id','input_audio_tokens','output_audio_tokens','duration_ms','metering'],voice_usage:['period','status','page'],voice_policy_save:['revision','enabled','maximum_seconds','concurrency','daily_sessions'],voice_allowance_request:['cents','reason'],voice_allowance_review:['id','decision'],realtime_heartbeat:['session_id','request_id','provider'],realtime_sdk_observe:['session_id','request_id','provider','milestone'],realtime_sdk_connect:['session_id','request_id','provider','voice','connection_protocol'],provider_list:[],provider_put:['provider','credential','approval_reference'],provider_revoke:['provider'],provider_test:['provider','session_id','request_id','sdp'],provider_activate:['provider','voice'],realtime_connect:['session_id','request_id','voice','provider'],realtime_tool:['session_id','request_id','provider','arguments','turn_id','operation'],realtime_turn:['session_id','request_id','provider','turn_id','step','text','details'],realtime_end:['session_id','request_id','provider'],capability_connection:['operation','enabled','expected_revision'],capability_test:['operation','arguments'],configuration:[],configure:['provider','model','credential_ref','enabled','expected_revision'],status:[],test:['request_id'],history_recall:['query','exclude_session_id'],session_list:['query','before_activity','before_id'],session_new:[],session_rename:['session_id','title'],session_delete:['session_id'],memory_get:[],memory_save:['enabled',...Object.keys(preferences)],memory_delete:[],storage_usage:[],history:['session_id','before_seq'],begin:['session_id','request_id','text'],respond:['session_id','turn_id'],cancel:['session_id','turn_id'],turn_status:['session_id','turn_id']};
 export function validateBody(body){
  if(!body||typeof body!=='object'||Array.isArray(body)||!Object.hasOwn(fields,body.action))throw new AssistantError('invalid_request',400);
  const allowed=['action',...fields[body.action]];if(Object.keys(body).some(k=>!allowed.includes(k)))throw new AssistantError('invalid_request',400);
  for(const k of fields[body.action])if(k.endsWith('_id')&&!['before_id','exclude_session_id'].includes(k)&&!(k==='turn_id'&&body.action==='realtime_tool'&&body[k]===undefined)&&!uuid.test(body[k]||''))throw new AssistantError('invalid_request',400);
  if(body.action==='history_recall'&&(typeof body.query!=='string'||body.query.trim().length<2||body.query.length>80||body.exclude_session_id!==undefined&&!uuid.test(body.exclude_session_id)))throw new AssistantError('invalid_request',400);
  if(body.action==='voice_usage_report'&&(['input_audio_tokens','output_audio_tokens','duration_ms'].some(k=>body[k]!==null&&(!Number.isSafeInteger(body[k])||body[k]<0||body[k]>3600000))))throw new AssistantError('invalid_request',400);
+ if(body.action==='voice_usage_report'&&body.metering!==undefined&&!normalizeVoiceMetering(body.metering))throw new AssistantError('invalid_request',400);
+ if(body.action==='voice_usage'&&(
+  body.period!==undefined&&!['month','7d','30d','all'].includes(body.period)
+  ||body.status!==undefined&&!['all','reserved','connecting','active','closing','closed','failed','historical'].includes(body.status)
+  ||body.page!==undefined&&(!Number.isSafeInteger(body.page)||body.page<1||body.page>100000)))throw new AssistantError('invalid_request',400);
  if(body.action==='voice_policy_save'&&(!Number.isInteger(body.revision)||typeof body.enabled!=='boolean'||!Number.isInteger(body.maximum_seconds)||body.maximum_seconds<30||body.maximum_seconds>180||!Number.isInteger(body.concurrency)||body.concurrency<1||body.concurrency>8||body.daily_sessions!==null&&(!Number.isInteger(body.daily_sessions)||body.daily_sessions<0||body.daily_sessions>100)))throw new AssistantError('configuration_invalid',400);
  if(body.action==='voice_allowance_request'&&(!Number.isInteger(body.cents)||body.cents<1||body.cents>10000||typeof body.reason!=='string'||body.reason.trim().length<4||body.reason.length>160))throw new AssistantError('invalid_request',400);
  if(body.action==='voice_allowance_review'&&(!uuid.test(body.id)||!['approved','denied'].includes(body.decision)))throw new AssistantError('invalid_request',400);
@@ -80,6 +87,10 @@ export async function dispatch(body,{voiceUsage,rpc,get,signal,transport,caller,
  }
  const {action,connection_protocol,...args}=body;
  if(action.startsWith('action_')){const {data,error}=await caller.rpc('native_assistant_action',{p_step:action.slice(7),p_payload:args}).abortSignal(signal);if(error)throw new AssistantError('action_not_authorized',403);return data;}
+ if(action==='voice_usage_report'&&args.metering!==undefined){
+  const priced=priceVoiceMetering(normalizeVoiceMetering(args.metering),realtimeModel,realtimeTranscriptionModel);
+  return voiceUsage('report_metering',{request_id:args.request_id,duration_ms:args.duration_ms,metering:priced});
+ }
  if(action.startsWith('voice_')&&['voice_usage_report','voice_usage','voice_policy_save','voice_allowance_request','voice_allowance_review'].includes(action))return voiceUsage(({voice_usage_report:'report',voice_usage:'get',voice_policy_save:'save',voice_allowance_request:'request',voice_allowance_review:'review'})[action],args);
  if(['history_recall','session_list','session_new','session_rename','session_delete','history','memory_get','memory_save','memory_delete','storage_usage'].includes(action))return rpc(action,args);
  if(action.startsWith('provider_')){

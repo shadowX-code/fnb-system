@@ -2,6 +2,7 @@ import {businessEvidenceInstructions,domainQueryInstructions} from '../_shared/a
 import { AssistantError, providerJson } from './provider.js';
 
 export const realtimeModel = 'gpt-realtime-2.1-mini';
+export const realtimeTranscriptionModel = 'gpt-transcribe';
 export const realtimeVoices = ['cedar', 'marin', 'echo', 'ash', 'alloy'];
 export const voiceInstructions = businessEvidenceInstructions+domainQueryInstructions+' You are FeedX Assistant. Speak in the user’s language. Lead with the requested figures and keep spoken summaries or failure explanations to two short sentences so they fit the audio response budget. Cite source and scope briefly. Report the attempted operation and its actual failure reason without retrying a denied or unavailable read. Schema feedback allows correcting invalid arguments only. A draft preview is not execution: the user must confirm in Pending actions. Never publish, approve, post stock or make payments.';
 const endpoint = 'https://api.openai.com/v1/realtime/calls';
@@ -26,7 +27,7 @@ export async function createRealtimeCall({ sdp, voice, tools, transcription = tr
   instructions,
   ...(tools.length ? { tools, tool_choice: 'auto' } : {}),
   audio: {
-   input: { noise_reduction: { type: 'near_field' }, ...(transcription?{transcription: { model: 'gpt-transcribe', prompt: 'Malaysian English, Mandarin and Malay may occur in the same utterance. Preserve the spoken language.' }}:{}), turn_detection: { type: 'server_vad', threshold: 0.67, prefix_padding_ms: 350, silence_duration_ms: 850, create_response: true, interrupt_response: true } },
+   input: { noise_reduction: { type: 'near_field' }, ...(transcription?{transcription: { model: realtimeTranscriptionModel, prompt: 'Malaysian English, Mandarin and Malay may occur in the same utterance. Preserve the spoken language.' }}:{}), turn_detection: { type: 'server_vad', threshold: 0.67, prefix_padding_ms: 350, silence_duration_ms: 850, create_response: true, interrupt_response: true } },
    output: { voice },
   },
  }));
@@ -43,7 +44,7 @@ export async function createRealtimeCall({ sdp, voice, tools, transcription = tr
  if(!response.ok)await rejectRealtime(response,endpoint);
  const answer = await response.text();
  if (!answer.startsWith('v=0') || answer.length > 24000) throw new AssistantError('realtime_unavailable', 502);
- return { sdp: answer, call_id: response.headers.get('Location')?.split('/').pop() };
+ return { sdp: answer, model: realtimeModel, transcription_model: transcription ? realtimeTranscriptionModel : null, call_id: response.headers.get('Location')?.split('/').pop() };
 }
 
 async function rejectRealtime(response,endpoint){

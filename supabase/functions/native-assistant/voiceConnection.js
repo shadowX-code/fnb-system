@@ -28,7 +28,7 @@ export async function connectVoice(request,token,{connection,registry,transport}
   if(entry.active_voice!==lease.config.voice)throw new AssistantError('configuration_changed',409);
   result=await createRealtimeCall({sdp,...lease.config},credentialEnvironment('openai',entry),{transport});
   if(!validCall(result.call_id))throw new AssistantError('realtime_call_binding_failed',502);
-  const bound=await connection('bind',{actor:lease.actor,request_id:lease.request_id,call_id:result.call_id,provider_revision:entry.revision});
+  const bound=await connection('bind',{actor:lease.actor,request_id:lease.request_id,call_id:result.call_id,provider_revision:entry.revision,model:result.model,transcription_model:result.transcription_model});
   if(bound.state!=='active')throw new AssistantError('voice_session_expired',409);
   return result;
  }catch(error){

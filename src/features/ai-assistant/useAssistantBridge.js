@@ -191,7 +191,7 @@ export default function useAssistantBridge(frame,userId,onUsage){
    refresh:()=>realtimeRef.current?.refresh(),
    resume:()=>realtimeRef.current?.resume(),
    usage:onUsage,
-   stop(){return realtime?.stop();},
+   stop(){return controllerProvider==='openai' ? realtime?.stop('','idle','session_ended',false) : realtime?.stop();},
    setAvailable(runtime){setTextReady(runtime.ready===true);available=runtime.realtime||{};voiceDefault=runtime.voice_default;voicePolicy=runtime.voice_policy;updateRealtime({state:'idle',active:false});}
   }});
   bridgeRef.current=bridge;

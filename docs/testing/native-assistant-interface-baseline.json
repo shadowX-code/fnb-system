@@ -148,6 +148,7 @@
     "supabase/functions/_shared/assistant/moduleInterface.js": "52fcc1796e5920332bf47fa481643583edefbd9275e8e9a19da98eccaa494f4c",
     "supabase/functions/_shared/assistant/queryDiscovery.js": "8fb0d494c55629fff9a5e4293ddaf5531d54a7289509d57b6ad4437e53cbfc6d",
     "supabase/functions/_shared/assistant/readContract.js": "10032e681ea2ff0e9598831faa98535216ae30c0c49fff2846f47907f3e7203b",
+    "supabase/functions/_shared/assistant/voiceMetering.js": "ce371f2c036b551d7fe08548524924694500b42d4dfc4e4de16a39a438e30c5c",
     "supabase/functions/_shared/completeRows.js": "bd81a9246f0073b1d2b204fc431225004c91176e84322e96aadd5ddc6f6f9ed4",
     "supabase/functions/_shared/crew/gapReads.js": "977eb1a3002644dc6d4f135ee2efec8f880a01493cbf4e304213f39cb8cf2b7c",
     "supabase/functions/_shared/crew/leaveRead.js": "46f72df7bb3ce79dfb86ef483310580a037d9b4011b57e30ee27a0866f8b438f",
@@ -178,9 +179,9 @@
     "supabase/functions/_shared/restaurant/dataHealth.js": "f7315f9e4b4c4193eb59902b31f7c0d76206605c7fcba357da649d430310d720",
     "supabase/functions/_shared/restaurant/gapReads.js": "0f4a424cf756504320bdfeed5014da07d2658336d72f8172df20b3643df04ad4",
     "supabase/functions/native-assistant/business.js": "9ed45bdd28161e10877b8d6d08442641adab025a867950314e18a3743b3193d2",
-    "supabase/functions/native-assistant/handler.js": "7cd57441a815ac096e987a1fc8e6f92f7e83d0f25efa4b2c7b377c9c59080206",
+    "supabase/functions/native-assistant/handler.js": "a5ceb15059aa553d0e150d219b3d51e2b872e31ef602fd5d20b87dbbbb5f6694",
     "supabase/functions/native-assistant/provider.js": "02f8e291f0b4ded8398743ca46fc2e5c15f0fa90b14f16d9a728312fc04fa349",
-    "supabase/functions/native-assistant/realtime.js": "73430db88fe2e74d344603b2fe90b277eca297ddd4c1561dfbecccb4dcd9820e",
+    "supabase/functions/native-assistant/realtime.js": "8009e7ed490b3e5c224ef68088b5ab6e7af9c5427cb542df375344c85ceb6f4b",
     "supabase/migrations/202605110001_core_dependency_baseline.sql": "0c58b3e0c264bd7913b97991a119ed672d776dff3f9d4adfa6b0d47f677addab",
     "supabase/migrations/202605120001_company_user_rbac.sql": "edb0232adc92eb43242ae1d0142085b5ba275dcd0e1d5083380fdcca4e503793",
     "supabase/migrations/202605150001_align_rbac_with_module_registry.sql": "113d0ef3bc61981a811e7783c405ca32e01c98dc38c2476a4c810d5222357353",
@@ -779,6 +780,7 @@
     "supabase/migrations/20261120163904_restaurant_master_stock_uom.sql": "d8a8757a277d624e582040b1fbcea679a64ca42c225ba1c497db0f81851a6b65",
     "supabase/migrations/20261121030033_restaurant_versioned_inventory_uom.sql": "38d9cbc98009a5d19617bfd20264fe095f24c53d7c010caf22f24b6bd26efcdb",
     "supabase/migrations/20261121032618_restaurant_simplify_stock_uom_change.sql": "b035a5049f658a881f871759be1bd55ae817e0a8689a5cd565adb41e03bd31a9",
-    "supabase/migrations/20261121072223_restaurant_uom_ignore_expired_scheduled_checks.sql": "a570ff17ab3fd14093126a0cc8b6947d5f4811c0ff4a00bbd0cfb16568c27174"
+    "supabase/migrations/20261121072223_restaurant_uom_ignore_expired_scheduled_checks.sql": "a570ff17ab3fd14093126a0cc8b6947d5f4811c0ff4a00bbd0cfb16568c27174",
+    "supabase/migrations/20261121181912_assistant_voice_usage_attribution.sql": "8e8ed5c66c9715930c504904c2b76788d5a9a516f3ca8f70a88864a0b8780866"
   }
 }
