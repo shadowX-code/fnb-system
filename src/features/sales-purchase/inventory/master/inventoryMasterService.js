@@ -365,11 +365,11 @@ export async function loadInventoryStockUomHistory(itemId) {
   return data;
 }
 
-export async function changeInventoryStockUom({ itemId, unit, reason, expectedUnit, expectedChangeId, oldQuantity, newQuantity, expectedCostRevisionId, verified, requestId }) {
+export async function changeInventoryStockUom({ itemId, unit, expectedUnit, expectedChangeId, conversion, expectedCostRevisionId, requestId }) {
   const { data, error } = await supabase.rpc('inventory_master_change_stock_uom', {
-    p_item_id: itemId, p_unit: unit, p_reason: reason, p_expected_unit: expectedUnit,
+    p_item_id: itemId, p_unit: unit, p_expected_unit: expectedUnit,
     p_expected_change_id: expectedChangeId, p_request_id: requestId,
-    p_old_quantity: oldQuantity, p_new_quantity: newQuantity, p_expected_cost_revision_id: expectedCostRevisionId, p_conversion_verified: verified,
+    p_current_quantity_per_new_unit: conversion, p_expected_cost_revision_id: expectedCostRevisionId,
   });
   if (error) throw error;
   return data;

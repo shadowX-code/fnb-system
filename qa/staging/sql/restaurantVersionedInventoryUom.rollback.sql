@@ -7,6 +7,7 @@ declare
   v_outlet uuid := gen_random_uuid();
   v_supplier uuid := gen_random_uuid();
   v_item uuid := gen_random_uuid();
+  v_unused uuid := gen_random_uuid();
   v_recipe uuid := gen_random_uuid();
   v_inactive uuid := gen_random_uuid();
   v_check uuid := gen_random_uuid();
@@ -17,7 +18,9 @@ begin
   insert into public.outlets(id,name,code) values(v_outlet,'QA Versioned UOM','QAV'||left(v_outlet::text,6));
   insert into public.suppliers(id,name,status) values(v_supplier,'QA Versioned UOM Supplier','active');
   insert into public.supplier_outlets(supplier_id,outlet_id) values(v_supplier,v_outlet);
-  insert into public.inventory_items(id,item_name,unit) values(v_item,'QA Versioned UOM Item','kg');
+  insert into public.inventory_items(id,item_name,unit) values
+    (v_item,'QA Versioned UOM Item','kg'), (v_unused,'QA Unused UOM Item','kg');
+  insert into public.inventory_item_outlets(inventory_item_id,outlet_id) values(v_unused,v_outlet);
   insert into public.inventory_item_outlets(inventory_item_id,outlet_id,par_level,par_unit)
     values(v_item,v_outlet,2.5,'kg') returning id into v_link;
   insert into public.inventory_item_outlet_suppliers(inventory_item_outlet_id,supplier_id) values(v_link,v_supplier);
@@ -56,6 +59,7 @@ begin
     values(v_outlet,v_item,'Adjustment',-4,'kg','manual');
 
   perform set_config('basis_qa.item',v_item::text,true);
+  perform set_config('basis_qa.unused',v_unused::text,true);
   perform set_config('basis_qa.outlet',v_outlet::text,true);
   perform set_config('basis_qa.supplier',v_supplier::text,true);
   perform set_config('basis_qa.recipe',v_recipe::text,true);
@@ -71,7 +75,25 @@ do $$
 declare
   v_item uuid := current_setting('basis_qa.item')::uuid;
   v_cost uuid := current_setting('basis_qa.cost')::uuid;
+  v_unused uuid := current_setting('basis_qa.unused')::uuid;
+  v_request uuid := gen_random_uuid();
+  v_history jsonb;
 begin
+  if has_function_privilege('anon', 'public.inventory_master_change_stock_uom(uuid,text,uuid,uuid,text,uuid,numeric)', 'EXECUTE') then
+    raise exception 'An unauthenticated user can invoke the new command';
+  end if;
+  if public.inventory_master_stock_uom_history(v_unused)->>'requires_conversion' is distinct from 'false' then
+    raise exception 'An unused item incorrectly requires conversion';
+  end if;
+  v_history := public.inventory_master_change_stock_uom(v_unused,'g',v_request,null,'kg',null,null);
+  if v_history->>'unit' is distinct from 'g' or v_history->>'requires_conversion' is distinct from 'false'
+    or v_history#>>'{changes,0,reason}' is distinct from 'Changed item UOM'
+    or v_history#>>'{changes,0,old_quantity}' is not null or v_history#>>'{changes,0,new_quantity}' is not null
+    or v_history#>>'{changes,0,recorded_at}' is null or v_history#>>'{changes,0,actor_name}' is null
+    or v_history is distinct from public.inventory_master_change_stock_uom(v_unused,'g',v_request,null,'kg',null,null)
+    or v_history is distinct from public.inventory_master_change_stock_uom(v_unused,'g',gen_random_uuid(),v_request,'g',null,null) then
+    raise exception 'Unused item cutover, history, retry or no-op failed';
+  end if;
   begin
     perform public.inventory_master_change_stock_uom(v_item,'g','QA confirmed metric conversion',gen_random_uuid(),null,'kg',1,1000,v_cost,true);
     raise exception 'An open count did not block conversion';
@@ -112,6 +134,13 @@ begin
   perform public.inventory_transition_purchase_order(v_order,gen_random_uuid(),'cancel','QA discard old-basis draft');
   select to_jsonb(line) into v_prior_item from public.inventory_stock_check_items line where stock_check_id=v_old_check;
   select to_jsonb(line) into v_prior_po from public.inventory_purchase_order_items line where purchase_order_id=v_order;
+  if public.inventory_master_stock_uom_history(v_item)->>'requires_conversion' is distinct from 'true' then
+    raise exception 'A used item did not require conversion';
+  end if;
+  begin
+    perform public.inventory_master_change_stock_uom(v_item,'g',gen_random_uuid(),null,'kg',v_cost,null);
+    raise exception 'A used item accepted the missing factor';
+  exception when invalid_parameter_value then if sqlerrm not like 'Enter how many current units%' then raise; end if; end;
 
   begin
     perform public.inventory_master_change_stock_uom(v_item,'g','QA unverified ratio',gen_random_uuid(),null,'kg',1,1000,v_cost,false);
@@ -126,13 +155,16 @@ begin
     raise exception 'An inexact Par quantity was accepted';
   exception when check_violation then if sqlerrm not like 'A saved Par quantity%' then raise; end if; end;
 
-  v_history := public.inventory_master_change_stock_uom(v_item,'g','QA verified 1 kg = 1000 g',v_change,null,'kg',1,1000,v_cost,true);
+  v_history := public.inventory_master_change_stock_uom(v_item,'g',v_change,null,'kg',v_cost,.001);
   if v_history->>'unit' is distinct from 'g'
     or (v_history->>'current_cost')::numeric is distinct from .0025
     or v_history#>>'{changes,0,effective_date}' is distinct from v_today::text
     or v_history#>>'{changes,0,old_unit}' is distinct from 'kg'
     or v_history#>>'{changes,0,new_unit}' is distinct from 'g'
-    or v_history is distinct from public.inventory_master_change_stock_uom(v_item,'g','QA verified 1 kg = 1000 g',v_change,null,'kg',1,1000,v_cost,true)
+    or (v_history#>>'{changes,0,old_quantity}')::numeric is distinct from .001
+    or (v_history#>>'{changes,0,new_quantity}')::numeric is distinct from 1
+    or v_history#>>'{changes,0,reason}' is distinct from 'Changed item UOM using the specified conversion'
+    or v_history is distinct from public.inventory_master_change_stock_uom(v_item,'g',v_change,null,'kg',v_cost,.001)
   then raise exception 'UOM activation, equivalent cost, date, or retry failed'; end if;
   v_converted_cost := (v_history->>'current_cost_revision_id')::uuid;
   v_cost_history := public.inventory_master_cost_history(v_item);

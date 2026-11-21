@@ -777,6 +777,7 @@
     "supabase/migrations/20261120131449_restaurant_audit_summary_quantities.sql": "253ebf0c109fd90ee7bb693ecba107f9b79558ed2cef2d77291d263365c4589c",
     "supabase/migrations/20261120154225_restaurant_purchase_uom.sql": "23d46a7b8cdaaed4e906bdae3e4241fc7ed350ee081a36daaffacf0d7b502317",
     "supabase/migrations/20261120163904_restaurant_master_stock_uom.sql": "d8a8757a277d624e582040b1fbcea679a64ca42c225ba1c497db0f81851a6b65",
-    "supabase/migrations/20261121030033_restaurant_versioned_inventory_uom.sql": "38d9cbc98009a5d19617bfd20264fe095f24c53d7c010caf22f24b6bd26efcdb"
+    "supabase/migrations/20261121030033_restaurant_versioned_inventory_uom.sql": "38d9cbc98009a5d19617bfd20264fe095f24c53d7c010caf22f24b6bd26efcdb",
+    "supabase/migrations/20261121032618_restaurant_simplify_stock_uom_change.sql": "b035a5049f658a881f871759be1bd55ae817e0a8689a5cd565adb41e03bd31a9"
   }
 }
