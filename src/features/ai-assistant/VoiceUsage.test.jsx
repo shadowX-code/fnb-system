@@ -32,12 +32,10 @@ it('filters observed usage, preserves zero tokens and does not fabricate missing
  render(<VoiceUsage/>);
  const table=await screen.findByRole('table');
  expect(within(table).getAllByLabelText('Cost unavailable')).toHaveLength(2);
- expect(screen.queryByText('0 / 42')).toBeNull();
- const disclosure=within(table).getAllByRole('button',{name:/Session details/})[0];
- expect(disclosure.getAttribute('aria-expanded')).toBe('false');
- fireEvent.click(disclosure);
- expect(disclosure.getAttribute('aria-expanded')).toBe('true');
- expect(document.getElementById(disclosure.getAttribute('aria-controls')).textContent).toContain('0 / 42');
+ expect(within(table).getByText('0 / 42')).toBeTruthy();
+ expect(within(table).getByText('OpenAI')).toBeTruthy();
+ expect(within(table).getByText('Provider rejected')).toBeTruthy();
+ expect(within(table).queryByRole('button',{name:/Details/})).toBeNull();
  expect(screen.getByText('0 estimated · 0 partial · 32 unavailable')).toBeTruthy();
  expect(screen.getByText('Not connected')).toBeTruthy();
  expect(screen.getByRole('link',{name:'OpenAI Billing'}).href).toContain('/organization/billing/overview');

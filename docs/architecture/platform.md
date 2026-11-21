@@ -11,6 +11,8 @@ The Admin logo is `public/logo-icon.jpg`. The Admin interaction palette is owned
 
 The Admin header's Network and Assistant destinations share `SystemNavigationChip` with explicit labels, badges and `aria-current` selection. Bounded interaction and Live animations respect reduced-motion preferences. Visible labels replace redundant native tooltips. Navigation and environment visibility remain shell-owned.
 
+Shared Admin tables can use the two-line mobile layout for short read-only metadata. It keeps desktop column order and accessible headers while packing cells into two lines where space allows.
+
 ## Admin Notification Audio
 
 The shared `notificationSound` client owns optional audible attention, per-user/origin local preferences, browser audio readiness and bounded same-origin tab deduplication. Controls reuse the Admin notification popover and the same settings component in Inbox. Sounds default off; a persisted preference does not imply autoplay permission in another tab. Web Audio is initialized only after an explicit user gesture, and Web Locks serialize a bounded local seen ledger before playback. Unsupported/blocked storage, audio or coordination fails silent and cannot alter notification counts or business workflows. Domain read models own eligible event identity and scope; clients never infer actionable work from badge-count changes. Marketing currently supplies the only audible source and restricts it to its workspace. This does not create push delivery, a service worker or a new server scheduler.

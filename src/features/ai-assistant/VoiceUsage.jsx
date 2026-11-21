@@ -1,15 +1,14 @@
-import {useId,useState,useCallback} from 'react';
+import {useState,useCallback} from 'react';
 import {assistantCall} from './nativeAssistantService.js';
 import SelectField from '../../components/forms/SelectField.jsx';
 import AdminFormField from '../../components/forms/AdminFormField.jsx';
 import AdminFilterToolbar from '../../components/layout/AdminFilterToolbar.jsx';
 import DataTable from '../../components/tables/DataTable.jsx';
 import AdminSummaryGrid from '../../components/ui/AdminSummaryGrid.jsx';
-import {ChevronDown} from 'lucide-react';
 import {useAssistantSettingsQuery} from './useAssistantSettingsQuery.js';
 import Badge from '../../components/ui/Badge.jsx';
 import {formatOperationalMoment} from '../../lib/dateTime.js';
-import {usageNumber,formatVoiceCost,formatVoiceDuration,voiceCostCoverage,voiceMeteredDetails} from './voiceUsageSummary.js';
+import {usageNumber,formatVoiceCost,formatVoiceDuration,voiceCostCoverage} from './voiceUsageSummary.js';
 
 const statuses={reserved:'Reserved',connecting:'Connecting',active:'Active',closing:'Closing',closed:'Closed',failed:'Failed',historical:'Historical evaluation'};
 const availability={available:'Available to start',disabled:'Disabled by Admin',active_elsewhere:'Session already active',approval_required:'Approval required by policy',daily_limit:'Daily limit reached',capacity:'Environment at capacity'};
@@ -28,25 +27,16 @@ function activeSessionDeadline(data) {
  },0);
 }
 
-function SessionDetails({session, id}) {
- const cost=voiceCostCoverage(session);
- const metered=voiceMeteredDetails(session.observed_usage);
- const provider={openai:'OpenAI',grok:'Grok'}[session.provider]||session.provider||'Not recorded';
- return <dl id={id} className="grid gap-x-5 gap-y-2 py-2 text-xs sm:grid-cols-3">
-  <div><dt className="font-medium">Provider</dt><dd>{provider}</dd></div>
-  <div><dt className="font-medium">End reason</dt><dd>{session.reason?.replaceAll('_',' ')||'Not recorded'}</dd></div>
-  <div><dt className="font-medium">Audio tokens · in / out</dt><dd className="tabular-nums">{usageNumber(session.observed_usage?.input_audio_tokens)} / {usageNumber(session.observed_usage?.output_audio_tokens)}</dd></div>
-  <div className="sm:col-span-3"><dt className="font-medium">Cost attribution</dt><dd>{cost.reason}</dd></div>
-  {metered.map(([label,value])=><div key={label}><dt className="font-medium">{label}</dt><dd className="break-words">{value}</dd></div>)}
-  {cost.version&&<div><dt className="font-medium">Rate card</dt><dd><a href="https://developers.openai.com/api/docs/pricing" target="_blank" rel="noreferrer" className="text-primary-ink underline">{cost.version} · USD</a></dd></div>}
- </dl>;
-}
+const providers = {openai:'OpenAI',grok:'Grok'};
+const endReasons = {
+ user_ended:'Ended by user', provider_rejected:'Provider rejected', startup_expired:'Start expired',
+ admin_disabled:'Admin disabled', duration_expired:'Time limit', heartbeat_expired:'Heartbeat lost',
+ unknown_connection_expired:'Unconfirmed start expired',
+};
 
 export default function VoiceUsage({onSaved}={}){
  const [saveError,setSaveError]=useState(''),[busy,setBusy]=useState(false),[editing,setEditing]=useState(false),[enabled,setEnabled]=useState(false),[daily,setDaily]=useState(''),[seconds,setSeconds]=useState(180),[concurrency,setConcurrency]=useState(4);
  const [period,setPeriod]=useState('month'),[status,setStatus]=useState('all'),[page,setPage]=useState(1),[saved,setSaved]=useState(false);
- const [expanded,setExpanded]=useState(null);
- const detailsId=useId();
  const read=useCallback(async signal=>{
   const result=await assistantCall('voice_usage',{period,status,page},signal);
   if(!result?.policy||!Array.isArray(result.sessions)||!result.summary)throw new Error('Voice usage is unavailable.');
@@ -75,23 +65,21 @@ export default function VoiceUsage({onSaved}={}){
  const amount = formatVoiceCost(summary?.cost_nano_usd);
  const attributed = summary && summary.estimated_sessions + summary.partial_sessions;
  const columns=[
-  {key:'created_at',header:'Started',render:s=><span className="whitespace-nowrap">{s.created_at?formatOperationalMoment(s.created_at):'—'}</span>},
-  {key:'state',header:'Status',render:s=><Badge tone={s.state==='failed'?'danger':s.state==='active'?'success':'neutral'}>{statuses[s.state||'historical']||s.state}</Badge>},
-  {key:'duration',header:'Duration',align:'right',render:s=><span className="tabular-nums">{formatVoiceDuration(s.observed_duration_seconds)}</span>},
-  {key:'cost',header:'Estimated cost',align:'right',render:s=>{
+  {key:'created_at',header:'Started',width:'22%',mobileSpan:2,render:s=><span className="tabular-nums">{formatOperationalMoment(s.created_at)}</span>},
+  {key:'provider',header:'Provider',width:'11%',render:s=>providers[s.provider]??s.provider??'—'},
+  {key:'state',header:'Status',width:'14%',render:s=><Badge tone={s.state==='failed'?'danger':s.state==='active'?'success':'neutral'}>{statuses[s.state||'historical']||s.state}</Badge>},
+  {key:'duration',header:'Duration',width:'11%',align:'right',render:s=><span className="tabular-nums">{formatVoiceDuration(s.observed_duration_seconds)}</span>},
+  {key:'audio',header:'Audio tokens (in / out)',width:'17%',align:'right',render:s=>{
+   const input=usageNumber(s.observed_usage?.input_audio_tokens),output=usageNumber(s.observed_usage?.output_audio_tokens);
+   return <span className="tabular-nums">{input==='—'&&output==='—'?'—':`${input} / ${output}`}</span>;
+  }},
+  {key:'cost',header:'Estimated cost',width:'12%',align:'right',render:s=>{
    const cost=voiceCostCoverage(s);
    if(cost.state==='unavailable')return <span aria-label="Cost unavailable">—</span>;
-   return <span className="tabular-nums">{cost.amount}{cost.state==='partial'&&<small className="block text-text-secondary">Partial</small>}</span>;
+   if(cost.state==='partial')return <span className="tabular-nums" aria-label={`${cost.amount}, partial estimate`}>{cost.amount}*</span>;
+   return <span className="tabular-nums">{cost.amount}</span>;
   }},
-  {key:'details',header:'Details',width:100,render:s=>{
-   const key=sessionKey(s), isExpanded=expanded===key;
-   return <button className="btn-secondary min-h-11 sm:min-h-0" type="button"
-    aria-expanded={isExpanded} aria-controls={isExpanded?detailsId:undefined}
-    aria-label={`Session details${s.created_at?` for ${formatOperationalMoment(s.created_at)}`:''}`}
-    onClick={()=>setExpanded(isExpanded?null:key)}>
-    Details <ChevronDown size={14} aria-hidden="true" className={isExpanded?'rotate-180':''}/>
-   </button>;
-  }},
+  {key:'reason',header:'End reason',width:'13%',render:s=>s.reason?(endReasons[s.reason]??s.reason.replaceAll('_',' ')):'—'},
  ];
  return <section className="min-w-0 space-y-4" aria-label="Voice usage management">
  <section aria-labelledby="voice-usage-overview">
@@ -109,7 +97,7 @@ export default function VoiceUsage({onSaved}={}){
    {key:'duration',label:'Connected Duration',wrapLabel:true,value:summary?formatVoiceDuration(summary.duration_seconds,'Unavailable'):'—',helper:summary?`${summary.duration_sessions}/${summary.sessions} sessions timed`:null},
    {key:'credits',label:'API Credits',value:'Not connected',valueClassName:'text-base font-semibold',helper:<a className="text-primary-ink underline" href={billingUrl} target="_blank" rel="noreferrer">OpenAI Billing</a>},
   ]}/>
-  <p className="mt-2 text-xs text-text-secondary">Estimates use recorded provider usage and USD list rates. Provider charges are reconciled in OpenAI Billing. Duration measures connected call time.</p>
+  <p className="mt-2 text-xs text-text-secondary">Provider charges are reconciled in OpenAI Billing. Duration measures connected call time.</p>
  </section>
  {loading&&!data&&<p role="status" className="text-xs text-text-secondary">Loading voice usage…</p>}
  {data&&<section aria-labelledby="voice-policy-heading">
@@ -140,16 +128,19 @@ export default function VoiceUsage({onSaved}={}){
  <section className="space-y-2 border-t border-border pt-3" aria-labelledby="voice-history-heading">
   <h3 id="voice-history-heading" className="text-sm font-semibold">Session History</h3>
   <AdminFilterToolbar compact denseFields presentation="inline" filters={<>
-   <SelectField label="Period" value={period} disabled={editing||busy} onChange={value=>{setPeriod(value);setPage(1);setExpanded(null);}} options={periods}/>
-   <SelectField label="Status" value={status} disabled={editing||busy} onChange={value=>{setStatus(value);setPage(1);setExpanded(null);}} options={[{value:'all',label:'All'},...Object.entries(statuses).map(([value,label])=>({value,label}))]}/>
-  </>} activeFilters={status==='all'?[]:[{key:'status',label:'Status',value:statuses[status],onRemove:()=>{if(!editing&&!busy){setStatus('all');setPage(1);setExpanded(null);}}}]}/>
+   <SelectField label="Period" value={period} disabled={editing||busy} onChange={value=>{setPeriod(value);setPage(1);}} options={periods}/>
+   <SelectField label="Status" value={status} disabled={editing||busy} onChange={value=>{setStatus(value);setPage(1);}} options={[{value:'all',label:'All'},...Object.entries(statuses).map(([value,label])=>({value,label}))]}/>
+  </>} activeFilters={status==='all'?[]:[{key:'status',label:'Status',value:statuses[status],onRemove:()=>{if(!editing&&!busy){setStatus('all');setPage(1);}}}]}/>
   {current&&<>
    <p className="text-xs text-text-secondary" role="status">{filteredCount} matching sessions · Overview includes all statuses in the period.</p>
-   {rows.length?<DataTable rows={rows} columns={columns} getRowKey={sessionKey} density="compact" columnSpacing="compact" mobileLayout="stack" minWidth={520} renderExpandedRow={s=>expanded===sessionKey(s)?<SessionDetails session={s} id={detailsId}/>:null}/>:<p className="py-3 text-sm text-text-secondary">No sessions match these filters on this page.</p>}
+   {rows.length?<><DataTable rows={rows} columns={columns} getRowKey={sessionKey} density="compact" columnSpacing="compact"
+    mobileLayout="two-line" minWidth={620} tableClassName="[--admin-table-row-min-height:46px]" getRowClassName={()=>'h-[46px] max-[700px]:h-auto'}/>
+    <p className="text-xs text-text-secondary">Estimated costs use recorded usage and USD list rates. A dash indicates missing attribution, including historical audio-only reports. * Partial estimate.</p>
+   </>:<p className="py-3 text-sm text-text-secondary">No sessions match these filters on this page.</p>}
    {totalPages>1&&<div className="flex items-center justify-end gap-2">
-    <button type="button" className="btn-secondary" disabled={page<=1||editing||busy} onClick={()=>{setPage(page-1);setExpanded(null);}}>Previous</button>
+    <button type="button" className="btn-secondary" disabled={page<=1||editing||busy} onClick={()=>{setPage(page-1);}}>Previous</button>
     <span className="text-xs text-text-secondary">Page {page} of {totalPages}</span>
-    <button type="button" className="btn-secondary" disabled={page>=totalPages||editing||busy} onClick={()=>{setPage(page+1);setExpanded(null);}}>Next</button>
+    <button type="button" className="btn-secondary" disabled={page>=totalPages||editing||busy} onClick={()=>{setPage(page+1);}}>Next</button>
    </div>}
   </>}
  </section>

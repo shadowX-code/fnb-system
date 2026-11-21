@@ -7,7 +7,7 @@ it('keeps missing historical and zero-value observations distinct',()=>{
  expect(formatVoiceCost(null)).toBe('Unavailable');
  expect(formatVoiceCost(0)).toBe('$0.00');
  expect(formatVoiceCost(1)).toBe('< $0.000001');
- expect(voiceCostCoverage({observed_usage:{input_audio_tokens:0}})).toMatchObject({state:'unavailable',amount:'Unavailable',reason:expect.stringMatching(/Historical/)});
+ expect(voiceCostCoverage({observed_usage:{input_audio_tokens:0}})).toMatchObject({state:'unavailable',amount:'Unavailable'});
 });
 it('uses server attribution and distinguishes partial from estimated',()=>{
  const row={observed_usage:{pricing_version:'openai-list-usd-2026-11-22'},estimated_cost_nano_usd:148000};

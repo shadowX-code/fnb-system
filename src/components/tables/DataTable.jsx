@@ -12,14 +12,17 @@ export function shouldIgnoreRowClick(event) {
 export default function DataTable({ columns, rows, getRowKey, footer, getRowClassName, getRowProps, onRowClick, renderExpandedRow, renderGroupRow, density = "normal", columnSpacing = "normal", tableClassName = "", minWidth = 880, mobileLayout = "scroll" }) {
 
 
+  const twoLine = mobileLayout === "two-line";
   return (
     <div className="data-table-scroll admin-data-table-scroll overflow-x-auto">
-      <table className={`admin-data-table w-full border-collapse ${tableClassName}`} data-mobile-layout={mobileLayout} data-density={density} data-column-spacing={columnSpacing} style={{minWidth}}>
-        <thead className="table-head admin-table-head">
-          <tr>
+      <table className={`admin-data-table w-full border-collapse ${tableClassName}`} role={twoLine ? "table" : undefined} data-mobile-layout={mobileLayout} data-density={density} data-column-spacing={columnSpacing} style={{minWidth}}>
+        <thead role={twoLine ? "rowgroup" : undefined} className="table-head admin-table-head">
+          <tr role={twoLine ? "row" : undefined}>
             {columns.map((column) => (
               <th
                   key={column.key}
+                  role={twoLine ? "columnheader" : undefined}
+                  scope="col"
                   data-priority={column.priority}
                   aria-sort={column.onSort ? column.sortDirection === 'asc' ? 'ascending' : column.sortDirection === 'desc' ? 'descending' : 'none' : undefined}
                   style={column.width ? { width: column.width } : undefined}
@@ -34,7 +37,7 @@ export default function DataTable({ columns, rows, getRowKey, footer, getRowClas
             ))}
           </tr>
         </thead>
-        <tbody className="table-body divide-y divide-border">
+        <tbody role={twoLine ? "rowgroup" : undefined} className="table-body divide-y divide-border">
           {rows.map((row, index) => {
             const group = renderGroupRow?.(row, index);
             if (group) return <tr key={getRowKey(row,index)} className={`admin-table-group admin-table-group--${group.level || 'domain'}`}><th colSpan={columns.length} scope="rowgroup">{group.content}</th></tr>;
@@ -52,6 +55,7 @@ export default function DataTable({ columns, rows, getRowKey, footer, getRowClas
             return (
               <Fragment key={getRowKey(row, index)}>
                 <tr
+                  role={twoLine ? "row" : undefined}
                   className={`table-row admin-table-row transition ${rowOnClick ? "cursor-pointer" : ""} ${getRowClassName ? getRowClassName(row, index) : ""} ${rowClassName}`}
                   onClick={rowOnClick}
                   {...restRowProps}
@@ -59,6 +63,8 @@ export default function DataTable({ columns, rows, getRowKey, footer, getRowClas
                   {columns.map((column) => (
                     <td
                       key={column.key}
+                      role={twoLine ? "cell" : undefined}
+                      data-mobile-span={twoLine ? column.mobileSpan : undefined}
                       data-priority={column.priority}
                       data-label={typeof column.header === "string" ? column.header : undefined}
                       style={column.width ? { width: column.width } : undefined}
