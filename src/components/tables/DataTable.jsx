@@ -23,6 +23,7 @@ export default function DataTable({ columns, rows, getRowKey, footer, getRowClas
                   key={column.key}
                   role={twoLine ? "columnheader" : undefined}
                   scope="col"
+                  data-mobile-span={twoLine ? column.mobileSpan : undefined}
                   data-priority={column.priority}
                   aria-sort={column.onSort ? column.sortDirection === 'asc' ? 'ascending' : column.sortDirection === 'desc' ? 'descending' : 'none' : undefined}
                   style={column.width ? { width: column.width } : undefined}

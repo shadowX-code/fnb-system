@@ -67,7 +67,10 @@ export default function VoiceUsage({onSaved}={}){
  const columns=[
   {key:'created_at',header:'Started',width:'22%',mobileSpan:2,render:s=><span className="tabular-nums">{formatOperationalMoment(s.created_at)}</span>},
   {key:'provider',header:'Provider',width:'11%',render:s=>providers[s.provider]??s.provider??'—'},
-  {key:'state',header:'Status',width:'14%',render:s=><Badge tone={s.state==='failed'?'danger':s.state==='active'?'success':'neutral'}>{statuses[s.state||'historical']||s.state}</Badge>},
+  {key:'state',header:'Status',width:'14%',render:s=>{
+   const state=s.state||'historical';
+   return <Badge tone={state==='failed'?'danger':state==='active'?'success':'neutral'}>{state==='historical'?'Historical':statuses[state]??state}</Badge>;
+  }},
   {key:'duration',header:'Duration',width:'11%',align:'right',render:s=><span className="tabular-nums">{formatVoiceDuration(s.observed_duration_seconds)}</span>},
   {key:'audio',header:'Audio tokens (in / out)',width:'17%',align:'right',render:s=>{
    const input=usageNumber(s.observed_usage?.input_audio_tokens),output=usageNumber(s.observed_usage?.output_audio_tokens);
