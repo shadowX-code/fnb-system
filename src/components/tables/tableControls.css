@@ -67,6 +67,7 @@ th[aria-sort=ascending] .admin-table-sort,th[aria-sort=descending] .admin-table-
   }
   .admin-data-table[data-mobile-layout="two-line"] .admin-table-row > .admin-table-cell {
     display: block;
+    width: auto !important;
     min-width: 0;
     min-height: 0;
     padding: 0;
