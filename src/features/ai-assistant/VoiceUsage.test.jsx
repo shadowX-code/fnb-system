@@ -30,8 +30,14 @@ it('filters observed usage, preserves zero tokens and does not fabricate missing
   return {...data,sessions:rows,filtered_count:rows.length,summary:{...data.summary,sessions:32}};
  });
  render(<VoiceUsage/>);
- await screen.findByText('0 / 42');
- expect(within(screen.getByRole('table')).getAllByText('Unavailable')).toHaveLength(2);
+ const table=await screen.findByRole('table');
+ expect(within(table).getAllByLabelText('Cost unavailable')).toHaveLength(2);
+ expect(screen.queryByText('0 / 42')).toBeNull();
+ const disclosure=within(table).getAllByRole('button',{name:/Session details/})[0];
+ expect(disclosure.getAttribute('aria-expanded')).toBe('false');
+ fireEvent.click(disclosure);
+ expect(disclosure.getAttribute('aria-expanded')).toBe('true');
+ expect(document.getElementById(disclosure.getAttribute('aria-controls')).textContent).toContain('0 / 42');
  expect(screen.getByText('0 estimated · 0 partial · 32 unavailable')).toBeTruthy();
  expect(screen.getByText('Not connected')).toBeTruthy();
  expect(screen.getByRole('link',{name:'OpenAI Billing'}).href).toContain('/organization/billing/overview');
@@ -39,10 +45,10 @@ it('filters observed usage, preserves zero tokens and does not fabricate missing
  fireEvent.click(await screen.findByRole('option',{name:'Failed',exact:true}));
  await screen.findByText(/1 matching sessions/);
  expect(screen.queryByText('0 / 42')).toBeNull();
- expect(assistantCall).toHaveBeenLastCalledWith('voice_usage',{period:'month',status:'failed',page:1});
+ expect(assistantCall).toHaveBeenLastCalledWith('voice_usage',{period:'month',status:'failed',page:1},expect.any(AbortSignal));
  fireEvent.click(screen.getByRole('button',{name:'Period',exact:true}));
  fireEvent.click(await screen.findByRole('option',{name:'Last 7 days',exact:true}));
- await waitFor(()=>expect(assistantCall).toHaveBeenLastCalledWith('voice_usage',{period:'7d',status:'failed',page:1}));
+ await waitFor(()=>expect(assistantCall).toHaveBeenLastCalledWith('voice_usage',{period:'7d',status:'failed',page:1},expect.any(AbortSignal)));
 });
 it('cannot activate a non-Staging policy even if the response says editable',async()=>{
  assistantCall.mockResolvedValue({...data,environment:'production',policy:{...data.policy,enabled:false}});render(<VoiceUsage/>);await screen.findByText('Voice disabled');expect(screen.queryByText('Save limits')).toBeNull();
@@ -50,7 +56,7 @@ it('cannot activate a non-Staging policy even if the response says editable',asy
 it('cancel restores policy view without saving or changing the authority',async()=>{
  render(<VoiceUsage/>);await screen.findByText('Development voice enabled');
  fireEvent.click(screen.getByRole('button',{name:'Edit policy'}));fireEvent.change(screen.getByRole('spinbutton',{name:'Maximum session (seconds)'}),{target:{value:'60'}});
- fireEvent.click(screen.getByRole('button',{name:'Cancel',exact:true}));expect(screen.queryByRole('spinbutton')).toBeNull();expect(screen.getByText('180 seconds')).toBeTruthy();expect(assistantCall.mock.calls).toEqual([['voice_usage',{period:'month',status:'all',page:1}]]);
+ fireEvent.click(screen.getByRole('button',{name:'Cancel',exact:true}));expect(screen.queryByRole('spinbutton')).toBeNull();expect(screen.getByText(/3m 0s max/)).toBeTruthy();expect(assistantCall.mock.calls.map(args=>args.slice(0,2))).toEqual([['voice_usage',{period:'month',status:'all',page:1}]]);
  fireEvent.click(screen.getByRole('button',{name:'Edit policy'}));expect(screen.getByRole('spinbutton',{name:'Maximum session (seconds)'}).value).toBe('180');
 });
 it('does not present an unsuccessful policy save as a new policy',async()=>{

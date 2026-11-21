@@ -34,7 +34,7 @@ it('keeps pending text edits while inspecting other sections',async()=>{
  fireEvent.click(screen.getByRole('button',{name:'Model',exact:true}));fireEvent.click(await screen.findByRole('option',{name:'gpt-4.1-mini'}));
  fireEvent.click(screen.getByRole('tab',{name:'AI Capabilities'}));openFactory();fireEvent.click(screen.getByRole('button',{name:'Close drawer',exact:true}));fireEvent.click(screen.getByRole('tab',{name:'Overview'}));
  expect(screen.getByRole('button',{name:'Model',exact:true}).textContent).toContain('gpt-4.1-mini');expect(screen.getByRole('button',{name:'Save',exact:true}).disabled).toBe(false);
- expect(assistantCall.mock.calls).toEqual([['configuration']]);
+ expect(assistantCall.mock.calls.map(([action])=>action)).toEqual(['configuration']);
 });
 
 it('does not synthesize a callable Factory capability from legacy booleans',async()=>{
@@ -70,5 +70,5 @@ it('opens the canonical ACTION owner and presents two separately controlled oper
   expect(actions.getByRole('button',{name:`Enable execution authorization: ${name}`})).toBeTruthy();
  }
  expect(actions.getAllByText('Disabled')).toHaveLength(4);
- expect(assistantCall.mock.calls).toEqual([['configuration']]);
+ expect(assistantCall.mock.calls.map(([action])=>action)).toEqual(['configuration']);
 });
