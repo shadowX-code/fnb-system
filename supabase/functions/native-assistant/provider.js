@@ -51,7 +51,7 @@ export async function generateText(claim,key,{transport=fetch,signal,business,on
  const exchanges=[], discoveryOutputs=[];
  const configuredTools=business?.tools||[];
  const usesDiscovery=configuredTools.some(tool=>tool.name==='find_business_queries');
- const matchingTools=usesDiscovery?business.toolsForPrompt?.(claim.prompt)||[]:[];
+ let matchingTools=usesDiscovery?business.toolsForPrompt?.(claim.prompt)||[]:[];
  const discovered=new Set();
  const max=claim.kind==='test'?32:500;
  const bytes=value=>new TextEncoder().encode(JSON.stringify(value)).length;
@@ -117,10 +117,12 @@ export async function generateText(claim,key,{transport=fetch,signal,business,on
      evidence={error:error.code,...businessToolIdentity(calls[0].name,args),no_evidence:true};
     }
     const output={type:'function_call_output',call_id:calls[0].call_id,output:JSON.stringify(evidence)};
-    onTrace(calls[0].name,args,evidence.error || (evidence.discovery_only?'discovery':'returned'),evidence.discovery_only?evidence.total_operations:undefined);
+    onTrace(calls[0].name,args,evidence.error || (evidence.discovery_only?'discovery':'returned'),evidence.discovery_only?evidence.total_operations:undefined,evidence.validation);
     exchanges.push(...data.output,output);
     if(discovery&&evidence.discovery_only){
      for(const entry of evidence.operations)discovered.add(entry.operation);
+     matchingTools=evidence.operations.filter(entry=>entry.kind==='READ'&&entry.parameters).slice(0,2)
+      .map(entry=>({type:'function',name:entry.operation,parameters:entry.parameters,description:entry.description,strict:true}));
      discoveryOutputs.push({output,compact:JSON.stringify({
      discovery_only:true,not_business_evidence:true,operations:evidence.operations.map(entry=>({operation:entry.operation,module:entry.module})),
      instruction:'Earlier schema list compacted. Use a recent exact schema for new arguments.',

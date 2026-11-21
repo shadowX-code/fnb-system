@@ -289,6 +289,36 @@ test('named Text and SDK schema errors return exact correction only after author
  assert.equal(src.calls.length,0);
 });
 
+test('Employees discovery promotes the strict typed schema and rejects malformed scope without showing values',async()=>{
+ const operation='read_employee_directory';
+ const src=source();
+ const business=createBusinessDispatcher({config,access,caller:src.caller});
+ const question='Give separate complete counts by employment status and employment type for my authorized Employees scope.';
+ assert(business.toolsForPrompt(question).some(tool=>tool.name===operation));
+ let requests=0;
+ const result=await generateText({prompt:question,kind:'turn',model:config.model},'fixture-secret',{
+  business,transport:async(_,init)=>{
+   const body=JSON.parse(init.body);
+   if(++requests===1)return response([functionCall('find_business_queries',{search:'HR employees',page:1},'discover')]);
+   if(requests===2){
+    assert.deepEqual(body.tools.find(tool=>tool.name===operation),operations.find(op=>op.id===operation).tool);
+    return response([functionCall(operation,{mode:'summary',outlet_id:'invalid-scope'},'invalid')]);
+   }
+   const evidence=JSON.parse(body.input.at(-1).output);
+   if(requests===3){
+    assert.equal(evidence.no_evidence,true);
+    assert.deepEqual(evidence.validation,{reason:'unsupported_value',field:'outlet_id'});
+    assert(!JSON.stringify(evidence).includes('invalid-scope'));
+    return response([functionCall(operation,{mode:'summary',outlet_id:null},'corrected')]);
+   }
+   assert.equal(evidence.summary.total,6);
+   return response([{type:'message',content:[{type:'output_text',text:'There are 6 Employees.'}]}]);
+  },
+ });
+ assert.equal(result.reply,'There are 6 Employees.');
+ assert.equal(src.calls.filter(([name])=>name==='employee_directory_query').length,1);
+});
+
 test('OpenAI Voice can discover newly authorized operations with a narrow starting snapshot',async()=>{
  const initial={...config,capability_connections:{}};
  const voice=await dispatch({action:'realtime_sdk_connect',provider:'openai',session_id:id,request_id:id,

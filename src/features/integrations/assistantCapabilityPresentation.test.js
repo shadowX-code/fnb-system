@@ -26,9 +26,11 @@ it('filters and collapses normalized inventory; external operations cannot becom
  expect(capabilityTableRows(rows,new Set(['workspace:factory'])).some(r=>r.id==='factory_finished_goods')).toBe(false);
 });
 
-it('keeps the 37 reconciliation records plus Employees reference and separates technical coverage from policy',async()=>{
+it('keeps reviewed coverage separate from administrator policy',async()=>{
  const {assistantCoverageReview}=await import('./assistantCoverageReview.js');
- expect(Object.keys(assistantCoverageReview)).toHaveLength(38);
+ expect(Object.keys(assistantCoverageReview)).toHaveLength(40);
+ expect(assistantCoverageReview.asset_tracking.classification).toBe('partial');
+ expect(assistantCoverageReview.space_station.classification).toBe('not_applicable');
  const rows=capabilityInventory(operations);expect(rows.filter(r=>r.operations.length)).toHaveLength(116);
  for(const row of rows)expect(row.coverage.classification).toBeTruthy();
  for(const review of Object.values(assistantCoverageReview))expect(review.missing).toBeTruthy();

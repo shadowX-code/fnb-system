@@ -96,7 +96,7 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
     if(args===undefined)throw new AssistantError('tool_arguments_invalid',400);
     operation.validate(args);
    }catch(error){
-    if((enveloped||correctArguments)&&error.code==='tool_arguments_invalid')return {error:'tool_arguments_invalid',not_business_evidence:true,no_evidence:true,operation:id,operation_label:operation.label,parameters:operation.tool.parameters,instruction:'Use this exact schema and operation description. Preserve explicit, supported filters. No business read or action occurred.'};
+    if((enveloped||correctArguments)&&error.code==='tool_arguments_invalid')return {error:'tool_arguments_invalid',not_business_evidence:true,no_evidence:true,operation:id,operation_label:operation.label,parameters:operation.tool.parameters,validation:error.diagnostic?.validation,instruction:'Correct the argument using the exact schema and operation description. Preserve explicit, supported filters. No business read or action occurred.'};
     throw error;
    }
    signal?.throwIfAborted();

@@ -4,11 +4,15 @@ export const uuid={type:'string',pattern:'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-f
 export const date={type:'string',pattern:'^20[0-9]{2}-[0-9]{2}-[0-9]{2}$'};
 export const pick=(row,keys)=>Object.fromEntries(keys.filter(k=>Object.hasOwn(row||{},k)).map(k=>[k,row[k]]));
 export function validateFields(properties,value){
- if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).length!==Object.keys(properties).length||Object.keys(value).some(k=>!Object.hasOwn(properties,k)))throw new AssistantError('tool_arguments_invalid',400);
+ const invalid=(reason,field)=>{throw new AssistantError('tool_arguments_invalid',400,{validation:{reason,...field?{field}:{}}});};
+ if(!value||typeof value!=='object'||Array.isArray(value))invalid('object_required');
+ if(Object.keys(value).some(k=>!Object.hasOwn(properties,k)))invalid('unexpected_field');
  for(const [key,schema] of Object.entries(properties)){
+  if(!Object.hasOwn(value,key))invalid('missing_field',key);
   const v=value[key];if(v===null&&schema.nullable)continue;
-  if(typeof v!==schema.type||schema.pattern&&!new RegExp(schema.pattern).test(v)||schema.enum&&!schema.enum.includes(v)||schema.maxLength&&v.length>schema.maxLength||schema.type==='number'&&(!Number.isInteger(v)||v<schema.minimum||v>schema.maximum))throw new AssistantError('tool_arguments_invalid',400);
-  if(schema===date&&(!Number.isFinite(Date.parse(v))||new Date(v).toISOString().slice(0,10)!==v))throw new AssistantError('tool_arguments_invalid',400);
+  if(typeof v!==schema.type)invalid('wrong_type',key);
+  if(schema.pattern&&!new RegExp(schema.pattern).test(v)||schema.enum&&!schema.enum.includes(v)||schema.maxLength&&v.length>schema.maxLength||schema.type==='number'&&(!Number.isInteger(v)||v<schema.minimum||v>schema.maximum))invalid('unsupported_value',key);
+  if(schema===date&&(!Number.isFinite(Date.parse(v))||new Date(v).toISOString().slice(0,10)!==v))invalid('invalid_date',key);
  }
  return value;
 }
