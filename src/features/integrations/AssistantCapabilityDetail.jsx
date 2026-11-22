@@ -20,7 +20,7 @@ export default function AssistantCapabilityDetail({row,data,canEdit,busy,onFeatu
  const shared=row.operations.filter(o=>o.kind==='READ'&&o.module_id!==row.id);
  const sharedIds=new Set(shared.map(o=>o.id));
  const related=(row.coverageReads||[]).filter(o=>o.module_id!==row.id&&!sharedIds.has(o.id));
- const showCoverage=row.coverage?.available||row.coverage?.missing||row.sources?.length;
+ const showCoverage=row.coverage?.available||row.coverage?.missing;
  const coverage=coverageLabels[row.coverage?.classification]||'Not integrated';
  async function act(action,values){
   if(saving)return;
@@ -68,7 +68,14 @@ export default function AssistantCapabilityDetail({row,data,canEdit,busy,onFeatu
      {row.coverage?.available&&<div><dt className="font-medium">Available information</dt><dd className="mt-1 text-text-secondary">{row.coverage.available}</dd></div>}
      {row.coverage?.missing&&<div><dt className="font-medium">Not covered</dt><dd className="mt-1 text-text-secondary">{row.coverage.missing}</dd></div>}
     </dl>
-    {!!row.sources?.length&&<details className="text-xs text-text-secondary"><summary className="cursor-pointer py-2 font-medium">Source ownership & limitations</summary><div className="space-y-3 pt-2">{row.sources.map(s=><div key={s.name}><p className="font-medium">{s.name} · {s.owner}</p><p>{s.access}</p><p>{s.version}</p></div>)}<p className="pt-2">Unlisted documents are not available through this policy.</p></div></details>}
+   </section>}
+   {!!row.sources?.length&&<section aria-label="Knowledge sources" className={sectionClass}>
+    <h3 className="text-sm font-semibold text-text-primary">Knowledge sources</h3>
+    <div className="divide-y divide-border">{row.sources.map(source=><article key={source.id} className="space-y-1.5 py-3 first:pt-0 last:pb-0">
+     <div className="flex flex-wrap items-center justify-between gap-2"><h4 className="text-sm font-medium">{source.authority}</h4><Badge tone={source.availability==='live_source'?'success':'neutral'}>{source.availability==='live_source'?'Available to query':source.availability==='disabled'?'AI Access disabled':source.availability==='denied'?'Source permission required':'Availability unknown'}</Badge></div>
+     <p className="text-xs text-text-secondary">{source.owner} · {source.publication}</p>
+     <p className="text-xs text-text-secondary">{source.type==='system_guidance'?'Version follows the deployed Assistant guide.':'Publication and access are checked at the source on each query. Coverage depends on the selected scope.'}</p>
+    </article>)}</div>
    </section>}
    {linkedReads('Related Data',related,'policy at')}
    {!!actions.length&&<section aria-label="AI Actions" className={sectionClass}>

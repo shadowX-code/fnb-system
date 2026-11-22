@@ -13,7 +13,7 @@ import {capabilityInventory,filterCapabilityInventory,capabilityTableRows,capabi
 const tone=status=>status==='connected'?'success':status==='partial'?'warning':'neutral';
 export default function NativeAssistantCapabilities({data,canEdit,busy,onFeature}){
  const [query,setQuery]=useState(''),[workspace,setWorkspace]=useState('all'),[domain,setDomain]=useState('all'),[status,setStatus]=useState('all'),[selected,setSelected]=useState(null),[collapsed,setCollapsed]=useState(()=>new Set(Object.keys(workspaceLabels).filter(key=>key!=='factory').map(key=>`workspace:${key}`)));
- const inventory=useMemo(()=>capabilityInventory(data.runtime.capabilities||[]),[data.runtime.capabilities]);
+ const inventory=useMemo(()=>capabilityInventory(data.runtime.capabilities,data.runtime.guidance_sources),[data.runtime.capabilities,data.runtime.guidance_sources]);
  const filtered=filterCapabilityInventory(inventory,{query,workspace,domain,status}),rows=capabilityTableRows(filtered,collapsed);
  const domains=[...new Map(inventory.filter(row=>workspace==='all'||row.workspace===workspace).map(row=>[row.domainKey,{value:row.domainKey,label:`${row.workspaceLabel} / ${row.domain}`}])).values()];
  const actionOwners=inventory.filter(row=>row.operations.some(o=>o.kind==='ACTION'&&o.module_id===row.id));
@@ -24,7 +24,7 @@ export default function NativeAssistantCapabilities({data,canEdit,busy,onFeature
  const clear=()=>{setQuery('');setWorkspace('all');setDomain('all');setStatus('all');};
  const activeFilters=[...(query?[{key:'query',label:'Search',value:query,onRemove:()=>setQuery('')}]:[]),...(workspace!=='all'?[{key:'workspace',label:'Workspace',value:workspaceLabels[workspace],onRemove:()=>{setWorkspace('all');setDomain('all');}}]:[]),...(domain!=='all'?[{key:'domain',label:'Domain',value:domains.find(item=>item.value===domain)?.label,onRemove:()=>setDomain('all')}]:[]),...(status!=='all'?[{key:'status',label:'AI access',value:capabilityStatuses[status],onRemove:()=>setStatus('all')}]:[])];
  const columns=[
-  {key:'label',header:'Module',render:row=><span className="block pl-6 font-medium max-sm:pl-0">{row.label}<small className="block text-xs font-normal text-text-secondary">{coverageLabels[row.coverage.classification]} READ coverage</small></span>},
+  {key:'label',header:'Module',render:row=><span className="block pl-6 font-medium max-sm:pl-0">{row.label}<small className="block text-xs font-normal text-text-secondary">{coverageLabels[row.coverage.classification]} READ coverage{row.sources.length>0&&' · Knowledge'}</small></span>},
   {key:'read',header:'READ',width:100,className:'max-[700px]:!w-auto',render:row=>{
    const total=row.operations.filter(operation=>operation.kind==='READ').length;
    if(!total)return <span aria-label="Not supported" className="text-text-secondary">—</span>;

@@ -1,5 +1,9 @@
 # FeedX Development Log
 
+## 2026-11-22 — Native Assistant managed knowledge
+
+Added source-checked excerpts and citations to existing Factory, Crew, People and Marketing READs, and versioned Assistant workflow guidance. The shared dispatcher checks current publication and authority on every retrieval. See [Trusted Authorities](docs/architecture/trusted-authorities.md#native-assistant-managed-knowledge-staging).
+
 ## 2026-11-21 — Restaurant Master Inventory versioned UOM changes
 
 Edit Item can change the unit of a used inventory item using verified equivalent quantities. The atomic cutover preserves prior evidence, converts compatible Par and active recipes, and records an equivalent cost basis in Cost History without creating a price change. See [Inventory and Assets](docs/domains/inventory-and-assets.md#master-inventory-item-uom).

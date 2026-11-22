@@ -1,7 +1,7 @@
 import {AssistantError} from '../assistantError.js';
 // Transport envelopes over the existing dispatcher, never a second registry or authority.
 export const queryDiscoveryTools=[
- {type:'function',name:'find_business_queries',description:'Discover currently authorized FeedX operations. Use short English module keywords (employees, factory finished goods, finance, crew, marketing), or empty search to page all. Returns exact schemas; no business data.',strict:true,parameters:{type:'object',properties:{search:{type:'string',maxLength:80},page:{type:'integer',minimum:1,maximum:20}},required:['search','page'],additionalProperties:false}},
+ {type:'function',name:'find_business_queries',description:'Discover currently authorized FeedX data and knowledge operations. Search by module (Employees, Factory Finished Goods, Factory Production SOP, Crew SOP Library, Brand Knowledge, approved FAQ). Returns exact schemas, no business data or document text.',strict:true,parameters:{type:'object',properties:{search:{type:'string',maxLength:80},page:{type:'integer',minimum:1,maximum:20}},required:['search','page'],additionalProperties:false}},
  {type:'function',name:'run_business_query',description:'Invoke one previously discovered operation through the existing authorized dispatcher. arguments_json must encode the exact discovered schema. ACTION prepares a preview only; confirmation remains separate.',strict:true,parameters:{type:'object',properties:{operation:{type:'string',maxLength:100},arguments_json:{type:'string',maxLength:4000}},required:['operation','arguments_json'],additionalProperties:false}}
 ];
 export function isQueryEnvelope(id){return queryDiscoveryTools.some(t=>t.name===id);}
@@ -38,7 +38,7 @@ export function discoverQueries(operations,capabilities,args){
   return [{operation,score:(exactTerms?30:0)+(explicitResource?10:0)+(supportedRank?100:0)+query.filter(word=>modules.includes(word)).length*2+query.filter(word=>label.includes(word)).length}];
  }).sort((a,b)=>b.score-a.score).map(row=>row.operation);
  const start=(args.page-1)*8;
- return {discovery_only:true,not_business_evidence:true,total_operations:rows.length,page:args.page,has_more:rows.length>start+8,operations:rows.slice(start,start+8).map(o=>({operation:o.id,module:o.module_id,kind:o.kind,description:o.tool.description,parameters:o.tool.parameters,queries:o.moduleInterface?.query,scope:o.scope})),
+ return {discovery_only:true,not_business_evidence:true,total_operations:rows.length,page:args.page,has_more:rows.length>start+8,operations:rows.slice(start,start+8).map(o=>({operation:o.id,module:o.module_id,kind:o.kind,description:o.tool.description,parameters:o.tool.parameters,queries:o.moduleInterface?.query,scope:o.scope,...(o.knowledge?{source_type:o.knowledge.type}:{} )})),
   ...(!rows.length?{instruction:'No operation matched this search. Retry discovery with just the resource or module name. No business source was queried. If no matching operation is available, explain that the capability could not be found; do not report missing records, zero or permission denial.'}:{})};
 }
 

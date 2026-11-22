@@ -1,7 +1,7 @@
 import {readFileSync} from 'node:fs';
 import {pathToFileURL} from 'node:url';
 import assert from 'node:assert/strict';
-import {operations} from '../../supabase/functions/native-assistant/business.js';
+import {assistantQuery,operations} from '../../supabase/functions/native-assistant/business.js';
 
 const scenario=(domain,operations,question,check)=>({domain,operations,question,check});
 const plain=value=>value.normalize('NFKC').replace(/[*`]/g,'').replace(/(?<=\d),(?=\d{3}\b)/g,'');
@@ -33,7 +33,40 @@ function incompleteFinance(e,reply,source){
   assert.match(reply,new RegExp(`(?:${label})[^\\n]{0,70}(?:missing|unavailable|not available)`,'i'),metric);
  }
 }
+function checkKnowledge(evidence,reply,source){
+ assert.equal(evidence.source,source.route);
+ assert.equal(evidence.knowledge.status,'found');
+ for(const [key,value] of Object.entries(source.scope))assert.equal(evidence.knowledge.scope[key],value);
+ const citation=evidence.knowledge.citations.find(item=>item.document_id===source.id&&item.version===source.version&&
+  item.current===source.current&&item.state===source.state&&item.title===source.title&&
+  (!source.versionId||item.version_id===source.versionId)&&(!source.section||item.section===source.section));
+ assert(citation,'Expected authoritative document, version, state and section not found');
+ assert.match(citation.excerpt,new RegExp(escaped(source.excerpt),'iu'));
+ assert.match(reply,new RegExp(escaped(source.title),'iu'));
+ assert.match(reply,new RegExp(`\\b(?:version\\s+|v)?${escaped(source.version)}\\b`,'iu'));
+ for(const fact of source.answerFacts)assert.match(reply,new RegExp(escaped(fact),'iu'));
+ if(!source.current)assert.match(reply,/historical|formerly|previous version/i);
+}
+
 export const scenarios={
+ knowledge_factory_stock:scenario('Factory',['read_factory_sop_versions','read_factory_finished_goods'],'What is one recorded instruction from the current Dried Shrimp Sambal Production SOP? Separately, what is the current Factory Finished Goods stock for SKU S01?',([sop,stock],reply,source)=>{
+  checkKnowledge(sop,reply,source.document);
+  const [row]=stock.rows;
+  assert.equal(stock.rows.length,1);
+  assert.equal(row.product_code,source.stock.code);
+  assert.equal(row.current_balance,source.stock.quantity);
+  assert.match(reply,new RegExp(`\\b${escaped(source.stock.code)}\\b`,'i'));
+  assert.match(reply,new RegExp(`${number(source.stock.quantity)}\\s*${escaped(source.stock.unit)}\\b`,'i'));
+ }),
+ knowledge_crew_current:scenario('Crew',['read_crew_published_sop'],'At Friends Corner, what does the current Workstation Cleanliness SOP say to do with used items? Cite its version and outlet.',([e],reply,source)=>checkKnowledge(e,reply,source)),
+ knowledge_factory_cleaning:scenario('Factory',['read_factory_cleaning_methods'],'What are the recorded steps in the current MeSTI Clean-in-Place method reference? Cite the version.',([e],reply,source)=>checkKnowledge(e,reply,source)),
+ knowledge_crew_historical:scenario('Crew',['read_crew_published_sop'],'Read the specified historical published Crew SOP version. Identify it as historical and cite that version.',([e],reply,source)=>checkKnowledge(e,reply,source)),
+ knowledge_crew_onboarding:scenario('Crew',['read_crew_onboarding_catalogue'],'What does the current published Crew Onboarding lesson say for the specified outlet and topic?',([e],reply,source)=>checkKnowledge(e,reply,source)),
+ knowledge_marketing_faq:scenario('Marketing',['read_marketing_usable_faq'],'What does the current approved FAQ say the Idamans Food Industry brand name is? Cite the FAQ and its version.',([e],reply,source)=>checkKnowledge(e,reply,source)),
+ knowledge_marketing_brand:scenario('Marketing',['read_marketing_knowledge_sources'],'What is the verified identity in the current Brand Knowledge for Idamans Food Industry? Cite the approved profile and revision.',([e],reply,source)=>checkKnowledge(e,reply,source)),
+ knowledge_hr_template:scenario('People',['read_published_contract_templates'],'What does the current published unfilled template for the specified Legal Entity and clause say? Cite the template and version.',([e],reply,source)=>checkKnowledge(e,reply,source)),
+ knowledge_hr_holiday:scenario('People',['read_payroll_holiday_policy'],'What public holiday treatment is recorded in the current applicable policy for the specified Legal Entity? Cite the policy and effective date.',([e],reply,source)=>checkKnowledge(e,reply,source)),
+ knowledge_guide:scenario('Platform',['read_assistant_system_guidance'],'How do I reset my Personal Memory preferences in the FeedX Assistant? Cite the guide and version.',([e],reply,source)=>checkKnowledge(e,reply,source)),
  asset_spoon:scenario('Restaurant',['read_asset_catalogue'],'What is the current balance of asset-spoon at Friends Corner?',([e],reply,source)=>{
   assert.equal(e.source,'/operations/asset-tracking');
   assert.equal(e.requested_scope?.mode,'detail');
@@ -166,8 +199,15 @@ if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
 
 export function assertScenarioContracts(){
  const registry=new Map(operations.map(operation=>[operation.id,operation]));
- for(const {operations:ids} of Object.values(scenarios))
-  for(const id of ids)assert.equal(registry.get(id)?.kind,'READ',id);
+ const knowledgeCoverage=new Set();
+ for(const [scenarioId,{operations:ids}] of Object.entries(scenarios)){
+  for(const id of ids){
+   const operation=assistantQuery(id);
+   assert(operation.kind==='READ'||operation.kind==='GUIDANCE',id);
+   if(scenarioId.startsWith('knowledge_')&&operation.knowledge)knowledgeCoverage.add(id);
+  }
+ }
+ for(const operation of operations.filter(operation=>operation.knowledge))assert(knowledgeCoverage.has(operation.id),`Missing knowledge acceptance scenario for ${operation.id}`);
  const supported={
   read_asset_catalogue:['summary','count','detail','search','list'],
   read_factory_finished_goods:['rank','list'],

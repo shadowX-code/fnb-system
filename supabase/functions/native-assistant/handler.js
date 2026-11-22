@@ -7,7 +7,7 @@ import {credentialEnvironment,verifyVoiceProvider,providerVoices} from './provid
 import {createGrokSession,grokReady,grokVoices} from './grokVoice.js';
 import {finishedGoodsRead} from '../_shared/factory/finishedGoodsRead.js';
 import {isQueryEnvelope,queryDiscoveryTools} from '../_shared/assistant/queryDiscovery.js';
-import {createBusinessDispatcher,validateBusinessArguments,businessOperation,businessToolIdentity,businessToolArgumentShape} from './business.js';
+import {createBusinessDispatcher,validateBusinessArguments,businessOperation,assistantQuery,businessToolIdentity,businessToolArgumentShape} from './business.js';
 import {realtimeModel,realtimeTranscriptionModel,realtimeReady,realtimeVoices,voiceInstructions} from './realtime.js';
 import {AssistantError,connection,publicRuntime,generateText,models} from './provider.js';
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -59,7 +59,7 @@ export function validateBody(body){
  if(body.action==='action_policy'&&(businessOperation(body.operation).kind!=='ACTION'||typeof body.enabled!=='boolean'||!Number.isSafeInteger(body.expected_revision)))throw new AssistantError('configuration_invalid',400);
  if(body.action==='realtime_tool'){
   const operation=voiceToolOperation(body);
-  if(body.provider==='openai'&&!isQueryEnvelope(operation))businessOperation(operation);
+  if(body.provider==='openai'&&!isQueryEnvelope(operation))assistantQuery(operation);
   else validateBusinessArguments(operation,body.arguments);
  }
  return body;
@@ -111,7 +111,7 @@ export async function dispatch(body,{voiceUsage,rpc,get,signal,transport,caller,
  const managed=registry&&(['configuration','status'].includes(action)||action.startsWith('realtime_'))?await registry('runtime',{}):null;
  const voiceDefault=managed?.providers.find(row=>row.active_voice);
  if(managed)for(const provider of ['openai','grok'])realtime[provider]=!!(evaluator&&voiceDefault?.provider===provider&&!voiceDefault.test_error);
- const runtime={realtime,voice_providers:managed?.providers.map(({provider,configured,tested_at,test_error,active_voice})=>({provider,configured,tested_at,test_error,active_voice})),voice_default:voiceDefault?{provider:voiceDefault.provider,voice:voiceDefault.active_voice}:null,...publicRuntime(config,get),tools:business.tools.length>0,capabilities:business.capabilities};
+ const runtime={realtime,voice_providers:managed?.providers.map(({provider,configured,tested_at,test_error,active_voice})=>({provider,configured,tested_at,test_error,active_voice})),voice_default:voiceDefault?{provider:voiceDefault.provider,voice:voiceDefault.active_voice}:null,...publicRuntime(config,get),tools:business.tools.length>0,capabilities:business.capabilities,guidance_sources:business.guidance_sources};
  if(action.startsWith('realtime_')){
   if(action==='realtime_end'){
    if(endVoice)return endVoice(args);

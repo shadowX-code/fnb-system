@@ -99,7 +99,8 @@ export async function generateText(claim,key,{transport=fetch,signal,business,on
      if(args===undefined)throw new AssistantError('tool_arguments_invalid',400);
      if(calls[0].name==='run_business_query'&&!discovered.has(args?.operation))throw new AssistantError('tool_not_allowed',403);
      const signature=JSON.stringify([calls[0].name,args]);
-     if(seenReads.has(signature))evidence=seenReads.get(signature);
+     const knowledge=business.isKnowledgeTool?.(calls[0].name,args);
+     if(seenReads.has(signature)&&!knowledge)evidence=seenReads.get(signature);
      else {
       evidence=await business.execute(calls[0].name,args,controller.signal,{correctArguments:true,excluded,prompt:claim.prompt});
       if(!evidence.not_business_evidence&&!evidence.no_evidence){
@@ -108,14 +109,14 @@ export async function generateText(claim,key,{transport=fetch,signal,business,on
        evidenceBytes+=resultBytes;
       }
       // Discovery follows the current access policy and is cheap. Never reuse it.
-      if(!discovery)seenReads.set(signature,evidence);
+      if(!discovery&&!knowledge)seenReads.set(signature,evidence);
      }
      if(evidence.no_evidence)await onTool?.('failed');
      else if(!evidence.not_business_evidence)await onTool?.('completed',evidence);
     }catch(error){
      if(controller.signal.aborted)throw error;
      await onTool?.('failed');
-     if(!['business_read_denied','business_read_unavailable','capability_disconnected','factory_read_denied','action_not_authorized','business_result_limit','inventory_unavailable','inventory_scope_changed','inventory_result_limit','inventory_detail_ambiguous','asset_outlet_required','asset_outlet_unresolved','tool_arguments_invalid','tool_not_allowed'].includes(error.code))throw error;
+     if(!['business_read_denied','business_read_unavailable','capability_disconnected','factory_read_denied','action_not_authorized','business_result_limit','inventory_unavailable','inventory_scope_changed','inventory_result_limit','inventory_detail_ambiguous','asset_outlet_required','asset_outlet_unresolved','knowledge_scope_required','knowledge_scope_unresolved','tool_arguments_invalid','tool_not_allowed'].includes(error.code))throw error;
      evidence={error:error.code,...businessToolIdentity(calls[0].name,args),no_evidence:true};
     }
     const output={type:'function_call_output',call_id:calls[0].call_id,output:JSON.stringify(evidence)};
@@ -123,7 +124,7 @@ export async function generateText(claim,key,{transport=fetch,signal,business,on
     exchanges.push(...data.output,output);
     if(discovery&&evidence.discovery_only){
      for(const entry of evidence.operations)discovered.add(entry.operation);
-     const schemas=evidence.operations.filter(entry=>entry.kind==='READ'&&entry.parameters)
+     const schemas=evidence.operations.filter(entry=>['READ','GUIDANCE'].includes(entry.kind)&&entry.parameters)
       .map(entry=>({type:'function',name:entry.operation,parameters:entry.parameters,description:entry.description,strict:true}));
      matchingTools=[...promptTools,...schemas.filter(tool=>!promptTools.some(named=>named.name===tool.name))].slice(0,4);
      discoveryOutputs.push({output,compact:JSON.stringify({

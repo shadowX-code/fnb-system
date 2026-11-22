@@ -1,6 +1,5 @@
 import {getModuleById} from '../../../config/modules.ts';
-import {businessCapabilities} from '../../../supabase/functions/native-assistant/business.js';
-import {assistantKnowledgeSources} from './assistantKnowledgeSources.js';
+import {businessCapabilities,createBusinessDispatcher} from '../../../supabase/functions/native-assistant/business.js';
 import {expect,it} from 'vitest';
 import {assistantProviderPresentation} from './assistantProviderPresentation.js';
 import {realtimeModel} from '../../../supabase/functions/native-assistant/realtime.js';
@@ -14,5 +13,7 @@ it('presents the implemented voice models and sole existing business tool contra
 
 it('all operation and knowledge ownership IDs resolve to canonical module metadata',()=>{
  for(const capability of businessCapabilities({},{}))expect(getModuleById(capability.module_id)).toBeTruthy();
- for(const source of assistantKnowledgeSources)for(const id of source.module_ids)expect(getModuleById(id)).toBeTruthy();
+ const guide=createBusinessDispatcher({config:{enabled:true},access:{admin:true}}).guidance_sources[0];
+ expect(getModuleById(guide.module_id)).toBeTruthy();
+ expect(businessCapabilities({},{}).filter(capability=>capability.knowledge).every(capability=>getModuleById(capability.module_id))).toBe(true);
 });

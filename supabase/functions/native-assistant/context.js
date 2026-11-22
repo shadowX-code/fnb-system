@@ -4,7 +4,7 @@ export const preferences = {
  reply_style: {concise:'Concise',detailed:'Detailed',steps:'Step by step'},
  work_preference: {exceptions_first:'Lead with exceptions',sources_first:'Lead with sources',next_steps:'Lead with next steps'},
 };
-export const freshDataContext=' Never use conversation history or preferences as current inventory, payroll or financial figures. Only an authorized fresh read establishes current business figures. If no appropriate capability is available, say so.';
+export const freshDataContext=' Never use conversation history or preferences as current business figures, procedures, document versions or policies. Only a fresh authorized source read establishes current information. If the relevant capability or current publication is unavailable, say so.';
 export function memoryContext(memory){
  if(memory?.enabled!==true)return '';
  const values=Object.entries(preferences).flatMap(([key,options])=>Object.hasOwn(options,memory[key])?[options[memory[key]]]:[]);

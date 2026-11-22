@@ -1,7 +1,6 @@
 import {reconcileBusinessModules,businessWorkspaceLabels as workspaceLabels} from './businessModuleProjection.js';
 import {moduleSectionOrder} from '../../../config/modules.ts';
 import {assistantCoverageReview} from './assistantCoverageReview.js';
-import {assistantKnowledgeSources} from './assistantKnowledgeSources.js';
 
 export const capabilityStatuses={connected:'Enabled',disabled:'Disabled',partial:'Partially enabled',unsupported:'Not supported',unavailable:'Unavailable'};
 const businessModules = reconcileBusinessModules().business;
@@ -12,12 +11,15 @@ export function capabilityOwnerLabel(moduleId) {
 }
 
 // A READ can be exposed by several modules, but its policy belongs to one owner.
-export function capabilityInventory(capabilities = []) {
+export function capabilityInventory(capabilities = [],guidance = []) {
  return businessModules.map(module => {
   const owned = capabilities.filter(operation => operation.module_id === module.id);
   const shared = capabilities.filter(operation => operation.kind === 'READ' && operation.module_id !== module.id && operation.related_module_ids?.includes(module.id));
   const operations = [...owned, ...shared];
-  const sources = assistantKnowledgeSources.filter(source => source.module_ids.some(id => id === module.id || module.linkedEntries.some(entry => entry.kind !== 'external' && entry.module.id === id)));
+  const sources = [
+   ...operations.filter(operation=>operation.knowledge).map(operation=>({id:operation.id,module_id:operation.module_id,...operation.knowledge})),
+   ...guidance.filter(source=>source.module_id===module.id),
+  ];
   const enabled = operations.filter(operation => operation.connection_enabled === true && (operation.kind !== 'ACTION' || operation.ai_execution_enabled === true)).length;
   const unknown = operations.some(operation => typeof operation.connection_enabled !== 'boolean' || (operation.kind === 'ACTION' && operation.connection_enabled && typeof operation.ai_execution_enabled !== 'boolean'));
   const status = !operations.length ? 'unsupported' : unknown ? 'unavailable' : enabled === operations.length ? 'connected' : enabled ? 'partial' : 'disabled';
@@ -36,7 +38,7 @@ export function capabilityInventory(capabilities = []) {
 }
 export function filterCapabilityInventory(rows,{query='',workspace='all',domain='all',status='all'}={}){
  const term=query.trim().toLocaleLowerCase();
- return rows.filter(row=>(workspace==='all'||row.workspace===workspace)&&(domain==='all'||row.domainKey===domain)&&(status==='all'||row.status===status)&&(!term||[row.label,row.id,row.workspaceLabel,row.domain,...row.operations.map(operation=>operation.label),...row.sources.map(source=>source.name)].join(' ').toLocaleLowerCase().includes(term)));
+ return rows.filter(row=>(workspace==='all'||row.workspace===workspace)&&(domain==='all'||row.domainKey===domain)&&(status==='all'||row.status===status)&&(!term||[row.label,row.id,row.workspaceLabel,row.domain,...row.operations.map(operation=>operation.label),...row.sources.map(source=>source.authority)].join(' ').toLocaleLowerCase().includes(term)));
 }
 export function capabilityTableRows(inventory,collapsed=new Set()){
  const result=[];

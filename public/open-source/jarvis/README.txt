@@ -43,3 +43,5 @@ No FeedX proprietary licence or NDA is applied to these GPL program files.
 
 2026-11-17: Factory summary evidence distinguishes aggregate counts from list rows; low-stock telemetry uses explicit canonical count when present. Core renderer unchanged.
 2026-11-17: Business activity uses the actual capability supplied by the host or recorded evidence. Provider reply-length limits offer explicit recovery in Conversation.
+
+2026-11-22: Conversation evidence can display knowledge excerpts, document versions, sections and historical status supplied by the authorized host.

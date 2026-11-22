@@ -22,12 +22,17 @@ test('outlet denial prevents fixed RLS table query and projection excludes sensi
  const p=o.project([{id,status:'draft',contact:'private',notes:'private',token:'secret'}]);assert.deepEqual(p.rows,[{id,status:'draft'}]);
 });
 test('published SOP text requires published root and version; excludes media and draft',()=>{
- const o=op('read_crew_published_sop');assert.throws(()=>o.project({status:'draft',versions:[]}));
- const p=o.project({id,status:'published',versions:[{version:2,status:'draft',sections:[{body:'DRAFT'}]},{id,version:1,status:'published',sections:[{title:'Safe',body:'Published text',media_url:'secret'}]}]});
+ const o=op('read_crew_published_sop');const args={sop_id:id,query:null};
+ assert.equal(o.project({outlet:{id},rows:[{status:'draft',versions:[]}]},args).knowledge.status,'no_current_version');
+ const p=o.project({outlet:{id},rows:[{id,title:'SOP',outlet_id:id,status:'published',current_version:1,versions:[{version:2,status:'draft',sections:[{body:'DRAFT'}]},{id,version:1,status:'published',published_at:'2026-01-01',sections:[{title:'Safe',body:'Published text',media_url:'secret'}]}]}]},args);
  assert.equal(p.document_version.version,1);assert(!JSON.stringify(p).includes('DRAFT'));assert(!JSON.stringify(p).includes('secret'));
 });
 test('FAQ source safety decisions are preserved; unavailable operational claims never returned',()=>{
- const p=op('read_marketing_usable_faq').project({faqs:[{id,is_active:true,use_issue:null,question:'Q',answer:'A',revision:3},{is_active:true,use_issue:'Operational information unavailable',answer:'GUESS'},{is_active:false,use_issue:null,answer:'OLD'}]});assert.equal(p.rows.length,1);assert.equal(p.rows[0].revision,3);assert(!JSON.stringify(p).includes('GUESS'));
+ const p=op('read_marketing_usable_faq').project({brand:{id},data:{policy:{ai_allowed:true},faqs:[
+  {id,is_active:true,status:'approved',use_issue:null,question:'Q',answer:'A',revision:3,knowledge_revision:0},
+  {id,is_active:true,status:'approved',use_issue:'Operational information unavailable',answer:'GUESS'},
+  {id,is_active:false,status:'approved',use_issue:null,answer:'OLD'},
+ ]}},{query:null});assert.equal(p.knowledge.citations.length,1);assert.equal(p.knowledge.citations[0].version,3);assert(!JSON.stringify(p).includes('GUESS'));
 });
 test('table adapters are fixed, page-bound and use exact human client',async()=>{
  for(const o of operations.filter(o=>o.query?.toString().includes('.from(')&&!o.id.match(/read_(recipe_ingredients|restaurant_|sales_comparison|purchase_comparison|role_directory|audit_event_metadata|factory_raw_catalogue)/))){

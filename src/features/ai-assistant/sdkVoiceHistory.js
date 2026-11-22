@@ -13,6 +13,8 @@ const toolFailureReasons = {
  inventory_detail_ambiguous: 'More than one authorized record matched this exact SKU.',
  asset_outlet_required: 'Asset Tracking needs the outlet name or code.',
  asset_outlet_unresolved: 'The outlet name or code did not identify one outlet in your authorized scope.',
+ knowledge_scope_required: 'This knowledge source needs the named outlet, Brand or Legal Entity.',
+ knowledge_scope_unresolved: 'The requested scope could not be identified uniquely within your current authorized sources.',
  voice_request_limit: 'This voice session reached its tool-call limit.',
  voice_session_expired: 'This voice session expired or was revoked. Start a new session.',
  realtime_not_authorized: 'Voice access is no longer available.',

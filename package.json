@@ -18,7 +18,7 @@
     "test": "VITE_SUPABASE_URL=http://localhost VITE_SUPABASE_ANON_KEY=test vitest run",
     "test:factory": "VITE_SUPABASE_URL=http://localhost VITE_SUPABASE_ANON_KEY=test vitest run --maxWorkers=1 src/features/factory",
     "verify:assistant-interfaces": "node scripts/verifyAssistantInterfaces.mjs",
-    "test:assistant-business": "node --test --test-reporter=dot supabase/functions/native-assistant/aiBusinessAcceptance.test.js supabase/functions/native-assistant/domainQuery.test.js qa/staging/nativeAssistantCertification.test.mjs",
+    "test:assistant-business": "node --test --test-reporter=dot supabase/functions/native-assistant/aiBusinessAcceptance.test.js supabase/functions/native-assistant/domainQuery.test.js supabase/functions/native-assistant/knowledgeAcceptance.test.js qa/staging/nativeAssistantCertification.test.mjs",
     "qa:staging:assistant-certify": "node qa/staging/nativeAssistantCertification.mjs"
   },
   "dependencies": {
