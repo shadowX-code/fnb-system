@@ -1317,3 +1317,57 @@ test('a mixed turn continues its only exact list in both transports and clarifie
  const end=await b.planTurn('Next page',history);
  assert.match(end.pagination_reply,/no such page/);
 });
+
+test('a current quantitative question with a unique READ owner requires source execution before answering',async()=>{
+ const b=createBusinessDispatcher({config,access,caller:source().caller});
+ const saved=[];
+ const {reply}=await generateText({kind:'turn',model:config.model,prompt:'What is the Factory recipe version count?'},'fixture-secret',{
+  business:b,onTool:(status,evidence)=>{if(evidence)saved.push(evidence);},
+  transport:async(_,init)=>{
+   const request=JSON.parse(init.body);
+   assert.deepEqual(request.tool_choice,{type:'function',name:'read_factory_recipe_versions'});
+   return response([{type:'message',content:[{type:'output_text',text:'There are exactly 999 versions. Which outlet should I check?'}]}]);
+  },
+ });
+ assert.deepEqual(saved,[]);
+ assert.match(reply,/couldn’t verify/);
+ assert.doesNotMatch(reply,/999|outlet/);
+ const disconnected=createBusinessDispatcher({config:{...config,capability_connections:{...config.capability_connections,read_factory_recipe_versions:false}},access});
+ const denied=await generateText({kind:'turn',model:config.model,prompt:'What is the Factory recipe version count?'},'fixture-secret',{
+  business:disconnected,transport:()=>assert.fail('A disconnected source must not require a provider call'),
+ });
+ assert.match(denied.reply,/access/);
+});
+
+test('after discovery alone Text can ask for source-supported scope without inventing an answer',async()=>{
+ const b=createBusinessDispatcher({config,access,caller:source().caller});
+ for(const [proposed,expected] of [
+  ['Which outlet and period should I use?','Which outlet and period should I check?'],
+  ['Purchase spend was RM 999. Which outlet and period should I use?',/couldn’t verify/],
+  ['Which payroll password should I use?',/couldn’t verify/],
+ ]){
+  let calls=0;
+  const {reply}=await generateText({kind:'turn',model:config.model,prompt:'Can you check the supplier purchases?'},'fixture-secret',{
+   business:b,onTool:()=>assert.fail('Discovery alone cannot save business evidence'),
+   transport:async()=>response(++calls===1?[functionCall('find_business_queries',{search:'supplier purchases',page:1},'discovery')]:
+    [{type:'message',content:[{type:'output_text',text:proposed}]}]),
+  });
+  assert.equal(calls,2);
+  if(typeof expected==='string')assert.equal(reply,expected);else assert.match(reply,expected);
+  assert.doesNotMatch(reply,/999|password/);
+ }
+});
+
+test('private recall and conceptual questions mentioning business measures keep their ordinary Text response',async()=>{
+ const b=createBusinessDispatcher({config,access,caller:source().caller});
+ for(const prompt of ['Hello','How is the Factory recipe version count calculated?',
+  'Recall our previous conversation about the Factory recipe version count.']){
+  const {reply}=await generateText({kind:'turn',model:config.model,prompt},'fixture-secret',{
+   business:b,transport:async(_,init)=>{
+    assert.equal(JSON.parse(init.body).tool_choice,'auto');
+    return response([{type:'message',content:[{type:'output_text',text:'Conversation reply.'}]}]);
+   },
+  });
+  assert.equal(reply,'Conversation reply.');
+ }
+});

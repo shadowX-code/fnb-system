@@ -19,15 +19,12 @@ export function queryEnvelopeArguments(id,a){
  let args;try{args=JSON.parse(a.arguments_json);}catch{}
  return {operation:a.operation,args};
 }
-export function discoverQueries(operations,capabilities,args){
- const search=args.search.trim();
+function rankQueries(operations,search,competing=excludeCompetingQueries(operations,search)){
  const query=discoveryWords(search);
  const identifier=/^(?:read|prepare)_[a-z0-9_]+$/i.test(search);
- const competing=excludeCompetingQueries(operations,search);
  const ranking=/\b(?:top|highest|lowest|rank(?:ing)?)\b|最高|最低/i.test(search);
  const counting=/\b(?:how many|count|number of|headcount|berapa|bilangan)\b|多少|幾個|几个/i.test(search);
- const available=new Set(capabilities.filter(c=>c.availability==='connected').map(c=>c.id));
- const matches=operations.filter(o=>available.has(o.id)&&!competing.has(o.id)).flatMap(operation=>{
+ const matches=operations.filter(o=>!competing.has(o.id)).flatMap(operation=>{
   const entry=businessSemanticEntry(operation);
   if(!search)return [{operation,entry,score:0}];
   if(identifier)return operation.id.toLowerCase()===search.toLowerCase()?[{operation,entry,score:1000,exact:true}]:[];
@@ -52,6 +49,19 @@ export function discoverQueries(operations,capabilities,args){
  const exact=matches.filter(row=>row.exact);
  const strong=exact.length?exact:matches.filter(row=>row.strong);
  const preferred=strong.length===1?strong[0].operation.id:null;
+ return {matches,preferred};
+}
+
+// Identity alone selects a source for reauthorization. Only discoverQueries can
+// expose an operation and its schema to a caller.
+export function identifyReadOwner(operations,search){
+ return rankQueries(operations.filter(operation=>operation.kind==='READ'),search.trim()).preferred;
+}
+
+export function discoverQueries(operations,capabilities,args){
+ const available=new Set(capabilities.filter(c=>c.availability==='connected').map(c=>c.id));
+ const search=args.search.trim();
+ const {matches,preferred}=rankQueries(operations.filter(op=>available.has(op.id)),search,excludeCompetingQueries(operations,search));
  const start=(args.page-1)*8;
  const entries=matches.slice(start,start+8).map(({operation,entry})=>{
   const result={operation:entry.operation,module:entry.owner,kind:entry.kind,description:entry.description,
@@ -60,9 +70,15 @@ export function discoverQueries(operations,capabilities,args){
   if(entry.semantics&&entry.operation===preferred)result.semantics=entry.semantics;
   return result;
  });
+ const selected=entries.find(entry=>entry.operation===preferred);
+ const handoff=selected&&selected.kind!=='ACTION'
+  ? {kind:'read',tool:'run_business_query',operation:selected.operation}
+  : entries.length?{kind:'select_match'}:{kind:'refine_search'};
  return {discovery_only:true,not_business_evidence:true,total_operations:matches.length,page:args.page,has_more:matches.length>start+8,
-  preferred_operation:preferred,operations:entries,
-  ...(!matches.length?{instruction:'No operation matched this search. Retry discovery with just the resource or module name. No business source was queried. If no matching operation is available, explain that the capability could not be found; do not report missing records, zero or permission denial.'}:{})};
+  preferred_operation:selected?.operation||null,operations:entries,next_step:handoff,
+  instruction:handoff.kind==='read'?'Use the returned schema with run_business_query before giving business figures. If required scope is missing, ask for it. This source is available through the runner even when its name is absent from the installed tools.'
+   :handoff.kind==='select_match'?'These are available operations, not business results. Use run_business_query with a matching schema. If the requested scope is ambiguous, ask one clarification.'
+   :'No operation matched this search or page. Retry discovery with just the resource or module name on its first page. No business source was queried. Do not report missing records, zero or permission denial.'};
 }
 
 function matchesPhrase(phrase,query,search){

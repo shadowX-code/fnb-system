@@ -221,6 +221,13 @@ test('current Factory recipe standards and their historical versions are distinc
   evidence:{aggregate_complete:true,total_matching:1,current_products:{total:2,by_status:{active:1,draft:1,archived:0}},recorded_versions:{total:3,by_status:{active:2,draft:1,archived:0}}}});
  const check=(r)=>certifyScenario('factory_recipe_standards_and_versions',r).status;
  assert.equal(check(record),'PASS');
+ assert.equal(check({...record,turn:{...record.turn,reply:'1 active product (2 total), while 2 saved versions are active (3 total).'}}),'PASS');
+ assert.equal(check({...record,turn:{...record.turn,reply:'2 active products (3 total), while 1 active saved version (2 total).'}}),'FAIL');
+ const alternate=(measure,status,total_matching)=>({...record,turn:{...record.turn,evidence:{...record.turn.evidence,
+  requested_scope:{...record.source.scope,measure,status},total_matching}}});
+ assert.equal(check(alternate('versions',null,3)),'PASS');
+ assert.equal(check(alternate('current_products',null,1)),'FAIL');
+ assert.equal(check(alternate('versions','draft',1)),'FAIL');
  assert.equal(check({...record,turn:{...record.turn,reply:'2 of 3 current product standards are active. 1 of 2 saved versions are active.'}}),'FAIL');
  assert.equal(check({...record,source:{...record.source,capture:{...record.source.capture,at:'2025-11-23T00:00:00Z'}}}),'BLOCKED');
  assert.equal(check({...record,turn:{...record.turn,created_at:'2026-12-23T01:00:00Z'}}),'BLOCKED');
@@ -237,4 +244,25 @@ test('cross-domain headcount and stock answers retain the unfiltered population 
  assert.equal(check({...turn,reply:'共51名在职员工；S01 的库存为62公斤。'}),'FAIL');
  assert.equal(check({...turn,reply:'员工人数为51人。S01 的库存为62克。'}),'FAIL');
  assert.equal(check({...turn,evidence:{items:[{...turn.evidence.items[0],requested_scope:{status:'active'}},turn.evidence.items[1]]}}),'FAIL');
+});
+
+test('recorded supplier purchases require accurate month/amount pairs, annual total and missing-month disclosure',()=>{
+ const scope={mode:'supplier_year',month:'2026-01-01',outlet_name:'Outlet A',supplier_name:null,page:1};
+ const months=[{month:1,amount:100},{month:2,amount:75},{month:3,amount:0}];
+ const missing=[4,5,6,7,8,9,10,11,12],annual=175;
+ const reply='1月：RM 100；2月：RM 75；3月：RM 0。全年已记录采购总额为 RM 175。4至12月没有采购记录。';
+ const record=measuredTurn({id:'read_purchase_comparison',module:'purchase-comparison',route:'/restaurant/purchases/comparison',scope,
+  source:{outlet_name:'Outlet A',year:2026,months,annual_recorded_total:annual},reply,
+  evidence:{outlet:{name:'Outlet A'},year:2026,currency:'MYR',aggregate_complete:true,period_complete:false,
+   monthly_totals:[...months,...missing.map(month=>({month,amount:null}))],missing_months:missing,recorded_total:annual}});
+ const check=(answer)=>certifyScenario('restaurant_supplier_monthly_recorded_purchases',{...record,turn:{...record.turn,reply:answer}});
+ assert.deepEqual(check(reply).status,'PASS',JSON.stringify(check(reply)));
+ assert.equal(check(reply.replace('1月：RM 100；2月：RM 75','1月：RM 75；2月：RM 100')).status,'FAIL');
+ assert.equal(check(reply.replace('RM 175','RM 176')).status,'FAIL');
+ const source={...record.source,outlet_id:'id-A',scope:{...scope,outlet_name:null,outlet_id:'id-A'}};
+ const withScope=(month,id='id-A',name='Outlet A')=>certifyScenario('restaurant_supplier_monthly_recorded_purchases',{source,turn:{...record.turn,evidence:{...record.turn.evidence,
+  outlet:{id,name},requested_scope:{...scope,month,outlet_name:name}}}}).status;
+ assert.equal(withScope('2026-11-01'),'PASS');assert.equal(withScope('2025-11-01'),'FAIL');
+ assert.equal(withScope('2026-11-01','other','Outlet A'),'FAIL');assert.equal(withScope('2026-11-01','id-A','Different'),'FAIL');
+ assert.equal(check(reply.replace('4至12月没有采购记录','4至12月采购为 RM 0')).status,'FAIL');
 });

@@ -53,9 +53,61 @@ function validateFinalAmount(reply,amount){
  assert.deepEqual([...new Set(amounts)],amount===null?[]:[amount],'Closing value is missing, invented, or contradicted');
 }
 
+const monthLabels=['Jan(?:uary)?','Feb(?:ruary)?','Mar(?:ch)?','Apr(?:il)?','May','Jun(?:e)?','Jul(?:y)?','Aug(?:ust)?','Sep(?:t(?:ember)?)?','Oct(?:ober)?','Nov(?:ember)?','Dec(?:ember)?'];
+const chineseMonths=['一','二','三','四','五','六','七','八','九','十','十一','十二'];
+function monthLabel(m){return '(?:(?<![0-9])0?'+m+'\\s*月|(?<![一二三四五六七八九十])'+chineseMonths[m-1]+'月|\\b'+monthLabels[m-1]+'\\b|20\\d{2}-'+String(m).padStart(2,'0')+'(?!\\d))';}
+function finalMoney(value){
+ const [whole,frac]=value.toFixed(2).split('.');
+ return '(?<![.\\d-])'+whole+(frac==='00'?'(?:\\.0{1,2})?':'\\.'+frac.replace(/0$/,'0?'))+'(?!\\d|\\.\\d)';
+}
+function annualPurchaseScope(scope){
+ const {outlet_id,outlet_name,month,...parameters}=scope;
+ assert(outlet_id||outlet_name,'Missing outlet scope');
+ assert.match(month,/^20\d{2}-(?:0[1-9]|1[0-2])-01$/u,'A valid reporting-year anchor is required');
+ return {...parameters,year:Number(month.slice(0,4))};
+}
+function checkRecordedSupplierYear(e,reply,src){
+ assert.equal(src.scope.mode,'supplier_year');assert.equal(src.scope.supplier_name,null);assert.equal(src.scope.page,1);
+ assert(Number.isSafeInteger(src.year)&&src.year===Number(src.scope.month.slice(0,4)));
+ assert.equal(e.year,src.year);assert.equal(e.currency,'MYR');assert.equal(e.aggregate_complete,true);
+ const name=s=>String(s??'').normalize('NFKC').trim().toLowerCase();
+ assert(src.outlet_name&&e.outlet,'Independently captured outlet required');
+ const ownerId=src.outlet_id||src.scope.outlet_id;
+ if(ownerId)assert.equal(e.outlet.id,ownerId,'Wrong confirmed outlet');
+ if(e.outlet.name||!ownerId)assert.equal(name(e.outlet.name),name(src.outlet_name),'Wrong outlet name');
+ for(const scope of [src.scope,e.requested_scope]){
+  if(scope.outlet_id)assert.equal(scope.outlet_id,e.outlet.id,'Conflicting requested outlet identity');
+  if(scope.outlet_name)assert([src.outlet_name,e.outlet.code].filter(Boolean).some(n=>name(n)===name(scope.outlet_name)),'Conflicting requested outlet name');
+ }
+ assert(Array.isArray(src.months)&&src.months.length>0&&src.months.every(row=>Number.isInteger(row.month)&&row.month>=1&&row.month<=12&&Number.isFinite(row.amount)));
+ const recorded=new Map(src.months.map(row=>[row.month,row.amount]));assert.equal(recorded.size,src.months.length);
+ const missing=monthLabels.flatMap((_,i)=>recorded.has(i+1)?[]:[i+1]);
+ assert.equal(Math.round(100*src.annual_recorded_total),src.months.reduce((sum,row)=>sum+Math.round(100*row.amount),0));
+ assert.deepEqual(e.monthly_totals.map(({month,amount})=>({month,amount})),monthLabels.map((_,i)=>({month:i+1,amount:recorded.get(i+1)??null})));
+ assert.equal(e.recorded_total,src.annual_recorded_total);assert.deepEqual(e.missing_months,missing);assert.equal(e.period_complete,missing.length===0);
+ assert.match(reply,/MYR|RM|令吉|马币|馬幣/iu);
+ const text=reply.replaceAll('**','').replace(/(?<=\d),(?=\d{3}(?:\D|$))/gu,'');
+ for(const row of src.months){
+  // A label must bind its own amount in the same table row or sentence fragment.
+  assert.match(text,new RegExp(monthLabel(row.month)+'[\\s:：|()（）=—–-]*(?:采购(?:金额)?|採購(?:金額)?|purchases?)?[\\s:：|()（）=—–-]*(?:(?:MYR|RM|令吉|马币|馬幣)\\s*)?'+finalMoney(row.amount),'iu'));
+ }
+ const annual='(?:全年|年度|已记录总额|已記錄總額|合计|合計|总计|總計|annual|year(?:ly)?\\s+total|recorded total|total recorded|total)';
+ const yearly=text.split(/[。；;\n]/u).filter(s=>new RegExp(annual,'iu').test(s));
+ assert(yearly.some(s=>new RegExp(finalMoney(src.annual_recorded_total),'iu').test(s)),'Annual total is missing or mislabelled');
+ if(!missing.length)return;
+ const lack=/无(?:任何)?(?:已)?[采购購採购购买買]*记录|無(?:任何)?(?:已)?[采购購採购购买買]*紀錄|没有|沒有|未.{0,5}(?:记录|記錄|录入|錄入)|no (?:recorded )?(?:purchase |supplier )?(?:entries|records|purchases)|no data|not recorded|unrecorded/iu;
+ const absent=text.split(/[。；;\n]/u).filter(s=>lack.test(s));assert(absent.length,'Missing months must be described as having no recorded purchases');
+ for(const m of missing){
+  const explicit=absent.some(s=>new RegExp(monthLabel(m),'iu').test(s));
+  if(explicit)continue;
+  assert(missing.some(start=>start<=m&&missing.some(end=>end>=m&&start<end&&Array.from({length:end-start+1},(_,i)=>start+i).every(n=>missing.includes(n))&&
+   absent.some(s=>new RegExp('(?:'+monthLabel(start)+'|(?<!\\d)'+start+')\\s*(?:至|到|[-–—~～]|through|to)\\s*'+monthLabel(end),'iu').test(s)))),'Missing month '+m+' not identified');
+ }
+}
+
 export function registerScenarios(operations,canonicalPath){
  const map=new Map(operations.map(op=>[op.id,op]));
- const wrap=(id,domain,question,check)=>{
+ const wrap=(id,domain,question,check,businessScope=scope=>scope)=>{
   const op=map.get(id);
   assert(op?.kind==='READ','Scenario needs a bound READ: '+id);
   const owner={owner:op.module_id,canonicalRoute:canonicalPath(op.module_id),rpc:op.rpc};
@@ -65,7 +117,7 @@ export function registerScenarios(operations,canonicalPath){
     assert.equal(e.source,op.source||op.moduleInterface.source,'Wrong business authority');
     assert.equal(e.query_outcome,'SUCCESS');
     assert(Number.isFinite(Date.parse(e.as_of)),'Saved evidence freshness is missing');
-    assert.deepEqual(e.requested_scope,source.scope,'Saved scope differs from independent capture');
+    assert.deepEqual(businessScope(e.requested_scope),businessScope(source.scope),'Saved scope differs from independent capture');
     check(e,reply,source);
    }};
  };
@@ -115,9 +167,10 @@ export function registerScenarios(operations,canonicalPath){
    assert.match(reply,/unit|weight|kilogram/iu);assert.match(reply,/cannot|unknown|mixed|no (?:verified |common |shared )|unavailable|not (?:a |established|given|available)/iu);
    assert.doesNotMatch(reply,/[-+]?\d+(?:\.\d+)?\s*(?:kg|kilograms?)\b/iu);
   });
+ cases.restaurant_supplier_monthly_recorded_purchases=wrap('read_purchase_comparison','Restaurant',
+  'What are this outlet’s supplier purchases by month, recorded total for the year, and months without purchase entries?',checkRecordedSupplierYear,annualPurchaseScope);
  cases.factory_recipe_standards_and_versions=wrap('read_factory_recipe_versions','Factory',
   'How many products have active current recipe standards out of all current standards? Compare this with active saved versions out of all recorded versions.',(e,reply,s)=>{
-   assert.equal(s.scope.measure,'current_products');assert.equal(s.scope.mode,'summary');assert.equal(s.scope.status,'active');
    assert.equal(e.aggregate_complete,true);
    const count=rows=>{
     assert(Array.isArray(rows)&&rows.every(row=>row.id&&typeof row.status==='string'),'Independently read identities and statuses required');
@@ -127,12 +180,28 @@ export function registerScenarios(operations,canonicalPath){
     return {total:rows.length,by_status};
    };
    const products=count(s.current_standards),versions=count(s.saved_versions);
-   assert.deepEqual(e.current_products,products);assert.deepEqual(e.recorded_versions,versions);assert.equal(e.total_matching,products.by_status.active);
+   assert.deepEqual(e.current_products,products);assert.deepEqual(e.recorded_versions,versions);
+   const population=e.requested_scope.measure==='current_products'?products:versions;
+   assert.equal(e.total_matching,e.requested_scope.status==='active'?population.by_status.active:population.total);
    for(const [noun,v] of [['(?:products?|(?:current )?(?:recipe )?standards?)',products],['(?:saved |recorded |recipe )?versions?',versions]]){
-    const ratio='(?<![.\\d])'+v.by_status.active+'\\s*(?:of|out of|/)\\s*'+v.total+'(?!\\d|\\.\\d)';
-    const clauses=reply.split(/[.;\n]/u).filter(part=>new RegExp(noun,'iu').test(part));
-    assert(clauses.some(part=>new RegExp(ratio,'iu').test(part)&&/active/iu.test(part)),'Final answer must pair active count, total and recipe population');
+    const count=n=>'(?<![.\\d])'+n+'(?!\\d|\\.\\d)';
+    const active=count(v.by_status.active),total=count(v.total);
+    const ratio=active+'\\s*(?:of|out of|/)\\s*'+total;
+    const labeledActive='(?:'+active+'\\s+active|active\\s*[:=]\\s*'+active+'|'+active+'\\s+(?:'+noun+'\\s+)?(?:are|were|is) active)';
+    const labeledTotal='(?:'+total+'\\s+(?:in )?total|total\\s*[:=]\\s*'+total+'|out of (?:all |the )?'+total+')';
+    const clauses=reply.split(/[.;\n]|,?\s+(?:whereas|while)\s+|\s+and\s+(?=(?:\d|(?:saved|recorded|current)\s))/iu);
+    assert(clauses.some(part=>new RegExp(noun,'iu').test(part)&&/\bactive\b/iu.test(part)&&
+     (new RegExp(ratio,'iu').test(part)||(new RegExp(labeledActive,'iu').test(part)&&new RegExp(labeledTotal,'iu').test(part)))),
+     'Final answer must pair active count, total and recipe population');
    }
+  },scope=>{
+   // Both summary measures report both full status breakdowns. The selection
+   // affects total_matching, checked above. Other filters change the population.
+   const {measure,status,...filters}=scope;
+   assert(['current_products','versions'].includes(measure));
+   assert(status==='active'||status===null);assert.equal(filters.mode,'summary');assert.equal(filters.page,1);
+   assert(!filters.name&&!filters.code&&!filters.product_name);
+   return filters;
   });
  cases.customer_filtered_and_brand_totals=wrap('read_brand_customer_directory','Marketing',
   'How many customers match these filters, and how many subscribed customers are recorded across this entire Brand?',(e,reply,s)=>{
@@ -198,7 +267,7 @@ export function registerSourceCases(samples,scenarios){
   const id=source.scenario;
   const definition=scenarios[id];
   assert(definition&&Object.prototype.hasOwnProperty.call(scenarios,id)&&definition.independentOwnerCheck&&
-   (id.endsWith('_filtered_register_count')||['stock_closing_publication','finance_closing_valuation','customer_filtered_and_brand_totals','crew_review_assignment_count','workflow_source_ceiling','receiving_quantity_units','factory_recipe_standards_and_versions'].includes(id)),'Unsupported register scenario');
+   (id.endsWith('_filtered_register_count')||['stock_closing_publication','finance_closing_valuation','customer_filtered_and_brand_totals','crew_review_assignment_count','workflow_source_ceiling','receiving_quantity_units','factory_recipe_standards_and_versions','restaurant_supplier_monthly_recorded_purchases'].includes(id)),'Unsupported register scenario');
   assert(typeof source.scope_label==='string'&&source.scope_label.trim()&&source.scope_label.length<=300,'A source-derived scope description is required');
   assert(!/[a-f\d]{8}-(?:[a-f\d]{4}-){3}[a-f\d]{12}/i.test(source.scope_label),'Use human-readable scope in questions');
   return {id,question:source.scope_label.trim()+'. '+definition.question,source};

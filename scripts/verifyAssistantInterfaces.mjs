@@ -26,6 +26,15 @@ for(const o of operations){
  if(!o.moduleInterface||o.moduleInterface.module_id!==o.module_id||o.moduleInterface.kind!==o.kind)throw Error(`Missing module interface: ${o.id}`);
  if(o.kind==='READ'&&(!o.moduleInterface.human_permission||!o.moduleInterface.source||!o.moduleInterface.exposure))throw Error(`Incomplete READ declaration: ${o.id}`);
  if(o.kind==='ACTION'&&!o.moduleInterface.execution_policy)throw Error(`Missing ACTION execution policy: ${o.id}`);
+ for(const [intent,targets] of Object.entries(o.narrowerReads||{})){
+  if(!intent||!o.queryIntent||o.kind!=='READ'||!Array.isArray(targets)||!targets.length||targets.length>3||new Set(targets).size!==targets.length)
+   throw Error(`Invalid narrower-scope declaration: ${o.id} / ${intent}`);
+  for(const id of targets){
+   const target=operations.find(candidate=>candidate.id===id);
+   if(id===o.id||target?.kind!=='READ'||!['en','ms','zh'].every(lang=>typeof target.narrowerOffer?.[lang]==='string'&&target.narrowerOffer[lang].trim().length))
+    throw Error(`Missing narrower READ or its scope explanation: ${o.id} → ${id}`);
+  }
+ }
  const semantics=o.moduleInterface.semantics;
  if(semantics){
   if(!semantics.entities?.length||!semantics.time||!semantics.relationships?.length||!Object.keys(semantics.metrics||{}).length)

@@ -79,10 +79,12 @@ export async function dispatch(body,{voiceUsage,rpc,get,signal,transport,caller,
  const isTool = body?.action === 'realtime_tool';
  const tool = isTool ? voiceToolOperation(body) : undefined;
  const identity = isTool ? businessToolIdentity(tool, body.arguments) : {};
- const traceTool = (stage, outcome, match_count, validation) => traceVoice('voice_tool', {
+ const traceTool = (stage, outcome, discovery, validation) => traceVoice('voice_tool', {
   session_id:body.session_id, request_id:body.request_id, turn_id:uuid.test(body.turn_id || '') ? body.turn_id : undefined,
   tool: tool === 'run_business_query' ? tool : identity.operation,
-  operation:identity.operation, arguments_shape:businessToolArgumentShape(tool,body.arguments), stage, outcome, match_count, validation,
+  operation:identity.operation, arguments_shape:businessToolArgumentShape(tool,body.arguments), stage, outcome, validation,
+  ...(discovery?{match_count:discovery.total_operations,matched_operations:discovery.operations.map(row=>row.operation),
+   next_step:discovery.next_step?.kind,narrower_operations:discovery.narrower_reads?.map(row=>row.operation)}:{}),
  });
  try { validateBody(body); } catch (error) {
   if (!isTool || !uuid.test(body.session_id || '') || !uuid.test(body.request_id || '')) throw error;
@@ -156,7 +158,7 @@ export async function dispatch(body,{voiceUsage,rpc,get,signal,transport,caller,
      stage = 'evidence';
      saved=await voiceHistory({...args,step:'evidence',evidence});
     }
-    traceTool(stage,evidence.error || (evidence.discovery_only ? 'discovery' : 'returned'),evidence.discovery_only?evidence.total_operations:undefined,evidence.validation);
+    traceTool(stage,evidence.error || (evidence.discovery_only ? 'discovery' : 'returned'),evidence.discovery_only?evidence:undefined,evidence.validation);
     const goal=business.planGoal(transcript);
     const current=saved?.evidence||(evidence.not_business_evidence?turn?.evidence:null)||evidence;
     const items=current?.capability==='business_evidence'?current.items:[current];

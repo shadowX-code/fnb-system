@@ -9,6 +9,8 @@ It groups related finance pages under one business authority rather than documen
 
 The Assistant Sales Input read returns the exact count and pages of entered channel records for an authorized outlet and calendar month. An exact recorded channel name narrows both. Each amount stays attached to its channel. Reporting and Sales Comparison retain their existing revenue and deduction definitions.
 
+Purchase Input owns monthly recorded entry amounts and supplier totals. Purchase Comparison can show each month and the recorded total across a calendar year, including months with purchases and no sales. Supplier totals group by recorded supplier identity across categories. Months without purchase entries have no recorded amount, while an entered zero is a recorded value. These figures describe recorded purchases, not disbursements, statutory expenses or stock-adjusted COGS. The Assistant uses the same amount calculations under the existing human, outlet and AI access policies.
+
 Current services, migrations, trusted RPCs, and financial contract tests are authoritative.
 The domain owns sales records, purchase records, sales channels, purchase categories, outlet tax configuration, operating expenses, supplier purchasing relationships, purchase orders, import batches, data health, alerts, and financial period snapshots.
 Inventory receipt and stock movement ownership belongs to `inventory-and-assets.md`, even when initiated by purchasing.

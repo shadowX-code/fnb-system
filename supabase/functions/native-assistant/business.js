@@ -1,4 +1,4 @@
-import {queryDiscoveryTools,isQueryEnvelope,queryEnvelopeArguments,discoverQueries,excludeCompetingQueries} from '../_shared/assistant/queryDiscovery.js';
+import {queryDiscoveryTools,isQueryEnvelope,queryEnvelopeArguments,discoverQueries,excludeCompetingQueries,identifyReadOwner} from '../_shared/assistant/queryDiscovery.js';
 import {employeeDirectoryRead,resolveDirectoryEmployee} from '../_shared/people/employeeDirectoryRead.js';
 import {restaurantGapReads} from '../_shared/restaurant/gapReads.js';
 import {financeGapReads} from '../_shared/finance/gapReads.js';
@@ -27,7 +27,7 @@ import {systemGuidance} from '../_shared/assistant/systemGuidance.js';
 import {entityKey,namedOutlets,outletDirectory,resolveBrand,resolveOutlet} from '../_shared/assistant/entityResolution.js';
 import {invalidArgument,permitted} from '../_shared/assistant/readContract.js';
 import {operationalAnalysis,verifiedAnswerAmounts,verifyReadEvidence} from '../_shared/assistant/evidence.js';
-import {affirmedOutlet,asksForAnalysis,confirmedOutlet,continuedPage,correctedOutletWording,outcomeFor,outletContinuation,pageRequest,previousBusinessResult,previousNamedTurn} from './businessQuery.js';
+import {affirmedOutlet,asksForAnalysis,businessReplyLanguage,confirmedOutlet,continuedPage,correctedOutletWording,outcomeFor,outletContinuation,pageRequest,previousBusinessResult,previousNamedTurn} from './businessQuery.js';
 
 // Composition of implemented module contracts, not a permission or grant store.
 // Discovery never makes a module executable. ACTION tools create previews only.
@@ -109,6 +109,24 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
  };
  const discoveryRows=(ops,available,params)=>discoverQueries(ops.map(operation=>({...operation,tool:queryTool(operation)})),available,params);
  const planFor=operation=>operation?{operation:operation.id,tool:indexed.find(item=>item.id===operation.id)?.availability==='connected'?queryTool(operation):null}:null;
+ // A narrower scope is a new question. Only the owner can declare one and only
+ // currently discoverable READs may be offered. Never execute it as a fallback.
+ function unavailableDiscovery(plan,available,prompt){
+  const requested=assistantQuery(plan.operation);
+  const language=businessReplyLanguage(prompt);
+  const options=(requested.narrowerReads?.[plan.intent]||[]).flatMap(id=>{
+   const entry=available.find(row=>row.id===id&&row.kind==='READ'&&row.availability==='connected');
+   if(!entry)return [];
+   const target=assistantQuery(id);
+   return [{operation:id,label:entry.label,scope:entry.scope,offer:target.narrowerOffer?.[language]}];
+  });
+  const offer=options.length===1?options[0].offer:null;
+  return {discovery_only:true,not_business_evidence:true,requested_query_unavailable:true,total_operations:0,
+   page:1,has_more:false,preferred_operation:null,operations:[],narrower_reads:options,
+   next_step:{kind:options.length?'offer_narrower_scope':'report_unavailable'},
+   ...(offer?{answer_hint:offer}:{}),
+   instruction:'The requested scope is unavailable with current access. Only offer a listed narrower scope for a new request. Do not call it automatically, substitute another metric or infer that all business sources are unavailable.'};
+ }
  // A coordinated question can name several owners. Keep each clause with its own
  // authority and filters. A list of outlets or two dates alone is not a new read.
  let lastGoalPrompt, lastGoal;
@@ -236,6 +254,15 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
   validAnswerAmounts:(reply,evidences)=>verifiedAnswerAmounts(reply,evidences,assistantQuery),
   planGoal,
   planTurn,
+  measureOwner(prompt){
+   const id=identifyReadOwner(queryOperations,prompt.slice(0,240));
+   return id?planFor(assistantQuery(id)):null;
+  },
+  async unavailableRead(plan,prompt){
+   if(!assistantQuery(plan.operation).narrowerReads?.[plan.intent])return null;
+   const current=loadConfig?await loadConfig():config||{};
+   return unavailableDiscovery(plan,businessCapabilities(current,access||{}),prompt);
+  },
   plan(prompt){
    if(planGoal(prompt)||asksForAnalysis(prompt))return null;
    const operation=planned(prompt);
@@ -280,8 +307,10 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
     if(id==='find_business_queries'){
      const current=loadConfig?await loadConfig():config||{};
      const plan=turnPlan??(await planTurn(prompt,history,signal));
-     const result=discoveryRows(queryOperations.filter(operation=>!blocked.has(operation.id)&&(!asksForAnalysis(prompt)||operation.kind!=='ACTION')&&(!goal||goal.some(step=>step.operation===operation.id))&&(!plan||operation.id===plan.operation)),
-      withGuide(businessCapabilities(current,access||{}),current),plan?{search:plan.operation,page:1}:parsed);
+     const available=withGuide(businessCapabilities(current,access||{}),current);
+     const requestedUnavailable=plan&&!available.some(row=>row.id===plan.operation&&row.availability==='connected');
+     const result=requestedUnavailable?unavailableDiscovery(plan,available,prompt):discoveryRows(queryOperations.filter(operation=>!blocked.has(operation.id)&&(!asksForAnalysis(prompt)||operation.kind!=='ACTION')&&(!goal||goal.some(step=>step.operation===operation.id))&&(!plan||operation.id===plan.operation)),
+      available,plan?{search:plan.operation,page:1}:parsed);
      return withOutcome?{...result,query_outcome:outcomeFor(result)}:result;
     }
     id=parsed.operation;args=parsed.args;

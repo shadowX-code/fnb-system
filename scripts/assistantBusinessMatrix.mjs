@@ -79,8 +79,8 @@ for(const row of modules){
  const available=[...row.direct,...row.shared];
  const policy=available.length===0?'No READ':run?`${available.filter(op=>enabled.has(op.id)).length}/${available.length} enabled`:'Snapshot unavailable';
  const references=[...new Set([row.adminSource,...row.review.evidence||[]])].map(code).join(', ');
- const coverageDescription=row.review.available||available.map(op=>op.label+' — '+op.scope).join(' ');
- const evidence=[coverageDescription,row.boundary,references].filter(Boolean).join(' ');
+ const coverageDescription=row.review.available||available.map(op=>row.boundary.includes(op.scope)?op.label:op.label+' — '+op.scope).join('. ');
+ const evidence=[...new Set([coverageDescription,row.boundary,references].filter(Boolean))].join(' ');
  console.log('| '+[`${row.module.workspace} / ${row.module.section} / ${row.module.id}`,modulePath(row.module)||'Owner or linked module',row.coverage,[...direct,...shared].join(', ')||'None',policy,row.actions.map(op=>code(op.id)).join(', ')||'None',evidence].map(cell).join(' | ')+' |');
 }
 console.log(`

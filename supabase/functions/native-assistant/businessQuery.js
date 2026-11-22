@@ -13,6 +13,7 @@ export function failureOutcome(code){
 
 export function outcomeFor(evidence){
  if(evidence.error)return failureOutcome(evidence.error);
+ if(evidence.discovery_only&&evidence.requested_query_unavailable)return 'UNAUTHORIZED';
  if(evidence.discovery_only)return evidence.total_operations?'SUCCESS':'UNSUPPORTED';
  if(evidence.match_status==='ambiguous'||evidence.knowledge?.status==='ambiguous_source'||evidence.ranking?.status==='unit_required')return 'AMBIGUOUS';
  if(evidence.knowledge?.status==='source_ai_not_allowed')return 'UNAUTHORIZED';
@@ -121,9 +122,42 @@ export function sourceLimitation(evidence,prompt=''){
  }
 }
 
+export function businessReplyLanguage(prompt){
+ if(/\p{Script=Han}/u.test(prompt||''))return 'zh';
+ return /\b(?:berapa(?:kah)?|cawangan|inventori|baki|maksud saya|jumlah|semak|setiap|bulan|mengikut|belian|pembelian)\b/iu.test(prompt||'')?'ms':'en';
+}
+// This signal is only used together with a unique module-owned READ match.
+// Concepts, capability questions and references to prior replies need no live measurement.
+export function asksForMeasure(prompt){
+ const conceptual=/\b(?:how (?:do|does|is|are|to)\b[^?!.]{0,100}\b(?:calculat\w*|defin\w*|work|access)|what (?:does|is meant by)\b[^?!.]{0,100}\bmean|definition of|can (?:you|i) access|(?:we|i|you) (?:previously |just )?(?:asked|said|mentioned)|(?:apa maksud|cara (?:kira|mengira)))\b|是什么意思|是什麼意思|如何计算|如何計算|怎么算|怎麼算|之前.{0,8}(?:提到|问过|問過)/iu;
+ return !conceptual.test(prompt)&&/\b(?:how (?:many|much)|number of|counts?|totals?|headcount|balances?|amounts?|quantity|quantities|highest|lowest|rank(?:ing)?|berapa(?:kah)?|bilangan|jumlah|baki|tertinggi|terendah)\b|多少|总[共数額额量計计]|總[共數額量計]|数量|數量|余[额額量]|餘[額量]|最高|最低/iu.test(prompt);
+}
+export function unverifiedReadReply(prompt){
+ return {en:'I couldn’t verify the figures from the current records.',zh:'我还没有从当前记录中核实这些数据。',ms:'Saya belum dapat mengesahkan angka daripada rekod semasa.'}[businessReplyLanguage(prompt)];
+}
+
+// A discovery response contains schemas only. Reconstruct one scope question
+// from the fields shared by its candidates; model prose is never the answer.
+export function discoveryScopeQuestion(candidates,reply,prompt){
+ if(!candidates?.length||!/[?？]$/u.test(reply)||/[.!;。！；?？\n]/u.test(reply.slice(0,-1)))return null;
+ const question=reply.slice(0,-1);
+ if(!/^(?:which\b|what\b|could you (?:specify|confirm)\b|please (?:specify|confirm)\b|cawangan\b|tempoh\b|boleh (?:nyatakan|sahkan)\b|请|請|哪|您指|你指)/iu.test(question))return null;
+ const required=(schema,key)=>schema?.required?.includes(key)&&schema.properties[key]?.type!=null&&!schema.properties[key].type.includes('null');
+ const outlet=/\b(?:outlet|branch|cawangan)\b|门店|門店|分店/iu.test(question)&&candidates.every(({parameters,scope})=>
+  required(parameters,'outlet_id')||parameters?.properties?.outlet_name&&/\b(?:single|one) (?:authorized |Restaurant )*outlet\b/iu.test(scope||''));
+ const period=/\b(?:period|month|year|date range|tempoh|bulan|tahun)\b|时间范围|時間範圍|期间|期間|月份|年份/iu.test(question)&&candidates.every(({parameters})=>{
+  return required(parameters,'month')||required(parameters,'year')||required(parameters,'from')&&required(parameters,'to');
+ });
+ if(!outlet&&!period)return null;
+ const language=businessReplyLanguage(prompt);
+ if(language==='zh')return outlet&&period?'您想查哪家门店、哪个期间？':outlet?'您想查哪家门店？':'您想查哪个期间？';
+ if(language==='ms')return outlet&&period?'Cawangan dan tempoh mana yang perlu disemak?':outlet?'Cawangan mana yang perlu disemak?':'Tempoh mana yang perlu disemak?';
+ return outlet&&period?'Which outlet and period should I check?':outlet?'Which outlet should I check?':'Which period should I check?';
+}
+
 export function businessFailureReply(status,prompt=''){
- const chinese=/\p{Script=Han}/u.test(prompt);
- const malay=!chinese&&/\b(?:berapa|cawangan|inventori|baki|maksud saya)\b/iu.test(prompt);
+ const language=businessReplyLanguage(prompt);
+ const chinese=language==='zh',malay=language==='ms';
  return ({
   UNAUTHORIZED:chinese?'当前无法查看这项数据。请检查您的访问权限。':malay?'Akses semasa tidak membenarkan semakan ini.':'Your current access does not allow this read.',
   AMBIGUOUS:chinese?'请确认您指的是哪家门店或哪个品项。':malay?'Cawangan atau item yang mana satu?':'Please confirm which outlet or item you mean.',

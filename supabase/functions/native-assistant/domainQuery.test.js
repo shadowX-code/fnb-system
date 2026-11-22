@@ -83,6 +83,61 @@ test('discovery selects a unique owner-declared measure and preserves ambiguity,
   assert(!disabled.operations.some(row=>row.operation==='read_operational_financials'));
  }
 });
+test('Voice supplier discovery follows the saved utterance and exposes only authorized scopes',async()=>{
+ const id='96b39786-ae76-499c-a93a-9ba2374acbd3';
+ const annual='read_purchase_comparison',monthly='read_purchase_records';
+ const access={permissions:{'purchase_input.view':true,'purchase_comparison.view':true,'operating_expenses.view':true}};
+ const config={enabled:true,capability_connections:{[monthly]:true,[annual]:false,read_operating_expenses:true}};
+ const traces=[];
+ let prompt='我想知道 French Corner 每个月的 supplier 采购';
+ const deps={access,get:()=>undefined,reserveRealtime:async()=>{},voiceHistory:()=>assert.fail('Discovery is never saved as a READ'),
+  rpc:async action=>action==='history'?{turns:[{request_id:id,voice_input_available:true,prompt}]}:{config},
+  traceVoice:(event,fields)=>traces.push({event,...fields})};
+ const call=(tool,args)=>dispatch({action:'realtime_tool',provider:'openai',request_id:id,turn_id:id,session_id:id,operation:tool,arguments:args},deps);
+ const find=()=>call('find_business_queries',{search:'supplier',page:1});
+ const result=await find();
+ assert.equal(result.query_outcome,'UNAUTHORIZED');
+ assert.deepEqual(result.next_step,{kind:'offer_narrower_scope'});
+ assert.deepEqual(result.operations,[]);
+ assert.deepEqual(result.narrower_reads.map(row=>row.operation),[monthly]);
+ assert.match(result.answer_hint,/月/);
+ assert.equal(result.not_business_evidence,true);
+ // The possible monthly question has not been asked. Do not execute it or use
+ // Operating Expenses as a substitute for the unavailable period.
+ const envelope=op=>({operation:op,arguments_json:'{}'});
+ for(const op of [monthly,'read_operating_expenses'])
+  await assert.rejects(call('run_business_query',envelope(op)),{code:'tool_not_allowed'});
+ const text=await generateText({kind:'turn',prompt},'unused',{business:createBusinessDispatcher({config,access}),transport:()=>assert.fail('No provider request')});
+ assert.equal(text.output_tokens,0);assert(text.reply.includes(result.answer_hint));
+ access.permissions['purchase_input.view']=false;
+ assert.deepEqual((await find()).narrower_reads,[]);
+ access.permissions['purchase_input.view']=true;
+ config.capability_connections[monthly]=false;
+ assert.equal((await find()).next_step.kind,'report_unavailable');
+ config.capability_connections[monthly]=true;
+ config.capability_connections[annual]=true;
+ const examples=[
+  [prompt,annual],
+  ['Berapakah jumlah pembelian pembekal setiap bulan di French Corner?',annual],
+  ['How much did French Corner spend on supplier purchases last month?',monthly],
+ ];
+ for(const [utterance,op] of examples){
+  prompt=utterance;
+  const available=await find();
+  assert.deepEqual(available.next_step,{kind:'read',tool:'run_business_query',operation:op});
+  assert.deepEqual(available.operations.map(row=>row.operation),[op]);
+  assert(available.operations[0].parameters.properties.month);
+  assert.deepEqual(traces.at(-1).matched_operations,[op]);
+  assert(!JSON.stringify(traces).includes('French Corner'));
+ }
+ prompt=examples[0][0];
+ deps.caller={rpc:()=>({abortSignal:async()=>({data:true})}),from:table=>{
+  assert.equal(table,'outlets','No purchase rows before the outlet is confirmed');
+  const query={select:()=>query,order:()=>query,limit:()=>query,abortSignal:async()=>({data:[{id,name:'Friends Corner',code:'FC'}]})};
+  return query;
+ }};
+ await assert.rejects(call('run_business_query',{operation:annual,arguments_json:JSON.stringify({outlet_name:'Friends Corner',mode:'supplier_year',month:'2026-01-01'})}),{code:'entity_scope_required'});
+});
 function inventoryCaller(rows){return {rpc:name=>{const value={data:name==='current_user_role_id'?'role':name==='current_user_has_permission'?true:rows.map(r=>r.id)};return {then:f=>Promise.resolve(value).then(f),abortSignal:async()=>value};},from:()=>({select:()=>({in:(_key,ids)=>({abortSignal:async()=>({data:rows.filter(r=>ids.includes(r.id))})})})})};}
 test('Factory count, pagination, exact SKU detail and legacy arguments share one authority',async()=>{
  const rows=Array.from({length:45},(_,i)=>({id:String(i).padStart(2,'0'),product_code:'SKU'+i,product_name:'Product '+String(i).padStart(2,'0'),current_balance:i,min_stock_level:10}));

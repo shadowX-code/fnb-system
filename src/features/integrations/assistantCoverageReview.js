@@ -3,8 +3,8 @@ export const coverageLabels = {"full": "Full", "partial": "Partial", "shared": "
 export const assistantCoverageReview = {
   "purchase-input": {
     classification: "partial",
-    available: "Monthly entered purchases, matching row count and individual amounts ranked within one authorized outlet/month. Records include visible supplier and category labels.",
-    missing: "Payments, statutory expenses, grouped supplier totals and private remarks are outside this read.",
+    available: "Monthly recorded purchases for one authorized outlet, including the total, amounts by recorded supplier, individual entries, and visible supplier and category labels.",
+    missing: "Payments, statutory expenses, private remarks and unentered purchases are unavailable. Use Purchase Comparison for an annual breakdown.",
     reads: ["read_purchase_records"],
     evidence: ["src/services/purchaseRecordService.js", "supabase/functions/_shared/restaurant/purchaseInputRead.js"],
     certification: ["purchase_input_rank"]
@@ -342,8 +342,8 @@ export const assistantCoverageReview = {
   },
   "purchase-comparison": {
     "classification": "partial",
-    "available": "Complete-source monthly purchase efficiency, previous-period values and variance percentages.",
-    "missing": "Supplier/category drilldown remains in source records; purchase-based estimates are not accounting COGS.",
+    "available": "Monthly and annual recorded purchase totals by outlet or supplier, months without entries, and purchase efficiency when sales are recorded.",
+    "missing": "Category totals, underlying invoices, payments and accounting COGS are outside this summary. Missing monthly entries do not establish zero purchases.",
     "reads": [
       "read_purchase_comparison",
       "read_purchase_records"
@@ -351,8 +351,10 @@ export const assistantCoverageReview = {
     "evidence": [
       "src/features/sales-purchase/pages/PurchaseComparisonPage.jsx",
       "supabase/functions/_shared/restaurant/catalogueReads.js",
-      "supabase/functions/_shared/restaurant/gapReads.js"
-    ]
+      "supabase/functions/_shared/restaurant/gapReads.js",
+      "supabase/functions/_shared/restaurant/supplierPurchases.js"
+    ],
+    "certification": ["restaurant_supplier_monthly_recorded_purchases"]
   },
   "roles": {
     "classification": "partial",
