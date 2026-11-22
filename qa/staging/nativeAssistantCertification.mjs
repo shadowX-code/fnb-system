@@ -166,8 +166,8 @@ export const scenarios={
 export function certifyScenario(id,record){
  const definition=scenarios[id];
  if(!definition)throw Error('Unknown certification scenario');
- if(!record)return {status:'BLOCKED',reason:'No authenticated turn and independent source snapshot'};
- if(record.blocker)return {status:'BLOCKED',reason:record.blocker};
+ if(record?.blocker)return {status:'BLOCKED',reason:record.blocker};
+ if(!record?.turn)return {status:'BLOCKED',reason:'No authenticated turn and independent source snapshot'};
  try{
   const {turn,source}=record;
   assert(turn?.request_id&&turn.created_at&&turn.model,'Saved turn identity required');
@@ -242,6 +242,78 @@ scenarios.asset_outlet_correction=scenario('Restaurant',['read_asset_catalogue']
  'After the outlet was misheard in a count-and-balance request, say its human-readable name again.',checkAssetBalances);
 scenarios.asset_outlet_correction_voice=scenario('Restaurant',['read_asset_catalogue'],
  'Correct the misheard outlet name in a live call, then listen for its asset count and balances.',checkAssetBalances,'voice');
+
+const concise=(reply,amount)=>{
+ const lead=reply.split(/\n|[。!?]/u,1)[0].slice(0,160);
+ assert.match(lead,new RegExp(number(amount),'u'),'Lead with the verified result');
+ assert.doesNotMatch(reply,/\b(?:outlet_id|brand_id|read_[a-z_]+|arguments_json)\b/u);
+};
+const filteredCount=([e],reply,source)=>{
+ assert.equal(e.query_outcome,'SUCCESS');
+ assert.equal(e.aggregate_complete,true);
+ assert.equal(e.total_matching,source.count);
+ for(const [key,value] of Object.entries(source.filters))assert.deepEqual(e.requested_scope?.[key]??e[key],value);
+ concise(reply,source.count);
+};
+scenarios.movement_filtered_count=scenario('Restaurant',['read_inventory_movements'],'Count a recorded movement type at a named outlet during a specified period.',filteredCount);
+scenarios.fg_filtered_count=scenario('Factory',['read_factory_finished_goods'],'Count packaging SKUs with a specified recorded status.',filteredCount);
+scenarios.fg_product_count=scenario('Factory',['read_factory_finished_goods'],'Count Finished Goods in the grouped catalogue, treating packaging SKUs as variants.',filteredCount);
+scenarios.department_count=scenario('HR',['read_departments'],'Count departments with a specified status.',filteredCount);
+scenarios.position_department_count=scenario('HR',['read_job_positions'],'Count positions in a named department.',filteredCount);
+scenarios.crew_status_count=scenario('Crew',['read_crew_leave'],'Count leave requests with the specified approval status that overlap the date range at this outlet.',filteredCount);
+scenarios.planner_status_count=scenario('Marketing',['read_marketing_plan'],'Count recorded creative tasks at a named brand in a specified month and status.',filteredCount);
+scenarios.finance_period_pair=scenario('Finance',['read_operational_financials'],'Compare recorded revenue in two months at one outlet.',([e],reply,source)=>{
+ assert.deepEqual(e.requested_scope?.outlet_id,source.outletId);
+ assert.equal(e.query_outcome,'SUCCESS');
+ const reports=[e.report,e.comparison_report];
+ for(const [i,expected] of source.periods.entries()){
+  const actual=reports[i];
+  assert.equal(actual.outlet.id,source.outletId);
+  assert.deepEqual(actual.period,{year:expected.year,month:expected.month});
+  assert.deepEqual(actual.financials.revenue,expected.revenue);
+  if(expected.revenue.amount==null)assert.match(reply,/unavailable|missing|未记录|tiada data/iu);
+  else assert.match(reply,new RegExp(number(expected.revenue.amount),'u'));
+ }
+ assert.doesNotMatch(reply,/outlet_id|read_operational_financials/u);
+});
+
+// Templates consume independently read, scoped records. Neither a generated
+// prompt nor a source snapshot alone qualifies as a live certification.
+export function generateSourceCases(snapshot){
+ const cases=[];
+ const add=(id,question,source,after)=>cases.push({id,question,source,...after?{after}:{}});
+ for(const {outlet,outletId,name,code,quantity,unit,outletAssetCount} of snapshot.assets||[]){
+  const asset={outlet,outletId,name,code,quantity,unit};
+  const item=name;
+  for(const question of ['What is the current balance of asset '+item+' at '+outlet+'?',
+   outlet+' 的资产 '+item+' 目前还剩多少？','Berapa baki aset '+item+' di '+outlet+' sekarang?'])
+   add('asset_spoon',question,asset);
+  if(Number.isSafeInteger(outletAssetCount))add('asset_count','How many current asset records are there at that outlet?',
+   {outlet,outletId,count:outletAssetCount},cases.length-1);
+ }
+ if(snapshot.inventory?.length>=2){
+  const selected=snapshot.inventory.slice(0,12);
+  const names=selected.map(row=>row.outlet).join(', ');
+  const source={status:'active',counts:Object.fromEntries(selected.map(row=>[row.outletId,row.count])),
+   namedCounts:Object.fromEntries(selected.map(row=>[row.outlet,row.count]))};
+  for(const [language,question] of [
+   ['en','Give the number of active Master Inventory item types at each of these outlets: '+names+'.'],
+   ['ms','Berapa jenis item inventori restoran aktif di setiap cawangan ini: '+names+'?'],
+   ['zh','请分别列出这些门店启用的库存品项种类：'+names+'，每家有多少种？'],
+  ])add('master_inventory_by_outlet_'+language,question,source);
+ }
+ for(const row of snapshot.movements||[])add('movement_filtered_count',
+  'How many '+row.filters.movement_type+' inventory movement records were posted at '+row.outlet+' from '+row.filters.from+' to '+row.filters.to+'?',row);
+ for(const row of snapshot.finishedGoods||[])add('fg_filtered_count','How many '+row.filters.status+' Factory Finished Goods packaging SKUs are registered?',row);
+ for(const row of snapshot.productGroups||[])add('fg_product_count','How many products are in the Factory Finished Goods grouped catalogue?',row);
+ for(const row of snapshot.departments||[])add('department_count','How many '+row.filters.status+' HR departments are registered?',row);
+ for(const row of snapshot.positions||[])add('position_department_count','How many HR job positions are registered in '+row.filters.department+'?',row);
+ for(const row of snapshot.leave||[])add('crew_status_count','How many '+row.filters.status+' Crew leave requests overlap '+row.filters.from+' to '+row.filters.to+' at '+row.outlet+'?',row);
+ for(const row of snapshot.plans||[])add('planner_status_count','How many '+row.filters.status.replaceAll('_',' ')+' creative tasks are in the '+row.brand+' plan for '+row.filters.month.slice(0,7)+'?',row);
+ for(const row of snapshot.finance||[])add('finance_period_pair','Compare the operational revenue for '+row.outlet+' in '+row.periods.map(p=>p.year+'-'+String(p.month).padStart(2,'0')).join(' and ')+'.',row);
+ return cases;
+}
+
 scenarios.employees_fg_scope=scenario('HR / Factory',['read_employee_directory','read_factory_finished_goods'],
  'How many authorized Employees are there, and what is the current Factory Finished Goods stock for SKU S01?',([employees,stock],reply,source)=>{
   assert.equal(employees.aggregate_complete,true);
@@ -258,12 +330,33 @@ export function certifyRun(records={}){
  return Object.fromEntries(Object.keys(scenarios).map(id=>[id,certifyScenario(id,records[id])]));
 }
 
+export function certifyGeneratedRun(records){
+ const outcomes=[];
+ for(const row of records){
+  const result=certifyScenario(row.id,row);
+  if(row.after!==undefined&&result.status==='PASS'){
+   const previous=records[row.after]?.turn;
+   if(row.after<0||row.after>=outcomes.length||outcomes[row.after].status!=='PASS'||
+    !previous?.session_id||previous.session_id!==row.turn.session_id||
+    Date.parse(previous.created_at)>=Date.parse(row.turn.created_at))
+    outcomes.push({status:'FAIL',reason:'Follow-up needs the passing preceding turn in the same conversation'});
+   else outcomes.push(result);
+  }else outcomes.push(result);
+ }
+ return outcomes;
+}
+
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
- const recordPath=process.argv[2];
- if(!recordPath)throw Error('Usage: node qa/staging/nativeAssistantCertification.mjs <reviewed-run.json> [--strict]');
- const results=certifyRun(JSON.parse(readFileSync(recordPath,'utf8')));
- console.log(JSON.stringify(results,null,2));
- if(Object.values(results).some(row=>row.status==='FAIL'||process.argv.includes('--strict')&&row.status==='BLOCKED'))process.exitCode=1;
+ const [mode,recordPath]=process.argv.slice(2);
+ if(!mode)throw Error('Usage: node qa/staging/nativeAssistantCertification.mjs <reviewed-run.json> [--strict], or --generate <source.json>, or --generated-run <run.json>');
+ if(mode==='--generate'){
+  console.log(JSON.stringify(generateSourceCases(JSON.parse(readFileSync(recordPath,'utf8'))),null,2));
+ }else{
+  const input=JSON.parse(readFileSync(mode==='--generated-run'?recordPath:mode,'utf8'));
+  const results=mode==='--generated-run'?certifyGeneratedRun(input):certifyRun(input);
+  console.log(JSON.stringify(results,null,2));
+  if(Object.values(results).some(row=>row.status==='FAIL'||process.argv.includes('--strict')&&row.status==='BLOCKED'))process.exitCode=1;
+ }
 }
 
 export function assertScenarioContracts(){
@@ -280,12 +373,15 @@ export function assertScenarioContracts(){
  const supported={
   read_asset_catalogue:['summary','count','detail','search','list'],
   read_inventory_items:['summary','count','list','group'],
+  read_inventory_movements:['summary','count','list','filter'],
+  read_departments:['summary','count','list','filter'],
+  read_job_positions:['summary','count','list','filter'],
   read_factory_finished_goods:['rank','list'],
   read_factory_raw_catalogue:['rank','filter'],
   read_employee_directory:['summary','group'],
   read_crew_leave:['count'],
   read_sales_comparison:['period_comparison'],
-  read_operational_financials:['summary'],
+  read_operational_financials:['summary','period_comparison'],
   read_marketing_plan:['count'],
  };
  for(const [id,dimensions] of Object.entries(supported))

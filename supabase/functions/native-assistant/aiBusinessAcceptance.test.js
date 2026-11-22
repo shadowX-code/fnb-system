@@ -7,6 +7,7 @@ import {generateText} from './provider.js';
 import {createSdkVoiceHistory} from '../../../src/features/ai-assistant/sdkVoiceHistory.js';
 import {rawMaterialStockStatus} from '../_shared/factory/stockCatalogue.js';
 import {failureOutcome,outcomeFor,outletContinuation} from './businessQuery.js';
+import {generateSourceCases,certifyScenario} from '../../../qa/staging/nativeAssistantCertification.mjs';
 
 const reads=operations.filter(o=>o.kind==='READ');
 const id='10000000-0000-4000-8000-000000000001';
@@ -86,7 +87,8 @@ function source({scope=true,brand=true,snapshot,assetRows=assets,outletRows=outl
    if(name==='current_user_has_permission')result={data:true};
    if(name==='current_user_can_access_outlet')result={data:scope};
    if(name==='factory_get_master_id_snapshot'){
-    const table=args.p_entity==='finished_goods'?'factory_finished_goods':'factory_raw_materials';
+    const table=args.p_entity==='finished_goods'?'factory_finished_goods':
+     args.p_entity==='product_families'?'factory_product_families':'factory_raw_materials';
     result={data:(snapshot?.tables[table]||stock).map(r=>r.id)};
    }
    if((name==='marketing_planner_read'&&!brand)||(name==='crew_leave_requests_admin_page'&&!scope))result={error:{code:'42501'}};
@@ -94,19 +96,21 @@ function source({scope=true,brand=true,snapshot,assetRows=assets,outletRows=outl
   },
   from(table){
    calls.push([table]);
-   if(['outlets','asset_items','inventory_items'].includes(table)){
-    let rows=table==='outlets'?outletRows:table==='asset_items'?assetRows:inventoryRows;
-    let head=false;
+   if(['outlets','asset_items','inventory_items','inventory_movements','departments','job_positions'].includes(table)){
+    let rows=table==='outlets'?outletRows:table==='asset_items'?assetRows:table==='inventory_items'?inventoryRows:snapshot?.tables[table]||[];
+    let head=false,count;
     const builder={
      select(fields,options){head=options?.head;if(table==='inventory_items')assert.match(fields,/inventory_item_outlets!inner/);return this;},
      in(field,values){assert.equal(field,'inventory_item_outlets.outlet_id');rows=rows.filter(row=>row.outlets.some(outlet=>values.includes(outlet)));return this;},
      eq(field,value){rows=rows.filter(row=>row[field]===value);return this;},
      neq(field,value){rows=rows.filter(row=>row[field]!==value);return this;},
+     gte(field,value){rows=rows.filter(row=>row[field]>=value);return this;},
+     lt(field,value){rows=rows.filter(row=>row[field]<value);return this;},
      ilike(field,pattern){rows=rows.filter(row=>row[field]?.toLowerCase()===pattern.replace(/\\([%_\\])/g,'$1').toLowerCase());return this;},
      limit(max){rows=rows.slice(0,max);return this;},
      order(){return this;},
-     range(start,end){rows=rows.slice(start,end+1);return this;},
-     abortSignal:async()=>table==='inventory_items'&&inventoryError?{error:{code:'57014'}}:{data:head?null:rows,count:rows.length},
+     range(start,end){count=rows.length;rows=rows.slice(start,end+1);return this;},
+     abortSignal:async()=>table==='inventory_items'&&inventoryError?{error:{code:'57014'}}:{data:head?null:rows,count:count??rows.length},
     };
     return builder;
    }
@@ -135,6 +139,100 @@ const cases=[
 ];
 const response=output=>Response.json({status:'completed',output,usage:{input_tokens:100,output_tokens:10}});
 const functionCall=(name,args,call_id)=>({type:'function_call',name,call_id,arguments:JSON.stringify(args)});
+
+test('source-derived business questions use the correct enabled operation through Assistant Text',async()=>{
+ const dateRange={from:'2026-01-01',to:'2026-01-31'};
+ const samples={
+  movements:[{outlet:'Fixture Corner',count:1,filters:{outlet_id:id,movement_type:'Purchase',...dateRange}}],
+  departments:[{count:2,filters:{status:'active'}}],
+  positions:[{count:1,filters:{department:'Operations',status:'all'}}],
+  leave:[{outlet:'Fixture Corner',count:24,filters:{outlet_id:id,...dateRange,status:'approved'}}],
+  finishedGoods:[{count:27,filters:{status:'active'}}],
+  plans:[{brand:'Fixture Brand',count:1,filters:{month:'2026-11-01',status:'completed',organization_id:id,brand_id:id}}],
+ };
+ const src=source({snapshot:{rpcs:fixtures,tables:{
+  inventory_movements:[
+   {id:'movement',outlet_id:id,movement_type:'Purchase',created_at:'2026-01-31T23:59:59.000Z',created_by:'DO_NOT_EXPOSE'},
+   {id:'next-month',outlet_id:id,movement_type:'Purchase',created_at:'2026-02-01T00:00:00.000Z'},
+   {id:'other-outlet',outlet_id:otherId,movement_type:'Purchase',created_at:'2026-01-17T12:00:00.000Z'},
+  ],
+  departments:[{id:'a',status:'active'},{id:'b',status:'active'},{id:'c',status:'inactive'}],
+  job_positions:[{id:'a',department:'Operations'},{id:'b',department:'Management'}],
+  factory_finished_goods:[...stock,{id:'archived',status:'archived'}],
+ }}});
+ const operationFor={
+  movement_filtered_count:'read_inventory_movements',department_count:'read_departments',position_department_count:'read_job_positions',
+  crew_status_count:'read_crew_leave',fg_filtered_count:'read_factory_finished_goods',planner_status_count:'read_marketing_plan',
+ };
+ for(const item of generateSourceCases(samples)){
+  const operation=operationFor[item.id];
+  const business=createBusinessDispatcher({config,access,caller:src.caller});
+  const found=await business.execute('find_business_queries',{search:item.question,page:1});
+  assert(found.operations.some(op=>op.operation===operation),item.question);
+  let step=0,evidence;
+  const args={...item.source.filters};
+  if(['movement_filtered_count','department_count','position_department_count','fg_filtered_count'].includes(item.id))args.mode='summary';
+  const {reply}=await generateText({kind:'turn',model:config.model,prompt:item.question},'fixture-secret',{
+   business,onTool:(state,result)=>{if(state==='completed')evidence=result;},
+   transport:async(_,init)=>{
+    const body=JSON.parse(init.body);
+    if(step++===0)return response([functionCall('find_business_queries',{search:item.question,page:1},'discover')]);
+    if(step===2)return response([functionCall('run_business_query',envelope(operation,args),'read')]);
+    assert.doesNotMatch(body.input.at(-1).output,/DO_NOT_EXPOSE/);
+    const result=JSON.parse(body.input.at(-1).output);
+    assert.equal(result.total_matching,item.source.count,item.question);
+    return response([{type:'message',content:[{type:'output_text',text:'There are '+result.total_matching+' matching records.'}]}]);
+   },
+  });
+  const certified=certifyScenario(item.id,{source:item.source,turn:{reply,evidence,request_id:id,created_at:'2026-11-22',
+   model:config.model,state:'completed',tool_state:'completed'}});
+  assert.equal(certified.status,'PASS',JSON.stringify(certified));
+ }
+ assert(src.calls.some(([rpc,args])=>rpc==='crew_leave_requests_admin_page'&&args.p_filters.status==='approved'));
+ await assert.rejects(createBusinessDispatcher({config,access,caller:src.caller}).execute('read_inventory_movements',{
+  outlet_id:id,...dateRange,to:'2026-02-30',
+ }),{code:'tool_arguments_invalid'});
+});
+
+test('monthly Finance comparison preserves missing values and rejects changed outlet scope',async()=>{
+ const report=(p,value,outletId)=>({period:{year:p.p_year,month:p.p_month},outlet:{id:outletId,scope:'outlet',outlet_count:1},
+  financials:{revenue:{amount:value,presence:value===null?'missing':'present'}}});
+ let changed=false;
+ const caller={rpc(name,p){
+  return {abortSignal:async()=>({data:name==='reporting_monthly_scope_financials'
+   ?report(p,p.p_month===1?125:null,changed&&p.p_month===2?otherId:id):true})};
+ }};
+ const business=createBusinessDispatcher({config,access,caller});
+ const args={outlet_id:id,year:2026,month:1,compare_year:2026,compare_month:2};
+ const result=await business.execute('read_operational_financials',args,undefined,{withOutcome:true});
+ assert.equal(result.report.financials.revenue.amount,125);
+ assert.deepEqual(result.comparison_report.financials.revenue,{amount:null,presence:'missing'});
+ assert.equal(result.query_outcome,'SUCCESS');
+ changed=true;
+ await assert.rejects(business.execute('read_operational_financials',args),{code:'business_read_unavailable'});
+ await assert.rejects(business.execute('read_operational_financials',{...args,outlet_id:null}),{code:'tool_arguments_invalid'});
+ await assert.rejects(business.execute('read_operational_financials',{...args,compare_month:null}),{code:'tool_arguments_invalid'});
+});
+
+test('Finished Goods summary distinguishes configured groups from packaging SKUs',async()=>{
+ const families=[{id:'family'},{id:'empty-family'}];
+ const skus=[
+  {id:'first',product_family_id:'family',status:'active'},
+  {id:'second',product_family_id:'family',status:'active'},
+  {id:'third',product_family_id:'family',status:'inactive'},
+  {id:'standalone',product_family_id:null,status:'active'},
+ ];
+ const {caller}=source({snapshot:{rpcs:fixtures,tables:{factory_finished_goods:skus,factory_product_families:families}}});
+ const business=createBusinessDispatcher({config,access,caller});
+ const op='read_factory_finished_goods';
+ const grouped=await business.execute(op,{mode:'summary',measure:'product'},undefined,{withOutcome:true});
+ assert.equal(grouped.measure,'product');
+ assert.equal(grouped.total_matching,3);
+ assert.equal(grouped.query_outcome,'SUCCESS');
+ assert.equal((await business.execute(op,{mode:'summary'})).total_matching,4);
+ assert.equal((await business.execute(op,{mode:'summary',status:'active'})).total_matching,3);
+ await assert.rejects(business.execute(op,{mode:'summary',measure:'product',status:'active'}),{code:'tool_arguments_invalid'});
+});
 
 test('multilingual per-outlet inventory counts use complete Master Inventory results without invoking a model',async()=>{
  const operation='read_inventory_items';
@@ -222,7 +320,7 @@ test('operational revenue discovers Finance and reads the named outlet for the r
   }
   const evidence=JSON.parse(body.input.at(-1).output);
   assert.equal(evidence.capability,operation);
-  assert.deepEqual(evidence.requested_scope,{outlet_id:id,year:2026,month:1});
+  assert.deepEqual(evidence.requested_scope,{outlet_id:id,year:2026,month:1,compare_year:null,compare_month:null});
   assert.equal(evidence.report.financials.revenue.amount,125);
   return response([{type:'message',content:[{type:'output_text',text:'Fixture Corner recorded MYR 125 in operational revenue in January 2026.'}]}]);
  }});

@@ -1,5 +1,9 @@
 # FeedX Development Log
 
+## 2026-11-22 — Native Assistant coverage parity
+
+Closed verified exposure gaps in Restaurant movement counts, Factory SKU filters, People catalogues, Finance period comparisons, Crew leave and Marketing Planner. The coverage matrix now records all canonical modules with their source boundaries and Staging READ policy. Source-derived certification and the build gate track answer coverage separately from live acceptance. See [Trusted Authorities](docs/architecture/trusted-authorities.md#module-owned-assistant-interfaces-and-alignment).
+
 ## 2026-11-22 — Native Assistant outlet and inventory queries
 
 Separated Restaurant Master Inventory counts from Asset Tracking and Inventory Movements in the shared Text and Voice dispatcher. Added exact counts by authorized outlet, preserved current outlet corrections, and verified count and balance formatting from source evidence. See [Trusted Authorities](docs/architecture/trusted-authorities.md#native-assistant-business-query-reliability-staging).

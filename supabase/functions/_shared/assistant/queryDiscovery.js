@@ -29,7 +29,7 @@ export function discoverQueries(operations,capabilities,args){
   const section=operation.moduleInterface?.source?.split('/')[1];
   const workspace={people:'HR',inventory:'Restaurant','sales-purchase':'Restaurant'}[section] || section;
   const identity=discoveryWords([operation.id,operation.module_id,operation.label,workspace].join(' '));
-  const explicitResource=matchesResource(operation,query)||operation.queryIntent?.(args.search);
+  const explicitResource=matchesResource(operation,query,args.search)||operation.queryIntent?.(args.search);
   const exactTerms=query.every(word=>identity.includes(word));
   if(!explicitResource&&(!query.length||!exactTerms))return [];
   const label=discoveryWords(operation.label);
@@ -42,14 +42,18 @@ export function discoverQueries(operations,capabilities,args){
   ...(!rows.length?{instruction:'No operation matched this search. Retry discovery with just the resource or module name. No business source was queried. If no matching operation is available, explain that the capability could not be found; do not report missing records, zero or permission denial.'}:{})};
 }
 
-function matchesResource(operation,query){
- return (operation.discoveryPhrases||[]).map(discoveryWords).some(words=>words.length>1&&words.every(word=>query.includes(word)));
+function matchesResource(operation,query,search){
+ return (operation.discoveryPhrases||[]).some(phrase=>{
+  if(/\p{Script=Han}/u.test(phrase)&&search.normalize('NFKC').includes(phrase.normalize('NFKC')))return true;
+  const words=discoveryWords(phrase);
+  return words.length>1&&words.every(word=>query.includes(word));
+ });
 }
 
 export function excludeCompetingQueries(operations,prompt){
  if(typeof prompt!=='string'||!prompt.trim())return new Set();
  const query=discoveryWords(prompt);
- const matched=new Set(operations.filter(operation=>operation.discoveryFamily&&matchesResource(operation,query)));
+ const matched=new Set(operations.filter(operation=>operation.discoveryFamily&&matchesResource(operation,query,prompt)));
  const namedFamilies=new Set([...matched].map(operation=>operation.discoveryFamily));
  return new Set(operations.filter(operation=>namedFamilies.has(operation.discoveryFamily)&&!matched.has(operation)).map(operation=>operation.id));
 }

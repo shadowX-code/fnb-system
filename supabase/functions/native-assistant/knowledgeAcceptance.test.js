@@ -189,7 +189,7 @@ test('Text and SDK tools share Factory knowledge and live stock evidence; drafts
 
 test('mixed stock and knowledge requests keep the explicit SKU and do not convert ranking intent',()=>{
  const args={mode:'summary',page:1,sku:'S01',query:null,sort:'balance_desc',uom:''};
- const expected={mode:'detail',page:1,sku:'S01',query:'',sort:'name',uom:null,availability:'all'};
+ const expected={mode:'detail',page:1,sku:'S01',query:'',sort:'name',uom:null,availability:'all',status:'all',measure:'sku'};
  assert.deepEqual(inventoryArguments(args),expected);
  assert.deepEqual(inventoryArguments(finishedGoodsRead.scopeTextArguments({...args,sku:null,page:0},
   'Show current Finished Goods stock for SKU S01 and the published SOP.')),expected);

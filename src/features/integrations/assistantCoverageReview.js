@@ -1,6 +1,62 @@
 // Coverage evidence is separate from server-enforced AI access policy.
 export const coverageLabels = {"full": "Full", "partial": "Partial", "shared": "Shared", "missing": "Not integrated", "blocked": "Not integrated", "not_applicable": "Not applicable"};
 export const assistantCoverageReview = {
+  "inventory_movements": {
+    classification: "partial",
+    available: "Exact counts and paged movement records by outlet, date and recorded movement type.",
+    missing: "Per-item and reference searches, grouped quantities and current stock balances are outside this read.",
+    reads: ["read_inventory_movements"],
+    evidence: ["src/features/sales-purchase/inventory/movements/inventoryMovementService.js", "supabase/functions/_shared/restaurant/inventoryMovementRead.js"],
+    certification: ["movement_filtered_count"]
+  },
+  "factory_finished_goods": {
+    classification: "partial",
+    available: "Unfiltered grouped-product counts, packaging SKU counts, status and stock filters, multilingual name search, exact SKU detail and same-unit ranking.",
+    missing: "Filtered product-family counts, category and tag filters, per-location stock and valuation remain outside the Assistant read.",
+    reads: ["read_factory_finished_goods"],
+    evidence: ["src/features/factory/hooks/useFactoryFinishedGoodsQuery.js", "supabase/functions/_shared/factory/finishedGoodsRead.js"],
+    certification: ["fg_product_count", "fg_filtered_count", "fg_rank"]
+  },
+  "departments": {
+    classification: "partial",
+    available: "Exact department counts and pages by recorded status or name.",
+    missing: "Employee headcount by department belongs to Employees and requires separate authority.",
+    reads: ["read_departments"],
+    evidence: ["src/services/departmentService.js", "supabase/functions/_shared/people/catalogueReads.js"],
+    certification: ["department_count"]
+  },
+  "job-positions": {
+    classification: "partial",
+    available: "Exact position counts and pages by department, recorded status or name.",
+    missing: "Counts describe configured positions. Staffing, vacancies and employee assignments are separate records.",
+    reads: ["read_job_positions"],
+    evidence: ["src/services/jobPositionService.js", "supabase/functions/_shared/people/catalogueReads.js"],
+    certification: ["position_department_count"]
+  },
+  "finance_overview": {
+    classification: "partial",
+    available: "Canonical operational monthly reports and comparison of two explicit periods within a single authorized outlet.",
+    missing: "Multi-outlet period comparisons, accounting statements, statutory reports and cash balances are outside this capability.",
+    reads: ["read_operational_financials"],
+    evidence: ["src/services/reportingService.js", "supabase/functions/_shared/finance/reportRead.js"],
+    certification: ["finance_period_pair", "finance_partial"]
+  },
+  "crew_leave": {
+    classification: "partial",
+    available: "Exact overlapping leave request counts and pages by outlet, date range and approval status.",
+    missing: "Entitlement balances, private reasons, leave types, medical attachments and roster context remain outside the Assistant read.",
+    reads: ["read_crew_leave"],
+    evidence: ["src/services/crewService.js", "supabase/migrations/20260920111553_crew_access_leave_admin_paging.sql", "supabase/functions/_shared/crew/leaveRead.js"],
+    certification: ["crew_status_count"]
+  },
+  "marketing_planner": {
+    classification: "partial",
+    available: "Exact saved creative task counts and pages by Brand, planning month and recorded status.",
+    missing: "Publishing outcomes, targets, assignee information and task briefs remain outside this read.",
+    reads: ["read_marketing_plan"],
+    evidence: ["src/features/marketing/plannerService.js", "supabase/migrations/20261012095506_marketing_content_planner.sql", "supabase/functions/_shared/marketing/plannerRead.js"],
+    certification: ["planner_status_count"]
+  },
   "space_station": {
     "classification": "not_applicable",
     "missing": "Virtual workspace navigation and simulation have no independent business records. The linked business modules keep their own access controls.",
@@ -454,10 +510,11 @@ export const assistantCoverageReview = {
   },
   "crew_google_reviews": {
     "classification": "blocked",
-    "available": "Canonical context reports pending provider allowlisting, not verified review metrics.",
-    "missing": "No authoritative provider review evidence is returned. Customer feedback and team reviews cannot substitute for Google review counts or settlement.",
+    "available": "The authorized Admin workspace reads the outlet's configured Google Reviews context and temporary provider cache.",
+    "missing": "Native Assistant has no approved projection that preserves the provider cache expiry, outlet scope and reviewer-data restrictions. Customer feedback cannot substitute for Google review metrics.",
     "reads": [],
     "evidence": [
+      "src/features/crew/services/googleBusinessService.js",
       "supabase/migrations/20261102131640_crew_customer_automatic_settlement.sql"
     ]
   },

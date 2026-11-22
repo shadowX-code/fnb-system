@@ -33,7 +33,7 @@ export function moduleCoverage(){
   const coverage=direct.length?'partial':shared.length?'shared':review.classification==='not_applicable'?'not_applicable':'blocked';
   const boundary=review.missing||review.available;
   assert(boundary,`Missing source or authority boundary for ${module.id}`);
-  return {module,direct,shared,actions,coverage,boundary};
+  return {module,direct,shared,actions,coverage,boundary,review};
  });
 }
 
@@ -42,27 +42,35 @@ export const operationQuestion=op=>`What information does FeedX have for ${op.la
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
 const run=process.argv[2]?JSON.parse(readFileSync(process.argv[2],'utf8')):null;
 const modules=moduleCoverage();
+const counts=Object.groupBy(modules,row=>row.coverage);
+const enabled=new Set(run?.enabled||[]);
 console.log(`# FeedX Native Assistant business acceptance matrix
 
 Generated from the canonical module projection, module-owned operations and reviewed coverage annotations. ${modules.length} modules include Space Station, a virtual navigation workspace with no independent business authority. There are ${reads.length} READ contracts and ${operations.length-reads.length} separately authorized ACTION contracts.
 
 Every registered READ has a business question and executable contract tests. PASS on those tests covers discovery, schema, policy, invalid arguments and human denial under fixtures. An authenticated answer requires an independent source comparison with \`npm run qa:staging:assistant-certify\`. A disabled capability, missing account or unexecuted scenario is BLOCKED. Undeclared query dimensions are UNSUPPORTED. Each module's settings are independent of this coverage inventory.
 
+Coverage: ${Object.entries(counts).map(([key,rows])=>rows.length+' '+key).join(', ')}.${run?` Staging policy snapshot (${run.as_of}): ${reads.filter(op=>enabled.has(op.id)).length} enabled READs and ${reads.filter(op=>!enabled.has(op.id)).length} disabled READs.`:' Runtime policy is omitted when no Staging snapshot is supplied.'}
+
 ## Module coverage
 
-| Workspace / domain / module | Coverage | Native READ owners and shared READs | ACTIONs | Unavailable dimensions and authority |
-|---|---|---|---|---|`);
+| Workspace / domain / module | Module route | Coverage | Native READ owners and shared READs | Staging READ policy | ACTIONs | Canonical evidence and remaining boundary |
+|---|---|---|---|---|---|---|`);
 for(const row of modules){
  const direct=row.direct.map(op=>code(op.id));
  const shared=row.shared.map(op=>`${code(op.id)} via ${op.module_id}`);
- console.log('| '+[`${row.module.workspace} / ${row.module.section} / ${row.module.id}`,row.coverage,[...direct,...shared].join(', ')||'None',row.actions.map(op=>code(op.id)).join(', ')||'None',row.boundary].map(cell).join(' | ')+' |');
+ const available=[...row.direct,...row.shared];
+ const policy=available.length===0?'No READ':run?`${available.filter(op=>enabled.has(op.id)).length}/${available.length} enabled`:'Snapshot unavailable';
+ const references=(row.review.evidence||[]).map(code).join(', ');
+ const evidence=[row.review.available,row.boundary,references].filter(Boolean).join(' ');
+ console.log('| '+[`${row.module.workspace} / ${row.module.section} / ${row.module.id}`,row.module.route||'Owner or linked module',row.coverage,[...direct,...shared].join(', ')||'None',policy,row.actions.map(op=>code(op.id)).join(', ')||'None',evidence].map(cell).join(' | ')+' |');
 }
 console.log(`
 ## READ operation questions
 
 Follow-ups reuse explicit filters and fetch fresh evidence. A bounded result cannot establish a complete total, grouping, ranking or comparison unless the source explicitly supplies it.
 
-| Module / operation | Source authority / human permission | Acceptance question | Dimensions and filters | Completeness / limitation | Contract gate / live |
+| Module / operation | Source authority / human permission | Acceptance question | Measures, dimensions and filters | Completeness / limitation | Contract gate / live |
 |---|---|---|---|---|---|`);
 for(const op of reads){
  const contract=op.moduleInterface;
@@ -85,11 +93,11 @@ for(const op of reads){
   `${op.module_id} / ${code(op.id)}`,
   `${source} · ${code(op.permission)} · ${contract.source}`,
   question,
-  `${supported.join(', ')}. Inputs: ${fields.join(', ')||'none'}. ${op.description || op.tool.description}`,
+  `${supported.join(', ')}. Inputs: ${fields.join(', ')||'none'}. ${contract.exposure.fields?.length?'Fields: '+contract.exposure.fields.join(', ')+'. ':''}${op.description || op.tool.description}`,
   `${contract.aggregates}. ${contract.pagination} ${op.scope} ${query.unsupported.join(' ')}`,
   ['PASS contract gate',
-   run?.results?.[op.id] || (run ? run.enabled.includes(op.id)
-    ? 'BLOCKED live: no per-operation authenticated answer run within available Text budget'
+   run?.results?.[op.id] || (run ? enabled.has(op.id)
+    ? 'BLOCKED live: no authenticated answer for this release'
     : 'BLOCKED live: AI policy disabled; left unchanged'
     : 'BLOCKED from blanket live sign-off; see run evidence')].join(' / '),
  ];

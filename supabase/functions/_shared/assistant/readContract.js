@@ -17,7 +17,8 @@ export function validateFields(properties,value){
   }
   if(typeof v!==schema.type)invalid('wrong_type',key);
   if(schema.pattern&&!new RegExp(schema.pattern).test(v)||schema.enum&&!schema.enum.includes(v)||schema.maxLength&&v.length>schema.maxLength||schema.type==='number'&&(!Number.isInteger(v)||v<schema.minimum||v>schema.maximum))invalid('unsupported_value',key);
-  if(schema===date&&(!Number.isFinite(Date.parse(v))||new Date(v).toISOString().slice(0,10)!==v))invalid('invalid_date',key);
+  if((schema.pattern===date.pattern||schema.pattern===month.pattern)&&
+   (!Number.isFinite(Date.parse(v))||new Date(v).toISOString().slice(0,10)!==v))invalid('invalid_date',key);
  }
  return value;
 }
@@ -71,4 +72,16 @@ export function boundedPeriod(a){if(Date.parse(a.to)<Date.parse(a.from)||Date.pa
 export function rowsEvidence(rows,keys,limit=20){
  if(!Array.isArray(rows))throw new AssistantError('business_read_unavailable',503);
  return {rows:rows.slice(0,limit).map(r=>pick(r,keys)),returned_count:Math.min(rows.length,limit),truncated:rows.length>limit,complete:false,coverage:'Bounded results; not a complete inventory. returned_count is not a total; truncated=false does not assert completeness.'};
+}
+
+// Counts are calculated by the same canonical query and filters as the page.
+export async function countedRows(query,args,fields,signal){
+ const first=(args.page-1)*20;
+ const {data,count,error}=await (args.mode==='summary'?query:query.range(first,first+19)).abortSignal(signal);
+ if(error?.code==='42501')throw new AssistantError('business_read_denied',403);
+ if(error||!Number.isSafeInteger(count)||count<0||
+  args.mode!=='summary'&&(!Array.isArray(data)||data.length!==Math.min(20,Math.max(count-first,0))))
+  throw new AssistantError('business_read_unavailable',503);
+ return {rows:args.mode==='summary'?[]:data.map(row=>pick(row,fields)),
+  total_matching:count,aggregate_complete:true,page:args.page,page_size:20,truncated:args.mode!=='summary'&&count>first+20};
 }

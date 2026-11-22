@@ -21,12 +21,12 @@ test('all operations declare module authority without another dispatcher or ACTI
 });
 test('bounded lists never imply complete inventory, even when no local truncation occurred',async()=>{
  const p=rowsEvidence([{id:'a'}],['id']);assert.equal(p.complete,false);assert.equal(p.truncated,false);assert.match(p.coverage,/not a total/);
- const op=operations.find(o=>o.id==='read_departments');const q=new Proxy({}, {get:(_,k)=>k==='abortSignal'?async()=>({data:[{id:'a'}]}):()=>q});
+ const op=operations.find(o=>o.id==='read_sales_channels');const q=new Proxy({}, {get:(_,k)=>k==='abortSignal'?async()=>({data:[{id:'a'}]}):()=>q});
  const result=await op.execute({rpc:()=>({abortSignal:async()=>({data:true})}),from:()=>q},{page:1});
  assert.equal(result.completeness.aggregate_scope,'not_asserted');assert.match(result.completeness.total_assertion,/Do not derive/);
 });
 test('core domain summaries retain canonical calculations and flags instead of recounting bounded lists',()=>{
- const finance=operations.find(o=>o.id==='read_operational_financials');const report={status:'partial',revenue:null};assert.equal(finance.project(report).report,report);
+ const finance=operations.find(o=>o.id==='read_operational_financials');const report={status:'partial',revenue:null};assert.equal(finance.project({report}).report,report);
  const factory=operations.find(o=>o.id==='read_factory_operational_pipeline');const fp=factory.project({summary:{scheduled:50},scheduled:[{id:'one'}],released:[],in_progress:[],completed_today:[]});assert.equal(fp.summary.scheduled,50);assert.equal(fp.stages.scheduled.complete,false);
  const marketing=operations.find(o=>o.id==='read_brand_customer_directory');const mp=marketing.project({total:100,summary:{subscribed:70},customers:[{id:'one',contact:'PRIVATE'}]});assert.equal(mp.total_count,100);assert.equal(mp.summary.subscribed,70);assert(!JSON.stringify(mp).includes('PRIVATE'));
  const crew=operations.find(o=>o.id==='read_crew_task_snapshot');assert.equal(crew.rpc,'crew_tasks_admin_page_snapshot');assert.equal(crew.project({total_count:90,rows:[]}).total_count,90);

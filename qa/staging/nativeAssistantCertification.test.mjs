@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {assertScenarioContracts,certifyRun,certifyScenario} from './nativeAssistantCertification.mjs';
+import {assertScenarioContracts,certifyRun,certifyScenario,generateSourceCases,certifyGeneratedRun} from './nativeAssistantCertification.mjs';
 import {moduleCoverage} from '../../scripts/assistantBusinessMatrix.mjs';
 
 test('certification scenarios stay bound to implemented READ contracts',()=>assertScenarioContracts());
@@ -50,4 +50,26 @@ test('asset answer must match the authorized outlet and saved canonical quantity
  assert.equal(certifyScenario('asset_spoon',{turn:{...turn,reply:'The current balance of spoons at Fixture Corner is 72 units.'},source}).status,'PASS');
  assert.equal(certifyScenario('asset_spoon',{turn:{...turn,reply:'Fixture Corner has 72 units of Spoon, asset code: asset-spoon.'},source}).status,'FAIL');
  assert.equal(certifyScenario('asset_spoon',{turn:{...turn,reply:'Other Corner has 72 units of Spoon.'},source}).status,'FAIL');
+});
+
+test('source-derived cases carry independent expected scope and require the same thread for follow-ups',()=>{
+ const source={outletId:'outlet-1',outlet:'Fixture Corner',name:'Fork',code:null,quantity:4,unit:'unit',outletAssetCount:9};
+ const cases=generateSourceCases({assets:[source],inventory:[
+  {outletId:'outlet-1',outlet:'Fixture Corner',count:9},{outletId:'outlet-2',outlet:'Other Corner',count:3},
+ ]});
+ assert.equal(cases.length,7);
+ assert.equal(cases[3].after,2);
+ assert.deepEqual(cases.at(-1).source.counts,{'outlet-1':9,'outlet-2':3});
+ assert.match(cases.at(-1).question,/Fixture Corner, Other Corner/);
+ const asset={...rank.turn,session_id:'same',reply:'Fixture Corner has 4 units of Fork.',
+  evidence:{capability:'read_asset_catalogue',source:'/operations/asset-tracking',requested_scope:{mode:'detail'},
+   outlet:{id:source.outletId},match_status:'matched',rows:[{outlet_id:source.outletId,name:'Fork',asset_code:null,current_quantity:4,unit:'unit'}]}};
+ const follow={...rank.turn,session_id:'different',created_at:'2026-11-17T00:01:00Z',reply:'Fixture Corner has 9 current asset records.',
+  evidence:{capability:'read_asset_catalogue',outlet:{id:source.outletId},requested_scope:{mode:'summary'},aggregate_complete:true,total_matching:9,rows:[]}};
+ cases[2].turn=asset;
+ cases[3].turn=follow;
+ assert.equal(certifyGeneratedRun(cases)[3].status,'FAIL');
+ follow.session_id='same';
+ assert.equal(certifyGeneratedRun(cases)[3].status,'PASS');
+ assert.equal(certifyGeneratedRun(cases)[0].status,'BLOCKED');
 });

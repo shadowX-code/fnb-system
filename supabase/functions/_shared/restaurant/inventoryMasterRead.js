@@ -3,7 +3,7 @@ import {outletDirectory,resolveOutlet} from '../assistant/entityResolution.js';
 import {page,permittedOutlet,readContract,rowsEvidence,uuid} from '../assistant/readContract.js';
 
 const fields=['id','item_name','sku_code','category_id','unit','inventory_type','status','updated_at'];
-const resource=/\b(?:master inventory|restaurant inventory|inventory master|inventory items?|ingredient catalogue|inventori restoran|inventori induk|stok restoran)\b|餐[厅廳][^，。！？]{0,22}(?:库存|庫存|存货|存貨|inventory)|(?:库存|庫存|存货|存貨)(?:主档|主檔|目录|目錄)/iu;
+const resource=/\b(?:master inventory|restaurant inventory|inventory master|inventory items?|ingredient catalogue|inventori restoran|inventori induk|stok restoran)\b|餐[厅廳][^，。！？]{0,22}(?:库存|庫存|存货|存貨|inventory)|(?:库存|庫存|存货|存貨)(?:主档|主檔|目录|目錄|品项|品項)/iu;
 const count=/\b(?:count|how many|number of|berapa|bilangan|jumlah)\b|多少[种種项項个個]?|几[种项]|幾[種項]|数量|數量/iu;
 const details=/\b(?:movements?|transactions?|transfers?|wastage|par levels?|reconciliation|adjustments?|stock checks?|purchase orders?|(?:stock|inventory) balances?|on hand|quantity left)\b|出入库|出入庫|库存余量|庫存餘量|库存余额|庫存餘額|盘点|盤點|调拨|調撥|报损|報損/iu;
 const catalogueCount=/\b(?:items?|skus?|types?|kinds?|jenis)\b|[几幾多少][种種项項]/iu;
