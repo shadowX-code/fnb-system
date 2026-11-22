@@ -1,13 +1,18 @@
 import {declareReadInterface} from '../assistant/moduleInterface.js';
 import {AssistantError} from '../assistantError.js';
 import {loadStockCatalogue, stockPage, stockRankFields, stockUnit, validateStockRanking} from './stockCatalogue.js';
-export const inventoryTool={type:'function',name:'read_factory_finished_goods',description:'Read current Factory shared Finished Goods stock. Use for stock, availability and low-stock questions; re-read for follow-ups. Use summary for counts, detail for exact sku, and list with sort balance_desc or balance_asc for complete-scope stock rankings within one unit. No Company or Outlet scope exists in this catalogue.',strict:true,parameters:{type:'object',properties:{...stockRankFields,mode:{type:'string',enum:['summary','list','detail']},page:{type:'integer',minimum:1,maximum:50},sku:{type:['string','null'],maxLength:80},query:{type:'string',description:'Product name substring, empty for all products'},availability:{type:'string',enum:['all','low','out_of_stock']}},required:['mode','page','sku','query','availability','sort','uom'],additionalProperties:false}};
+export const inventoryTool={type:'function',name:'read_factory_finished_goods',description:'Read current Factory shared Finished Goods stock. Use detail for an exact SKU with page 1, query empty and sort name. Use summary for counts, and list with balance_desc or balance_asc for rankings within one stock unit. Re-read for follow-ups. No Company or Outlet scope exists in this catalogue.',strict:true,parameters:{type:'object',properties:{...stockRankFields,mode:{type:'string',enum:['summary','list','detail']},page:{type:'integer',minimum:1,maximum:50},sku:{type:['string','null'],maxLength:80},query:{type:'string',description:'Name substring; use an empty string when supplying an exact SKU'},availability:{type:'string',enum:['all','low','out_of_stock']}},required:['mode','page','sku','query','availability','sort','uom'],additionalProperties:false}};
 export function inventoryArguments(value){
  if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).some(k=>!['query','availability','mode','page','sku','sort','uom'].includes(k)))throw new AssistantError('tool_arguments_invalid',400);
  const a={query:'',availability:'all',mode:'list',page:1,sku:null,sort:'name',uom:null,...value};
  // A model can combine an exact SKU with summary/list mode on a mixed query.
  // A supplied SKU narrows the read to the same single record as detail mode.
- if((a.mode==='summary'||a.mode==='list')&&a.page===1&&typeof a.sku==='string'&&a.sku.trim())a.mode='detail';
+ if((a.mode==='summary'||a.mode==='list'||a.mode==='detail')&&a.page===1&&typeof a.sku==='string'&&a.sku.trim()){
+  a.mode='detail';
+  if(a.query===null||typeof a.query==='string'&&a.query.toLowerCase()===a.sku.toLowerCase())a.query='';
+  if(stockRankFields.sort.enum.includes(a.sort))a.sort='name';
+  if(a.uom==='')a.uom=null;
+ }
  if(typeof a.query!=='string'||a.query.length>80||!['all','low','out_of_stock'].includes(a.availability)||!['summary','list','detail'].includes(a.mode)||!Number.isInteger(a.page)||a.page<1||a.page>50||(a.sku!==null&&(typeof a.sku!=='string'||!a.sku.trim()||a.sku.length>80))||(a.mode==='detail')!==(a.sku!==null)||(a.mode!=='list'&&a.page!==1))throw new AssistantError('tool_arguments_invalid',400);
  validateStockRanking(a);
  return a;
@@ -52,6 +57,13 @@ export const finishedGoodsRead = Object.freeze({
  discoveryPhrases:['finished goods'],
  discoveryFamily:'factory_stock_catalogue',
  scope:'Factory shared catalogue · current Admin permissions',
+ scopeTextArguments(args,prompt){
+  if(!args||typeof args!=='object'||Array.isArray(args))return args;
+  const explicit=[...new Set([...prompt.matchAll(/\bSKU\s+["“']?([a-z0-9][a-z0-9_-]{0,79})/gi)].map(match=>match[1]))];
+  if(explicit.length!==1||!/[0-9]/.test(explicit[0])||!/(?:current|balance|stock|availability|库存|结存)/i.test(prompt)||
+   /\b(?:rank|highest|lowest|top|compare|versus)\b/i.test(prompt))return args;
+  return {...args,mode:'detail',page:1,sku:explicit[0],query:'',sort:'name',uom:args.uom===''?null:args.uom??null};
+ },
  tool:inventoryTool, validate:inventoryArguments, execute:readInventory,
  testArguments:{query:'',availability:'all'}, authorized:access=>!!access.factory, deniedCode:'factory_read_denied',
  format:evidence=>evidence.availability==='low'?lowStockSummary(evidence):null,

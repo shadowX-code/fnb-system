@@ -4,6 +4,7 @@ import {businessCapabilities,createBusinessDispatcher,operations} from './busine
 import {dispatch} from './handler.js';
 import {generateText} from './provider.js';
 import {knowledgeResult} from '../_shared/assistant/knowledge.js';
+import {finishedGoodsRead,inventoryArguments} from '../_shared/factory/finishedGoodsRead.js';
 
 const id='10000000-0000-4000-8000-000000000001';
 const other='10000000-0000-4000-8000-000000000002';
@@ -184,6 +185,15 @@ test('Text and SDK tools share Factory knowledge and live stock evidence; drafts
  assert.deepEqual(out.knowledge,captured[1].knowledge);
  assert.deepEqual(saved,[out]);
  assert.equal((await b.execute(factory,{sop_id:other})).knowledge.status,'no_current_version');
+});
+
+test('mixed stock and knowledge requests keep the explicit SKU and do not convert ranking intent',()=>{
+ const args={mode:'summary',page:1,sku:'S01',query:null,sort:'balance_desc',uom:''};
+ const expected={mode:'detail',page:1,sku:'S01',query:'',sort:'name',uom:null,availability:'all'};
+ assert.deepEqual(inventoryArguments(args),expected);
+ assert.deepEqual(inventoryArguments(finishedGoodsRead.scopeTextArguments({...args,sku:null,page:0},
+  'Show current Finished Goods stock for SKU S01 and the published SOP.')),expected);
+ assert.equal(finishedGoodsRead.scopeTextArguments(args,'Compare stock for SKU S01 against last month.'),args);
 });
 
 test('source declarations are discoverable through the current policy, with guide independent of business READ policy',async()=>{
