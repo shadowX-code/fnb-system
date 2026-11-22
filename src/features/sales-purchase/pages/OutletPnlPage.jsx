@@ -11,7 +11,6 @@ import { percentageChange, toCurrency as formatCurrency, toPercent as formatPerc
 import { reportingService } from "../../../services/reportingService.js";
 import { projectOutletPnl } from "../../../services/outletPnlProjection.js";
 import { canExport, getAccessibleOutletOptions, notifyPermissionDenied } from "../../../utils/accessControl.js";
-import { formatPhysicalCountDate } from "../inventory/stockChecks/monthEndClosing.js";
 import { financialTerminology } from "../../../utils/financialTerminology.js";
 
 function defaultYear(store) {
@@ -481,15 +480,16 @@ export default function OutletPnlPage({ store, ui, auth }) {
                   <PnlStatementRow label="OpEx" amount={item.opex === null ? "—" : `-${toCurrency(item.opex)}`} ratio={pnlRatio(item.opex, item.revenue)} />
                   <div className="mt-1.5 flex justify-between border-t border-border pt-2.5"><span className="text-xs font-bold text-text-primary">{financialTerminology.ebitda}</span><strong className={`text-base font-bold ${item.netProfit < 0 ? "text-rose-500" : "text-text-primary"}`}>{signedCurrency(item.netProfit)}</strong></div>
                   <div className="space-y-1 text-xs text-text-secondary">
-                    <div className="flex justify-between gap-2">
-                      <span>Closing Stock{item.closingStockEvidence?.valuationStatus === "partial" && " (Partial)"}</span>
-                      <strong>{item.closingStock === null ? "—" : closingCurrency.format(item.closingStock)}</strong>
-                    </div>
+                    <PnlStatementRow
+                      label={item.closingStockEvidence?.valuationStatus === "partial" ? "Closing Stock (Partial)" : "Closing Stock"}
+                      amount={item.closingStock === null ? "—" : closingCurrency.format(item.closingStock)}
+                      ratio={Number.isFinite(item.closingStock) && Number.isFinite(item.revenue) && item.revenue !== 0
+                        ? pnlRatio(item.closingStock, item.revenue)
+                        : ""}
+                      muted
+                    />
                     {item.closingStockEvidence?.totalItemCount != null && <p>
                       {item.closingStockEvidence.valuedItemCount} of {item.closingStockEvidence.totalItemCount} items valued
-                      {item.closingStockEvidence.actualCountDate
-                        ? ` · Counted ${formatPhysicalCountDate(item.closingStockEvidence.actualCountDate)} (MYT)`
-                        : outletId !== "all" && " · Actual count date not recorded"}
                     </p>}
                   </div>
                 </div>
