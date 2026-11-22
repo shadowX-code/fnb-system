@@ -207,7 +207,7 @@ describe("Stock Check execution scoped read", () => {
     await screen.findByText("QA Uncategorised");
     expect(screen.getAllByRole("button", { name: "Skip" })).toHaveLength(2);
     expect(screen.queryByRole("button", { name: "Full" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Submit Audit Check" }));
+    fireEvent.click(screen.getByRole("button", { name: "Submit & Publish Closing" }));
     expect(mocks.persist).toHaveBeenCalledTimes(1);
     const countedRow = within(screen.getByRole("row", { name: /QA Item/ }));
     expect(countedRow.getByRole("cell", { name: "Pending" })).toBeTruthy();
@@ -240,7 +240,7 @@ describe("Stock Check execution scoped read", () => {
     const shownRow = within(screen.getByRole("row", { name: /QA Item/ }));
     expect(shownRow.getByRole("spinbutton").value).toBe("0");
     expect(shownRow.getByPlaceholderText("Optional note").value).toBe("Verified shelf");
-    fireEvent.click(screen.getByRole("button", { name: "Submit Audit Check" }));
+    fireEvent.click(screen.getByRole("button", { name: "Submit & Publish Closing" }));
     expect(mocks.persist).toHaveBeenCalledTimes(1);
     expect(screen.getByRole("button", { name: "Status" }).textContent).toContain("All Statuses");
     expect(screen.getByRole("button", { name: "Category" }).textContent).toContain("All Categories");
@@ -267,7 +267,7 @@ describe("Stock Check execution scoped read", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Continue Audit" }));
     expect(await screen.findByRole("button", { name: "Skip reason: Cannot Access" })).toBeTruthy();
     selectCategory("Dry Goods");
-    fireEvent.click(screen.getByRole("button", { name: "Submit Audit Check" }));
+    fireEvent.click(screen.getByRole("button", { name: "Submit & Publish Closing" }));
     expect(mocks.persist).toHaveBeenCalledTimes(2);
     const resumedRow = within(screen.getByRole("row", { name: /QA Uncategorised/ }));
     fireEvent.click(resumedRow.getByRole("button", { name: "Undo Skip" }));
@@ -276,12 +276,15 @@ describe("Stock Check execution scoped read", () => {
     selectCategory("Dry Goods");
     const firstActual = screen.getAllByRole("spinbutton")[0];
     fireEvent.change(firstActual, { target: { value: "0.0001" } });
-    fireEvent.click(screen.getByRole("button", { name: "Submit Audit Check" }));
+    fireEvent.click(screen.getByRole("button", { name: "Submit & Publish Closing" }));
     expect(mocks.persist).toHaveBeenCalledTimes(2);
     fireEvent.change(firstActual, { target: { value: "0" } });
-    fireEvent.click(screen.getByRole("button", { name: "Submit Audit Check" }));
+    fireEvent.click(screen.getByRole("button", { name: "Submit & Publish Closing" }));
+    expect(mocks.persist).toHaveBeenCalledTimes(2);
+    fireEvent.change(screen.getByLabelText(/Actual Count Date/), { target: { value: "2 Nov 2025" } });
+    fireEvent.click(screen.getByRole("button", { name: "Submit & Publish Closing" }));
     await waitFor(() => expect(mocks.persist).toHaveBeenLastCalledWith(
-      expect.objectContaining({ existingCheckId: "audit" }),
+      expect.objectContaining({ existingCheckId: "audit", actualCountDate: "2025-11-02" }),
       [expect.objectContaining({ actualCount: 0, notes: "Verified shelf" }), expect.objectContaining({ actualCount: 0 })],
       "submitted", expect.any(String),
     ));

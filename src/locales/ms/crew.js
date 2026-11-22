@@ -137,6 +137,8 @@ Object.assign(resources.inventory, {
   closingCardTitle: "Penutupan {{month}}",
   auditView: "Lihat",
   auditMoreActions: "Tindakan lain: {{title}}",
+  saveClosingForAdmin: "Simpan untuk Admin",
+  closingDraftReady: "Draf penutupan disimpan untuk dihantar dan diterbitkan oleh Admin yang diberi kuasa.",
   closingDetailsRequired: "Pilih Bulan Penutupan yang sah.",
   countStartedAt: "Kiraan Bermula (MYT)",
   countSubmittedAt: "Kiraan Dihantar (MYT)",

@@ -1,5 +1,9 @@
 # FeedX Development Log
 
+## 2026-11-22 — Restaurant Closing Stock submission
+
+Authorized Month-End Closing submission now publishes the pinned valuation and coverage in the same transaction. Edit Closing appends a correction and a linked publication revision. Historical evidence remains unpublished until an authorized user explicitly publishes it. See [Inventory and Assets](docs/domains/inventory-and-assets.md).
+
 ## 2026-11-20 — Audit Stock Check corrections
 
 Added Admin correction drafts and submitted evidence lineage to Audit Stock Check. Corrections preserve original count and valuation evidence, and Month-End Closing continues through the existing scoped approval and publication workflow. See [Inventory and Assets](docs/domains/inventory-and-assets.md#lifecycle-and-business-rules).

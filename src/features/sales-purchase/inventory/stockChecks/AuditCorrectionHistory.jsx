@@ -18,15 +18,15 @@ export default function AuditCorrectionHistory({ check, history, published, canC
     {(showCreate || canViewSuccessor) && <div className="flex flex-wrap items-center justify-between gap-2">
       <h3 className="type-section-title font-semibold">Audit corrections</h3>
       {showCreate && <button type="button" className="btn-primary" onClick={onCreate} disabled={busy}>
-        {busy ? "Creating…" : "Create Correction"}
+        {busy ? "Creating…" : isClosing ? "Edit Closing" : "Create Correction"}
       </button>}
       {canViewSuccessor && <button type="button" className="btn-primary" onClick={() => onOpen(successor.id)}>
-        View Correction
+        {isClosing ? "View Closing Update" : "View Correction"}
       </button>}
     </div>}
     {blockedReason && !isClosing && <p className="type-body-sm text-text-secondary">{blockedReason}</p>}
     {!canCorrect && isCorrectionSource && !blockedReason && (
-      <p className="type-body-sm text-text-secondary">Stock Check edit and submit permissions are required to create a correction.</p>
+      <p className="type-body-sm text-text-secondary">{isClosing ? "Closing updates require edit, submit and publication permissions for this outlet." : "Stock Check edit and submit permissions are required to create a correction."}</p>
     )}
     {successor?.status === "draft" && !canCorrect && (
       <p className="type-body-sm text-text-secondary">Stock Check edit and submit permissions are required to open the correction draft.</p>

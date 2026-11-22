@@ -10,6 +10,7 @@ declare
   v_item uuid := gen_random_uuid();
   v_item2 uuid := gen_random_uuid();
   v_legacy uuid := gen_random_uuid();
+  v_historical jsonb;
 begin
   insert into public.outlets(id, name, code) values
     (v_outlet, 'QA Closing Stock', 'QAC' || left(v_outlet::text, 6)),
@@ -43,6 +44,13 @@ begin
     end if;
   end loop;
   if v_actor is null then raise exception 'No existing Staging approver has access to the isolated fixture outlets'; end if;
+  -- A pre-release submitted audit has no publication or recorded actual count date.
+  v_historical := feedx_integrations.ra_save_stock_check(null::uuid,gen_random_uuid(),
+    jsonb_build_object('outlet_id',v_other,'stock_check_type','audit','audit_type','Month-End Closing',
+      'status','submitted','accounting_month','2001-09-01'),
+    jsonb_build_array(jsonb_build_object('item_id',v_item,'unit','kg','actual_count_quantity',4)),
+    v_other,v_actor,null,'admin');
+  perform set_config('closing_qa.historical',v_historical->'check'->>'id',true);
   perform set_config('closing_qa.actor', v_actor::text, true);
   perform set_config('closing_qa.outlet', v_outlet::text, true);
   perform set_config('closing_qa.other', v_other::text, true);
@@ -61,7 +69,8 @@ declare
   v_item2 uuid := current_setting('closing_qa.item2')::uuid;
   v_check jsonb := jsonb_build_object(
     'outlet_id', v_outlet, 'stock_check_type', 'audit', 'audit_type', 'Month-End Closing',
-    'status', 'submitted', 'accounting_month', '2001-08-01'
+    'status', 'submitted', 'accounting_month', '2001-08-01',
+    'publish_closing', true, 'actual_count_date', '2001-09-02'
   );
   v_item_line jsonb := jsonb_build_object('item_id', v_item, 'unit', 'kg', 'par_level_quantity', 10, 'actual_count_quantity', 0);
   v_second_line jsonb := jsonb_build_object('item_id', v_item2, 'unit', 'kg', 'actual_count_quantity', 3);
@@ -72,7 +81,7 @@ declare
   v_close jsonb;
   v_after jsonb;
   v_revision jsonb;
-  v_request uuid := gen_random_uuid();
+  v_historical_request uuid := gen_random_uuid();
   v_other_id uuid;
   v_unvalued_id uuid;
   v_partial_id uuid;
@@ -136,11 +145,28 @@ begin
   end if;
   v_submit := v_check || jsonb_build_object('id', v_id, 'submitted_at', '1999-01-01T00:00:00Z',
     'physical_count_cutoff', v_exact);
+  begin
+    perform public.inventory_save_stock_check(gen_random_uuid(), v_submit - 'publish_closing', v_lines);
+    raise exception 'An old client activated automatic publication.';
+  exception when raise_exception then
+    if sqlerrm not like 'Reload FeedX%' then raise; end if;
+  end;
+  begin
+    perform public.inventory_save_stock_check(gen_random_uuid(), v_submit || jsonb_build_object(
+      'actual_count_date',(now() at time zone 'Asia/Kuala_Lumpur')::date + 1), v_lines);
+    raise exception 'A count date after submission was accepted.';
+  exception when raise_exception then
+    if sqlerrm not like 'The actual count date must be on or before%' then raise; end if;
+  end;
+  if (select status from public.inventory_stock_checks where id=v_id) <> 'draft'
+    or public.reporting_monthly_scope_financials(v_outlet,2001,8)->>'closing_stock_evidence' is not null then
+    raise exception 'Rejected publication did not roll back submission.';
+  end if;
   v_saved := public.inventory_save_stock_check(v_submit_request, v_submit, v_lines);
   v_submitted := (v_saved->'check'->>'submitted_at')::timestamptz;
   if v_submitted is distinct from now() or (v_saved->'check'->>'created_at')::timestamptz is distinct from v_started
     or v_saved->'check'->>'physical_count_cutoff' is not null
-    or public.inventory_closing_context(v_id)->>'prior_actual_count_date' is not null
+    or (public.inventory_closing_context(v_id)->>'prior_actual_count_date')::date is distinct from v_late
     or v_saved is distinct from public.inventory_save_stock_check(v_submit_request, v_submit, v_lines) then
     raise exception 'Audit submission or retry did not preserve canonical timestamps and unconfirmed cutoff';
   end if;
@@ -155,47 +181,26 @@ begin
   exception when raise_exception then
     if sqlerrm <> 'Completed stock checks are immutable.' then raise; end if;
   end;
-  begin
-    perform public.inventory_approve_closing_stock(v_id, gen_random_uuid(), '[]'::jsonb);
-    raise exception 'The old client was allowed to publish a new close';
-  exception when raise_exception then
-    if sqlerrm not like 'Reload FeedX%' then raise; end if;
-  end;
-  begin
-    perform public.inventory_approve_closing_stock(v_id, gen_random_uuid(), '2001-09-01'::date, v_late, null, null);
-    raise exception 'An unrecorded Closing Month was accepted';
-  exception when raise_exception then
-    if sqlerrm <> 'Confirm the Closing Month recorded on this audit.' then raise; end if;
-  end;
-  begin
-    perform public.inventory_approve_closing_stock(v_id, gen_random_uuid(), '2001-08-01'::date,
-      (v_submitted at time zone 'Asia/Kuala_Lumpur')::date + 1, null, null);
-    raise exception 'A count date after submission was accepted';
-  exception when raise_exception then
-    if sqlerrm not like 'Confirm the actual count date on or before%' then raise; end if;
-  end;
-
-  v_close := public.inventory_approve_closing_stock(v_id, v_request, '2001-08-01'::date, v_late, null, null);
+  v_close := v_saved->'closing';
   if (v_close->>'amount')::numeric is distinct from 0 or (v_close->>'revision')::int is distinct from 1
     or v_close->>'valuation_status' is distinct from 'partial'
     or (v_close->>'valued_item_count')::int is distinct from 1 or (v_close->>'total_item_count')::int is distinct from 2
-    or (v_close->>'actual_count_date')::date is distinct from v_late
-    or (select physical_count_cutoff from public.inventory_stock_checks where id = v_id) is not null
-    or v_close is distinct from public.inventory_approve_closing_stock(v_id, v_request, '2001-08-01'::date, v_late, null, null) then
-    raise exception 'Partial zero, coverage, actual date, or retry was lost';
+    or (v_close->>'actual_count_date')::date is distinct from v_late then
+    raise exception 'Submission did not publish partial coverage, zero, and the actual date';
   end if;
   begin
-    perform public.inventory_approve_closing_stock(v_id, gen_random_uuid(), '2001-08-01'::date, v_late, null, null);
-    raise exception 'Duplicate initial publication accepted';
+    perform public.inventory_save_stock_check(gen_random_uuid(), v_check, v_lines);
+    raise exception 'An unrelated duplicate publication was accepted';
   exception when raise_exception then
-    if sqlerrm not like 'The published close changed.%' then raise; end if;
+    if sqlerrm not like 'This outlet already has a Closing Stock publication%' then raise; end if;
   end;
 
-  v_saved_evidence := public.inventory_save_stock_check(gen_random_uuid(), v_check,
+  v_partial_id := (public.inventory_create_audit_correction(v_id,gen_random_uuid())->>'check_id')::uuid;
+  v_saved_evidence := public.inventory_save_stock_check(gen_random_uuid(),
+    jsonb_build_object('id',v_partial_id,'outlet_id',v_outlet,'stock_check_type','audit','status','submitted',
+      'publish_closing',true,'notes','Verified closing notes','correction_reason','Corrected quantity'),
     jsonb_build_array(v_item_line || '{"actual_count_quantity":3.3}', v_second_line));
-  v_partial_id := (v_saved_evidence->'check'->>'id')::uuid;
-  v_revision := public.inventory_approve_closing_stock(v_partial_id, gen_random_uuid(), '2001-08-01'::date, v_late,
-    (v_close->>'id')::uuid, 'QA later physical count evidence');
+  v_revision := v_saved_evidence->'closing';
   if (v_revision->>'revision')::int is distinct from 2 or (v_revision->>'amount')::numeric is distinct from 8.25
     or public.inventory_closing_context(v_id)->'published'->>'source_audit_id' is distinct from v_partial_id::text
     or v_saved_evidence->'check' is distinct from (select to_jsonb(c) from public.inventory_stock_checks c where id = v_partial_id)
@@ -227,7 +232,7 @@ begin
   end if;
 
   v_other_id := (public.inventory_save_stock_check(gen_random_uuid(), v_check || jsonb_build_object(
-    'outlet_id', v_other, 'id', current_setting('closing_qa.legacy')::uuid
+    'outlet_id', v_other, 'id', current_setting('closing_qa.legacy')::uuid, 'actual_count_date', '2001-09-01'
   ), jsonb_build_array(v_item_line))->'check'->>'id')::uuid;
   if (select unit_cost_snapshot from public.inventory_stock_check_items where stock_check_id = v_other_id and item_id = v_item)
       is distinct from 7::numeric then
@@ -237,22 +242,21 @@ begin
     and physical_count_cutoff = v_exact and created_at = '2001-09-01T00:00:30+08:00') then
     raise exception 'The new workflow rewrote an existing audit timestamp';
   end if;
-  begin
-    perform public.inventory_approve_closing_stock(v_other_id, gen_random_uuid(), '2001-08-01'::date, '2001-08-31', null, null);
-    raise exception 'Legacy physical date was overridden';
-  exception when raise_exception then
-    if sqlerrm <> 'The actual count date recorded on the original audit is immutable.' then raise; end if;
-  end;
-  v_close := public.inventory_approve_closing_stock(v_other_id, gen_random_uuid(), '2001-08-01'::date, '2001-09-01', null, null);
+  v_close := public.inventory_closing_context(v_other_id)->'published';
   if (v_close->>'amount')::numeric is distinct from 0 or v_close->>'valuation_status' <> 'complete'
     or (public.reporting_monthly_scope_financials(v_other, 2001, 8)->>'closing_stock')::numeric is distinct from 0 then
     raise exception 'A legitimate complete zero was lost';
   end if;
 
-  v_unvalued_id := (public.inventory_save_stock_check(gen_random_uuid(), v_check || jsonb_build_object(
-    'outlet_id', v_other, 'accounting_month', '2001-09-01'
-  ), jsonb_build_array(v_item_line || '{"unit":"unmatched"}'))->'check'->>'id')::uuid;
-  v_close := public.inventory_approve_closing_stock(v_unvalued_id, gen_random_uuid(), '2001-09-01'::date, '2001-08-31', null, null);
+  v_unvalued_id := current_setting('closing_qa.historical')::uuid;
+  if public.inventory_closing_context(v_unvalued_id)->>'published' is not null then
+    raise exception 'Historical evidence was published without an explicit action.';
+  end if;
+  v_close := public.inventory_publish_existing_closing(v_unvalued_id, v_historical_request);
+  if v_close is distinct from public.inventory_publish_existing_closing(v_unvalued_id, v_historical_request)
+    or v_close->>'actual_count_date' is not null then
+    raise exception 'Historical publication fabricated a date or failed to replay.';
+  end if;
   if v_close->>'amount' is not null or v_close->>'valuation_status' <> 'partial'
     or (v_close->>'valued_item_count')::int is distinct from 0
     or public.reporting_monthly_scope_financials(v_other, 2001, 9)->'closing_stock_evidence'->>'valuation_status' is distinct from 'partial' then
@@ -261,7 +265,7 @@ begin
 
   perform set_config('request.jwt.claim.sub', gen_random_uuid()::text, true);
   begin
-    perform public.inventory_approve_closing_stock(v_id, gen_random_uuid(), '2001-08-01'::date, v_late, null, null);
+    perform public.inventory_publish_existing_closing(v_id, gen_random_uuid());
     raise exception 'Approval bypassed permission enforcement';
   exception when insufficient_privilege then null; end;
 end;
@@ -300,6 +304,12 @@ declare
   v_id uuid;
   v_result jsonb;
 begin
+  begin
+    perform public.crew_inventory_save_stock_check(v_token, v_outlet, gen_random_uuid(),
+      v_input || '{"audit_type":"Month-End Closing","status":"submitted","accounting_month":"2001-10-01","publish_closing":true,"actual_count_date":"2001-10-31"}',
+      v_items || jsonb_build_array(jsonb_build_object('item_id',current_setting('closing_qa.item2')::uuid,'unit','kg','actual_count_quantity',1)));
+    raise exception 'Crew accessed closing publication.';
+  exception when insufficient_privilege then null; end;
   v_started := public.crew_inventory_save_stock_check(v_token, v_outlet, v_request, v_input, v_items);
   v_id := (v_started->'check'->>'id')::uuid;
   if v_started is distinct from public.crew_inventory_save_stock_check(v_token, v_outlet, v_request, v_input, v_items)
@@ -342,4 +352,4 @@ begin
 end;
 $$;
 rollback;
-select 'PASS: immutable evidence, authorized date/month attribution, partial revisions and scoped reporting' as result;
+select 'PASS: atomic closing, authorization, partial revisions and explicit historical publication' as result;

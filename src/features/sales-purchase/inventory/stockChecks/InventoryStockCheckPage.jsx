@@ -26,7 +26,7 @@ const SHOW_STOCK_CHECK_CARD_DEBUG = import.meta.env.DEV && String(import.meta.en
 const shifts = ["Opening", "Mid", "Closing", "Any Shift"];
 import MonthPickerField from "../../../../components/forms/MonthPickerField.jsx";
 import AuditCountTimestamps, { AuditCountTimestampFields } from "./AuditCountTimestamps.jsx";
-import { formatClosingError, formatClosingMonthLabel, isValidClosingQuantity, MONTH_END_CLOSING, updateClosingAuditName } from "./monthEndClosing.js";
+import { formatClosingError, formatClosingMonthLabel, isValidClosingQuantity, MONTH_END_CLOSING, updateClosingAuditName, toClosingLocalTime } from "./monthEndClosing.js";
 import { STOCK_CHECK_SKIP_REASONS, stockCheckSkipReason } from "./stockCheckSkipReasons.js";
 import { indexStockCheckActors, stockCheckActorNames } from "./inventoryStockCheckActors.js";
 import { employeeDisplayName } from "../waste/inventoryWasteService.js";
@@ -286,6 +286,7 @@ function StockCheckMobileView({
   onSkipRow,
   onUnskipRow,
   closingFields,
+  closingHandoff,
   readyToSubmit,
   onBack,
   onSaveDraft,
@@ -437,9 +438,10 @@ function StockCheckMobileView({
             <span>{remainingCount} remaining</span>
           </div>
         </div>
+        {closingHandoff && <p className="mb-2 type-caption text-text-secondary">Save the draft for an authorized Admin to submit.</p>}
         <div className="grid grid-cols-2 gap-2">
           <button className="btn-secondary" type="button" onClick={onSaveDraft}>Save Draft</button>
-          <button className="btn-primary" type="button" onClick={onSubmit}>{isAudit ? "Submit Audit" : "Submit"}</button>
+          <button className="btn-primary" type="button" disabled={closingHandoff} onClick={onSubmit}>{closingFields ? "Submit & Publish Closing" : isAudit ? "Submit Audit" : "Submit"}</button>
         </div>
       </div>
     </div>
@@ -584,6 +586,8 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
   const [activeScheduledCheckId, setActiveScheduledCheckId] = useState(null);
   const [activeAuditCheck, setActiveAuditCheck] = useState(null);
   const [closingMonth, setClosingMonth] = useState("");
+  const [actualCountDate, setActualCountDate] = useState("");
+  const [invalidCountDate, setInvalidCountDate] = useState(false);
   const pendingAuditRequest = useRef(null);
   const [checkRows, setCheckRows] = useState([]);
   const [savingStockCheck, setSavingStockCheck] = useState(false);
@@ -646,6 +650,7 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
     createCheck: hasPermission(auth, "inventory_stock_check.create") || hasPermission(auth, "inventory_stock_check.audit"),
     editCheck: hasPermission(auth, "inventory_stock_check.edit"),
     reviewCheck: hasPermission(auth, "inventory_stock_check.review"),
+    publishClosing: hasPermission(auth, "inventory_stock_check.view") && hasPermission(auth, "inventory_stock_check.approve"),
     correctAudit: hasPermission(auth, "inventory_stock_check.view") && hasPermission(auth, "inventory_stock_check.edit")
       && hasPermission(auth, "inventory_stock_check.create"),
     generatePo: hasPermission(auth, "inventory_orders.create"),
@@ -813,6 +818,8 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
       await refreshExecution();
       setSelectedOutletId(form.outletId);
       setDate(savedCheck.date);
+      setActualCountDate("");
+      setInvalidCountDate(false);
       setClosingMonth(savedCheck.accountingMonth?.slice(0, 7) || "");
       setActiveCheckGroupId(null);
       setActiveScheduledCheckId(null);
@@ -836,6 +843,8 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
       notify("Start a new closing audit", "This draft was created before closing counts required explicit actuals.", "warning");
       return;
     }
+    setActualCountDate(toClosingLocalTime(check.physicalCountCutoff).slice(0, 10));
+    setInvalidCountDate(false);
     setClosingMonth(check.accountingMonth?.slice(0, 7) || "");
     setSelectedOutletId(check.outletId);
     setDate(check.date || todayInput());
@@ -863,6 +872,7 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
       closingMonth: check.accountingMonth?.slice(0, 7) || "",
       date: check.date || todayInput(),
       notes: check.notes || "",
+      physicalCountCutoff: check.physicalCountCutoff,
     });
   }
 
@@ -971,10 +981,15 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
       return;
     }
     if (status === "submitted") {
+      if (isClosing && !requirePermission(can.publishClosing, "submit and publish Closing Stock")) return;
       const invalidRows = stockCheckValidationIssues(checkRows, isClosing);
       if (invalidRows.length) {
         setCheckValidationAttempted(true);
         revealFirstInvalidStockCheckRow(invalidRows[0]);
+        return;
+      }
+      if (isClosing && (!actualCountDate || invalidCountDate || actualCountDate > todayInput())) {
+        notify("Actual count date required", "Enter the date the count took place in Malaysia time.", "warning");
         return;
       }
     }
@@ -984,7 +999,7 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
     const checkDate = activeCheckGroup.date || date;
     const persistGroup = {
       ...activeCheckGroup,
-      ...(isClosing ? { closingMonth, auditName: updateClosingAuditName(activeCheckGroup.auditName, checkDate,
+      ...(isClosing ? { closingMonth, actualCountDate, auditName: updateClosingAuditName(activeCheckGroup.auditName, checkDate,
         activeCheckGroup.closingMonth, checkDate, closingMonth) } : {}),
       date: checkDate,
       existingCheckId: activeCheckGroup.existingCheckId || existingDraft?.id || activeScheduledCheckId || "",
@@ -1016,7 +1031,8 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
       setActiveAuditCheck(null);
       setCheckValidationAttempted(false);
       if (status === "submitted") {
-        notify(isAudit ? "Audit Stock Check submitted" : "Stock Check submitted", isAudit ? "Audit result saved without purchase suggestions." : "Review purchase suggestions from the completed check card if shortages exist.");
+        if (isClosing) notify("Closing Stock published", "The value is available in Outlet P&L for the selected Closing Month.");
+        else notify(isAudit ? "Audit Stock Check submitted" : "Stock Check submitted", isAudit ? "Audit result saved without purchase suggestions." : "Review purchase suggestions from the completed check card if shortages exist.");
       } else {
         notify(isAudit ? "Audit Stock Check draft saved" : "Stock Check draft saved");
       }
@@ -1050,8 +1066,13 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
     if (activeCheckGroup) {
       const isAudit = activeCheckGroup.stockCheckType === "audit";
       const isClosing = activeCheckGroup.auditType === MONTH_END_CLOSING;
-      const closingFields = isClosing && <MonthPickerField label="Closing Month"
-        emptyLabel="Select Closing Month" value={closingMonth} onChange={setClosingMonth} />;
+      const closingFields = isClosing && <div className="grid gap-2 sm:grid-cols-2">
+        <MonthPickerField label="Closing Month" emptyLabel="Select Closing Month" value={closingMonth} onChange={setClosingMonth} />
+        {can.publishClosing && <DatePickerField label="Actual Count Date (MYT)" value={actualCountDate} disabled={Boolean(activeCheckGroup.physicalCountCutoff)}
+          onChange={value => { setActualCountDate(value); setInvalidCountDate(false); }}
+          onInvalidInput={() => setInvalidCountDate(true)}
+          error={invalidCountDate || actualCountDate > todayInput() ? "Enter a valid count date on or before today." : ""} />}
+      </div>;
       const activePersistedCheck = activeScheduledCheckId
         ? data.checks.find((check) => check.id === activeScheduledCheckId)
         : activeCheckGroup.existingCheckId
@@ -1181,6 +1202,7 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
             onUpdateRow={updateCheckRow}
             onSkipRow={openSkipReason}
             closingFields={closingFields}
+            closingHandoff={isClosing && !can.publishClosing}
             readyToSubmit={readyToSubmit}
             onUnskipRow={unskipCheckRow}
             onBack={closeActiveCheck}
@@ -1217,7 +1239,7 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
                 </div>
                 {isAudit && <AuditCountTimestampFields startedAt={activePersistedCheck?.createdAt} submittedAt={activePersistedCheck?.submittedAt} />}
               </dl>
-              {closingFields && <div className="w-44 shrink-0">{closingFields}</div>}
+              {closingFields && <div className="w-full max-w-sm shrink-0">{closingFields}</div>}
             </div>
             {isAudit && <div className="mb-2 flex flex-wrap items-center gap-x-6 gap-y-2">
               <dl aria-label="Audit item counts" className="flex flex-wrap gap-x-4 gap-y-1 self-center">
@@ -1278,12 +1300,13 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
                 <div className="type-body-sm font-semibold tabular-nums">{totals.counted} / {totals.total} counted</div>
                 <div className="type-caption text-text-secondary">{totals.pending} remaining · {totals.skipped} skipped
                   {isClosing && !readyToSubmit && " · Closing requires a valid count for every item."}
+                  {isClosing && !can.publishClosing && " · Save the draft for an authorized Admin to submit."}
                 </div>
               </div>
             </div>
             <div className="flex gap-2">
               <button className="btn-secondary" type="button" disabled={savingStockCheck} onClick={() => requirePermission(can.editCheck, "save stock check drafts") && saveStockCheck("draft")}>{savingStockCheck ? "Saving…" : "Save Draft"}</button>
-              <button className="btn-primary" type="button" disabled={savingStockCheck} onClick={() => requirePermission(can.createCheck, "submit stock checks") && saveStockCheck("submitted")}>{savingStockCheck ? "Saving…" : isAudit ? "Submit Audit Check" : "Submit Stock Check"}</button>
+              <button className="btn-primary" type="button" disabled={savingStockCheck || (isClosing && !can.publishClosing)} onClick={() => requirePermission(can.createCheck, "submit stock checks") && saveStockCheck("submitted")}>{savingStockCheck ? "Saving…" : isClosing ? "Submit & Publish Closing" : isAudit ? "Submit Audit Check" : "Submit Stock Check"}</button>
             </div>
           </div>
         </div>

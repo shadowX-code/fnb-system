@@ -98,6 +98,7 @@ export async function persistRemoteStockCheck(activeGroup, rows = [], status = "
     check_date: checkDate || null,
     ...(isAudit && activeGroup.auditType === MONTH_END_CLOSING ? {
       accounting_month: activeGroup.closingMonth ? `${activeGroup.closingMonth}-01` : null,
+      ...(status === "submitted" ? { publish_closing: true, actual_count_date: activeGroup.actualCountDate || null } : {}),
     } : {}),
     audit_type: isAudit ? (activeGroup.auditType || "Custom Audit") : null,
     audit_name: isAudit ? activeGroup.auditName || activeGroup.name || null : null,

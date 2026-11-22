@@ -131,6 +131,8 @@ Object.assign(resources.inventory, {
   closingCardTitle: "{{month}} Closing",
   auditView: "View",
   auditMoreActions: "More actions: {{title}}",
+  saveClosingForAdmin: "Save for Admin",
+  closingDraftReady: "Closing draft saved for an authorized Admin to submit and publish.",
   closingDetailsRequired: "Select a valid Closing Month.",
   countStartedAt: "Count Started At (MYT)",
   countSubmittedAt: "Count Submitted At (MYT)",
