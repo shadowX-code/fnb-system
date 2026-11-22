@@ -369,7 +369,8 @@ test('each clause offers its authorized READ for a mixed Employees and Finished 
    assert(body.tools.some(t=>t.name===hr));
    assert(body.tools.some(t=>t.name===fg));
    if(++step===1)return response([functionCall(fg,{mode:'detail',sku:'S01'},'sku')]);
-   if(step===2)return response([functionCall(hr,{mode:'summary'},'headcount')]);
+   if(step===2)return response([functionCall(hr,{mode:'summary',status:'active'},'headcount')]);
+   assert.equal(JSON.parse(body.input.at(-1).output).requested_scope.status,'all');
    return response([{type:'message',content:[{type:'output_text',text:'6 employees and 62 kg for SKU S01.'}]}]);
   },
  });
@@ -378,6 +379,13 @@ test('each clause offers its authorized READ for a mixed Employees and Finished 
  assert.deepEqual(saved.map(e=>e.capability),[fg,hr]);
  assert.equal(saved[0].rows[0].current_balance,62);
  assert.equal(saved[1].summary.total,6);
+ const summary={mode:'summary',status:'active'};
+ for(const prompt of ['How many employees are there?','Give me the total employee headcount.']){
+  assert.equal((await business.execute(hr,summary,undefined,{prompt})).requested_scope.status,'all');
+ }
+ for(const prompt of ['How many active employees are there?','How many employees are there, and how many are active?']){
+  assert.equal((await business.execute(hr,summary,undefined,{prompt})).requested_scope.status,'active');
+ }
 });
 
 test('multilingual per-outlet inventory counts use complete Master Inventory results without invoking a model',async()=>{

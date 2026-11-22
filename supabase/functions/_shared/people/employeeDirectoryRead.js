@@ -25,10 +25,11 @@ export const employeeDirectoryRead=readContract({
   if(args?.mode!=='summary'||!['active','inactive','resigned','terminated'].includes(args.status))return args;
   // Bind an explicit unfiltered headcount to its clause, not a neighbouring status filter.
   const clauses=prompt.split(/[,;.!?]|\band\s+(?=(?:what|which|how|who)\b)/iu);
-  const unfiltered=/^\s*(?:(?:what is|give me|show me)\s+)?(?:the\s+)?(?:total|overall)\s+(?:authorized\s+)?(?:employees?\s+headcount|(?:number|count)\s+of\s+employees)\s*$/iu.test(clauses[0]);
-  const statusClause=clauses.filter(clause=>new RegExp(`\\b${args.status}\\b`,'iu').test(clause));
-  const differentQuestion=statusClause.length===1&&/^\s*(?:what|which|how|who)\b/iu.test(statusClause[0])&&!/\b(?:employees?|staff|workforce|headcount)\b/iu.test(statusClause[0]);
-  return unfiltered&&differentQuestion?{...args,status:'all'}:args;
+  const unfiltered=/^\s*(?:how many (?:authorized )?employees(?: are there)?|(?:(?:what is|give me|show me)\s+)?(?:the\s+)?(?:total|overall)\s+(?:authorized\s+)?(?:employees?\s+headcount|(?:number|count)\s+of\s+employees))\s*$/iu.test(clauses[0]);
+  const statusClauses=clauses.filter(clause=>/\b(?:active|inactive|resigned|terminated)\b/iu.test(clause));
+  const differentResource=clause=>/\b(?:factory|finished goods|raw materials?|sku|inventory|stock)\b/iu.test(clause)&&
+   !/\b(?:employees?|staff|workforce|headcount)\b/iu.test(clause);
+  return unfiltered&&statusClauses.every(differentResource)?{...args,status:'all'}:args;
  },
  description:'Use summary for unique employee headcount, status and employment-type breakdowns; no employee ID or company ID needed. Use list to search by name/code, or detail with the exact employee name/code in query. Null filters mean all records already visible to the human. Inactive means resigned or terminated, not disabled login.',
  properties:{outlet_id:{...uuid,nullable:true,description:'Optional filter. Null means all employee rows already visible to the human. Never required for headcount.'},employment_type:{type:'string',maxLength:60,nullable:true,description:'Optional exact type filter. Null means all types; summary returns the breakdown.'},mode:{type:'string',enum:['summary','list','detail']},employee_id:{...uuid,nullable:true},status:{type:'string',enum:['all','active','inactive','resigned','terminated']},legal_entity_id:{...uuid,nullable:true},workplace:{type:'string',maxLength:120,nullable:true},query:{type:'string',maxLength:80},page:{type:'number',minimum:1,maximum:1000}},

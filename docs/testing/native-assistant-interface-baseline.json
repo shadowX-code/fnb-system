@@ -223,7 +223,7 @@
     "operations_network": "3501729d16b97e9345a61e91ff017f0f1e05495b0de2a3199bc2864ae4c00a18"
   },
   "operations": {
-    "read_employee_directory": "205fa4654991c16aa5bf88f97d7ac26e282e532f479ba3d4714c64a0f5eac4f2",
+    "read_employee_directory": "562dd3eb4728a556eab08de9f6fe101773b7143bfea3362c35d4a0957b9baeee",
     "read_recipe_ingredients": "c145d0e0e7c591e9d0ae397747df130bb762bf4be940e74d0d8bb32428ff32ca",
     "read_restaurant_alerts": "0b5e310f31aee3cce30858b3c96f9d970f48080e689f4b2a2389f97cf086db2f",
     "read_restaurant_data_health": "acd2a28ae24e950a94805a84c6524db6d1d81b852d70e498571df6b76bca304a",
@@ -408,7 +408,7 @@
     "supabase/functions/_shared/marketing/platformReads.js": "9f94ec5fbecc39d0868b128b24c2f0057cf52b517b67c8ab4d426c8cd9983c4d",
     "supabase/functions/_shared/people/catalogueReads.js": "9dbc55e135ed152ee7cc76fafa62526c26f6e4c91af5c0dbbd12c2436a7c31a9",
     "supabase/functions/_shared/people/employeeDirectory.js": "d0facda05f019959e7b6326e32e9dd11193778b3a285531ef91b69c3d4020b7c",
-    "supabase/functions/_shared/people/employeeDirectoryRead.js": "b64400fa647167b9451f5e36109ae5c8c5172e959f093b984d98e487357aacbd",
+    "supabase/functions/_shared/people/employeeDirectoryRead.js": "c8c713e80c5938921d0f83cded7ada82364e6f4152960e6e0e969aa6ad3f418e",
     "supabase/functions/_shared/people/employmentRead.js": "0e61824f5a2b3154490e15cec619f6486107b1d7d2593689f9b6e6938d1aaa1c",
     "supabase/functions/_shared/people/gapReads.js": "106317a17778459eeca42e2bfd8fa8fff821df9b2cd60c6664e42432ef965c7c",
     "supabase/functions/_shared/people/platformReads.js": "7ae53664addbdee09226a288f502ec4cc250a83e10d1b4522b48484d28a6a7cd",
