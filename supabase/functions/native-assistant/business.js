@@ -107,8 +107,10 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
  };
  const discoveryRows=(ops,available,params)=>discoverQueries(ops.map(operation=>({...operation,tool:queryTool(operation)})),available,params);
  const planFor=operation=>operation?{operation:operation.id,tool:indexed.find(item=>item.id===operation.id)?.availability==='connected'?queryTool(operation):null}:null;
- async function planTurn(prompt,history,signal){
+ async function planTurn(prompt,history,signal,{textPages=false}={}){
   if(!prompt)return null;
+  const textPage=textPages?await finishedGoodsRead.planTextPage(prompt,history):null;
+  if(textPage)return {...planFor(finishedGoodsRead),textPage};
   const operation=planned(prompt);
   if(operation)return {...planFor(operation),intent:operation.queryIntent(prompt),wording:prompt};
   // An outlet-only answer can complete the immediately preceding scoped
@@ -209,6 +211,7 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
      const properties=operation.tool.parameters.properties;
      const accepted=queryTool(operation).parameters.properties;
      if(Object.keys(args).some(key=>!Object.hasOwn(accepted,key)))invalidArgument('unexpected_field');
+     if(plan?.textPage&&operation===finishedGoodsRead)args={...args,...plan.textPage.args};
      if(properties.outlet_id){
       if(args.outlet_name!=null&&(typeof args.outlet_name!=='string'||!args.outlet_name.trim()||args.outlet_name.length>120))
        invalidArgument('unsupported_value','outlet_name');
@@ -266,6 +269,7 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
    }
   },
   format(id,evidence,prompt){return assistantQuery(id).format?.(evidence,prompt)||null;},
+  completeTextPage(evidence,plan){return plan?.textPage?finishedGoodsRead.completeTextPage(evidence,plan.textPage):null;},
  };
 }
 

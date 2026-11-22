@@ -344,6 +344,48 @@ test('unrecorded stock units produce correction feedback, while a valid empty fi
  assert.equal(saved[0].uom,null);
 });
 
+test('model-selected Factory SKU pages finish from complete saved evidence without another provider response',async()=>{
+ const operation='read_factory_finished_goods';
+ const rows=Array.from({length:26},(_,i)=>{
+  const code='SKU-'+String(i+1).padStart(2,'0');
+  return {id:code,product_code:code,product_name:code,current_balance:i,uom:'kg',status:i===25?'inactive':'active'};
+ });
+ const {caller}=source({snapshot:{rpcs:fixtures,tables:{factory_finished_goods:rows}}});
+ const business=createBusinessDispatcher({config,access,caller});
+ const turns=[];
+ const history=async()=>({turns});
+ const prompts=[
+  'List page 1 of all Factory Finished Goods packaging SKUs, including inactive SKUs, with SKU and current balance. State the complete catalogue total.',
+  'Show page 2 of all those products with SKU and current balance. State how many products are on this page versus the complete total.',
+ ];
+ for(const [index,prompt] of prompts.entries()){
+  const page=index+1;
+  let evidence;
+  let calls=0;
+  const output=await generateText({kind:'turn',model:config.model,prompt},'fixture',{
+   business,history,onTool:(state,result)=>{if(state==='completed')evidence=result;},
+   transport:async()=>{
+    assert.equal(++calls,1,'A page read must finish before post-tool synthesis can fail');
+    return response([functionCall(operation,{mode:'list',page:1,status:'active'},'page-'+page)]);
+   },
+  });
+  const expected=rows.slice(index*20,page*20);
+  assert.equal(evidence.total_matching,26);
+  assert.deepEqual(evidence.rows.map(row=>row.product_code),expected.map(row=>row.product_code));
+  assert.match(output.reply,new RegExp('Page '+page+': '+expected.length+' packaging SKUs\\. Catalogue total: 26 packaging SKUs\\.'));
+  assert(output.input_tokens>0);
+  turns.push({...output,prompt,evidence,state:'completed',tool_state:'completed',request_id:id,created_at:'fixture',model:config.model});
+ }
+ const scope={total:26,returned:6,rows:rows.slice(20).map(row=>[row.product_code,row.current_balance,row.uom])};
+ const followUp=turns[1];
+ assert.equal(certifyScenario('fg_page',{turn:followUp,source:scope}).status,'PASS');
+ const mismatched=async()=>({turns:[{...turns[0],evidence:{...turns[0].evidence,status:'active'}}]});
+ assert.equal((await business.planTurn(prompts[1],mismatched,undefined,{textPages:true}))?.textPage,undefined);
+ assert.equal((await business.planTurn(prompts[0]+' Also explain the cost.',history,undefined,{textPages:true}))?.textPage,undefined);
+ assert.equal((await business.planTurn('Show page 2 of Raw Materials with SKU and current balance.',history,undefined,{textPages:true}))?.textPage,undefined);
+ assert.equal((await business.planTurn(prompts[0],history))?.textPage,undefined);
+});
+
 test('Malay single-asset replies preserve source units and use the request language',async()=>{
  const operation='read_asset_catalogue';
  const business=createBusinessDispatcher({config,access,caller:source().caller});

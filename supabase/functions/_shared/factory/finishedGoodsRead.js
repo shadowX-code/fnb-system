@@ -76,6 +76,41 @@ export function lowStockSummary(evidence){
  return [`${evidence.total_matching} product(s) below a recorded positive minimum.`,...shown.map(x=>`• ${String(x.product_name||x.product_code).slice(0,80)}: ${x.current_balance} ${x.uom||''}; minimum ${x.min_stock_level} ${x.uom||''}.`),...(evidence.total_matching>shown.length?[`Showing ${shown.length} of ${evidence.total_matching} matches.`]:[]),`${evidence.unknown_minimum_count} product(s) have no valid minimum threshold. Their low-stock status is UNKNOWN; they are not classified as low or healthy.`,`Scope: ${evidence.scope}. Read at ${evidence.as_of}.`,`Source: ${evidence.source}. Current aggregate balances, not reserved or available-to-promise stock.`].join('\n');
 }
 
+function unfilteredSkuList(evidence){
+ return evidence?.capability==='read_factory_finished_goods'&&evidence.mode==='list'&&evidence.measure==='sku'&&
+  evidence.aggregate_complete===true&&evidence.status==='all'&&evidence.availability==='all'&&
+  evidence.query===''&&evidence.sku===null&&evidence.uom===null&&!evidence.ranking;
+}
+
+async function planTextPage(prompt,history){
+ const page=Number(prompt.match(/^\s*(?:please\s+)?(?:show|list|display)\s+(?:me\s+)?page\s+(\d+)\b/i)?.[1]);
+ if(!Number.isInteger(page)||page<1||page>50||!(/\bSKUs?\b/i.test(prompt)&&/\bbalances?\b/i.test(prompt))||
+  /\b(?:and|also|then)\s+(?:what|how|which|why|show|list|find|explain|compare|calculate)\b|\b(?:rank|sort|compare|minimum|forecast|value|cost|except|excluding|only)\b/i.test(prompt))
+  return null;
+ if(page===1&&(!/\bFinished Goods\b/i.test(prompt)||!/\b(?:including inactive|all statuses|unfiltered)\b/i.test(prompt)))return null;
+ let previousTotal;
+ if(page>1){
+  if(!/\b(?:Finished Goods|(?:those|these|the same)\s+(?:products|SKUs?))\b/i.test(prompt))return null;
+  const turns=(await history?.())?.turns;
+  const previous=turns?.filter(turn=>turn.state==='completed').at(-1);
+  if(previous?.tool_state!=='completed'||!unfilteredSkuList(previous.evidence)||previous.evidence.page!==page-1)return null;
+  previousTotal=previous.evidence.total_matching;
+ }
+ return {args:{...groupedProductSummary,mode:'list',measure:'sku',page},previousTotal};
+}
+
+function completeTextPage(evidence,plan){
+ if(!unfilteredSkuList(evidence)||evidence.page!==plan.args.page||
+  plan.previousTotal!==undefined&&plan.previousTotal!==evidence.total_matching)return null;
+ const {rows,total_matching:total,page_size:size}=evidence;
+ const page=evidence.page;
+ if(!Number.isSafeInteger(total)||size!==20||!Array.isArray(rows)||
+  rows.length!==Math.min(size,Math.max(0,total-(page-1)*size))||rows.some(row=>!row.product_code))return null;
+ const items=rows.map(row=>'- '+row.product_code+': '+(row.current_balance==null?'balance unavailable':
+  [row.current_balance,row.uom].filter(value=>value!=null&&value!=='').join(' ')));
+ return ['Page '+page+': '+rows.length+' packaging SKU'+(rows.length===1?'':'s')+'. Catalogue total: '+total+' packaging SKUs.',...items].join('\n');
+}
+
 // Factory owns the schema, permission, bounded read and evidence semantics.
 export const finishedGoodsRead = Object.freeze({
  moduleInterface:declareReadInterface({module_id:'factory_finished_goods',version:4,permission:'factory_finished_goods.view',scope:'Factory shared catalogue',source:'/factory/warehouse/finished-goods',properties:inventoryTool.parameters.properties,interface:{queryKinds:['summary','count','list','search','detail','filter','rank'],authority:'factory_get_master_id_snapshot + scoped SKU and product-family tables',aggregates:'complete_filtered_scope',fields:['measure','rows','total_scoped_products','total_matching','unknown_minimum_count','low_stock_count','out_of_stock_count','ranking'],pagination:'Complete identity/count-checked SKU and grouped catalogues; SKU rows paginated at 20. Non-atomic source snapshots.',unsupported:['Filtered family counts, category, tags, valuation and per-location stock are outside this read.']}}),
@@ -95,4 +130,5 @@ export const finishedGoodsRead = Object.freeze({
  tool:inventoryTool, validate:inventoryArguments, execute:readInventory,
  testArguments:{query:'',availability:'all'}, authorized:access=>!!access.factory, deniedCode:'factory_read_denied',
  format:evidence=>evidence.availability==='low'?lowStockSummary(evidence):null,
+ planTextPage,completeTextPage,
 });

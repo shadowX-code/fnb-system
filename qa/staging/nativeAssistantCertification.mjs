@@ -111,8 +111,15 @@ export const scenarios={
  }),
  fg_page:scenario('Factory',['read_factory_finished_goods'],'Show page 2 of all those products with SKU and current balance. State how many products are on this page versus the complete total.',([e],reply,source)=>{
   assert.equal(e.page,2);assert.equal(e.total_matching,source.total);assert.equal(e.rows.length,source.returned);
-  assert.match(reply,new RegExp(`page\\s+2[\\s\\S]{0,100}${number(source.returned)}\\s+products`,'i'));
+  assert.match(reply,new RegExp(`page\\s+2[\\s\\S]{0,100}${number(source.returned)}\\s+(?:packaging SKUs?|products)`,'i'));
   assert.match(reply,new RegExp(`total[^\\n]{0,70}${number(source.total)}`,'i'));
+  if(source.rows){
+   assert.equal(e.aggregate_complete,true);
+   assert.deepEqual([e.measure,e.status,e.query,e.uom,e.sku,e.availability],['sku','all','',null,null,'all']);
+   assert.deepEqual(e.rows.map(row=>[row.product_code,row.current_balance,row.uom]),source.rows);
+   for(const [sku,balance,uom] of source.rows)
+    assert.match(reply,new RegExp(escaped(sku)+`[^\\n]{0,40}${number(balance)}\\s*${escaped(uom)}\\b`,'iu'));
+  }
  }),
  employees_grouped:scenario('HR',['read_employee_directory'],'Give separate complete counts by employment status and employment type for my authorized Employees scope.',([e],reply,source)=>{
   assert.equal(e.requested_scope?.mode,'summary');assert.equal(e.requested_scope?.status,'all');
