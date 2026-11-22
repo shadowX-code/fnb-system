@@ -10,6 +10,11 @@ export function validateFields(properties,value){
  for(const [key,schema] of Object.entries(properties)){
   if(!Object.hasOwn(value,key))invalid('missing_field',key);
   const v=value[key];if(v===null&&schema.nullable)continue;
+  if(schema.type==='array'){
+   if(!Array.isArray(v))invalid('wrong_type',key);
+   if(v.length>schema.maxItems||v.some(item=>typeof item!=='string'||!item.trim()||item.length>schema.items.maxLength))invalid('unsupported_value',key);
+   continue;
+  }
   if(typeof v!==schema.type)invalid('wrong_type',key);
   if(schema.pattern&&!new RegExp(schema.pattern).test(v)||schema.enum&&!schema.enum.includes(v)||schema.maxLength&&v.length>schema.maxLength||schema.type==='number'&&(!Number.isInteger(v)||v<schema.minimum||v>schema.maximum))invalid('unsupported_value',key);
   if(schema===date&&(!Number.isFinite(Date.parse(v))||new Date(v).toISOString().slice(0,10)!==v))invalid('invalid_date',key);

@@ -19,7 +19,7 @@ const voiceRequest=(operation,args)=>({action:'realtime_tool',provider:'openai',
  request_id:id,turn_id:id,operation,arguments:args});
 function argsFor(op){
  return Object.fromEntries(Object.entries(op.tool.parameters.properties).map(([key,schema])=>{
-  const value=schema.type.includes('null')?null:schema.enum?schema.enum[0]:
+  const value=schema.type.includes('null')?null:schema.type==='array'?[]:schema.enum?schema.enum[0]:
    ['integer','number'].includes(schema.type)?schema.minimum??1:
     key.includes('id')?id:key==='to'?'2026-11-02':key==='query'?'':'2026-11-01';
   return [key,value];
@@ -61,7 +61,7 @@ const finance={period:{year:2026,month:11},financial_completeness:'incomplete',
 const leave={total_count:24,rows:[{id,status:'approved',start_date:'2026-11-01',reason:'DO_NOT_EXPOSE'}]};
 const plan={tasks:[{id,title:'Fixture task',status:'completed',review_feedback:'DO_NOT_EXPOSE'}]};
 const sales=[{id,outlet_id:id,year:2026,month:11,amount:125,remark:'DO_NOT_EXPOSE'}];
-const outlets=[{id,name:'Fixture Corner',code:'FC'},{id:otherId,name:'Different Outlet',code:'DO'}];
+const outlets=[{id,name:'Fixture Corner',code:'FC',is_active:true},{id:otherId,name:'Different Outlet',code:'DO',is_active:true}];
 const assets=[
  {id:'spoon',outlet_id:id,name:'Spoon',asset_code:null,current_quantity:15,unit:'unit',status:'active',supplier:'DO_NOT_EXPOSE'},
  {id:'fork',outlet_id:id,name:'Fork',asset_code:'FORK-1',current_quantity:0,unit:'unit',status:'active'},
@@ -76,7 +76,7 @@ const stock=Array.from({length:26},(_,i)=>({id:`item-${i}`,product_code:`FG-${i}
  product_name:`Product ${i}`,name:`Material ${i}`,status:'active',uom:'kg',current_balance:i,
  min_stock_level:5,manual_unit_cost:'DO_NOT_EXPOSE'})).concat({id:'mixed',uom:'ml',current_balance:999,status:'active'});
 
-function source({scope=true,brand=true,snapshot,assetRows=assets}={}){
+function source({scope=true,brand=true,snapshot,assetRows=assets,outletRows=outlets,inventoryRows=[],inventoryError}={}){
  const calls=[];
  const caller={
   rpc(name,args){
@@ -94,18 +94,19 @@ function source({scope=true,brand=true,snapshot,assetRows=assets}={}){
   },
   from(table){
    calls.push([table]);
-   if(table==='outlets'||table==='asset_items'){
-    let rows=table==='outlets'?outlets:assetRows;
+   if(['outlets','asset_items','inventory_items'].includes(table)){
+    let rows=table==='outlets'?outletRows:table==='asset_items'?assetRows:inventoryRows;
     let head=false;
     const builder={
-     select(_,options){head=options?.head;return this;},
+     select(fields,options){head=options?.head;if(table==='inventory_items')assert.match(fields,/inventory_item_outlets!inner/);return this;},
+     in(field,values){assert.equal(field,'inventory_item_outlets.outlet_id');rows=rows.filter(row=>row.outlets.some(outlet=>values.includes(outlet)));return this;},
      eq(field,value){rows=rows.filter(row=>row[field]===value);return this;},
      neq(field,value){rows=rows.filter(row=>row[field]!==value);return this;},
      ilike(field,pattern){rows=rows.filter(row=>row[field]?.toLowerCase()===pattern.replace(/\\([%_\\])/g,'$1').toLowerCase());return this;},
      limit(max){rows=rows.slice(0,max);return this;},
      order(){return this;},
      range(start,end){rows=rows.slice(start,end+1);return this;},
-     abortSignal:async()=>({data:head?null:rows,count:rows.length}),
+     abortSignal:async()=>table==='inventory_items'&&inventoryError?{error:{code:'57014'}}:{data:head?null:rows,count:rows.length},
     };
     return builder;
    }
@@ -134,6 +135,77 @@ const cases=[
 ];
 const response=output=>Response.json({status:'completed',output,usage:{input_tokens:100,output_tokens:10}});
 const functionCall=(name,args,call_id)=>({type:'function_call',name,call_id,arguments:JSON.stringify(args)});
+
+test('multilingual per-outlet inventory counts use complete Master Inventory results without invoking a model',async()=>{
+ const operation='read_inventory_items';
+ const inventoryRows=[
+  {id:'a',status:'active',outlets:[id,otherId]},
+  {id:'b',status:'active',outlets:[id]},
+  {id:'c',status:'inactive',outlets:[otherId]},
+  {id:'d',status:'active',outlets:['denied-outlet']},
+ ];
+ const src=source({inventoryRows});
+ const business=createBusinessDispatcher({caller:src.caller,config,access});
+ const questions=['餐厅每个门店目前有多少种库存品项？','Berapa jenis item inventori restoran untuk setiap cawangan?',
+  'How many Master Inventory item types are there at each outlet?',
+  'How many Master Inventory items are there at Fixture Corner and Different Outlet?'];
+ for(const prompt of questions){
+  let evidence;
+  const result=await generateText({kind:'turn',model:config.model,prompt},'fixture-secret',{business,
+   onTool:(state,value)=>{if(state==='completed')evidence=value;},transport:()=>assert.fail('Unnecessary model call')});
+  assert.equal(result.input_tokens,0);
+  assert.equal(evidence.capability,operation);
+  assert.equal(evidence.aggregate_complete,true);
+  assert.deepEqual(evidence.by_outlet.map(row=>[row.outlet.id,row.total_matching]),[[id,2],[otherId,1]]);
+  assert.match(result.reply,/Fixture Corner: 2/);
+  assert.match(result.reply,/Different Outlet: 1/);
+  assert.doesNotMatch(result.reply,/outlet_id|read_inventory_items/);
+ }
+ const prompt='How many Restaurant Inventory items are there?';
+ const overall=await business.execute(operation,{},undefined,{prompt,withOutcome:true});
+ assert.equal(overall.total_matching,2,'One item linked to both outlets counts once in a distinct total');
+ const unavailable=source({inventoryRows,inventoryError:true});
+ const recovered=await generateText({kind:'turn',model:config.model,prompt},'fixture-secret',{
+  business:createBusinessDispatcher({caller:unavailable.caller,config,access}),
+  onTool:(state,value)=>{assert.notEqual(state,'completed');assert.equal(value,undefined);},
+  transport:()=>assert.fail('No paid fallback for a failed read'),
+ });
+ assert.match(recovered.reply,/could not be read/);
+ const restricted=source({inventoryRows,scope:false});
+ const denied=createBusinessDispatcher({caller:restricted.caller,config,access});
+ await assert.rejects(denied.execute(operation,{},undefined,{prompt,withOutcome:true}),{code:'business_read_denied'});
+ assert(!restricted.calls.some(([name])=>name==='inventory_items'));
+ assert(!business.plan('How many Factory raw material inventory items are there?'));
+ assert.notEqual(business.plan('List Restaurant Inventory Movements at Fixture Corner')?.operation,operation);
+ assert(!business.plan('How many Restaurant Inventory items are there, and how many HR employees?'));
+});
+
+test('the same Text and Voice pipeline resolves a short outlet correction after a failed transcript',async()=>{
+ const operation='read_asset_catalogue';
+ const prompt='Fixture Corner';
+ const src=source({outletRows:[{...outlets[0],name:'Fixture Corner Ipoh'},outlets[1]]});
+ const business=createBusinessDispatcher({caller:src.caller,config,access});
+ const previous={state:'completed',prompt:'How many assets are at Ficture Café? Give balances for each asset.',reply:'An earlier guess.',tool_state:'failed'};
+ const history=async()=>({turns:[previous]});
+ let saved;
+ const text=await generateText({kind:'turn',model:config.model,prompt},'fixture-secret',{business,history,
+  onTool:(state,value)=>{if(state==='completed')saved=value;},transport:()=>assert.fail('No model needed for a resolved correction')});
+ assert.match(text.reply,/Fixture Corner Ipoh has 2 current asset records/);
+ assert.match(text.reply,/Spoon: 15 unit/);
+ assert.match(text.reply,/Fork: 0 unit/);
+ let voiceEvidence;
+ const voice=await dispatch(voiceRequest(operation,{mode:'detail',query:'Spoon',outlet_name:'Different Outlet'}),{
+  caller:src.caller,access,get:()=>undefined,async rpc(action){
+   if(action==='history')return {turns:[previous,{request_id:id,voice_input_available:true,prompt,state:'running'}]};
+   return {config};
+  },reserveRealtime:async()=>{},voiceHistory:async payload=>{voiceEvidence=payload.evidence;},
+ });
+ assert.equal(voice.answer_hint,text.reply);
+ assert.deepEqual(voiceEvidence.outlet,saved.outlet);
+ assert.deepEqual(voiceEvidence.rows,saved.rows);
+ assert.equal(voiceEvidence.total_matching,2);
+ await assert.rejects(business.execute('read_inventory_items',{page:1},undefined,{prompt,history}),{code:'tool_not_allowed'});
+});
 test('operational revenue discovers Finance and reads the named outlet for the requested month',async()=>{
  const operation='read_operational_financials';
  const prompt='What was the recorded operational revenue for Fixture Corner in January 2026? Use the Finance monthly financials in MYR and cite the outlet and month.';

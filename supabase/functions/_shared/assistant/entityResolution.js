@@ -62,11 +62,27 @@ export async function resolveOutlet(caller,{outlet_id,outlet_name},signal){
    return rows[0];
   }
  }
- const rows=await sourceRows(outlets().order('id').limit(201),signal);
- if(rows.length>200)throw new AssistantError('entity_scope_required',409);
- const outlet=normalizedEntity(rows,value,['name','code']);
+ const rows=await outletDirectory(caller,signal);
+ const outlet=matchOutlet(rows,value);
  if(outlet)await permittedOutlet(caller,outlet.id,signal);
  return outlet;
+}
+
+export async function outletDirectory(caller,signal){
+ const rows=await sourceRows(caller.from('outlets').select('id,name,code,is_active').order('id').limit(201),signal);
+ if(rows.length>200)throw new AssistantError('entity_scope_required',409);
+ return rows;
+}
+
+function matchOutlet(rows,value){
+ const exact=exactEntity(rows,value,['name','code']);
+ if(exact)return exact;
+ const key=entityKey(value);
+ // A multiword abbreviated name can identify a unique outlet. Phonetic or
+ // spelling similarities still require confirmation.
+ const prefixes=key.split(' ').length>1?rows.filter(row=>entityKey(row.name).startsWith(key+' ')):[];
+ if(prefixes.length>1)throw new AssistantError('entity_ambiguous',409);
+ return prefixes[0]||normalizedEntity(rows,value,['name','code']);
 }
 
 export async function resolveBrand(caller,name,signal){
@@ -75,11 +91,21 @@ export async function resolveBrand(caller,name,signal){
  return normalizedEntity(data.brands,name,['name','code']);
 }
 
-export async function explicitNamedOutlet(caller,prompt,signal){
+export function namedOutlets(rows,prompt){
  const key=' '+entityKey(prompt)+' ';
- const rows=await sourceRows(caller.from('outlets').select('id,name,code').order('id').limit(201),signal);
- if(rows.length>200)return null;
- const named=rows.filter(row=>entityKey(row.name)&&key.includes(' '+entityKey(row.name)+' '));
- if(named.length>1)throw new AssistantError('entity_ambiguous',409);
- return named[0]?.name||null;
+ const words=String(prompt).normalize('NFKC').match(/\b[A-Z][A-Z0-9-]{1,39}\b/g)||[];
+ const exact=rows.filter(row=>{
+  const name=entityKey(row.name);
+  return name&&key.includes(' '+name+' ')||words.includes(row.code);
+ });
+ if(exact.length)return exact;
+ const abbreviated=rows.filter(row=>{
+  const parts=entityKey(row.name).split(' ');
+  return parts.slice(0,-1).some((_,i)=>{
+   const prefix=parts.slice(0,i+1).join(' ');
+   return i>=1&&prefix.length>=10&&key.includes(' '+prefix+' ');
+  });
+ });
+ if(abbreviated.length>1)throw new AssistantError('entity_ambiguous',409);
+ return abbreviated;
 }

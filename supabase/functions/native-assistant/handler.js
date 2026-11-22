@@ -143,7 +143,7 @@ export async function dispatch(body,{voiceUsage,rpc,get,signal,transport,caller,
     let snapshot;
     const history=()=>snapshot??=rpc('history',{session_id:args.session_id});
     const turn=args.provider==='openai'&&args.turn_id?(await history())?.turns?.find(row=>row.request_id===args.turn_id):null;
-    if(turn&&!turn.voice_input_available&&identity.operation==='read_asset_catalogue')throw new AssistantError('entity_scope_required',409);
+    if(turn&&!turn.voice_input_available&&business.preferredVoiceTools.some(item=>item.name===identity.operation))throw new AssistantError('entity_scope_required',409);
     const transcript=turn?.voice_input_available?turn.prompt:undefined;
     const evidence=await business.execute(tool,args.arguments,signal,{correctArguments:args.provider==='openai',
      prompt:transcript,history,withOutcome:true});
@@ -152,7 +152,9 @@ export async function dispatch(body,{voiceUsage,rpc,get,signal,transport,caller,
      await voiceHistory({...args,step:'evidence',evidence});
     }
     traceTool(stage,evidence.error || (evidence.discovery_only ? 'discovery' : 'returned'),evidence.discovery_only?evidence.total_operations:undefined,evidence.validation);
-    return evidence;
+    const answer_hint=transcript&&identity.operation&&!evidence.not_business_evidence&&!evidence.error
+     ?business.format(identity.operation,evidence,transcript):null;
+    return answer_hint?{...evidence,answer_hint}:evidence;
    } catch(error) {
     const failure = voiceToolFailure(error,identity,stage);
     traceTool(stage,failure.code);
@@ -167,7 +169,7 @@ export async function dispatch(body,{voiceUsage,rpc,get,signal,transport,caller,
   try{
   if(signal?.aborted)throw new AssistantError('cancelled',409);
   const supported=args.provider==='openai'
-   ? [...business.tools,...queryDiscoveryTools.filter(query=>!business.tools.some(tool=>tool.name===query.name))]
+   ? [...new Map([...business.preferredVoiceTools,...business.tools,...queryDiscoveryTools].map(tool=>[tool.name,tool])).values()]
    : business.capabilities.some(capability=>capability.id===finishedGoodsRead.id&&capability.availability==='connected')
     ? [finishedGoodsRead.tool] : [];
   const tools=supported.map(({strict,...tool})=>tool);

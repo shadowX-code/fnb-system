@@ -24,8 +24,9 @@ import {cleaningRead} from '../_shared/factory/cleaningRead.js';
 import {AssistantError} from '../_shared/assistantError.js';
 import {finishedGoodsRead} from '../_shared/factory/finishedGoodsRead.js';
 import {systemGuidance} from '../_shared/assistant/systemGuidance.js';
-import {entityKey,explicitNamedOutlet,resolveBrand,resolveOutlet} from '../_shared/assistant/entityResolution.js';
-import {confirmedOutlet,outcomeFor,outletContinuation} from './businessQuery.js';
+import {entityKey,namedOutlets,outletDirectory,resolveBrand,resolveOutlet} from '../_shared/assistant/entityResolution.js';
+import {permitted} from '../_shared/assistant/readContract.js';
+import {confirmedOutlet,correctedOutletWording,outcomeFor,outletContinuation} from './businessQuery.js';
 
 // Composition of implemented module contracts, not a permission or grant store.
 // Discovery never makes a module executable. ACTION tools create previews only.
@@ -97,17 +98,66 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
  const withGuide=(base,current)=>guideAvailable(current,access||{})?[...base,{id:systemGuidance.id,availability:'connected'}]:base;
  const indexed=withGuide(capabilities,config||{});
  const intended=prompt=>queryOperations.filter(operation=>typeof prompt==='string'&&operation.queryIntent?.(prompt));
- const planned=prompt=>{const matches=intended(prompt);return matches.length===1?matches[0]:null;};
+ const planned=prompt=>{
+  const matches=intended(prompt);
+  if(matches.length!==1)return null;
+  const compound=/\b(?:also|separately|then|and what|and how|and which|serta)\b|另外|以及|并且|並且|同时|同時/iu.test(prompt);
+  if(compound&&discoveryRows(queryOperations,indexed,{search:prompt.slice(0,240),page:1}).operations.some(other=>other.operation!==matches[0].id))return null;
+  return matches[0];
+ };
  const discoveryRows=(ops,available,params)=>discoverQueries(ops.map(operation=>({...operation,tool:queryTool(operation)})),available,params);
+ const planFor=operation=>operation?{operation:operation.id,tool:indexed.find(item=>item.id===operation.id)?.availability==='connected'?queryTool(operation):null}:null;
+ async function planTurn(prompt,history,signal){
+  if(!prompt)return null;
+  const operation=planned(prompt);
+  if(operation)return {...planFor(operation),intent:operation.queryIntent(prompt),wording:prompt};
+  // An outlet-only answer can complete the immediately preceding scoped
+  // request. Carry its query shape, never its unresolved outlet or figures.
+  const candidate=correctedOutletWording(prompt);
+  if(!history||candidate.length>120||!entityKey(candidate)||/[?？]/u.test(candidate))return null;
+  const previous=(await history())?.turns?.filter(turn=>turn.state==='completed').at(-1);
+  if(!previous)return null;
+  const evidence=previous.evidence?.items||[previous.evidence];
+  if(candidate===prompt.trim()&&evidence.some(item=>item&&outcomeFor(item)==='SUCCESS'))return null;
+  const pending=planned(previous.prompt);
+  const plan=planFor(pending);
+  if(!plan?.tool||!pending.prepareArguments?.(previous.prompt))return null;
+  await permitted(caller,pending.permission,signal);
+  let outlet;
+  try{outlet=await resolveOutlet(caller,{outlet_name:candidate},signal);}
+  catch(error){if(['entity_ambiguous','entity_scope_required'].includes(error.code))return null;throw error;}
+  return outlet?{...plan,wording:previous.prompt,outlet}:null;
+ }
+ function turnArguments(operation,plan,prompt,named,outletId){
+  const defaults=operation.prepareArguments?.(plan.wording||prompt);
+  if(!defaults)return null;
+  if(outletId)return {...defaults,outlet_id:outletId,outlet_name:null,...defaults.outlet_scope?{outlet_scope:'named',outlet_names:[]}:{}};
+  if(named.length===1)return {...defaults,outlet_name:named[0].name,outlet_id:null,...defaults.outlet_scope?{outlet_scope:'named',outlet_names:[]}:{}};
+  if(named.length>1&&defaults.outlet_scope&&named.length<=12)return {...defaults,outlet_scope:'each_outlet',outlet_names:named.map(outlet=>outlet.name)};
+  if(!named.length&&defaults.outlet_scope&&!outletContinuation(prompt)&&
+   (defaults.outlet_scope==='each_outlet'||!/\b(?:at|for|in|di)\s+|在|门店|門店/iu.test(prompt)))return defaults;
+  return null;
+ }
  return {
   capabilities,
   guidance_sources:guideAvailable(config||{},access||{})?[{id:systemGuidance.id,module_id:systemGuidance.module_id,...systemGuidance.knowledge,availability:'live_source',retrieval:'current_release'}]:[],
   tools:(()=>{const offered=queryOperations.filter(operation=>indexed.find(item=>item.id===operation.id)?.availability==='connected');return offered.length>8?queryDiscoveryTools:offered.map(queryTool);})(),
+  preferredVoiceTools:operations.filter(operation=>operation.prepareArguments&&planFor(operation)?.tool).map(queryTool),
+  planTurn,
   plan(prompt){
    const operation=planned(prompt);
-   if(!operation)return null;
-   const available=indexed.find(item=>item.id===operation.id)?.availability==='connected';
-   return {operation:operation.id,tool:available?queryTool(operation):null,intent:operation.queryIntent(prompt)};
+   return operation?{...planFor(operation),intent:operation.queryIntent(prompt),wording:prompt}:null;
+  },
+  async resolvedArguments(plan,prompt,history,signal){
+   if(!plan?.tool)return null;
+   const operation=assistantQuery(plan.operation);
+   if(!operation.prepareArguments?.(plan.wording||prompt))return null;
+   const current=loadConfig?await loadConfig():config||{};
+   if(!capabilityConnected(current,operation.id)||!operation.authorized(access||{}))throw new AssistantError('business_read_denied',403);
+   await permitted(caller,operation.permission,signal);
+   const named=plan.outlet?[plan.outlet]:namedOutlets(await outletDirectory(caller,signal),correctedOutletWording(prompt));
+   const inherited=!named.length&&outletContinuation(prompt)&&history?confirmedOutlet(await history(),operation.id):null;
+   return turnArguments(operation,plan,prompt,named,inherited);
   },
   isKnowledgeTool:(tool,args)=>!!queryOperations.find(item=>item.id===(tool==='run_business_query'?args?.operation:tool))?.knowledge,
   excludedForPrompt:prompt=>excludeCompetingQueries(operations,prompt),
@@ -116,22 +166,23 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
    const match=discoveryRows(queryOperations.filter(operation=>!excluded.has(operation.id)),indexed,{search:prompt.slice(0,240),page:1});
    return match.operations.filter(item=>item.kind==='READ'||item.kind==='GUIDANCE').slice(0,2).map(item=>queryTool(assistantQuery(item.operation)));
   },
-  async execute(id,args,signal,{correctArguments=false,excluded=new Set(),prompt,history,withOutcome=false}={}){
+  async execute(id,args,signal,{correctArguments=false,excluded,prompt,history,withOutcome=false,turnPlan}={}){
+   const blocked=excluded||excludeCompetingQueries(operations,prompt);
    const enveloped=id==='run_business_query';
    if(isQueryEnvelope(id)){
     const parsed=queryEnvelopeArguments(id,args);
     if(id==='find_business_queries'){
      const current=loadConfig?await loadConfig():config||{};
-     const plan=planned(prompt);
-     const result=discoveryRows(queryOperations.filter(operation=>!excluded.has(operation.id)&&(!plan||operation.id===plan.id)),
-      withGuide(businessCapabilities(current,access||{}),current),plan?{search:plan.id,page:1}:parsed);
+     const plan=turnPlan??(await planTurn(prompt,history,signal));
+     const result=discoveryRows(queryOperations.filter(operation=>!blocked.has(operation.id)&&(!plan||operation.id===plan.operation)),
+      withGuide(businessCapabilities(current,access||{}),current),plan?{search:plan.operation,page:1}:parsed);
      return withOutcome?{...result,query_outcome:outcomeFor(result)}:result;
     }
     id=parsed.operation;args=parsed.args;
    }
    const operation=assistantQuery(id);
-   const plan=planned(prompt);
-   if(excluded.has(id)||plan&&plan.id!==id)throw new AssistantError('tool_not_allowed',403);
+   const plan=turnPlan??(await planTurn(prompt,history,signal));
+   if(blocked.has(id)||plan&&plan.operation!==id)throw new AssistantError('tool_not_allowed',403);
    // ACTION requires a separate, server-owned execution authority and confirmed
    // intent. Neither a tool argument nor the human's existing permission grants it.
 
@@ -156,22 +207,24 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
       if(args.outlet_name!=null&&(typeof args.outlet_name!=='string'||!args.outlet_name.trim()||args.outlet_name.length>120))
        throw new AssistantError('tool_arguments_invalid',400);
       // Only an independently identified single-domain turn can bind a name from the whole utterance.
-      const explicit=plan&&prompt?await explicitNamedOutlet(caller,prompt,signal):null;
-      if(explicit)args.outlet_name=explicit;
-      if(plan&&!explicit){
-       const wording=' '+entityKey(prompt)+' ';
+      const scopeText=correctedOutletWording(prompt);
+      if(plan)await permitted(caller,operation.permission,signal);
+      const named=plan?.outlet?[plan.outlet]:plan&&prompt?namedOutlets(await outletDirectory(caller,signal),scopeText):[];
+      const inherited=!named.length&&history&&outletContinuation(prompt)?confirmedOutlet(await history(),id):null;
+      const resolved=plan?turnArguments(operation,plan,prompt,named,inherited):null;
+      if(resolved)args={...args,...resolved};
+      else if(named.length>1)throw new AssistantError('entity_ambiguous',409);
+      else if(named[0])args.outlet_name=named[0].name;
+      if(plan&&!resolved&&!named.length){
+       const wording=' '+entityKey(scopeText)+' ';
        const supplied=args.outlet_name||args.outlet_id;
        if(!supplied||!wording.includes(' '+entityKey(supplied)+' ')){
-        if(!outletContinuation(prompt))throw new AssistantError('entity_scope_required',409);
+        if(!inherited)throw new AssistantError('entity_scope_required',409);
         args.outlet_name=null;
-        args.outlet_id=null;
+        args.outlet_id=inherited;
        }
       }
-      if(!args.outlet_name&&history&&outletContinuation(prompt)){
-       const previous=confirmedOutlet(await history(),id,domain);
-       if(!previous)throw new AssistantError('entity_scope_required',409);
-       args.outlet_id=previous;
-      }
+      if(!plan&&!args.outlet_name&&!args.outlet_id&&inherited)args.outlet_id=inherited;
       if(!properties.outlet_name){
        if(args.outlet_name){
         const outlet=await resolveOutlet(caller,{outlet_name:args.outlet_name},signal);

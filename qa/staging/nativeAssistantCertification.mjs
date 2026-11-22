@@ -3,7 +3,7 @@ import {pathToFileURL} from 'node:url';
 import assert from 'node:assert/strict';
 import {assistantQuery,operations} from '../../supabase/functions/native-assistant/business.js';
 
-const scenario=(domain,operations,question,check)=>({domain,operations,question,check});
+const scenario=(domain,operations,question,check,medium='text')=>({domain,operations,question,check,medium});
 const plain=value=>value.normalize('NFKC').replace(/[*`]/g,'').replace(/(?<=\d),(?=\d{3}\b)/g,'');
 const escaped=text=>String(text).replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
 const number=n=>`(?<![0-9.-])${escaped(n)}(?![0-9]|[.,][0-9])`;
@@ -170,10 +170,11 @@ export function certifyScenario(id,record){
  if(record.blocker)return {status:'BLOCKED',reason:record.blocker};
  try{
   const {turn,source}=record;
-  assert(turn?.request_id&&turn.created_at&&turn.model,'Saved Text turn identity required');
+  assert(turn?.request_id&&turn.created_at&&turn.model,'Saved turn identity required');
   assert.equal(turn.state,'completed','Saved turn did not complete');
   assert.equal(turn.tool_state,'completed','Tool path did not complete with verified evidence');
-  assert(!turn.voice_lease_id,'Text turn required');
+  if(definition.medium==='voice')assert(turn.voice_lease_id&&turn.voice_input_available,'Saved Voice turn and transcript required');
+  else assert(!turn.voice_lease_id,'Text turn required');
   assert.equal(typeof turn.reply,'string');
   assert(turn.reply.trim(),'Final reply is missing');
   assert(source,'Independent source comparison required');
@@ -211,6 +212,36 @@ scenarios.asset_no_match=scenario('Restaurant',['read_asset_catalogue'],'What is
  assert.match(reply,/no matching|没有匹配/i);
  assert.doesNotMatch(reply,/\d+\s*(?:units?|pcs|件)/iu);
 });
+function checkAssetBalances([e],reply,source){
+ assert.equal(e.outlet.id,source.outletId);
+ assert.equal(e.query_outcome,'SUCCESS');
+ assert.equal(e.aggregate_complete,true);
+ assert.equal(e.total_matching,source.count);
+ assert.deepEqual(e.rows.map(row=>[row.name,row.current_quantity,row.unit]),source.rows);
+ assert.match(reply,new RegExp(escaped(source.outlet),'iu'));
+ assert.match(reply,new RegExp(number(source.count),'u'));
+ for(const [name,quantity,unit] of source.rows)
+  assert.match(reply,new RegExp(escaped(name)+'[^\\n]{0,24}'+number(quantity)+'\\s*'+escaped(unit),'iu'));
+ assert.doesNotMatch(reply,/outlet_id|read_asset_catalogue/iu);
+}
+function checkOutletInventory([e],reply,source){
+ assert.equal(e.source,'/restaurant/inventory/master');
+ assert.equal(e.query_outcome,'SUCCESS');
+ assert.equal(e.aggregate_complete,true);
+ assert.equal(e.requested_scope.status,source.status);
+ assert.deepEqual(Object.fromEntries(e.by_outlet.map(row=>[row.outlet.id,row.total_matching])),source.counts);
+ for(const [outlet,count] of Object.entries(source.namedCounts))named(reply,escaped(outlet),count);
+ assert.doesNotMatch(reply,/outlet_id|read_inventory_items|asset tracking/iu);
+}
+for(const [language,question] of [
+ ['zh','餐厅每个门店目前有多少种库存品项？'],
+ ['ms','Berapa jenis item inventori restoran untuk setiap cawangan?'],
+ ['en','How many Master Inventory item types are there at each outlet?'],
+])scenarios['master_inventory_by_outlet_'+language]=scenario('Restaurant',['read_inventory_items'],question,checkOutletInventory);
+scenarios.asset_outlet_correction=scenario('Restaurant',['read_asset_catalogue'],
+ 'After the outlet was misheard in a count-and-balance request, say its human-readable name again.',checkAssetBalances);
+scenarios.asset_outlet_correction_voice=scenario('Restaurant',['read_asset_catalogue'],
+ 'Correct the misheard outlet name in a live call, then listen for its asset count and balances.',checkAssetBalances,'voice');
 scenarios.employees_fg_scope=scenario('HR / Factory',['read_employee_directory','read_factory_finished_goods'],
  'How many authorized Employees are there, and what is the current Factory Finished Goods stock for SKU S01?',([employees,stock],reply,source)=>{
   assert.equal(employees.aggregate_complete,true);
@@ -248,6 +279,7 @@ export function assertScenarioContracts(){
  for(const operation of operations.filter(operation=>operation.knowledge))assert(knowledgeCoverage.has(operation.id),`Missing knowledge acceptance scenario for ${operation.id}`);
  const supported={
   read_asset_catalogue:['summary','count','detail','search','list'],
+  read_inventory_items:['summary','count','list','group'],
   read_factory_finished_goods:['rank','list'],
   read_factory_raw_catalogue:['rank','filter'],
   read_employee_directory:['summary','group'],

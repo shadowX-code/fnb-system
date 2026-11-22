@@ -5,7 +5,7 @@ import {operations,createBusinessDispatcher} from './business.js';
 import {validateBody} from './handler.js';
 const id='10000000-0000-4000-8000-000000000001';
 const op=name=>operations.find(o=>o.id===name);
-const args=o=>Object.fromEntries(Object.entries(o.properties||{}).map(([k,s])=>[k,s.nullable?null:s.type==='number'?(s.minimum||1):s.enum?s.enum[0]:k==='page'?1:k.includes('id')?id:k==='query'?'':k==='from'?'2026-11-01':k==='to'?'2026-11-02':'2026-11-01']));
+const args=o=>Object.fromEntries(Object.entries(o.properties||{}).map(([k,s])=>[k,s.nullable?null:s.type==='array'?[]:s.type==='number'?(s.minimum||1):s.enum?s.enum[0]:k==='page'?1:k.includes('id')?id:k==='query'?'':k==='from'?'2026-11-01':k==='to'?'2026-11-02':'2026-11-01']));
 test('fixed connection allowlist covers exactly the shipped contracts',()=>{
  const sql=fs.readFileSync(new URL('../../migrations/20261117061932_native_assistant_gap_read_contracts.sql',import.meta.url),'utf8');
  const ids=[...sql.match(/\$new\$coalesce\(p_payload->>'operation',''\) not in \((.*?)\)\$new\$/)[1].matchAll(/'([^']+)'/g)].map(m=>m[1]);

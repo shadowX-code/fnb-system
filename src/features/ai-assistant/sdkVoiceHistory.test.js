@@ -4,6 +4,22 @@ import { createSdkVoiceHistory } from './sdkVoiceHistory.js';
 import { dispatch } from '../../../supabase/functions/native-assistant/handler.js';
 import { createBusinessDispatcher } from '../../../supabase/functions/native-assistant/business.js';
 
+test('a scoped SDK tool uses its own late finalized transcript before reading',async()=>{
+ const steps=[];
+ const history=createSdkVoiceHistory({id:()=> 'turn',state(){},trace(){},
+  write:async(_,step,value)=>{steps.push([step,value]);},
+  read:async()=>{assert.deepEqual(steps.at(-1),['input','餐厅门店的库存品项有多少？']);return {query_outcome:'SUCCESS'};},
+ });
+ history.receive({type:'input_audio_buffer.committed',item_id:'current'});
+ history.receive({type:'response.created',response:{id:'scope'}});
+ const pending=history.tool({},'scope','read_inventory_items');
+ await new Promise(resolve=>setImmediate(resolve));
+ assert.deepEqual(steps,[['start','']]);
+ history.receive({type:'conversation.item.input_audio_transcription.completed',item_id:'current',transcript:'餐厅门店的库存品项有多少？'});
+ assert.deepEqual(await pending,{result:{query_outcome:'SUCCESS'}});
+ await history.close();
+});
+
 test('Factory handoff keeps the same turn and saves the finalized answer before delayed playback cleanup', async () => {
  const steps = [];
  const history = createSdkVoiceHistory({

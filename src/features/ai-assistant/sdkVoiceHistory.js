@@ -15,7 +15,7 @@ const toolFailureReasons = {
  asset_outlet_unresolved: 'The outlet name or code did not identify one outlet in your authorized scope.',
  entity_unresolved: 'No exact match was found in the authorized scope.',
  entity_ambiguous: 'Please confirm the exact name or code. A similar name cannot confirm the identity.',
- entity_scope_required: 'Please specify the exact name or code before retrying.',
+ entity_scope_required: 'Confirm the outlet or item name, or repeat the spoken question if it was not captured.',
  knowledge_scope_required: 'This knowledge source needs the named outlet, Brand or Legal Entity.',
  knowledge_scope_unresolved: 'The requested scope could not be identified uniquely within your current authorized sources.',
  voice_request_limit: 'This voice session reached its tool-call limit.',
@@ -53,14 +53,18 @@ export function createSdkVoiceHistory({ write, read, state, trace, activity = ()
  function receive({ type, item_id, response, response_id, transcript, delta }) {
   if (type === 'input_audio_buffer.committed' && item_id && !inputs.has(item_id)) {
    current = { id: id(), number: inputs.size + 1 };
+   current.inputReady = new Promise(resolve => { current.settleInput = resolve; });
    inputs.set(item_id, current);
    activity({ turn_id: current.id, phase: 'processing' });
    current.started = save(current, 'start');
    void current.started.catch(() => {});
   }
-  if (type === 'conversation.item.input_audio_transcription.completed' && transcript?.trim()) {
+  if (type === 'conversation.item.input_audio_transcription.completed' || type === 'conversation.item.input_audio_transcription.failed') {
    const turn = inputs.get(item_id);
-   if (turn) void save(turn, 'input', transcript.slice(0, 2000)).catch(() => {});
+   if (turn) {
+    const saved=transcript?.trim()?save(turn,'input',transcript.slice(0,2000)):Promise.resolve();
+    void saved.then(turn.settleInput,turn.settleInput);
+   }
   }
   if (type === 'response.created' && response?.id && current && !current.finished && !responses.has(response.id)) {
    const owner = { turn: current, number: responses.size + 1 };
@@ -123,6 +127,11 @@ export function createSdkVoiceHistory({ write, read, state, trace, activity = ()
    trace('business_tool_started', turn.number, owner.number, attempted);
    try {
     await turn.started;
+    if (['find_business_queries','read_asset_catalogue','read_inventory_items'].includes(attempted)) {
+     let timer;
+     try { await Promise.race([turn.inputReady,new Promise(resolve => { timer=setTimeout(resolve,1200); })]); }
+     finally { clearTimeout(timer); }
+    }
     await writes;
     if (!ownsTurn()) return { stale: true };
     activity({ ...tool, phase: 'executing' });
@@ -153,7 +162,10 @@ export function createSdkVoiceHistory({ write, read, state, trace, activity = ()
    }
   },
   close(reason = 'session_ended') {
-   for (const turn of inputs.values()) finish(turn, 'unfinished', turn.response?.transcript, reason, turn.response);
+   for (const turn of inputs.values()) {
+    turn.settleInput();
+    finish(turn, 'unfinished', turn.response?.transcript, reason, turn.response);
+   }
    return writes;
   },
  };
