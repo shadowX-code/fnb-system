@@ -22,8 +22,17 @@ export function outcomeFor(evidence){
  return 'SUCCESS';
 }
 
-export const outletContinuation=prompt=>/\b(?:same outlet|that outlet|this outlet|same branch)\b|(?:同一|那个|这家|那家)(?:餐厅|门店|餐館|网点)/iu.test(prompt||'')&&
+export const outletContinuation=prompt=>/\b(?:same outlet|that outlet|this outlet|same branch|that café|this café|that cafe|this cafe)\b|(?:同一|同一家|该|該|这一个|這一個|这个|這個|那个|那個|这家|這家|那家)\s*(?:餐厅|餐廳|门店|門店|餐館|网点|咖啡店|店)/iu.test(prompt||'')&&
  !/\b(?:also|separately|compare|versus|and\s+(?:what|how|show|give|list))\b|另外|以及|同时|同時|對比|对比/iu.test(prompt||'');
+
+export const affirmedOutlet=prompt=>/^(?:yes\b|correct\b|that's right\b|betul\b|ya\b|对[，,。]?|對[，,。]?|是的|没错|沒錯)/iu.test(String(prompt||'').trim())&&
+ /\b(?:its|there|that outlet|this outlet|at that branch)\b|(?:他|它|那家|这家|這家)(?:在|的)|(?:该|該)(?:店|餐[厅廳]|门店|門店)/iu.test(prompt);
+
+export function previousNamedTurn(history){
+ const latest=(history?.turns||[]).filter(turn=>turn.state==='completed').at(-1);
+ if(!latest||latest.tool_state==='failed'||outcomeFor(latest.evidence||{})!=='SUCCESS')return null;
+ return typeof latest.prompt==='string'?latest.prompt:null;
+}
 
 export const correctedOutletWording=prompt=>String(prompt||'').split(/(?:\b(?:i meant|actually use|rather than that,? use|maksud saya|bukan itu,? tetapi)\b|我(?:的意思|说的是|說的是)|更正[：:]?|不是[^，,]{1,80}[，,]\s*(?:而)?是)/iu).at(-1).trim();
 

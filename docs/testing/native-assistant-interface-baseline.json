@@ -331,7 +331,7 @@
     "read_inventory_par_levels": "6f8c1f7826c229b6b92dc03319cb6f0b6d96155d0e324a8588ec07c3368dabf0",
     "read_inventory_check_groups": "875e8002b271957831fa776b6ec0a5f95eebf21ee754ad36180b6f4593492fe3",
     "read_inventory_recipe_catalogue": "c6e358d86dfaefe136172483354583485e910fa42535226453067ca5eac55f90",
-    "read_asset_catalogue": "af7d2b5a27a80a6744414dc14378928b9bca00144183e559adafd97c29df22f1",
+    "read_asset_catalogue": "e7ecc5fbf41c55591d3b14f00b4e2530a4ccbed4adf6f2a365aaed39e077b2f2",
     "read_reporting_product_sales": "e40dc80d0e0d655808348be07fbffc7a5f8309add6d05e6644e613cc9ad392de"
   },
   "sources": {
@@ -415,7 +415,7 @@
     "supabase/functions/_shared/people/platformReads.js": "7ae53664addbdee09226a288f502ec4cc250a83e10d1b4522b48484d28a6a7cd",
     "supabase/functions/_shared/people/publishedKnowledge.js": "9b725e45baa19953ef1d65694f3ffea74b08816311aaed3d1971a8f6ad192bf2",
     "supabase/functions/_shared/restaurant/analytics.js": "71abe1370d8fd69967a1057d7f5c4d12512eeeb701d5b477b7b0738f8dcc32a5",
-    "supabase/functions/_shared/restaurant/assetCatalogueRead.js": "32ffeb8ee784475c72045ff3d51a805a76fb5dd3ac2f49571e9929e6e6c5b8af",
+    "supabase/functions/_shared/restaurant/assetCatalogueRead.js": "f97273c085fa167e8bd3e8ded081596bcc59f2fd6ddbc5f79ab67bd3161ec90b",
     "supabase/functions/_shared/restaurant/assistantBusinessPeriod.js": "efc6f7e03f8ff3a5f8287fb40e52985a5e4078bf6c9e31bbac282ebf929a5e02",
     "supabase/functions/_shared/restaurant/catalogueReads.js": "bce6a2f572f7992dd81b4a47c0d84678f667cff4cab4775f85cd97cc37e13e13",
     "supabase/functions/_shared/restaurant/dataHealth.js": "f7315f9e4b4c4193eb59902b31f7c0d76206605c7fcba357da649d430310d720",
@@ -425,8 +425,8 @@
     "supabase/functions/_shared/restaurant/inventoryStockEvidenceRead.js": "ea765cf94ea550bed87830e4c1481b06ab8217cd771e51e603acaf4d15b8e66e",
     "supabase/functions/_shared/restaurant/operatingExpenseAmounts.js": "10722789a5fc0caf521e5a4b320d824c10c6782eb79ab84e6c22fd93612c0f38",
     "supabase/functions/_shared/restaurant/operatingExpenseRead.js": "64b24303a86fe35835cac4fa6d8b8b59f774d2a5de5ee7c2dd8fa1c0a43790dd",
-    "supabase/functions/native-assistant/business.js": "b3d15ca99082d108ed7db91cdb6449d784a0d41cd24b6f6721946d4c77b15fff",
-    "supabase/functions/native-assistant/businessQuery.js": "8fd4ab9578cb1427d10bd34a2c9e4f274d035f253578197ac950edde6a9e005b",
+    "supabase/functions/native-assistant/business.js": "a1e6f8c87c5879e944cce4c5b13386cbae3a9858d31807f34722bb98064e7433",
+    "supabase/functions/native-assistant/businessQuery.js": "c93f48cffbbf4d4c4faa80d1c8eda348e6ed92f4658755b7b20fc824144c83a0",
     "supabase/functions/native-assistant/context.js": "0ff88e619fab1c61de0df960d1e875c4e6f1a94c76825c0ffde78dbfa8973f64",
     "supabase/functions/native-assistant/handler.js": "5fa993485d5f550f6531ecaaa421e610cd70e803bb9bb9643b014c6b29cf6386",
     "supabase/functions/native-assistant/provider.js": "6e99b3c2fce88d54d2e383b015cd5fa58ee68b10ff4b7733ec867b8e89499b82",

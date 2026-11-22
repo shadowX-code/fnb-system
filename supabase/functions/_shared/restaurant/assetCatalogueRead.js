@@ -8,7 +8,7 @@ const fields=['id','outlet_id','asset_code','name','unit','current_quantity','mi
 const balances=/\b(?:each asset|per asset|every asset|asset balances|balances for each|their balances|baki setiap aset)\b|每(?:个|個|项|項)\s*(?:asset|资产|資產)/iu;
 
 const movementFields=['id','movement_date','movement_type','quantity_change','quantity_before','quantity_after'];
-const historyRequest=/\b(?:movement(?:s| history)?|transaction history|adjustment history|pergerakan|sejarah)\b|变动|變動|异动|異動|变更记录|調整記錄|调整记录|历史|歷史/iu;
+const historyRequest=/\b(?:movement(?:s| history)?|transaction history|adjustment history|pergerakan|sejarah)\b|变动|變動|异动|異動|变更记录|調整記錄|调整记录|历史|歷史|进出(?:的)?记录|進出(?:的)?記錄/iu;
 const assetResource=/\b(?:asset(?:s|-[\p{L}\p{N}]+)?|aset|spoons?|forks?|cutlery|utensils?)\b|资产|資產|汤[匙勺]|湯[匙勺]|勺子|叉子|筷子|餐具/iu;
 const conciseHistoryFollowUp=/^(?:show (?:me )?)?(?:what about |only |for |how about )?(?:from )?(20\d{2}-\d{2}-\d{2})(?:\s+(?:to|until|through|and)|\s*至)\s*(20\d{2}-\d{2}-\d{2})[?!.。！]?$/iu;
 const listRequest=/\b(?:list|show|senaraikan|what assets)\b|列出|清单|清單|有哪些/iu;
@@ -108,8 +108,12 @@ export const assetCatalogueRead=readContract({
   return {mode:'movements',outlet_id:evidence.outlet.id,query:evidence.asset.code||evidence.asset.name,
    page:1,from:period.from,to:period.to};
  },
- scopeTextArguments(args,prompt){
-  if(!args||typeof args!=='object'||Array.isArray(args)||!historyRequest.test(prompt)||!assetResource.test(prompt))return args;
+ contextualIntent(prompt,evidence){
+  if(!evidence.outlet?.id||!historyRequest.test(prompt)||/\b(?:factory|inventory|cash|expenses|also|separately)\b|库存|庫存|工厂|工廠|费用|費用|另外|以及/iu.test(prompt))return null;
+  return /^(?:and|then|what about|show (?:me )?its|那|然后|然後|接着|接著)/iu.test(prompt.trim())?'asset_movements':null;
+ },
+ scopeTextArguments(args,prompt,intent){
+  if(!args||typeof args!=='object'||Array.isArray(args)||intent!=='asset_movements')return args;
   return {...args,mode:'movements'};
  },
  prepareArguments(prompt){

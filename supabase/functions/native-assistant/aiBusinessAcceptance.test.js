@@ -1047,3 +1047,53 @@ test('relative period follow-ups use the Malaysian calendar across month and yea
  assert.deepEqual(malaysiaPeriod('previous_month',midnight),{from:'2026-12-01',to:'2026-12-31',year:2026});
  assert.deepEqual(malaysiaPeriod('previous_year',midnight),{from:'2026-01-01',to:'2026-12-31',year:2026});
 });
+
+test('an explicit adjacent outlet confirmation scopes Mandarin Operating Expenses across Voice turns',async()=>{
+ const operation='read_operating_expenses';
+ const year=malaysiaPeriod('year').year;
+ const {caller}=source({snapshot:{tables:{operating_expenses:[{id:'1',outlet_id:id,year,month:1,amount:10000}]}}});
+ const prompt='是的，是的，我要看它在今年的 operating expenses。';
+ const prior=[{state:'completed',tool_state:'completed',evidence:{capability:'read_operating_expenses',
+  outlet:{id:otherId},query_domain:'restaurant'}},{state:'completed',prompt:'FC. Fixture Corner.'}];
+ const business=createBusinessDispatcher({config,access,caller});
+ const history=async()=>({turns:prior});
+ let saved;
+ const text=await generateText({kind:'turn',model:config.model,prompt},'fixture',{
+  business,history,transport:()=>assert.fail('Confirmed outlet and calendar year need no provider call'),
+  onTool(_,evidence){if(evidence)saved=evidence;},
+ });
+ assert.equal(saved.outlet.id,id);
+ assert.match(text.reply,/Fixture Corner.*10,000.*1.*11/);
+ const voice=await dispatch(voiceRequest(operation,{outlet_id:otherId,year:year-1}),{
+  caller,access,get:()=>undefined,rpc:async action=>action==='history'
+   ? {turns:[...prior,{state:'running',request_id:id,voice_input_available:true,prompt}]}:{config},
+  reserveRealtime:async()=>{},voiceHistory:async()=>{},
+ });
+ assert.equal(voice.outlet.id,id);assert.equal(voice.requested_scope.year,year);assert.equal(voice.answer_hint,text.reply);
+ const namedPrompt='请查 Different Outlet 在今年的 operating expenses。';
+ const named=await business.resolvedArguments(await business.planTurn(namedPrompt,history),namedPrompt,history);
+ assert.equal(named.outlet_name,'Different Outlet');
+ const failedHistory=async()=>({turns:[{state:'completed',tool_state:'failed',prompt:'FC. Fixture Corner.'}]});
+ assert.equal(await business.resolvedArguments(await business.planTurn(prompt,failedHistory),prompt,failedHistory),null);
+});
+
+test('relative Mandarin movement follow-up stays in Asset Tracking and retains the verified outlet',async()=>{
+ const operation='read_asset_catalogue';
+ const {caller}=source({snapshot:{tables:{asset_movement_logs:[
+  {id:'a',asset_id:'fork',outlet_id:id,movement_date:'2026-11-22',quantity_change:-1,quantity_before:1,quantity_after:0}
+ ]}}});
+ const business=createBusinessDispatcher({config,access,caller});
+ const catalogue=await business.execute(operation,{mode:'list',outlet_id:id},undefined,{withOutcome:true});
+ const history=async()=>({turns:[{state:'completed',tool_state:'completed',evidence:catalogue}]});
+ const prompt='那你帮我看看 Fork，它进出的记录是怎样的。';
+ // A saved transcript can contain a phonetic spelling, so the tool must
+ // still resolve its item through the authorized source, not the planner.
+ const speech=prompt.replace('Fork','FOK');
+ const plan=await business.planTurn(speech,history);
+ assert.equal(plan?.operation,operation);assert.equal(plan.contextualOutlet,id);
+ const result=await business.execute(operation,{mode:'detail',query:'Fork',outlet_id:otherId},undefined,{prompt:speech,history});
+ assert.deepEqual([result.asset.name,result.outlet.id,result.total_matching],['Fork',id,1]);
+ const wrong=await business.execute(operation,{mode:'detail',query:'No such asset'},undefined,{prompt:speech,history,withOutcome:true});
+ assert.equal(wrong.query_outcome,'NO_MATCH');
+ assert.equal((await business.planTurn('那工厂的库存进出记录呢？',history))?.operation,undefined);
+});

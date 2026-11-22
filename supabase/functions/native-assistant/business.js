@@ -26,7 +26,7 @@ import {finishedGoodsRead} from '../_shared/factory/finishedGoodsRead.js';
 import {systemGuidance} from '../_shared/assistant/systemGuidance.js';
 import {entityKey,namedOutlets,outletDirectory,resolveBrand,resolveOutlet} from '../_shared/assistant/entityResolution.js';
 import {invalidArgument,permitted} from '../_shared/assistant/readContract.js';
-import {confirmedOutlet,continuedPage,correctedOutletWording,outcomeFor,outletContinuation,pageRequest,previousBusinessResult} from './businessQuery.js';
+import {affirmedOutlet,confirmedOutlet,continuedPage,correctedOutletWording,outcomeFor,outletContinuation,pageRequest,previousBusinessResult,previousNamedTurn} from './businessQuery.js';
 
 // Composition of implemented module contracts, not a permission or grant store.
 // Discovery never makes a module executable. ACTION tools create previews only.
@@ -126,6 +126,8 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
    const prior=operations.find(op=>op.id===previous?.capability);
    const followUp=prior?.followUp?.(prompt,previous);
    if(followUp)return {...planFor(prior),followUp};
+   const intent=prior?.contextualIntent?.(prompt,previous);
+   if(intent)return {...planFor(prior),intent,contextualOutlet:previous.outlet.id};
   }
   // An outlet-only answer can complete the immediately preceding scoped
   // request. Carry its query shape, never its unresolved outlet or figures.
@@ -143,6 +145,22 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
   try{outlet=await resolveOutlet(caller,{outlet_name:candidate},signal);}
   catch(error){if(['entity_ambiguous','entity_scope_required'].includes(error.code))return null;throw error;}
   return outlet?{...plan,wording:previous.prompt,outlet}:null;
+ }
+ async function resolveTurnScope(operation,plan,prompt,history,signal){
+  const wording=correctedOutletWording(prompt);
+  const directory=plan&&prompt&&!plan.outlet?await outletDirectory(caller,signal):[];
+  let named=plan?.outlet?[plan.outlet]:namedOutlets(directory,wording);
+  const inherited=plan?.contextualOutlet||null;
+  if(named.length||!history||!outletContinuation(prompt)&&!affirmedOutlet(prompt))return {named,inherited};
+  const prior=await history();
+  // A confirmed adjacent name takes priority over older saved results.
+  if(plan&&affirmedOutlet(prompt)){
+   const pending=previousNamedTurn(prior);
+   if(pending)named=namedOutlets(directory,correctedOutletWording(pending));
+   if(named.length)return {named,inherited:null};
+  }
+  const domain=domainOf(operation);
+  return {named,inherited:confirmedOutlet(prior,operation.id,domain==='restaurant'?domain:null)};
  }
  function turnArguments(operation,plan,prompt,named,outletId){
   const defaults=operation.prepareArguments?.(plan.wording||prompt);
@@ -173,8 +191,7 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
    const current=loadConfig?await loadConfig():config||{};
    if(!capabilityConnected(current,operation.id)||!operation.authorized(access||{}))throw new AssistantError('business_read_denied',403);
    await permitted(caller,operation.permission,signal);
-   const named=plan.outlet?[plan.outlet]:namedOutlets(await outletDirectory(caller,signal),correctedOutletWording(prompt));
-   const inherited=!named.length&&outletContinuation(prompt)&&history?confirmedOutlet(await history(),operation.id):null;
+   const {named,inherited}=await resolveTurnScope(operation,plan,prompt,history,signal);
    return turnArguments(operation,plan,prompt,named,inherited);
   },
   isKnowledgeTool:(tool,args)=>!!queryOperations.find(item=>item.id===(tool==='run_business_query'?args?.operation:tool))?.knowledge,
@@ -218,7 +235,7 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
     if(!capabilityConnected(current,id))throw new AssistantError('capability_disconnected',403);
     if(!operation.authorized(access||{}))throw new AssistantError(operation.deniedCode,403);
    }
-   if(operation.kind==='READ'&&typeof prompt==='string'&&operation.scopeTextArguments)args=operation.scopeTextArguments(args,prompt);
+   if(operation.kind==='READ'&&typeof prompt==='string'&&operation.scopeTextArguments)args=operation.scopeTextArguments(args,prompt,plan?.intent);
    const domain=domainOf(operation);
    try{
     if(args===undefined)invalidArgument('invalid_json');
@@ -235,8 +252,7 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
       // Only an independently identified single-domain turn can bind a name from the whole utterance.
       const scopeText=correctedOutletWording(prompt);
       if(plan)await permitted(caller,operation.permission,signal);
-      const named=plan?.outlet?[plan.outlet]:plan&&prompt?namedOutlets(await outletDirectory(caller,signal),scopeText):[];
-      const inherited=!named.length&&history&&outletContinuation(prompt)?confirmedOutlet(await history(),id):null;
+      const {named,inherited}=await resolveTurnScope(operation,plan,prompt,history,signal);
       const resolved=plan?turnArguments(operation,plan,prompt,named,inherited):null;
       if(resolved)args={...args,...resolved};
       else if(named.length>1)throw new AssistantError('entity_ambiguous',409);
@@ -244,7 +260,7 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
       if(plan&&!resolved&&!named.length){
        const wording=' '+entityKey(scopeText)+' ';
        const supplied=args.outlet_name||args.outlet_id;
-       if(!supplied||!wording.includes(' '+entityKey(supplied)+' ')){
+       if(inherited||!supplied||!wording.includes(' '+entityKey(supplied)+' ')){
         if(!inherited)throw new AssistantError('entity_scope_required',409);
         args.outlet_name=null;
         args.outlet_id=inherited;
