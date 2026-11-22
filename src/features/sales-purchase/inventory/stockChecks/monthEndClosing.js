@@ -12,13 +12,12 @@ export function formatClosingError(message, invalidMonth = "Select a valid Closi
   return message;
 }
 
-// The controls represent Malaysia business time, even on a device in another zone.
-export function toPhysicalCountCutoff(localValue) {
-  return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(localValue) ? `${localValue}+08:00` : null;
-}
-
 const countDateFormat = new Intl.DateTimeFormat("en-MY", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 const monthFormat = new Intl.DateTimeFormat("en-MY", { month: "short", year: "numeric", timeZone: "UTC" });
+
+export function formatPhysicalCountDate(value) {
+  return value ? countDateFormat.format(new Date(value + "T00:00:00Z")) : "";
+}
 
 export function formatClosingMonthLabel(value) {
   return /^\d{4}-(0[1-9]|1[0-2])-01$/.test(value)
@@ -42,5 +41,6 @@ export function updateClosingAuditName(name, previousDate, previousMonth, date, 
 export function toClosingLocalTime(value) {
   if (!value) return "";
   const instant = new Date(value);
+  if (!Number.isFinite(instant.getTime())) return "";
   return new Date(instant.getTime() + 8 * 60 * 60 * 1000).toISOString().slice(0, 19);
 }

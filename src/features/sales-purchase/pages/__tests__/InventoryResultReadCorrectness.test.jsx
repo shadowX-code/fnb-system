@@ -164,7 +164,7 @@ it.each([null, '2026-08-01'])('offers a fresh closing setup with only recorded s
     ? { blocked_reason: blocked, entries: [{ id: 'A', status: 'submitted', version: 0, created_at: '2026-09-24T12:00:00Z' }] } : null }));
   const viewer = { ...auth, hasPermission: code => code === 'inventory_stock_check.view' };
   const view = render(<InventoryStockCheckResultSurface checkId="A" auth={viewer} outlets={outlets} onClose={vi.fn()} />);
-  expect(await screen.findByText(blocked)).toBeTruthy();
+  expect(await screen.findByText("A complete frozen item list is required.")).toBeTruthy();
   expect(screen.getByText(/Stock Check submit permission is required to start/)).toBeTruthy();
   expect(screen.queryByRole('button', { name: 'Start New Closing Audit' })).toBeNull();
   view.rerender(<InventoryStockCheckResultSurface checkId="A" auth={auth} outlets={outlets} onClose={vi.fn()} />);

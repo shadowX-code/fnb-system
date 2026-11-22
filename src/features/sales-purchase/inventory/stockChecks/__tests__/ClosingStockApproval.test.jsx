@@ -9,53 +9,66 @@ vi.mock("../../../../../services/inventoryLifecycleService.js", () => ({
 
 afterEach(() => { cleanup(); approve.mockReset(); });
 
-it("requires a reconciled quantity and evidence for an off-cutoff audit and publishes explicit zero", async () => {
-  approve.mockResolvedValue({ id: "close", revision: 1, source_audit_id: "audit", amount: 0 });
-  render(<ClosingStockApproval canApprove formatCurrency={amount => `RM ${amount}`}
-    check={{ id: "audit", accountingMonth: "2026-10-01", physicalCountCutoff: "2026-10-31T14:00:00Z",
-      rows: [{ itemId: "item", actualCount: 4, unit: "kg", unitCostSnapshot: 2 }] }}
-    context={{ month_end_cutoff: "2026-10-31T16:00:00Z", period_ended: true, requires_reconciliation: true }}
-    itemById={new Map([["item", { name: "Chilli" }]])} />);
+const check = {
+  id: "audit", accountingMonth: "2026-10-01", submittedAt: "2026-11-22T13:38:00Z",
+  closingItemIds: ["counted", "missing"], rows: [
+    { itemId: "counted", actualCount: 4, unit: "kg", unitCostSnapshot: 2 },
+    { itemId: "missing", actualCount: 5, unit: "kg", unitCostSnapshot: null },
+  ],
+};
+const date = () => screen.getByPlaceholderText("Select date");
+const confirm = () => screen.getByRole("button", { name: "Confirm Closing" });
+const checkbox = () => screen.getByRole("checkbox", { name: /approve reporting this value in Oct 2026/ });
+const props = { check, context: { period_ended: true }, canApprove: true, formatCurrency: amount => `RM ${amount}` };
 
-  expect(screen.getByText("Closing Month")).toBeTruthy();
-  expect(screen.getByText("Accounting Cutoff (MYT)")).toBeTruthy();
-  fireEvent.click(screen.getByRole("button", { name: "Review Closing Approval" }));
-  const submit = screen.getByRole("button", { name: "Approve Closing Stock" });
-  fireEvent.change(screen.getByLabelText("Month-End Quantity for Chilli"), { target: { value: "0" } });
-  expect(submit.disabled).toBe(true);
-  fireEvent.change(screen.getByLabelText("Supporting Evidence for Chilli"), { target: { value: "Cutoff worksheet" } });
-  fireEvent.click(submit);
-  await waitFor(() => expect(screen.getByRole("status").textContent).toContain("Published revision 1 · RM 0"));
+it("requires explicit attribution and publishes partial evidence in the selected month", async () => {
+  approve.mockResolvedValue({ id: "close", revision: 1, source_audit_id: "audit", amount: 8,
+    valuation_status: "partial", actual_count_date: "2026-11-21", valued_item_count: 1, total_item_count: 2 });
+  const onShowUnvalued = vi.fn();
+  render(<ClosingStockApproval {...props} onShowUnvalued={onShowUnvalued} />);
+
+  expect(screen.getByText("1 item has no valid pinned cost and will remain unvalued.")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Review Unvalued Items" }));
+  expect(onShowUnvalued).toHaveBeenCalledOnce();
+  fireEvent.click(screen.getByRole("button", { name: "Review Closing" }));
+  expect(date().value).toBe("");
+  expect(confirm().disabled).toBe(true);
+  fireEvent.change(date(), { target: { value: "23 Nov 2026" } });
+  expect(confirm().disabled).toBe(true);
+  fireEvent.change(date(), { target: { value: "21 Nov 2026" } });
+  expect(screen.getByText(/falls outside the selected Closing Month of Oct 2026/)).toBeTruthy();
+  expect(screen.queryByText(/Month-End Quantity|Supporting Evidence/)).toBeNull();
+  expect(confirm().disabled).toBe(true);
+  fireEvent.click(checkbox());
+  fireEvent.change(date(), { target: { value: "31 Nov 2026" } });
+  expect(confirm().disabled).toBe(true);
+  fireEvent.change(date(), { target: { value: "21 Nov 2026" } });
+  fireEvent.click(checkbox());
+  fireEvent.click(confirm());
+
+  await waitFor(() => expect(screen.getByRole("status").textContent).toBe("Approved · Partial · RM 8"));
   expect(approve).toHaveBeenCalledWith(expect.objectContaining({
-    checkId: "audit", supersedesId: null, reconciliation: [
-      { item_id: "item", month_end_quantity: 0, evidence: "Cutoff worksheet" },
-    ],
+    checkId: "audit", supersedesId: null, confirmedClosingMonth: "2026-10-01", actualCountDate: "2026-11-21",
   }));
+  expect(screen.getByText(/1 of 2 items valued.*Actual count 21 Nov 2026/)).toBeTruthy();
 });
 
-it("requires explicit physical evidence even when the operational timestamps match the accounting cutoff", async () => {
-  const monthEnd = "2026-10-31T16:00:00Z";
-  approve.mockResolvedValue({ id: "close", revision: 1, source_audit_id: "audit", amount: 8 });
-  render(<ClosingStockApproval canApprove formatCurrency={amount => `RM ${amount}`}
-    check={{ id: "audit", accountingMonth: "2026-10-01", createdAt: monthEnd, submittedAt: monthEnd,
-      rows: [{ itemId: "item", actualCount: 4, unit: "kg", unitCostSnapshot: 2 }] }}
-    context={{ month_end_cutoff: monthEnd, period_ended: true, requires_reconciliation: null }}
-    itemById={new Map([["item", { name: "Chilli" }]])} />);
+it("keeps a recorded physical date and shows wholly unvalued separately from explicit zero", async () => {
+  approve.mockResolvedValue({ source_audit_id: "audit", amount: null, valuation_status: "partial",
+    actual_count_date: "2026-11-01", valued_item_count: 0, total_item_count: 2 });
+  render(<ClosingStockApproval {...props} check={{ ...check, physicalCountCutoff: "2026-10-31T16:00:00Z",
+    rows: check.rows.map(row => ({ ...row, unitCostSnapshot: null })) }} />);
+  fireEvent.click(screen.getByRole("button", { name: "Review Closing" }));
+  expect(screen.queryByPlaceholderText("Select date")).toBeNull();
+  expect(screen.getByText(/Known Stock Value.*—.*0 of 2 items valued/)).toBeTruthy();
+  fireEvent.click(checkbox());
+  fireEvent.click(confirm());
+  await waitFor(() => expect(screen.getByRole("status").textContent).toBe("Approved · Partial · —"));
+});
 
-  expect(screen.getByText("Awaiting confirmation")).toBeTruthy();
-  fireEvent.click(screen.getByRole("button", { name: "Review Closing Approval" }));
-  const submit = screen.getByRole("button", { name: "Approve Closing Stock" });
-  expect(submit.disabled).toBe(true);
-  expect(screen.queryByLabelText("Month-End Quantity for Chilli")).toBeNull();
-  fireEvent.change(screen.getByPlaceholderText("Select date"), { target: { value: "1 Nov 2026" } });
-  fireEvent.click(screen.getByRole("button", { name: "Physical Count Time" }));
-  fireEvent.click(screen.getByRole("button", { name: "Hour" }));
-  fireEvent.click(screen.getByRole("option", { name: "12", exact: true }));
-  fireEvent.click(screen.getByRole("button", { name: "Done" }));
-  expect(submit.disabled).toBe(false);
-  expect(screen.queryByLabelText("Month-End Quantity for Chilli")).toBeNull();
-  fireEvent.click(submit);
-  await waitFor(() => expect(approve).toHaveBeenCalledWith(expect.objectContaining({
-    physicalCountCutoff: "2026-11-01T00:00:00+08:00", reconciliation: [],
-  })));
+it("still blocks publication without an explicit month or complete frozen roster", () => {
+  render(<ClosingStockApproval {...props} check={{ ...check, accountingMonth: null, closingItemIds: null }} />);
+  expect(screen.getByText("This audit has no recorded Closing Month.")).toBeTruthy();
+  expect(screen.getByText("A complete frozen item list is required.")).toBeTruthy();
+  expect(screen.queryByRole("button", { name: "Review Closing" })).toBeNull();
 });

@@ -1,64 +1,70 @@
 import { useRef, useState } from "react";
 import { inventoryLifecycleService } from "../../../../services/inventoryLifecycleService.js";
-import DateTimePickerField from "../../../../components/forms/DateTimePickerField.jsx";
-import { formatClosingError, toClosingLocalTime, toPhysicalCountCutoff } from "./monthEndClosing.js";
+import { invalidateInventoryReads } from "../../../../services/inventoryRevalidation.js";
+import DatePickerField from "../../../../components/forms/DatePickerField.jsx";
+import { formatClosingError, formatClosingMonthLabel, formatPhysicalCountDate, toClosingLocalTime } from "./monthEndClosing.js";
 
-function formatCutoff(value) {
-  return toClosingLocalTime(value).replace("T", " ");
-}
+import { auditStockCheckValuation, hasUsableAuditCount } from "./auditStockCheckValuation.js";
 
-export default function ClosingStockApproval({ check, context, itemById, canApprove, formatCurrency }) {
-  const [published, setPublished] = useState(context.published);
-  const [lines, setLines] = useState(null);
+export default function ClosingStockApproval({ check, context, canApprove, formatCurrency, onShowUnvalued, onStartClosing }) {
+  const [published, setPublished] = useState(context?.published);
+  const [reviewing, setReviewing] = useState(false);
   const [reason, setReason] = useState("");
-  const [cutoffInput, setCutoffInput] = useState("");
+  const [countDate, setCountDate] = useState("");
+  const [invalidDateInput, setInvalidDateInput] = useState(false);
+  const [confirmed, setConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const pending = useRef(null);
   const isSource = published?.source_audit_id === check.id;
-  const legacyCutoff = check.physicalCountCutoff;
-  const recordedCutoff = legacyCutoff || (isSource ? published.physical_count_cutoff : context.prior_confirmed_cutoff);
-  const physicalCountCutoff = legacyCutoff || toPhysicalCountCutoff(cutoffInput);
-  const physicalTime = Date.parse(physicalCountCutoff);
-  const cutoffAfterSubmit = physicalTime > Date.parse(context.count_evidence_submitted_at || check.submittedAt);
-  const validCutoff = Number.isFinite(physicalTime) && !cutoffAfterSubmit;
-  const requiresReconciliation = validCutoff && physicalTime !== Date.parse(context.month_end_cutoff);
-  const hasCosts = check.rows.length > 0 && check.rows.every(row => row.unit && Number.isFinite(row.unitCostSnapshot));
-  const validLines = !requiresReconciliation || lines?.every(line =>
-    line.quantity !== "" && Number.isFinite(Number(line.quantity)) && Number(line.quantity) >= 0 && line.evidence.trim());
+  const recordedDate = toClosingLocalTime(check.physicalCountCutoff).slice(0, 10);
+  const submittedDate = toClosingLocalTime(context?.count_evidence_submitted_at || check.submittedAt).slice(0, 10);
+  const countAfterSubmit = Boolean(submittedDate && countDate > submittedDate);
+  const validDate = Boolean(countDate && submittedDate && !countAfterSubmit && !invalidDateInput);
+  const itemIds = check.rows.map(row => row.itemId).sort();
+  const rosterMatches = itemIds.length > 0 && itemIds.length === check.closingItemIds?.length
+    && new Set(itemIds).size === itemIds.length && itemIds.every((id, index) => id && id === check.closingItemIds[index]);
+  const uncounted = check.rows.filter(row => !hasUsableAuditCount(row)).length;
+  const missingUnits = check.rows.filter(row => !row.unit?.trim()).length;
+  const { valuedItemCount, missingCostCount, knownStockValue } = auditStockCheckValuation(check.rows);
+  const month = formatClosingMonthLabel(check.accountingMonth);
+  const evidenceIssues = [
+    !month && "This audit has no recorded Closing Month.",
+    !rosterMatches && "A complete frozen item list is required.",
+    uncounted > 0 && `${uncounted} ${uncounted === 1 ? "item has" : "items have"} no usable count.`,
+    missingUnits > 0 && `${missingUnits} ${missingUnits === 1 ? "item has" : "items have"} no recorded count unit.`,
+  ].filter(Boolean);
+  const blocked = evidenceIssues.length > 0 || !context?.period_ended || context.approval_blocked;
+  const partial = valuedItemCount < itemIds.length;
+  const showAmount = amount => amount == null ? "—" : formatCurrency(amount);
+  const status = published ? `Approved${published.valuation_status === "partial" ? " · Partial" : ""} · ${showAmount(published.amount)}`
+    : blocked ? "Not ready to confirm" : "Awaiting closing review";
+  const canConfirm = canApprove && !blocked && !busy && validDate && confirmed && (!published || reason.trim());
 
   function startApproval() {
-    const existing = new Map((isSource ? published.reconciliation ?? [] : []).map(line => [line.item_id, line]));
-    setCutoffInput(toClosingLocalTime(recordedCutoff));
-    setLines(check.rows.map(row => ({
-      itemId: row.itemId, actualCount: row.actualCount, unit: row.unit, quantity: existing.get(row.itemId)?.month_end_quantity ?? "",
-      evidence: existing.get(row.itemId)?.evidence || "",
-    })));
+    setCountDate(recordedDate || (isSource ? published.actual_count_date : context?.prior_actual_count_date) || "");
+    setConfirmed(false);
+    setInvalidDateInput(false);
     setReason("");
     setError("");
-  }
-
-  function updateLine(itemId, patch) {
-    setLines(current => current.map(line => line.itemId === itemId ? { ...line, ...patch } : line));
+    setReviewing(true);
   }
 
   async function approve(event) {
     event.preventDefault();
-    if (busy || !validCutoff || !validLines || (published && !reason.trim())) return;
-    const reconciliation = requiresReconciliation ? lines.map(line => ({
-      item_id: line.itemId, month_end_quantity: Number(line.quantity), evidence: line.evidence.trim(),
-    })) : [];
-    const payload = { checkId: check.id, reconciliation, supersedesId: published?.id ?? null, reason: reason.trim() || null,
-      physicalCountCutoff: legacyCutoff ? null : physicalCountCutoff };
+    if (!canConfirm) return;
+    const payload = { checkId: check.id, confirmedClosingMonth: check.accountingMonth, actualCountDate: countDate,
+      supersedesId: published?.id ?? null, reason: reason.trim() || null };
     const signature = JSON.stringify(payload);
     if (pending.current?.signature !== signature) pending.current = { signature, requestId: crypto.randomUUID() };
     setBusy(true);
     setError("");
     try {
       const result = await inventoryLifecycleService.approveClosingStock({ ...payload, requestId: pending.current.requestId });
-      setPublished({ ...result, reconciliation });
-      setLines(null);
+      setPublished(result);
+      setReviewing(false);
       pending.current = null;
+      invalidateInventoryReads({ source: "closing-stock", outletId: check.outletId, checkId: check.id });
     } catch (cause) {
       setError(formatClosingError(cause.message));
     } finally {
@@ -66,57 +72,68 @@ export default function ClosingStockApproval({ check, context, itemById, canAppr
     }
   }
 
-  return <section aria-label="Closing Stock approval" className="space-y-3 rounded-xl border border-border p-4">
-    <h3 className="font-semibold">Month-End Closing</h3>
-    <dl className="grid gap-2 text-sm sm:grid-cols-3">
-      <div><dt className="text-text-secondary">Closing Month</dt><dd>{check.accountingMonth.slice(0, 7)}</dd></div>
-      <div><dt className="text-text-secondary">Accounting Cutoff (MYT)</dt><dd><time dateTime={context.month_end_cutoff}>{formatCutoff(context.month_end_cutoff)}</time></dd></div>
-      <div><dt className="text-text-secondary">Physical Count Cutoff (MYT)</dt><dd>{(legacyCutoff || (isSource && recordedCutoff))
-        ? <time dateTime={recordedCutoff}>{formatCutoff(recordedCutoff)}</time> : "Awaiting confirmation"}</dd></div>
-    </dl>
-    <p className="text-sm" role="status">{published
-      ? `Published revision ${published.revision} · ${formatCurrency(published.amount)} · ${isSource ? "This audit" : "Another audit for this month"}`
-      : "Awaiting approval"}</p>
-    {check.correctionOfId && published && !isSource && !context.approval_blocked &&
-      <p className="text-sm text-text-secondary">Corrected evidence awaits Closing Approval.</p>}
-    {canApprove && !hasCosts && <p className="text-sm text-text-secondary">A pinned unit cost is required for every item. Submit a new closing audit after the costs are configured.</p>}
-    {canApprove && !context.period_ended && <p className="text-sm text-text-secondary">Approval opens after the Closing Month ends.</p>}
-    {context.approval_blocked && <p className="text-sm text-text-secondary">Approval is available from the current submitted evidence once its correction draft is resolved.</p>}
-    {canApprove && !context.approval_blocked && hasCosts && context.period_ended && lines === null &&
-      <button className="btn-secondary" type="button" onClick={startApproval}>{published ? "Prepare Closing Correction" : "Review Closing Approval"}</button>}
-    {lines !== null && <form onSubmit={approve} className="space-y-3">
-      {!legacyCutoff && <div className="max-w-lg">
-        <DateTimePickerField label="Confirm Physical Count Cutoff" dateLabel="Physical Count Date" timeLabel="Physical Count Time"
-          value={cutoffInput} onChange={setCutoffInput} disabled={busy} withSeconds timezone="Malaysia time"
-          helper="Use the actual count time supported by your count evidence."
-          error={cutoffAfterSubmit ? "Choose a time on or before the original count submission." : ""} />
-      </div>}
-      {requiresReconciliation ? <>
-        <p className="text-sm text-text-secondary">For each item, verify the quantity at month-end and record the supporting evidence, including when the quantity stayed the same.</p>
-        <div className="grid max-h-80 gap-3 overflow-auto pr-1">{lines.map(line => {
-          const name = itemById.get(line.itemId)?.name || "Inventory item";
-          return <fieldset key={line.itemId} className="grid gap-2 rounded-lg border border-border p-2 sm:grid-cols-[10rem_minmax(0,1fr)]">
-            <legend className="px-1 text-sm font-semibold">{name} · Counted {line.actualCount} {line.unit}</legend>
-            <label className="grid min-w-0 gap-1 text-sm">Month-End Quantity
-              <input className="control w-full" aria-label={`Month-End Quantity for ${name}`} type="number" min="0" max="99999999999.999" step="0.001"
-                value={line.quantity} onChange={event => updateLine(line.itemId, { quantity: event.target.value })} required disabled={busy} />
-            </label>
-            <label className="grid min-w-0 gap-1 text-sm">Supporting Evidence
-              <input className="control w-full" aria-label={`Supporting Evidence for ${name}`} value={line.evidence}
-                onChange={event => updateLine(line.itemId, { evidence: event.target.value })} maxLength={2000} required disabled={busy} />
-            </label>
-          </fieldset>;
-        })}</div>
-      </> : validCutoff && <p className="text-sm text-text-secondary">The confirmed count matches the accounting cutoff. Approval uses the submitted actual quantities and pinned unit costs.</p>}
+  return <section aria-label="Closing Stock" className="space-y-3 rounded-xl border border-border p-4">
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <div>
+        <h3 className="font-semibold">Closing Stock</h3>
+        <p className="type-caption text-text-secondary">Closing Month · {month || "Not recorded"}</p>
+      </div>
+      <p className="type-body-sm font-semibold" role="status">{status}</p>
+    </div>
+    {published && <p className="type-body-sm text-text-secondary">
+      {isSource ? "Confirmed from this audit." : "Confirmed from another audit for this outlet and month."}
+      {published.total_item_count != null && ` ${published.valued_item_count} of ${published.total_item_count} items valued.`}
+      {published.actual_count_date && ` Actual count ${formatPhysicalCountDate(published.actual_count_date)} (MYT).`}
+    </p>}
+    {evidenceIssues.length > 0 && <ul className="list-disc space-y-1 pl-5 type-body-sm text-text-secondary">
+      {evidenceIssues.map(issue => <li key={issue}>{issue}</li>)}
+    </ul>}
+    {missingCostCount > 0 && <p className="type-body-sm text-text-secondary">
+      {missingCostCount} {missingCostCount === 1 ? "item has" : "items have"} no valid pinned cost and will remain unvalued.
+    </p>}
+    {((missingCostCount > 0 || missingUnits > 0 || uncounted > 0) && onShowUnvalued
+      || evidenceIssues.length > 0 && onStartClosing && !context?.approval_blocked) && <div className="flex flex-wrap gap-2">
+      {(missingCostCount > 0 || missingUnits > 0 || uncounted > 0) && onShowUnvalued &&
+        <button className="btn-secondary" type="button" onClick={onShowUnvalued}>Review Unvalued Items</button>}
+      {evidenceIssues.length > 0 && onStartClosing && !context?.approval_blocked &&
+        <button className="btn-secondary" type="button" onClick={onStartClosing}>Start New Closing Audit</button>}
+    </div>}
+    {evidenceIssues.length > 0 && !onStartClosing && !context?.approval_blocked && <p className="type-caption text-text-secondary">Stock Check submit permission is required to start a new closing audit here.</p>}
+    {context?.approval_blocked && <p className="type-body-sm text-text-secondary">Open the current submitted correction or resolve its draft before confirming this closing.</p>}
+    {context && !context.period_ended && <p className="type-body-sm text-text-secondary">Confirmation opens after the Closing Month ends.</p>}
+    {month && !context && <p className="type-body-sm text-text-secondary">Closing status is unavailable. Reopen the audit to check again.</p>}
+    {!canApprove && !blocked && !published && <p className="type-body-sm text-text-secondary">Ask a user with Closing Approval permission for this outlet to review the evidence.</p>}
+    {canApprove && !blocked && !reviewing &&
+      <button className="btn-primary" type="button" onClick={startApproval}>{published ? "Review Closing Revision" : "Review Closing"}</button>}
+    {reviewing && <form onSubmit={approve} className="space-y-3 border-t border-border pt-3">
+      <p className="type-body-sm">
+        Outlet P&amp;L · {month} · {partial ? "Known Stock Value (Partial)" : "Closing Stock"} {showAmount(knownStockValue)}
+        {" · "}{valuedItemCount} of {itemIds.length} items valued
+      </p>
+      <p className="type-body-sm text-text-secondary">This publication uses the submitted counts and pinned costs at the actual count date. Item quantities stay as recorded.</p>
+      {recordedDate ? <p className="type-body-sm">Actual Count Date (MYT) · <time dateTime={recordedDate}>{formatPhysicalCountDate(recordedDate)}</time></p>
+        : <div className="max-w-xs">
+          <DatePickerField label="Actual Count Date (MYT)" value={countDate} disabled={busy} required
+            onChange={date => { setCountDate(date); setInvalidDateInput(false); setConfirmed(false); }}
+            onInvalidInput={() => { setInvalidDateInput(true); setConfirmed(false); }}
+            helper={submittedDate ? `Confirm the date from count evidence. Original submission: ${formatPhysicalCountDate(submittedDate)} (MYT).` : "The original submission date is unavailable."}
+            error={invalidDateInput ? "Enter a valid count date." : countAfterSubmit ? "Choose a date on or before the original count submission." : ""} />
+        </div>}
+      {validDate && countDate.slice(0, 7) !== check.accountingMonth.slice(0, 7) &&
+        <p className="type-body-sm text-text-secondary" role="note">Actual count on {formatPhysicalCountDate(countDate)} (MYT) falls outside the selected Closing Month of {month}.</p>}
       {published && <label className="grid gap-1 text-sm">Correction Reason
         <textarea className="control w-full" value={reason} onChange={event => setReason(event.target.value)} maxLength={2000} required disabled={busy} />
       </label>}
+      <label className="flex items-start gap-2 text-sm">
+        <input className="mt-0.5 size-4" type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)} required disabled={busy || !validDate} />
+        <span>I confirm the actual count date and approve reporting this value in {month}.</span>
+      </label>
       {error && <p className="text-sm text-rose-700" role="alert">{error}</p>}
       <div className="flex flex-wrap gap-2">
-        <button className="btn-primary" type="submit" disabled={busy || !validCutoff || !validLines || Boolean(published && !reason.trim())}>
-          {busy ? "Publishing…" : published ? "Approve Closing Correction" : "Approve Closing Stock"}
+        <button className="btn-primary" type="submit" disabled={!canConfirm}>
+          {busy ? "Publishing…" : published ? "Confirm Closing Revision" : "Confirm Closing"}
         </button>
-        <button className="btn-secondary" type="button" disabled={busy} onClick={() => setLines(null)}>Cancel</button>
+        <button className="btn-secondary" type="button" disabled={busy} onClick={() => setReviewing(false)}>Cancel</button>
       </div>
     </form>}
   </section>;

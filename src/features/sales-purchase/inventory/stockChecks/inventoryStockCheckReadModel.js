@@ -78,6 +78,7 @@ export function mapRemoteStockCheck(row = {}, rows = []) {
     stockCheckType: checkType,
     auditType: row.audit_type || "",
     accountingMonth: row.accounting_month || "",
+    closingItemIds: row.closing_item_ids ?? null,
     correctionOfId: row.correction_of_id || "",
     correctionReason: row.correction_reason || "",
     physicalCountCutoff: row.physical_count_cutoff || "",

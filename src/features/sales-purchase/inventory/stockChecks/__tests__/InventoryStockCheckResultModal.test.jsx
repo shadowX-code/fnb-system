@@ -41,7 +41,7 @@ describe("InventoryStockCheckResultModal", () => {
     expect(within(valuation).getByText("RM5.00")).toBeTruthy();
     expect(within(valuation).getByText("-RM10.00")).toBeTruthy();
     const filterSlots = [...screen.getByRole("region", { name: "Audit result filters" }).querySelectorAll("[data-admin-filter-slot]")];
-    expect(filterSlots.map((field) => field.textContent)).toEqual(["Category All", "Status All", "Valuation All", "Search Item"]);
+    expect(filterSlots.map((field) => field.textContent)).toEqual(["Category All", "Status All", "Valuation All", "Sort Saved order", "Search Item"]);
     fireEvent.change(screen.getByPlaceholderText("Search item or category"), { target: { value: "flour" } });
     expect(screen.getByText("Flour")).toBeTruthy();
     expect(screen.queryByText("Oil")).toBeNull();
@@ -53,9 +53,13 @@ describe("InventoryStockCheckResultModal", () => {
     mount([0, null]);
     const values = screen.getByRole("region", { name: "Partial audit valuation" });
     expect(within(values).getByText("Known Stock Value (Partial)")).toBeTruthy();
-    expect(within(values).getByText("RM0.00")).toBeTruthy();
+    expect(within(values).getAllByText("RM0.00")).toHaveLength(4);
     expect(screen.getByText(/1 of 2 items valued · 1 missing valid pinned cost/)).toBeTruthy();
-    expect(screen.getByText("QA Creator")).toBeTruthy();
+    expect(screen.getByText("QA Creator").closest("details").open).toBe(false);
+    expect(screen.getByText(/Variance coverage 1 of 2 items/)).toBeTruthy();
+    expect(within(values).getByText("Shortage Value (Partial)")).toBeTruthy();
+    expect(within(values).getByText("Excess Value (Partial)")).toBeTruthy();
+    expect(within(values).getByText("Net Variance (Partial)")).toBeTruthy();
     expect(screen.getByText("QA Crew")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Valuation" }));
@@ -63,7 +67,20 @@ describe("InventoryStockCheckResultModal", () => {
     expect(screen.queryByText("Flour")).toBeNull();
     const unvalued = screen.getByText("Oil").closest("tr");
     expect(within(unvalued).getAllByRole("cell")[6].textContent).toBe("—");
-    expect(within(values).getByText("RM0.00")).toBeTruthy();
+    expect(within(values).getAllByText("RM0.00")).toHaveLength(4);
+    expect(screen.getByText(/1 of 2 items valued/)).toBeTruthy();
+  });
+
+  it("sorts valued entries before unvalued entries without changing the snapshot subtotal", () => {
+    mount([null, 0]);
+    const dataRows = () => screen.getAllByRole("row").slice(1);
+    expect(dataRows()[0].textContent).toContain("Flour");
+    fireEvent.click(screen.getByRole("button", { name: "Sort" }));
+    fireEvent.click(screen.getByRole("option", { name: "Highest stock value" }));
+    expect(dataRows()[0].textContent).toContain("Oil");
+    expect(dataRows()[1].textContent).toContain("Flour");
+    const values = screen.getByRole("region", { name: "Partial audit valuation" });
+    expect(within(values).getAllByText("RM0.00")).toHaveLength(4);
     expect(screen.getByText(/1 of 2 items valued/)).toBeTruthy();
   });
 });
