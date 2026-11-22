@@ -195,6 +195,32 @@ for(const [id,question] of [
   scenarios.asset_spoon.check([e],reply,source);
  });
 }
+scenarios.asset_ambiguous=scenario('Restaurant',['read_asset_catalogue'],'How many Cup units are recorded at Friends Corner?',([e],reply,source)=>{
+ assert.equal(e.outlet.id,source.outletId);
+ assert.equal(e.query_outcome,'AMBIGUOUS');
+ assert.equal(e.match_status,'ambiguous');
+ assert.equal(e.rows.length,0);
+ assert.match(reply,/confirm|clarif|exact|确认/i);
+ assert.doesNotMatch(reply,/\d+\s*(?:units?|pcs|件)/iu);
+});
+scenarios.asset_no_match=scenario('Restaurant',['read_asset_catalogue'],'What is the balance of a nonexistent test asset in the authorized outlet?',([e],reply,source)=>{
+ assert.equal(e.outlet.id,source.outletId);
+ assert.equal(e.query_outcome,'NO_MATCH');
+ assert.equal(e.match_status,'not_found');
+ assert.equal(e.rows.length,0);
+ assert.match(reply,/no matching|没有匹配/i);
+ assert.doesNotMatch(reply,/\d+\s*(?:units?|pcs|件)/iu);
+});
+scenarios.employees_fg_scope=scenario('HR / Factory',['read_employee_directory','read_factory_finished_goods'],
+ 'How many authorized Employees are there, and what is the current Factory Finished Goods stock for SKU S01?',([employees,stock],reply,source)=>{
+  assert.equal(employees.aggregate_complete,true);
+  assert.equal(employees.summary.total,source.count);
+  assert.equal(stock.rows.length,1);
+  assert.equal(stock.rows[0].product_code,source.code);
+  assert.equal(stock.rows[0].current_balance,source.quantity);
+  assert.match(reply,new RegExp(number(source.count)));
+  assert.match(reply,new RegExp(number(source.quantity)+'\\s*'+escaped(source.unit)+'\\b','iu'));
+ });
 
 export function certifyRun(records={}){
  for(const id of Object.keys(records))assert(Object.hasOwn(scenarios,id),`Unknown scenario: ${id}`);

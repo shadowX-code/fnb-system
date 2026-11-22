@@ -128,7 +128,7 @@ export function createSdkVoiceHistory({ write, read, state, trace, activity = ()
     activity({ ...tool, phase: 'executing' });
     const result = await read(turn.id, args, operation);
     if (!ownsTurn()) return { stale: true };
-    activity({ ...tool, label: result.operation_label, phase: result.error ? 'failed' : 'complete' });
+    activity({ ...tool, label: result.operation_label, phase: result.error || result.no_evidence ? 'failed' : 'complete' });
     trace('business_tool_finished', turn.number, owner.number, result.error || (result.discovery_only ? 'discovery' : 'returned'));
     return { result };
    } catch (error) {

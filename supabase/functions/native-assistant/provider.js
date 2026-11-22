@@ -61,10 +61,12 @@ export async function generateText(claim,key,{transport=fetch,signal,business,hi
  const max=claim.kind==='test'?32:500;
  const bytes=value=>new TextEncoder().encode(JSON.stringify(value)).length;
  let lastOutcome=null;
+ let nameResolution;
  const confirmed=[];
  const payload=(remaining,allowTools)=>{
   const tools=claim.kind==='test'||!allowTools?[]:plan?.tool?[plan.tool]:[...matchingTools,...configuredTools.filter(tool=>tool.name!=='run_business_query'||discovered.size)];
-  const required=plan?.tool&&!confirmed.length&&(!lastOutcome||lastOutcome==='UNSUPPORTED'&&exchanges.length<=2);
+  const required=plan?.tool&&!confirmed.length&&(!lastOutcome||['UNSUPPORTED','AMBIGUOUS'].includes(lastOutcome)&&exchanges.length<=2&&
+   (lastOutcome!=='AMBIGUOUS'||nameResolution));
   return {model:claim.model,instructions:claim.kind==='test'?'Reply with READY only.':instructions+businessEvidenceInstructions+domainQueryInstructions+
    (plan?' Use the selected canonical operation. Translate item descriptions for lookup when necessary; use the current utterance and never guess identifiers or infer an alternate outlet.':'')+
    contextInstructions(plan&&!outletContinuation(claim.prompt)?undefined:claim.assembled)+memoryContext(claim.memory),
@@ -111,6 +113,11 @@ export async function generateText(claim,key,{transport=fetch,signal,business,hi
     if(!discovery)await onTool?.('executing');
     try{
      if(args===undefined)throw new AssistantError('tool_arguments_invalid',400);
+     if(nameResolution){
+      const allowed=nameResolution.some(candidate=>[candidate.name,candidate.code].some(value=>value&&value===args.query));
+      nameResolution=null;
+      if(!allowed)throw new AssistantError('entity_ambiguous',409);
+     }
      if(calls[0].name==='run_business_query'&&!discovered.has(args?.operation))throw new AssistantError('tool_not_allowed',403);
      const signature=JSON.stringify([calls[0].name,args]);
      const knowledge=business.isKnowledgeTool?.(calls[0].name,args);
@@ -137,6 +144,7 @@ export async function generateText(claim,key,{transport=fetch,signal,business,hi
      evidence={error:error.code,...businessToolIdentity(calls[0].name,args),no_evidence:true,query_outcome:failureOutcome(error.code)};
     }
     lastOutcome=evidence.query_outcome||outcomeFor(evidence);
+    if(!exchanges.length&&evidence.resolution_required==='cross_language_name'&&Array.isArray(evidence.candidates))nameResolution=evidence.candidates;
     const output={type:'function_call_output',call_id:calls[0].call_id,output:JSON.stringify(evidence)};
     onTrace(calls[0].name,args,evidence.error || (evidence.discovery_only?'discovery':'returned'),evidence.discovery_only?evidence.total_operations:undefined,evidence.validation);
     exchanges.push(...data.output,output);

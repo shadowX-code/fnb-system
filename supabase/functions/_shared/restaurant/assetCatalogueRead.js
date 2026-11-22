@@ -41,6 +41,11 @@ async function loadAssetCatalogue(caller,args,signal){
   if(!Array.isArray(data))throw new AssistantError('business_read_unavailable',503);
   if(data.length>200)throw new AssistantError('entity_scope_required',409);
   const match=normalizedEntity(data,unprefixed||args.query,['name','asset_code']);
+  if(!match&&/\p{Script=Han}/u.test(args.query)&&data.length>0&&data.length<=20){
+   return {outlet,match_status:'ambiguous',not_business_evidence:true,no_evidence:true,resolution_required:'cross_language_name',
+    candidates:data.map(row=>({name:row.name,code:row.asset_code})),
+    instruction:'The original-language name has no literal match. Retry once using the exact authorized candidate name only if it is an unambiguous translation of the requested item. Otherwise ask for the exact name or code. This list contains no quantity evidence.'};
+  }
   candidates=match?[match]:[];
  }
  const match_status=candidates.length===1?'matched':candidates.length?'ambiguous':'not_found';
@@ -59,7 +64,7 @@ export const assetCatalogueRead=readContract({
   return quantity&&(asset||utensil)&&!mixed?'asset_quantity':null;
  },
  permission:'asset_tracking.view',source:'/operations/asset-tracking',scope:'Current human permission and one authorized outlet; non-archived Asset Tracking records',
- description:'Read Restaurant Asset Tracking quantities (assets such as spoons and equipment, separate from ingredient or Factory stock). For a named asset or asset code use detail and the exact user phrase as query. Resolve the outlet by its exact name/code using outlet_name, or a verified outlet_id. For count use summary; for catalogue pages use list. Never present an ambiguous or unmatched asset as zero.',
+ description:'Read Restaurant Asset Tracking quantities (assets such as cutlery and equipment, separate from ingredient or Factory stock). For one item use detail and its exact canonical name or code. Translate a plain non-English item description when needed; use the original wording if the translation is uncertain. Use the named outlet or a verified outlet_id. Summary counts asset records; list shows catalogue pages. Never present an ambiguous or unmatched asset as zero.',
  properties:{page,outlet_id:{...uuid,nullable:true,description:'Use null when the user names the outlet.'},outlet_name:{type:'string',maxLength:120,nullable:true,description:'Exact outlet name or code as supplied by the user, or null when using a verified ID.'},mode:{type:'string',enum:['list','summary','detail'],description:'Use detail for the quantity of one named asset. Summary without a query counts asset records.'},query:{type:'string',maxLength:80,description:'Exact asset code or name; empty for unfiltered counts and catalogue pages.'}},
  normalizeArguments(a){
   if(!a||typeof a!=='object'||Array.isArray(a))return a;

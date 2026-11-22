@@ -277,7 +277,15 @@ test('auth-owned Text entry point grounds an explicit correction after a failed 
    assert.doesNotMatch(JSON.stringify(body),/Different Outlet资产|not be registered/);
    if(toolCalls++===0){
     assert.deepEqual(body.tool_choice,{type:'function',name:operation});
-    return response([functionCall(operation,{mode:'summary',query:'spoon',outlet_id:otherId,outlet_name:'Different Outlet'},'plan')]);
+    return response([functionCall(operation,{mode:'summary',query:'汤匙',outlet_id:otherId,outlet_name:'Different Outlet'},'plan')]);
+   }
+   if(toolCalls===2){
+    const pending=JSON.parse(body.input.at(-1).output);
+    assert.equal(pending.query_outcome,'AMBIGUOUS');
+    assert.deepEqual(pending.candidates.map(record=>record.name),['Spoon','Fork']);
+    assert(pending.not_business_evidence&&!pending.rows);
+    assert.deepEqual(body.tool_choice,{type:'function',name:operation});
+    return response([functionCall(operation,{mode:'detail',query:'Spoon',outlet_name:'Fixture Corner'},'canonical-name')]);
    }
    assert.equal(JSON.parse(body.input.at(-1).output).outlet.id,id);
    return response([{type:'message',content:[{type:'output_text',text:'Unverified 99 units.'}]}]);
