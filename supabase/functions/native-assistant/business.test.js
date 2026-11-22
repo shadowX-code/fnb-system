@@ -18,16 +18,16 @@ test('discovery, model schemas and execution share the module contract; disabled
  }
  assert.equal(reads,1);
 });
-test('SDK named dispatch and legacy Grok compatibility reserve once and attach unchanged evidence',async()=>{
+test('SDK named dispatch and legacy Grok reserve once and attach classified evidence',async()=>{
  for(const [provider,operation] of [['grok',undefined],['openai',finishedGoodsRead.id]]){
   let reads=0,reservations=0;const evidence={capability:finishedGoodsRead.id,scope:'fixture',as_of:'fixture',rows:[]};
   const result=await dispatch({action:'realtime_tool',provider,session_id:id,request_id:id,turn_id:id,arguments:args,...operation?{operation}:{}},{
    rpc:async()=>({config:{enabled:true,capability_connections:{read_factory_finished_goods:true}}}),get:()=>undefined,access:{factory:true},
    reserveRealtime:async action=>{assert.equal(action,'tool');reservations++;},
    readFactory:async value=>{assert.deepEqual(value,args);reads++;return evidence;},
-   voiceHistory:async payload=>{assert.equal(payload.step,'evidence');assert.equal(payload.evidence,evidence);},
+   voiceHistory:async payload=>{assert.equal(payload.step,'evidence');assert.deepEqual(payload.evidence,{...evidence,query_outcome:'SUCCESS',query_domain:'factory'});},
   });
-  assert.equal(result,evidence);assert.equal(reads,1);assert.equal(reservations,1);
+  assert.deepEqual(result,{...evidence,query_outcome:'SUCCESS',query_domain:'factory'});assert.equal(reads,1);assert.equal(reservations,1);
  }
 });
 test('public intents cannot supply action authority, confirmation, a caller or arbitrary operation',()=>{

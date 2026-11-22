@@ -46,7 +46,7 @@ test('Realtime inventory requires canonical permission and a charged reservation
  const tool = { ...base, action:'realtime_tool', operation:'read_factory_finished_goods', arguments:{ query:'Sauce', availability:'low' } };
  const ctx = { rpc:async()=>({config:{enabled:true,capability_connections:{read_factory_finished_goods:true}},can_edit:true}), get:key=>approved[key], reserveRealtime:fail, readFactory:fail };
  await assert.rejects(dispatch(tool,{...ctx,reserveRealtime:async()=>{}}),{code:'factory_read_denied'});
- await assert.rejects(dispatch(tool,{...ctx,access:{factory:true},reserveRealtime:async()=>{throw Error('lease denied');}}),{code:'assistant_unavailable',diagnostic:{operation:'read_factory_finished_goods',operation_label:'Factory Finished Goods',stage:'lease'}});
+ await assert.rejects(dispatch(tool,{...ctx,access:{factory:true},reserveRealtime:async()=>{throw Error('lease denied');}}),{code:'assistant_unavailable',diagnostic:{operation:'read_factory_finished_goods',operation_label:'Factory Finished Goods',stage:'lease',query_outcome:'EXECUTION_ERROR'}});
  const result = await dispatch(tool,{...ctx,access:{factory:true},
   reserveRealtime:async action=>assert.equal(action,'tool'),
   readFactory:async args=>({query:args.query,source:'/factory/warehouse/finished-goods'}),

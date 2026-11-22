@@ -1,6 +1,6 @@
 import {declareReadInterface} from '../assistant/moduleInterface.js';
 import {AssistantError} from '../assistantError.js';
-import {loadStockCatalogue, stockPage, stockRankFields, stockUnit, validateStockRanking} from './stockCatalogue.js';
+import {loadStockCatalogue, stockPage, stockRankFields, stockSku, stockUnit, validateStockRanking} from './stockCatalogue.js';
 export const inventoryTool={type:'function',name:'read_factory_finished_goods',description:'Read current Factory shared Finished Goods stock. Use detail for an exact SKU with page 1, query empty and sort name. Use summary for counts, and list with balance_desc or balance_asc for rankings within one stock unit. Re-read for follow-ups. No Company or Outlet scope exists in this catalogue.',strict:true,parameters:{type:'object',properties:{...stockRankFields,mode:{type:'string',enum:['summary','list','detail']},page:{type:'integer',minimum:1,maximum:50},sku:{type:['string','null'],maxLength:80},query:{type:'string',description:'Name substring; use an empty string when supplying an exact SKU'},availability:{type:'string',enum:['all','low','out_of_stock']}},required:['mode','page','sku','query','availability','sort','uom'],additionalProperties:false}};
 export function inventoryArguments(value){
  if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).some(k=>!['query','availability','mode','page','sku','sort','uom'].includes(k)))throw new AssistantError('tool_arguments_invalid',400);
@@ -27,7 +27,7 @@ export async function readInventory(caller,args,signal){
  const access=await callerAccess(caller);if(!access.factory)throw new AssistantError('factory_read_denied',403);
  const rows=await loadStockCatalogue(caller,{entity:'finished_goods',table:'factory_finished_goods',fields:'id,product_code,product_name,product_name_en,uom,current_balance,min_stock_level,status,updated_at'},signal);
  if((await callerAccess(caller)).scope_key!==access.scope_key)throw new AssistantError('inventory_scope_changed',409);
- const queryRows=rows.filter(x=>(args.uom===null||stockUnit(x.uom)===stockUnit(args.uom))&&(args.sku===null||x.product_code===args.sku)&&(!args.query||`${x.product_name} ${x.product_name_en||''} ${x.product_code||''}`.toLowerCase().includes(args.query.toLowerCase())));
+ const queryRows=rows.filter(x=>(args.uom===null||stockUnit(x.uom)===stockUnit(args.uom))&&(args.sku===null||stockSku(x.product_code)===stockSku(args.sku))&&(!args.query||`${x.product_name} ${x.product_name_en||''} ${x.product_code||''}`.toLowerCase().includes(args.query.toLowerCase())));
  const isLow=x=>x.current_balance!==null&&x.min_stock_level>0&&x.current_balance<x.min_stock_level;
  const isOut=x=>x.current_balance!==null&&x.current_balance<=0;
  const matching=queryRows.filter(x=>args.availability==='all'||args.availability==='out_of_stock'&&isOut(x)||args.availability==='low'&&isLow(x));

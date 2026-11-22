@@ -24,6 +24,8 @@ import {cleaningRead} from '../_shared/factory/cleaningRead.js';
 import {AssistantError} from '../_shared/assistantError.js';
 import {finishedGoodsRead} from '../_shared/factory/finishedGoodsRead.js';
 import {systemGuidance} from '../_shared/assistant/systemGuidance.js';
+import {entityKey,explicitNamedOutlet,resolveBrand,resolveOutlet} from '../_shared/assistant/entityResolution.js';
+import {confirmedOutlet,outcomeFor,outletContinuation} from './businessQuery.js';
 
 // Composition of implemented module contracts, not a permission or grant store.
 // Discovery never makes a module executable. ACTION tools create previews only.
@@ -70,30 +72,66 @@ export function businessCapabilities(config,access){
   ai_execution_enabled:operation.kind==='ACTION'?config.ai_action_authorizations?.[operation.id]===true:undefined,
   availability:!capabilityConnected(config,operation.id)||operation.kind==='ACTION'&&config.ai_action_authorizations?.[operation.id]!==true?'disabled':operation.authorized(access)?'connected':'denied'}));
 }
+export function queryTool(operation){
+ if(operation.kind!=='READ')return operation.tool;
+ const parameters=operation.tool.parameters;
+ const extra={};
+ if(parameters.properties.outlet_id&&!parameters.properties.outlet_name)extra.outlet_name={type:['string','null'],maxLength:120,description:'Exact human-supplied outlet name/code, or null. Use null for a required outlet_id only when providing this name.'};
+ if(parameters.properties.brand_id&&!parameters.properties.brand_name)extra.brand_name={type:['string','null'],maxLength:120,description:'Exact human-supplied Brand name, or null.'};
+ if(!Object.keys(extra).length)return operation.tool;
+ const properties={...parameters.properties,...extra};
+ for(const field of ['outlet','brand']){
+  const id=properties[field+'_id'];
+  if(extra[field+'_name']&&id.type==='string')properties[field+'_id']={...id,type:['string','null']};
+ }
+ if(extra.brand_name&&properties.organization_id?.type==='string')properties.organization_id={...properties.organization_id,type:['string','null']};
+ return {...operation.tool,parameters:{...parameters,properties,required:Object.keys(properties)}};
+}
+
+const domainOf=operation=>{
+ const root=operation.moduleInterface?.source?.split('/')[1];
+ return ['operations','sales-purchase','inventory'].includes(root)?'restaurant':root||null;
+};
 export function createBusinessDispatcher({caller,config,access,readFactory,loadConfig,sessionId}={}){
  const capabilities=businessCapabilities(config||{},access||{});
  const withGuide=(base,current)=>guideAvailable(current,access||{})?[...base,{id:systemGuidance.id,availability:'connected'}]:base;
  const indexed=withGuide(capabilities,config||{});
+ const intended=prompt=>queryOperations.filter(operation=>typeof prompt==='string'&&operation.queryIntent?.(prompt));
+ const planned=prompt=>{const matches=intended(prompt);return matches.length===1?matches[0]:null;};
+ const discoveryRows=(ops,available,params)=>discoverQueries(ops.map(operation=>({...operation,tool:queryTool(operation)})),available,params);
  return {
   capabilities,
   guidance_sources:guideAvailable(config||{},access||{})?[{id:systemGuidance.id,module_id:systemGuidance.module_id,...systemGuidance.knowledge,availability:'live_source',retrieval:'current_release'}]:[],
-  tools:(()=>{const offered=queryOperations.filter(operation=>indexed.find(item=>item.id===operation.id)?.availability==='connected');return offered.length>8?queryDiscoveryTools:offered.map(operation=>operation.tool);})(),
+  tools:(()=>{const offered=queryOperations.filter(operation=>indexed.find(item=>item.id===operation.id)?.availability==='connected');return offered.length>8?queryDiscoveryTools:offered.map(queryTool);})(),
+  plan(prompt){
+   const operation=planned(prompt);
+   if(!operation)return null;
+   const available=indexed.find(item=>item.id===operation.id)?.availability==='connected';
+   return {operation:operation.id,tool:available?queryTool(operation):null,intent:operation.queryIntent(prompt)};
+  },
   isKnowledgeTool:(tool,args)=>!!queryOperations.find(item=>item.id===(tool==='run_business_query'?args?.operation:tool))?.knowledge,
   excludedForPrompt:prompt=>excludeCompetingQueries(operations,prompt),
   toolsForPrompt(prompt,excluded=new Set()){
    if(typeof prompt!=='string'||!prompt.trim())return [];
-   const match=discoverQueries(queryOperations.filter(operation=>!excluded.has(operation.id)),indexed,{search:prompt.slice(0,240),page:1});
-   return match.operations.filter(item=>item.kind==='READ'||item.kind==='GUIDANCE').slice(0,2).map(item=>assistantQuery(item.operation).tool);
+   const match=discoveryRows(queryOperations.filter(operation=>!excluded.has(operation.id)),indexed,{search:prompt.slice(0,240),page:1});
+   return match.operations.filter(item=>item.kind==='READ'||item.kind==='GUIDANCE').slice(0,2).map(item=>queryTool(assistantQuery(item.operation)));
   },
-  async execute(id,args,signal,{correctArguments=false,excluded=new Set(),prompt}={}){
+  async execute(id,args,signal,{correctArguments=false,excluded=new Set(),prompt,history,withOutcome=false}={}){
    const enveloped=id==='run_business_query';
    if(isQueryEnvelope(id)){
     const parsed=queryEnvelopeArguments(id,args);
-    if(id==='find_business_queries'){const current=loadConfig?await loadConfig():config||{};return discoverQueries(queryOperations.filter(operation=>!excluded.has(operation.id)),withGuide(businessCapabilities(current,access||{}),current),parsed);}
+    if(id==='find_business_queries'){
+     const current=loadConfig?await loadConfig():config||{};
+     const plan=planned(prompt);
+     const result=discoveryRows(queryOperations.filter(operation=>!excluded.has(operation.id)&&(!plan||operation.id===plan.id)),
+      withGuide(businessCapabilities(current,access||{}),current),plan?{search:plan.id,page:1}:parsed);
+     return withOutcome?{...result,query_outcome:outcomeFor(result)}:result;
+    }
     id=parsed.operation;args=parsed.args;
    }
    const operation=assistantQuery(id);
-   if(excluded.has(id))throw new AssistantError('tool_not_allowed',403);
+   const plan=planned(prompt);
+   if(excluded.has(id)||plan&&plan.id!==id)throw new AssistantError('tool_not_allowed',403);
    // ACTION requires a separate, server-owned execution authority and confirmed
    // intent. Neither a tool argument nor the human's existing permission grants it.
 
@@ -106,18 +144,66 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
     if(!operation.authorized(access||{}))throw new AssistantError(operation.deniedCode,403);
    }
    if(operation.kind==='READ'&&typeof prompt==='string'&&operation.scopeTextArguments)args=operation.scopeTextArguments(args,prompt);
+   const domain=domainOf(operation);
    try{
     if(args===undefined)throw new AssistantError('tool_arguments_invalid',400);
+    if(operation.kind==='READ'&&args&&typeof args==='object'&&!Array.isArray(args)){
+     args={...args};
+     const properties=operation.tool.parameters.properties;
+     const accepted=queryTool(operation).parameters.properties;
+     if(Object.keys(args).some(key=>!Object.hasOwn(accepted,key)))throw new AssistantError('tool_arguments_invalid',400);
+     if(properties.outlet_id){
+      if(args.outlet_name!=null&&(typeof args.outlet_name!=='string'||!args.outlet_name.trim()||args.outlet_name.length>120))
+       throw new AssistantError('tool_arguments_invalid',400);
+      // Only an independently identified single-domain turn can bind a name from the whole utterance.
+      const explicit=plan&&prompt?await explicitNamedOutlet(caller,prompt,signal):null;
+      if(explicit)args.outlet_name=explicit;
+      if(plan&&!explicit){
+       const wording=' '+entityKey(prompt)+' ';
+       const supplied=args.outlet_name||args.outlet_id;
+       if(!supplied||!wording.includes(' '+entityKey(supplied)+' ')){
+        if(!outletContinuation(prompt))throw new AssistantError('entity_scope_required',409);
+        args.outlet_name=null;
+        args.outlet_id=null;
+       }
+      }
+      if(!args.outlet_name&&history&&outletContinuation(prompt)){
+       const previous=confirmedOutlet(await history(),id,domain);
+       if(!previous)throw new AssistantError('entity_scope_required',409);
+       args.outlet_id=previous;
+      }
+      if(!properties.outlet_name){
+       if(args.outlet_name){
+        const outlet=await resolveOutlet(caller,{outlet_name:args.outlet_name},signal);
+        if(!outlet)throw new AssistantError('entity_unresolved',409);
+        args.outlet_id=outlet.id;
+       }
+       delete args.outlet_name;
+      }
+     }
+     if(properties.brand_id&&!properties.brand_name){
+      if(args.brand_name!=null){
+       if(typeof args.brand_name!=='string'||!args.brand_name.trim()||args.brand_name.length>120)throw new AssistantError('tool_arguments_invalid',400);
+       const brand=await resolveBrand(caller,args.brand_name,signal);
+       if(!brand)throw new AssistantError('entity_unresolved',409);
+       args.brand_id=brand.id;
+       if(properties.organization_id&&brand.organization_id)args.organization_id=brand.organization_id;
+      }
+      delete args.brand_name;
+     }
+    }
     operation.validate(args);
    }catch(error){
-    if((enveloped||correctArguments)&&error.code==='tool_arguments_invalid')return {error:'tool_arguments_invalid',not_business_evidence:true,no_evidence:true,operation:id,operation_label:operation.label,parameters:operation.tool.parameters,validation:error.diagnostic?.validation,instruction:'Correct the argument using the exact schema and operation description. Preserve explicit, supported filters. No business read or action occurred.'};
+    if((enveloped||correctArguments)&&error.code==='tool_arguments_invalid')return {error:'tool_arguments_invalid',not_business_evidence:true,no_evidence:true,
+     ...(withOutcome?{query_outcome:'UNSUPPORTED'}:{}),operation:id,operation_label:operation.label,parameters:queryTool(operation).parameters,validation:error.diagnostic?.validation,instruction:'Correct the argument using the exact schema and operation description. Preserve explicit, supported filters. No business read or action occurred.'};
     throw error;
    }
    signal?.throwIfAborted();
    // caller is the authenticated human client, never the service-role client.
-   return readFactory&&id===finishedGoodsRead.id?readFactory(args,signal):operation.execute(caller,args,signal,sessionId);
+   const evidence=await (readFactory&&id===finishedGoodsRead.id?readFactory(args,signal):operation.execute(caller,args,signal,sessionId));
+   return withOutcome&&operation.kind!=='ACTION'?{...evidence,query_outcome:outcomeFor(evidence),query_domain:domain}:evidence;
   },
-  format(id,evidence){return assistantQuery(id).format?.(evidence)||null;},
+  format(id,evidence,prompt){return assistantQuery(id).format?.(evidence,prompt)||null;},
  };
 }
 

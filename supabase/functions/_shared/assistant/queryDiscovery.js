@@ -29,7 +29,7 @@ export function discoverQueries(operations,capabilities,args){
   const section=operation.moduleInterface?.source?.split('/')[1];
   const workspace={people:'HR',inventory:'Restaurant','sales-purchase':'Restaurant'}[section] || section;
   const identity=discoveryWords([operation.id,operation.module_id,operation.label,workspace].join(' '));
-  const explicitResource=matchesResource(operation,query);
+  const explicitResource=matchesResource(operation,query)||operation.queryIntent?.(args.search);
   const exactTerms=query.every(word=>identity.includes(word));
   if(!query.length||!explicitResource&&!exactTerms)return [];
   const label=discoveryWords(operation.label);

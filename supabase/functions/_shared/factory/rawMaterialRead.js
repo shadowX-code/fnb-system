@@ -1,6 +1,6 @@
 import {readContract, page} from '../assistant/readContract.js';
 import {AssistantError} from '../assistantError.js';
-import {loadStockCatalogue, rawMaterialStockStatus, stockPage, stockRankFields, stockUnit, validateStockRanking} from './stockCatalogue.js';
+import {loadStockCatalogue, rawMaterialStockStatus, stockPage, stockRankFields, stockSku, stockUnit, validateStockRanking} from './stockCatalogue.js';
 
 const stockFields='id,material_code,name,name_en,name_cn,name_bm,category,uom,current_balance,min_stock_level,status,updated_at';
 const {uom,sort}=stockRankFields;
@@ -28,7 +28,7 @@ export const rawMaterialRead=readContract({
   unavailable:'Snapshot drift fails the read. Mixed units need an explicit stock unit. No inventory cost, location, historical stock or ATP authority.'},
  project(data,a){
   const scoped=data.filter(r=>(a.status==='all'||r.status===a.status)&&(a.uom===null||stockUnit(r.uom)===stockUnit(a.uom))
-   &&(a.sku===null||r.material_code===a.sku)
+   &&(a.sku===null||stockSku(r.material_code)===stockSku(a.sku))
    &&[r.material_code,r.name,r.name_en,r.name_cn,r.name_bm].join(' ').toLowerCase().includes(a.query.toLowerCase()))
    .map(r=>({...r,stock_status:r.current_balance===null?'Unknown':rawMaterialStockStatus(r.current_balance,r.min_stock_level)}));
   const matching=scoped.filter(r=>a.availability==='all'||r.stock_status===(a.availability==='low'?'Low Stock':'Out of Stock'));

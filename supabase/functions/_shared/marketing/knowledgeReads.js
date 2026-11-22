@@ -1,14 +1,16 @@
 import {AssistantError} from '../assistantError.js';
 import {readContract,rowsEvidence} from '../assistant/readContract.js';
-import {exactScope,knowledgeQuery,knowledgeResult,knowledgeSource,optionalId,optionalName,preferNamedScope} from '../assistant/knowledge.js';
+import {knowledgeQuery,knowledgeResult,knowledgeSource,optionalId,optionalName,preferNamedScope} from '../assistant/knowledge.js';
+import {resolveBrand} from '../assistant/entityResolution.js';
 
 const scopeFields={brand_id:optionalId,brand_name:optionalName,query:knowledgeQuery};
 const normalize=a=>a&&typeof a==='object'&&!Array.isArray(a)?preferNamedScope({brand_id:null,brand_name:null,query:null,...a},'brand_id','brand_name'):a;
 async function brandScope(caller,args,signal){
  if(args.brand_id)return {id:args.brand_id};
  if(!args.brand_name)throw new AssistantError('knowledge_scope_required',400);
- const context=await knowledgeSource(caller.rpc('marketing_brand_context'),signal);
- return exactScope(context.brands||[],null,args.brand_name,brand=>brand.name);
+ const brand=await resolveBrand(caller,args.brand_name,signal);
+ if(!brand)throw new AssistantError('entity_unresolved',409);
+ return brand;
 }
 const approvedFaqs=payload=>(payload.faqs||[]).filter(row=>row.status==='approved'&&row.is_active===true&&row.use_issue===null
  &&(row.knowledge_revision===0||row.knowledge_revision===payload.knowledge?.revision&&payload.knowledge?.approved_for_replies===true));

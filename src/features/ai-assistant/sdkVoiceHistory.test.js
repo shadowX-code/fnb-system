@@ -176,10 +176,10 @@ test('HR discovery, corrected arguments, and completed speech use the same evide
  assert.equal(result.completeness.aggregate_scope,'complete_filtered_scope');
  assert.deepEqual(traces.at(-1)[1].arguments_shape,{fields:['mode'],mode:'summary',unsupported_field_count:0});
  ctx.access = {};
- await assert.rejects(read(session,args,'run_business_query'),{code:'business_read_denied',diagnostic:{operation:employee,operation_label:'Employee headcount and directory',stage:'dispatch'}});
+ await assert.rejects(read(session,args,'run_business_query'),{code:'business_read_denied',diagnostic:{operation:employee,operation_label:'Employee headcount and directory',stage:'dispatch',query_outcome:'UNAUTHORIZED'}});
  ctx.access = access;
  config.capability_connections[employee]=false;
- await assert.rejects(read(session,args,'run_business_query'),{code:'capability_disconnected',diagnostic:{operation:employee,operation_label:'Employee headcount and directory',stage:'dispatch'}});
+ await assert.rejects(read(session,args,'run_business_query'),{code:'capability_disconnected',diagnostic:{operation:employee,operation_label:'Employee headcount and directory',stage:'dispatch',query_outcome:'UNAUTHORIZED'}});
  await assert.rejects(read(session,{query:'',availability:'all'},undefined),{code:'tool_not_allowed'});
  assert.equal(evidence.length,1);
 });

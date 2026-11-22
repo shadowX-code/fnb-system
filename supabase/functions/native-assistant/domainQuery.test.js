@@ -84,7 +84,7 @@ test('malformed inner JSON can be corrected on Text/Voice without executing a do
  const access={permissions:{'factory_raw_inventory.view':true}};
  const noRead=()=>assert.fail('Invalid query reached the domain source');
  const business=createBusinessDispatcher({config,access,caller:{rpc:noRead,from:noRead}});
- const feedback=await business.execute('run_business_query',arguments_);
+ const feedback=await business.execute('run_business_query',arguments_,undefined,{withOutcome:true});
  assert.equal(feedback.error,'tool_arguments_invalid');
  assert.equal(feedback.operation,operation);
  assert.equal(feedback.not_business_evidence,true);

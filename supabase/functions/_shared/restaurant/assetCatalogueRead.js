@@ -1,10 +1,9 @@
 import {AssistantError} from '../assistantError.js';
-import {page, permittedOutlet, readContract, rowsEvidence, uuid} from '../assistant/readContract.js';
+import {page, readContract, rowsEvidence, uuid} from '../assistant/readContract.js';
+import {exactName,normalizedEntity,resolveOutlet} from '../assistant/entityResolution.js';
+import {preferNamedScope} from '../assistant/knowledge.js';
 
 const fields=['id','outlet_id','asset_code','name','unit','current_quantity','minimum_quantity','status','health_status','last_inspection_at','updated_at'];
-const exactPattern=value=>value.replace(/[\\%_]/g,'\\$&');
-// PostgREST treats asterisk as an ILIKE wildcard, even if PostgreSQL would not.
-const exact=(query,field,value)=>value.includes('*')?query.eq(field,value):query.ilike(field,exactPattern(value));
 
 async function read(query,signal){
  const {data,error,count}=await query.abortSignal(signal);
@@ -12,24 +11,10 @@ async function read(query,signal){
  return {data,count};
 }
 
-async function matchingOutlet(caller,args,signal){
- if(args.outlet_id)await permittedOutlet(caller,args.outlet_id,signal);
- const outlets=()=>caller.from('outlets').select('id,name,code');
- let result;
- if(args.outlet_id)result=await read(outlets().eq('id',args.outlet_id).limit(2),signal);
- else {
-  result=await read(exact(outlets(),'name',args.outlet_name).limit(2),signal);
-  if(!result.data?.length)result=await read(exact(outlets(),'code',args.outlet_name).limit(2),signal);
- }
- if(result.data?.length!==1)throw new AssistantError('asset_outlet_unresolved',409);
- const outlet=result.data[0];
- if(!args.outlet_id)await permittedOutlet(caller,outlet.id,signal);
- return outlet;
-}
-
 async function loadAssetCatalogue(caller,args,signal){
  if(!args.outlet_id&&!args.outlet_name)throw new AssistantError('asset_outlet_required',400);
- const outlet=await matchingOutlet(caller,args,signal);
+ const outlet=await resolveOutlet(caller,args,signal);
+ if(!outlet)throw new AssistantError('asset_outlet_unresolved',409);
  // The operational Asset Tracking list omits archived assets.
  const assets=(columns,options)=>caller.from('asset_items').select(columns,options).eq('outlet_id',outlet.id).neq('status','archived');
  if(args.mode==='summary'){
@@ -42,22 +27,37 @@ async function loadAssetCatalogue(caller,args,signal){
   return {outlet,...rowsEvidence(data,fields)};
  }
  const lookup=async(field,value)=>{
-  const {data}=await read(exact(assets(fields.join(',')),field,value).limit(2),signal);
+  const {data}=await read(exactName(assets(fields.join(',')),field,value).limit(2),signal);
   if(!Array.isArray(data))throw new AssistantError('business_read_unavailable',503);
   return data;
  };
  const exactCode=await lookup('asset_code',args.query);
- const exactName=exactCode.length?[]:await lookup('name',args.query);
+ const named=exactCode.length?[]:await lookup('name',args.query);
  // A user may prefix the display name with "asset-" even when no code is recorded.
  const unprefixed=args.query.match(/^asset-([\p{L}\p{N}][\p{L}\p{N} -]*)$/iu)?.[1].replaceAll('-',' ').trim();
- const candidates=exactCode.length?exactCode:exactName.length?exactName:unprefixed?await lookup('name',unprefixed):[];
+ let candidates=exactCode.length?exactCode:named.length?named:unprefixed?await lookup('name',unprefixed):[];
+ if(!candidates.length){
+  const {data}=await read(assets(fields.join(',')).order('id').limit(201),signal);
+  if(!Array.isArray(data))throw new AssistantError('business_read_unavailable',503);
+  if(data.length>200)throw new AssistantError('entity_scope_required',409);
+  const match=normalizedEntity(data,unprefixed||args.query,['name','asset_code']);
+  candidates=match?[match]:[];
+ }
  const match_status=candidates.length===1?'matched':candidates.length?'ambiguous':'not_found';
  return {outlet,match_status,matched_by:match_status==='matched'?(exactCode.length?'asset_code':'name'):null,...rowsEvidence(candidates.length===1?candidates:[],fields)};
 }
 
 export const assetCatalogueRead=readContract({
  id:'read_asset_catalogue',version:2,module_id:'asset_tracking',label:'Restaurant Asset Tracking catalogue',
- discoveryPhrases:['asset tracking','restaurant assets'],
+ discoveryPhrases:['asset tracking','restaurant assets','asset balance','asset catalogue','资产追踪','资产数量','餐具数量'],
+ // Domain intent only. Entities still resolve from the user's words and the authorized catalogue.
+ queryIntent(prompt){
+  const asset=/\basset(?:s|-[\p{L}\p{N}]+)?\b|资产|資產/iu.test(prompt);
+  const utensil=/\b(?:spoons?|forks?|cutlery|utensils?)\b|汤[匙勺]|湯[匙勺]|勺子|叉子|筷子|餐具/iu.test(prompt);
+  const quantity=/\b(?:balance|quantity|how many|how much|in stock|available|left|count)\b|多少|几[件个把只]|幾[件個把隻]|数量|數量|剩[下余餘]/iu.test(prompt);
+  const mixed=/\b(?:also|separately|then|and|compare|versus)\b|另外|同时|同時|以及|并且|並且|对比|對比/iu.test(prompt);
+  return quantity&&(asset||utensil)&&!mixed?'asset_quantity':null;
+ },
  permission:'asset_tracking.view',source:'/operations/asset-tracking',scope:'Current human permission and one authorized outlet; non-archived Asset Tracking records',
  description:'Read Restaurant Asset Tracking quantities (assets such as spoons and equipment, separate from ingredient or Factory stock). For a named asset or asset code use detail and the exact user phrase as query. Resolve the outlet by its exact name/code using outlet_name, or a verified outlet_id. For count use summary; for catalogue pages use list. Never present an ambiguous or unmatched asset as zero.',
  properties:{page,outlet_id:{...uuid,nullable:true,description:'Use null when the user names the outlet.'},outlet_name:{type:'string',maxLength:120,nullable:true,description:'Exact outlet name or code as supplied by the user, or null when using a verified ID.'},mode:{type:'string',enum:['list','summary','detail'],description:'Use detail for the quantity of one named asset. Summary without a query counts asset records.'},query:{type:'string',maxLength:80,description:'Exact asset code or name; empty for unfiltered counts and catalogue pages.'}},
@@ -70,9 +70,17 @@ export const assetCatalogueRead=readContract({
    if(normalized.query&&['list','summary'].includes(normalized.mode))normalized.mode='detail';
   }
   if(typeof normalized.outlet_name==='string')normalized.outlet_name=normalized.outlet_name.trim()||null;
-  return normalized;
+  return preferNamedScope(normalized,'outlet_id','outlet_name');
  },
- check:a=>{if((a.mode==='detail')!==!!a.query||a.mode!=='list'&&a.page!==1||a.outlet_id&&a.outlet_name)throw new AssistantError('tool_arguments_invalid',400);},
+ check:a=>{if((a.mode==='detail')!==!!a.query||a.mode!=='list'&&a.page!==1)throw new AssistantError('tool_arguments_invalid',400);},
+ format(evidence,prompt=''){
+  const [asset]=evidence.rows||[];
+  if(evidence.match_status!=='matched'||!asset||asset.current_quantity==null)return null;
+  const unit=asset.unit==='unit'&&Number(asset.current_quantity)!==1?'units':asset.unit||'';
+  return /\p{Script=Han}/u.test(prompt)
+   ?evidence.outlet.name+' 的 '+asset.name+' 当前记录数量是 '+asset.current_quantity+(unit?' '+unit:'')+'。来源：资产追踪。'
+   :'The current Asset Tracking balance for '+asset.name+' at '+evidence.outlet.name+' is '+asset.current_quantity+(unit?' '+unit:'')+'.';
+ },
  load:loadAssetCatalogue,project:d=>d,
  interface:{authority:'Outlet-scoped Asset Tracking asset_items read model',queryKinds:['count','summary','list','search','detail','filter'],fields,
   aggregates:'source_reported',pagination:'List returns 20 rows per page. Only summary returns a complete count of current asset records, not the sum of quantities.',

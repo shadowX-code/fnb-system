@@ -8,6 +8,7 @@ import {createGrokSession,grokReady,grokVoices} from './grokVoice.js';
 import {finishedGoodsRead} from '../_shared/factory/finishedGoodsRead.js';
 import {isQueryEnvelope,queryDiscoveryTools} from '../_shared/assistant/queryDiscovery.js';
 import {createBusinessDispatcher,validateBusinessArguments,businessOperation,assistantQuery,businessToolIdentity,businessToolArgumentShape} from './business.js';
+import {failureOutcome} from './businessQuery.js';
 import {realtimeModel,realtimeTranscriptionModel,realtimeReady,realtimeVoices,voiceInstructions} from './realtime.js';
 import {AssistantError,connection,publicRuntime,generateText,models} from './provider.js';
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -71,7 +72,7 @@ function voiceToolOperation(args) {
 
 function voiceToolFailure(error, identity, stage) {
  return new AssistantError(error instanceof AssistantError ? error.code : 'assistant_unavailable',
-  error instanceof AssistantError ? error.status : 503, {...identity, stage});
+  error instanceof AssistantError ? error.status : 503, {...identity, stage,query_outcome:failureOutcome(error.code)});
 }
 
 export async function dispatch(body,{voiceUsage,rpc,get,signal,transport,caller,readFactory,reserveRealtime,endVoice,registry,voiceHistory,issueVoiceTicket,traceVoice=()=>{},access={factory:false}}){
@@ -137,7 +138,15 @@ export async function dispatch(body,{voiceUsage,rpc,get,signal,transport,caller,
     stage = 'lease';
     await reserveRealtime('tool',args);
     stage = 'dispatch';
-    const evidence=await business.execute(tool,args.arguments,signal,{correctArguments:args.provider==='openai'});
+    // Use the same private conversation authority as Text. The SDK submits
+    // its transcript separately, so a missing transcript never confirms scope.
+    let snapshot;
+    const history=()=>snapshot??=rpc('history',{session_id:args.session_id});
+    const turn=args.provider==='openai'&&args.turn_id?(await history())?.turns?.find(row=>row.request_id===args.turn_id):null;
+    if(turn&&!turn.voice_input_available&&identity.operation==='read_asset_catalogue')throw new AssistantError('entity_scope_required',409);
+    const transcript=turn?.voice_input_available?turn.prompt:undefined;
+    const evidence=await business.execute(tool,args.arguments,signal,{correctArguments:args.provider==='openai',
+     prompt:transcript,history,withOutcome:true});
     if(args.turn_id&&!evidence.not_business_evidence){
      stage = 'evidence';
      await voiceHistory({...args,step:'evidence',evidence});
@@ -226,7 +235,7 @@ export async function dispatch(body,{voiceUsage,rpc,get,signal,transport,caller,
    if(assembled.summary&&JSON.stringify(assembled.summary)!==JSON.stringify(snapshot.summary))await rpc('context_summary',{session_id:args.session_id,...assembled.summary});
    const evidenceItems=[];
    const result=await generateText({...claim,memory,assembled},connection(config,get).key,{
-    transport,signal,business,
+    transport,signal,business,history:async()=>rpc('history',{session_id:args.session_id}),
     onTrace(tool,params,outcome,match_count,validation){
      traceVoice('text_tool',{session_id:args.session_id,turn_id:args.turn_id,tool,
       operation:businessToolIdentity(tool,params).operation,arguments_shape:businessToolArgumentShape(tool,params),outcome,match_count,validation});

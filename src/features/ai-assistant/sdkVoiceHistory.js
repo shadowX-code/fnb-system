@@ -13,6 +13,9 @@ const toolFailureReasons = {
  inventory_detail_ambiguous: 'More than one authorized record matched this exact SKU.',
  asset_outlet_required: 'Asset Tracking needs the outlet name or code.',
  asset_outlet_unresolved: 'The outlet name or code did not identify one outlet in your authorized scope.',
+ entity_unresolved: 'No exact match was found in the authorized scope.',
+ entity_ambiguous: 'Please confirm the exact name or code. A similar name cannot confirm the identity.',
+ entity_scope_required: 'Please specify the exact name or code before retrying.',
  knowledge_scope_required: 'This knowledge source needs the named outlet, Brand or Legal Entity.',
  knowledge_scope_unresolved: 'The requested scope could not be identified uniquely within your current authorized sources.',
  voice_request_limit: 'This voice session reached its tool-call limit.',
@@ -120,6 +123,7 @@ export function createSdkVoiceHistory({ write, read, state, trace, activity = ()
    trace('business_tool_started', turn.number, owner.number, attempted);
    try {
     await turn.started;
+    await writes;
     if (!ownsTurn()) return { stale: true };
     activity({ ...tool, phase: 'executing' });
     const result = await read(turn.id, args, operation);
@@ -141,7 +145,8 @@ export function createSdkVoiceHistory({ write, read, state, trace, activity = ()
     const instruction=code==='tool_not_allowed'&&operation==='run_business_query'
      ? 'Discover the intended domain with find_business_queries and use a returned operation ID and schema. No business read occurred.'
      : 'Briefly explain the actual failure in the user’s language. Do not switch domains, invent evidence, or retry automatically.';
-    return { result: { error: code, operation: capability, operation_label: label, reason, no_evidence: true, instruction } };
+    return { result: { error: code, operation: capability, operation_label: label, reason,
+     query_outcome:error.diagnostic?.query_outcome||'EXECUTION_ERROR',no_evidence: true, instruction } };
    } finally {
     turn.toolPending = false;
     if (ownsTurn()) state('thinking');

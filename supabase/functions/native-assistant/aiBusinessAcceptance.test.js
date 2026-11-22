@@ -1,11 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {operations,createBusinessDispatcher} from './business.js';
+import {operations,createBusinessDispatcher,queryTool} from './business.js';
 import {dispatch} from './handler.js';
 import {generateText} from './provider.js';
 import {createSdkVoiceHistory} from '../../../src/features/ai-assistant/sdkVoiceHistory.js';
 import {rawMaterialStockStatus} from '../_shared/factory/stockCatalogue.js';
+import {failureOutcome,outcomeFor,outletContinuation} from './businessQuery.js';
 
 const reads=operations.filter(o=>o.kind==='READ');
 const id='10000000-0000-4000-8000-000000000001';
@@ -29,7 +30,7 @@ for(const op of reads)test(`${op.id}: discovery, argument fencing, AI policy and
  const business=createBusinessDispatcher({config,access});
  const discovered=await business.execute('find_business_queries',{search:op.id,page:1});
  const exposed=discovered.operations.find(row=>row.operation===op.id);
- assert.deepEqual(exposed?.parameters,op.tool.parameters);
+ assert.deepEqual(exposed?.parameters,queryTool(op).parameters);
  assert.equal(exposed?.module,op.module_id);
  assert.equal(discovered.not_business_evidence,true);
  const byBusinessLabel=await business.execute('find_business_queries',{search:op.label.slice(0,80),page:1});
@@ -145,8 +146,8 @@ for(const [operation,question,args,check] of cases)test(`${operation}: evidence 
   transport:async(_,init)=>{
    const body=JSON.parse(init.body);
    assert(body.input.some(message=>message.content===question));
-   if(++n===1)return response([functionCall('find_business_queries',{search:operation==='read_asset_catalogue'?question:operation,page:1},'discover')]);
-   if(n===2){
+   if(++n===1)return response(operation==='read_asset_catalogue'?[functionCall(operation,args,'query')]:[functionCall('find_business_queries',{search:operation,page:1},'discover')]);
+   if(n===2&&operation!=='read_asset_catalogue'){
     assert.equal(JSON.parse(body.input.at(-1).output).operations[0].operation,operation);
     return response([functionCall('run_business_query',envelope(operation,args),'query')]);
    }
@@ -157,7 +158,8 @@ for(const [operation,question,args,check] of cases)test(`${operation}: evidence 
    return response([{type:'message',content:[{type:'output_text',text:'The authorized result is attached.'}]}]);
   },
  });
- assert.equal(reply.reply,'The authorized result is attached.');
+ if(operation==='read_asset_catalogue')assert.match(reply.reply,/15 unit/);
+ else assert.equal(reply.reply,'The authorized result is attached.');
  check(textEvidence);
  const persisted=[],writes=[];
  const history=createSdkVoiceHistory({id:()=>id,state(){},trace(){},write:async(...steps)=>writes.push(steps),
@@ -249,6 +251,89 @@ test('asset counts, exact codes and ambiguous names use only the authorized curr
  assert(!denied.calls.some(([source])=>source==='asset_items'));
 });
 
+test('auth-owned Text entry point grounds an explicit correction after a failed Voice turn and long history',async()=>{
+ const operation='read_asset_catalogue';
+ const question='你不懂Fixture Corner的汤匙剩多少？';
+ const stale={voice:true,seq:30,prompt:'Different Outlet资产spoon余额',state:'completed',tool_state:'failed',
+  reply:'The asset might not be registered.',evidence:null};
+ const src=source();
+ const previous=[...Array.from({length:29},(_,i)=>({seq:i+1,prompt:'Older discussion '+i,reply:'Unrelated conversation'})),stale];
+ const flags={NATIVE_ASSISTANT_OPENAI_API_KEY:'fixture-not-real',NATIVE_ASSISTANT_APPROVED_USE:'native-assistant-phase1a',
+  NATIVE_ASSISTANT_APPROVAL_REFERENCE:'fixture',NATIVE_ASSISTANT_MODELS:'gpt-4o-mini'};
+ let evidence,toolCalls=0,finish;
+ const result=await dispatch({action:'respond',session_id:id,turn_id:otherId},{
+  caller:src.caller,access,get:key=>flags[key],
+  async rpc(action,values){
+   if(action==='status')return {config};
+   if(action==='claim')return {kind:'turn',prompt:question,model:config.model,state:'running',lease_id:id};
+   if(action==='context_snapshot')return {context:previous,fingerprint:'owned-history'};
+   if(action==='memory_get')return {memory:{}};
+   if(action==='tool_record'&&values.evidence)evidence=values.evidence;
+   if(action==='finish'){finish=values;return {state:'completed',reply:values.reply};}
+   return {};
+  },
+  async transport(_,init){
+   const body=JSON.parse(init.body);
+   assert.doesNotMatch(JSON.stringify(body),/Different Outlet资产|not be registered/);
+   if(toolCalls++===0){
+    assert.deepEqual(body.tool_choice,{type:'function',name:operation});
+    return response([functionCall(operation,{mode:'summary',query:'spoon',outlet_id:otherId,outlet_name:'Different Outlet'},'plan')]);
+   }
+   assert.equal(JSON.parse(body.input.at(-1).output).outlet.id,id);
+   return response([{type:'message',content:[{type:'output_text',text:'Unverified 99 units.'}]}]);
+  },
+ });
+ assert.match(result.reply,/Fixture Corner.+Spoon.+15 unit/);
+ assert.doesNotMatch(result.reply,/99/);
+ assert.equal(evidence.query_outcome,'SUCCESS');
+ assert.equal(finish.context_usage.source_turns,30);
+});
+
+test('Text and Voice bind only explicit or compatible confirmed outlet scope',async()=>{
+ const operation='read_asset_catalogue',args={mode:'detail',query:'Spoon',outlet_id:otherId};
+ const src=source();
+ const business=createBusinessDispatcher({config,access,caller:src.caller});
+ const old=await business.execute(operation,{...args,outlet_id:id},undefined,{withOutcome:true});
+ const history=async()=>({turns:[
+  {state:'completed',tool_state:'completed',evidence:old},
+  {state:'completed',tool_state:'failed',evidence:{...old,outlet:{id:otherId}}},
+ ]});
+ const follow=await business.execute(operation,args,undefined,{prompt:'How many Spoon units at that outlet?',history,withOutcome:true});
+ assert.equal(follow.outlet.id,id);
+ assert.equal(follow.rows[0].current_quantity,15);
+ const voice=await dispatch(voiceRequest('run_business_query',envelope(operation,args)),{
+  caller:src.caller,access,get:()=>undefined,async rpc(action){
+   if(action==='history')return {turns:[...(await history()).turns,{request_id:id,voice_input_available:true,prompt:'What is the spoon balance at Fixture Corner?'}]};
+   return {config};
+  },reserveRealtime:async()=>{},voiceHistory:async()=>{},
+ });
+ assert.equal(voice.outlet.id,id);assert.equal(voice.rows[0].current_quantity,15);
+ assert.equal(voice.query_outcome,'SUCCESS');
+ await assert.rejects(business.execute(operation,args,undefined,{prompt:'How many Spoon units at Unknown Corner?',history}),{code:'entity_scope_required'});
+ assert.equal(outletContinuation('Give leave at that outlet, also show monthly regional finance.'),false);
+});
+
+test('named scopes reauthorize before the domain call and preserve distinct query outcomes',async()=>{
+ const operation='read_asset_catalogue';
+ const src=source();
+ const granted=createBusinessDispatcher({config,access,caller:src.caller});
+ const args={mode:'detail',outlet_name:'Fixture—Corner',query:'missing item'};
+ const missing=await granted.execute(operation,args,undefined,{withOutcome:true});
+ assert.equal(missing.query_outcome,'NO_MATCH');assert.equal(missing.outlet.id,id);
+ assert.equal(failureOutcome('entity_ambiguous'),'AMBIGUOUS');
+ assert.equal(failureOutcome('business_read_denied'),'UNAUTHORIZED');
+ assert.equal(failureOutcome('tool_arguments_invalid'),'UNSUPPORTED');
+ assert.equal(failureOutcome('business_read_unavailable'),'EXECUTION_ERROR');
+ assert.equal(outcomeFor({rows:[],truncated:true}),'SUCCESS');
+ const denied=source({scope:false});
+ const restricted=createBusinessDispatcher({config,access,caller:denied.caller});
+ await assert.rejects(restricted.execute('read_crew_leave',{outlet_name:'Fixture Corner',from:'2026-11-01',to:'2026-11-02'}),{code:'business_read_denied'});
+ assert(!denied.calls.some(([name])=>name==='crew_leave_requests_admin_page'));
+ const resolved=await granted.execute('read_crew_leave',{outlet_name:'Fixture Corner',from:'2026-11-01',to:'2026-11-02'},undefined,{withOutcome:true});
+ assert.equal(resolved.requested_scope.outlet_id,id);assert.equal(resolved.total_matching,24);
+ await assert.rejects(granted.execute(operation,{...args,outlet_name:'Fixtur Corner'}),{code:'entity_ambiguous'});
+});
+
 test('a scoped question gets the registered schema before the generic runner can be used',async()=>{
  const question='What is the current balance of asset-spoon at Fixture Corner?';
  const {caller}=source();
@@ -258,7 +343,8 @@ test('a scoped question gets the registered schema before the generic runner can
   business,transport:async(_,init)=>{
    const body=JSON.parse(init.body);
    if(++requests===1){
-    assert.deepEqual(body.tools.map(tool=>tool.name),['read_asset_catalogue','find_business_queries']);
+    assert.deepEqual(body.tools.map(tool=>tool.name),['read_asset_catalogue']);
+    assert.deepEqual(body.tool_choice,{type:'function',name:'read_asset_catalogue'});
     return response([functionCall('read_asset_catalogue',{
      page:1,outlet_id:null,outlet_name:'Fixture Corner',mode:'summary',query:'asset-spoon',
     },'asset-current')]);
@@ -270,7 +356,7 @@ test('a scoped question gets the registered schema before the generic runner can
    return response([{type:'message',content:[{type:'output_text',text:'Fixture Corner has 15 Spoon units.'}]}]);
   },
  });
- assert.equal(requests,2);assert.equal(reply.reply,'Fixture Corner has 15 Spoon units.');
+ assert.equal(requests,2);assert.match(reply.reply,/Spoon at Fixture Corner is 15 unit/);
  const disconnected=createBusinessDispatcher({config:{...config,capability_connections:{...config.capability_connections,read_asset_catalogue:false}},access,caller});
  assert(!disconnected.toolsForPrompt(question).some(tool=>tool.name==='read_asset_catalogue'));
 });
@@ -279,7 +365,7 @@ test('named Text and SDK schema errors return exact correction only after author
  const operation='read_asset_catalogue';
  const args={mode:'detail',outlet_name:'Fixture Corner'};
  const src=source();
- const expected=await createBusinessDispatcher({config,access,caller:src.caller}).execute(operation,args,undefined,{correctArguments:true});
+ const expected=await createBusinessDispatcher({config,access,caller:src.caller}).execute(operation,args,undefined,{correctArguments:true,withOutcome:true});
  assert.equal(expected.operation,operation);
  assert.equal(expected.error,'tool_arguments_invalid');
  assert.equal(expected.no_evidence,true);
@@ -301,7 +387,7 @@ test('Employees discovery promotes the strict typed schema and rejects malformed
    const body=JSON.parse(init.body);
    if(++requests===1)return response([functionCall('find_business_queries',{search:'HR employees',page:1},'discover')]);
    if(requests===2){
-    assert.deepEqual(body.tools.find(tool=>tool.name===operation),operations.find(op=>op.id===operation).tool);
+    assert.deepEqual(body.tools.find(tool=>tool.name===operation),queryTool(operations.find(op=>op.id===operation)));
     return response([functionCall(operation,{mode:'summary',outlet_id:'invalid-scope'},'invalid')]);
    }
    const evidence=JSON.parse(body.input.at(-1).output);

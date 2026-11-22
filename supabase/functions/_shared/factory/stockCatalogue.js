@@ -10,6 +10,7 @@ export function validateStockRanking(args) {
 }
 export const stockNumber = n => n == null || n === '' || !Number.isFinite(Number(n)) ? null : Number(n);
 export const stockUnit = unit => String(unit || '').trim().toLowerCase();
+export const stockSku = sku => String(sku||'').normalize('NFKC').trim().toUpperCase();
 
 export async function loadStockCatalogue(caller, {entity,table,fields}, signal) {
  const {data:ids,error}=await caller.rpc('factory_get_master_id_snapshot',{p_entity:entity}).abortSignal(signal);

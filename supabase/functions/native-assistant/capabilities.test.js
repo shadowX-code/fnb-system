@@ -29,7 +29,7 @@ test('retired fallback requests are rejected at the Edge boundary',()=>{
 });
 
 test('low-stock evidence returns to the provider instead of a Text-only canned fallback',async()=>{
- let requests=0;const r=await generateText(claim,'fixture',{readTool:async()=>({availability:'low',total_matching:1,unknown_minimum_count:25,rows:[],scope:'Fixture',as_of:'fixture-time'}),transport:async(_url,init)=>{
+ let requests=0;const r=await generateText(claim,'fixture',{readTool:async()=>({capability:'read_factory_finished_goods',availability:'low',total_matching:1,unknown_minimum_count:25,rows:[],scope:'Fixture',as_of:'fixture-time'}),transport:async(_url,init)=>{
   requests++;if(requests===1)return response({status:'completed',output:[{type:'function_call',name:'read_factory_finished_goods',call_id:'fixture-call',arguments:'{"query":"","availability":"low"}'}],usage:{input_tokens:80,output_tokens:10}});
   const evidence=JSON.parse(JSON.parse(init.body).input.at(-1).output);assert.equal(evidence.unknown_minimum_count,25);
   return response({status:'completed',output:[{type:'message',content:[{type:'output_text',text:'One low; 25 unknown thresholds.'}]}],usage:{input_tokens:100,output_tokens:10}});

@@ -7,7 +7,7 @@ test('long multilingual history is bounded; originals are untouched; no model su
  const before=JSON.stringify(input);const out=assembleContext({context:input,fingerprint:'revision-1'});
  assert.ok(out.stats.estimated_context_tokens<=8000);assert.equal(out.stats.source_turns,60);
  assert.equal(out.summary.version,'extractive-v1');assert.match(out.notes,/green menu/);assert.doesNotMatch(out.notes,/secret stale/);
- assert.match(contextInstructions(out),/authorized fresh read/);assert.equal(JSON.stringify(input),before);
+ assert.match(contextInstructions(out),/fresh authorized source read/);assert.equal(JSON.stringify(input),before);
  assert.ok(estimateTokens('中文中文')>estimateTokens('abcd'));
 });
 test('short threads do not summarize; cached summaries require exact source fingerprint/version',()=>{

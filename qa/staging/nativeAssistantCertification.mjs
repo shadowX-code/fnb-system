@@ -185,6 +185,17 @@ export function certifyScenario(id,record){
  }catch(error){return {status:'FAIL',reason:String(error.message).split('\n')[0],request_id:record.turn?.request_id};}
 }
 
+for(const [id,question] of [
+ ['asset_spoon_fresh','What is the current balance of asset-spoon at Friends Corner?'],
+ ['asset_spoon_voice_correction','In the existing conversation after a failed spoken outlet lookup: 你不懂Friends Corner的汤匙剩多少？'],
+ ['asset_spoon_followup','After confirming Friends Corner, ask for the current Spoon balance at that outlet.'],
+]){
+ scenarios[id]=scenario('Restaurant',['read_asset_catalogue'],question,([e],reply,source)=>{
+  assert.equal(e.query_outcome,'SUCCESS');
+  scenarios.asset_spoon.check([e],reply,source);
+ });
+}
+
 export function certifyRun(records={}){
  for(const id of Object.keys(records))assert(Object.hasOwn(scenarios,id),`Unknown scenario: ${id}`);
  return Object.fromEntries(Object.keys(scenarios).map(id=>[id,certifyScenario(id,records[id])]));
