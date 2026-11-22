@@ -88,6 +88,7 @@ export default function DatePickerField({
   required = false,
   value,
   onChange,
+  onInvalidInput,
   onBlur,
   error,
   helper,
@@ -128,6 +129,7 @@ export default function DatePickerField({
     }
     const parsed = toInputDate(cleaned);
     if (parsed) onChange(parsed);
+    else onInvalidInput?.();
   }
 
   function openPicker(nextMode = viewMode) {

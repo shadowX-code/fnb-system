@@ -135,7 +135,7 @@ export default function InventoryStockCheckResultModal({
           <div><span className="text-text-secondary">Checked by</span><div className="font-semibold text-text-primary">{submittedByName}</div></div>
           <div><span className="text-text-secondary">Submitted at</span><div className="font-semibold text-text-primary">{formatDateTimeCompact(stockCheck.submittedAt)}</div></div>
         </div>}
-      {isClosing && <ClosingStockApproval check={stockCheck} context={closing} itemById={itemById}
+      {isClosing && <ClosingStockApproval check={stockCheck} context={closing}
         canApprove={canApproveClosing} formatCurrency={formatCurrency} onShowUnvalued={showUnvaluedItems} onStartClosing={onStartClosing} />}
       <AdminSummaryGrid variant="compact" ariaLabel="Audit item counts" items={countItems} />
       {isAuditResult ? <>

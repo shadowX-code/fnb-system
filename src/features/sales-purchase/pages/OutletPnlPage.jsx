@@ -11,6 +11,7 @@ import { percentageChange, toCurrency as formatCurrency, toPercent as formatPerc
 import { reportingService } from "../../../services/reportingService.js";
 import { projectOutletPnl } from "../../../services/outletPnlProjection.js";
 import { canExport, getAccessibleOutletOptions, notifyPermissionDenied } from "../../../utils/accessControl.js";
+import { formatPhysicalCountDate } from "../inventory/stockChecks/monthEndClosing.js";
 import { financialTerminology } from "../../../utils/financialTerminology.js";
 
 function defaultYear(store) {
@@ -21,6 +22,7 @@ function defaultYear(store) {
 }
 
 const toCurrency = (value) => value === null || value === undefined ? "—" : formatCurrency(value);
+const closingCurrency = new Intl.NumberFormat("en-MY", { style: "currency", currency: "MYR" });
 const toPercent = (value) => value === null || value === undefined ? "—" : formatPercent(value);
 
 function yoy(current, previous) {
@@ -478,7 +480,16 @@ export default function OutletPnlPage({ store, ui, auth }) {
                   <PnlStatementRow label="COGS" amount={item.cogs === null ? "—" : `-${toCurrency(item.cogs)}`} ratio={pnlRatio(item.cogs, item.revenue)} />
                   <PnlStatementRow label="OpEx" amount={item.opex === null ? "—" : `-${toCurrency(item.opex)}`} ratio={pnlRatio(item.opex, item.revenue)} />
                   <div className="mt-1.5 flex justify-between border-t border-border pt-2.5"><span className="text-xs font-bold text-text-primary">{financialTerminology.ebitda}</span><strong className={`text-base font-bold ${item.netProfit < 0 ? "text-rose-500" : "text-text-primary"}`}>{signedCurrency(item.netProfit)}</strong></div>
-                  <div className="flex justify-between gap-2 text-xs text-text-secondary"><span>Closing Stock</span><strong>{toCurrency(item.closingStock)}</strong></div>
+                  <div className="space-y-1 text-xs text-text-secondary">
+                    <div className="flex justify-between gap-2">
+                      <span>Closing Stock{item.closingStockEvidence?.valuationStatus === "partial" && " (Partial)"}</span>
+                      <strong>{item.closingStock === null ? "—" : closingCurrency.format(item.closingStock)}</strong>
+                    </div>
+                    {item.closingStockEvidence?.totalItemCount != null && <p>
+                      {item.closingStockEvidence.valuedItemCount} of {item.closingStockEvidence.totalItemCount} items valued
+                      {item.closingStockEvidence.actualCountDate && ` · Counted ${formatPhysicalCountDate(item.closingStockEvidence.actualCountDate)} (MYT)`}
+                    </p>}
+                  </div>
                 </div>
               </div>
             ))}

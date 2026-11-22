@@ -63,7 +63,6 @@ declare
   v_correction_check jsonb;
   v_zero jsonb := jsonb_build_array(v_count || '{"actual_count_quantity":0,"notes":"Verified shelf"}');
   v_reason text := 'Duplicate shelf count corrected';
-  v_cutoff timestamptz := '2001-09-01T00:00:00+08:00';
   v_source uuid;
   v_draft uuid;
   v_start_request uuid := gen_random_uuid();
@@ -81,7 +80,7 @@ begin
   perform public.inventory_master_revise_cost(v_item, 2.5, 'kg', '2001-08-01', 'QA opening cost', gen_random_uuid(), null);
   v_source_evidence := public.inventory_save_stock_check(gen_random_uuid(),v_check,jsonb_build_array(v_count));
   v_source := (v_source_evidence->'check'->>'id')::uuid;
-  v_close := public.inventory_approve_closing_stock(v_source,v_approve_request,'[]',null,null,v_cutoff);
+  v_close := public.inventory_approve_closing_stock(v_source,v_approve_request,'2001-08-01'::date,'2001-09-01',null,null);
   if (v_close->>'amount')::numeric is distinct from 10 then raise exception 'Original closing is incorrect'; end if;
   v_before := public.reporting_monthly_scope_financials(v_outlet,2001,8);
 
@@ -97,11 +96,11 @@ begin
       and unit_cost_snapshot=2.5 and notes='Original shelf') then raise exception 'Draft did not copy original evidence'; end if;
   if (public.inventory_closing_context(v_source)->>'approval_blocked')::boolean is distinct from true
     or public.reporting_monthly_scope_financials(v_outlet,2001,8) is distinct from v_before
-    or public.inventory_approve_closing_stock(v_source,v_approve_request,'[]',null,null,v_cutoff) is distinct from v_close then
+    or public.inventory_approve_closing_stock(v_source,v_approve_request,'2001-08-01'::date,'2001-09-01',null,null) is distinct from v_close then
     raise exception 'Pending correction changed existing publication or its replay';
   end if;
   begin
-    perform public.inventory_approve_closing_stock(v_source,gen_random_uuid(),'[]',(v_close->>'id')::uuid,'Should block',v_cutoff);
+    perform public.inventory_approve_closing_stock(v_source,gen_random_uuid(),'2001-08-01'::date,'2001-09-01',(v_close->>'id')::uuid,'Should block');
     raise exception 'Approval of a source with a pending correction succeeded';
   exception when raise_exception then
     if sqlerrm not like 'This audit has a correction.%' then raise; end if;
@@ -161,20 +160,14 @@ begin
   end if;
   v_history := public.inventory_audit_correction_history(v_draft);
   if jsonb_array_length(v_history->'entries') <> 2 or v_history->'entries'->1->>'correction_of_id' <> v_source::text
-    or (public.inventory_closing_context(v_draft)->>'prior_confirmed_cutoff')::timestamptz is distinct from v_cutoff then
+    or (public.inventory_closing_context(v_draft)->>'prior_actual_count_date')::date is distinct from '2001-09-01'::date then
     raise exception 'Correction lineage or previous confirmation was lost';
   end if;
-  begin
-    perform public.inventory_approve_closing_stock(v_draft,gen_random_uuid(),'[]',
-      (v_close->>'id')::uuid,'Approve corrected evidence',v_cutoff-interval '1 hour');
-    raise exception 'An off-cutoff correction skipped reconciliation';
-  exception when raise_exception then
-    if sqlerrm not like 'Enter a verified month-end quantity%' then raise; end if;
-  end;
-  v_new := public.inventory_approve_closing_stock(v_draft,gen_random_uuid(),'[]',(v_close->>'id')::uuid,'Approve corrected evidence',v_cutoff);
+  v_new := public.inventory_approve_closing_stock(v_draft,gen_random_uuid(),'2001-08-01'::date,'2001-09-01',
+    (v_close->>'id')::uuid,'Approve corrected evidence');
   v_after := public.reporting_monthly_scope_financials(v_outlet,2001,8);
   if (v_new->>'revision')::int is distinct from 2 or (v_new->>'amount')::numeric is distinct from 0
-    or (v_after->>'closing_stock')::numeric is distinct from 0 or v_after - 'closing_stock' <> v_before - 'closing_stock' then
+    or (v_after->>'closing_stock')::numeric is distinct from 0 or v_after - array['closing_stock', 'closing_stock_evidence'] <> v_before - array['closing_stock', 'closing_stock_evidence'] then
     raise exception 'Existing approval did not publish the corrected amount independently';
   end if;
 
@@ -188,7 +181,7 @@ begin
   v_draft := (public.inventory_create_audit_correction(v_source,gen_random_uuid())->>'check_id')::uuid;
   perform public.inventory_save_stock_check(gen_random_uuid(),v_correction_check || jsonb_build_object('id',v_draft,'outlet_id',v_unpublished),
     jsonb_build_array(v_count || '{"actual_count_quantity":2}'));
-  v_new := public.inventory_approve_closing_stock(v_draft,gen_random_uuid(),'[]',null,null,v_cutoff);
+  v_new := public.inventory_approve_closing_stock(v_draft,gen_random_uuid(),'2001-08-01'::date,'2001-09-01',null,null);
   if (v_new->>'amount')::numeric is distinct from 100 or (v_new->>'revision')::int is distinct from 1 then
     raise exception 'A corrected unapproved count did not publish as revision one';
   end if;
