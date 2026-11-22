@@ -60,7 +60,8 @@ export const finishedGoodsRead = Object.freeze({
  scopeTextArguments(args,prompt){
   if(!args||typeof args!=='object'||Array.isArray(args))return args;
   const explicit=[...new Set([...prompt.matchAll(/\bSKU\s+["“']?([a-z0-9][a-z0-9_-]{0,79})/gi)].map(match=>match[1]))];
-  if(explicit.length!==1||!/[0-9]/.test(explicit[0])||!/(?:current|balance|stock|availability|库存|结存)/i.test(prompt)||
+  if(explicit.length!==1||!/[0-9]/.test(explicit[0])||
+   !/\b(?:finished goods|FG)\b[^.?!;\n]{0,40}\b(?:balance|stock|availability)\b[^.?!;\n]{0,24}\bSKU\b/i.test(prompt)||
    /\b(?:rank|highest|lowest|top|compare|versus)\b/i.test(prompt))return args;
   return {...args,mode:'detail',page:1,sku:explicit[0],query:'',sort:'name',uom:args.uom===''?null:args.uom??null};
  },

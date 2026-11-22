@@ -194,6 +194,19 @@ test('mixed stock and knowledge requests keep the explicit SKU and do not conver
  assert.deepEqual(inventoryArguments(finishedGoodsRead.scopeTextArguments({...args,sku:null,page:0},
   'Show current Finished Goods stock for SKU S01 and the published SOP.')),expected);
  assert.equal(finishedGoodsRead.scopeTextArguments(args,'Compare stock for SKU S01 against last month.'),args);
+ assert.equal(finishedGoodsRead.scopeTextArguments(args,'Show raw material stock for SKU R02. Separately give a Finished Goods stock count.'),args);
+});
+
+test('a named Factory cleaning method keeps its own steps and never mixes methods',async()=>{
+ const rows=[
+  {code:'cleaning',name:'Cleaning',reference_only:true,reference_version:1,steps:['Remove visible dirt']},
+  {code:'clean_in_place',name:'Clean-in-Place',reference_only:true,reference_version:2,
+   steps:['Circulate warm water','Circulate cleaning chemical','Drain cleaning solution','Rinse with cold water']},
+ ];
+ const b=dispatcher({rpcs:{factory_mesti_cleaning_methods:()=>({data:rows})}});
+ const e=await b.execute('read_factory_cleaning_methods',{query:'current MeSTI Clean-in-Place cleaning method'});
+ assert.deepEqual(e.knowledge.citations.map(x=>x.document_id),['clean_in_place']);
+ assert.equal(e.knowledge.citations[0].excerpt,rows[1].steps.join('; '));
 });
 
 test('source declarations are discoverable through the current policy, with guide independent of business READ policy',async()=>{
