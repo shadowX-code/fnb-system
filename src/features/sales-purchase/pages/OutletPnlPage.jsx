@@ -9,7 +9,7 @@ import TrendChart from "../../../components/charts/TrendChart.jsx";
 import ActionMenu from "../../../components/ui/ActionMenu.jsx";
 import { percentageChange, toCurrency as formatCurrency, toPercent as formatPercent } from "../utils/analytics.js";
 import { reportingService } from "../../../services/reportingService.js";
-import { projectOutletPnl } from "../../../services/outletPnlProjection.js";
+import { comparableOutletPnlTotals, projectOutletPnl } from "../../../services/outletPnlProjection.js";
 import { canExport, getAccessibleOutletOptions, notifyPermissionDenied } from "../../../utils/accessControl.js";
 import { financialTerminology } from "../../../utils/financialTerminology.js";
 
@@ -26,7 +26,7 @@ const toPercent = (value) => value === null || value === undefined ? "—" : for
 
 function yoy(current, previous) {
   if (current === null || previous === null) return "Incomplete comparison";
-  if (!previous) return "No prior year";
+  if (previous === 0) return "Prior-year value was zero";
   const change = percentageChange(current, previous);
   return `${change >= 0 ? "+" : ""}${toPercent(change)} YoY`;
 }
@@ -51,8 +51,17 @@ function marginStatus(margin) {
   return { label: "Critical", tone: "danger", className: "border-rose-200 bg-rose-50 text-rose-700" };
 }
 
-function latestActiveMonth(monthly) {
-  return [...monthly].reverse().find((item) => item.revenue > 0 || item.cogs > 0 || item.opex > 0) ?? monthly[0];
+function coverageLabel(months = [], year) {
+  if (!months.length) return "No recorded months";
+  const monthName = (month) => new Date(2020, month - 1, 1).toLocaleString("en", { month: "short" });
+  const ranges = [];
+  for (const month of months) {
+    const range = ranges.at(-1);
+    if (range && month === range.end + 1) range.end = month;
+    else ranges.push({ start: month, end: month });
+  }
+  const period = ranges.map(({ start, end }) => start === end ? monthName(start) : `${monthName(start)}–${monthName(end)}`).join(", ");
+  return `${period} ${year}, ${months.length} ${months.length === 1 ? "month" : "months"}`;
 }
 
 function FinanceBadge({ children, tone = "neutral" }) {
@@ -91,7 +100,7 @@ function PnlStatementRow({ label, amount, ratio, muted = false }) {
   );
 }
 
-function PnlKpiCard({ label, value, helper, icon: Icon, primary = false, tone = "neutral", badge, insight }) {
+function PnlKpiCard({ label, value, helper, coverage, icon: Icon, primary = false, tone = "neutral", badge, insight }) {
   const isNegative = tone === "danger";
   return (
     <div
@@ -113,7 +122,8 @@ function PnlKpiCard({ label, value, helper, icon: Icon, primary = false, tone = 
       <div className={`mt-3 min-w-0 break-words text-primary-type-kpi-value ${isNegative ? "text-rose-600" : "text-text-primary"}`}>
         {value}
       </div>
-      <div className="mt-2 text-xs font-semibold text-text-secondary">{helper}</div>
+      <div className="mt-2 text-xs font-semibold text-text-secondary">{coverage}</div>
+      <div className="mt-1 text-xs text-text-muted">{helper}</div>
       {insight ? <div className="mt-2 text-xs leading-4 text-text-muted">{insight}</div> : null}
     </div>
   );
@@ -138,64 +148,73 @@ function TrendSeriesTooltip({ label, currentLabel, previousLabel, currentValue, 
   );
 }
 
-function pnlInsights({ total, previousTotal, monthly, missingOpexCount, rankingRows }) {
-  if (total.netProfit === null) return [{ tone: "warning", icon: Info, label: "Incomplete", title: "Financial evidence is incomplete.", body: "Missing Revenue, COGS or OpEx remains unavailable; EBITDA is not reported as zero." }];
+function pnlInsights({ total, previousTotal, monthly, coverage, cogsRatio, missingOpexCount, rankingRows, groupNetProfit, period }) {
   const insights = [];
-  const latest = latestActiveMonth(monthly);
-  const previousMonth = monthly[Math.max(0, Number(latest?.month ?? 1) - 2)];
-  const latestCogsRatio = latest?.revenue > 0 ? (latest.cogs / latest.revenue) * 100 : 0;
-  const previousCogsRatio = previousMonth?.revenue > 0 ? (previousMonth.cogs / previousMonth.revenue) * 100 : 0;
-  const revenueGrowth = yoyValue(total.revenue, previousTotal?.revenue);
+  const latest = monthly.findLast((item) => !item.future && item.grossProfit !== null && item.revenue > 0);
+  const previousMonth = monthly.find((item) => item.month === latest?.month - 1);
+  const cogsRatioChange = latest && previousMonth?.grossProfit != null && previousMonth.revenue > 0
+    ? (latest.cogs / latest.revenue - previousMonth.cogs / previousMonth.revenue) * 100 : null;
+  const revenueGrowth = yoyValue(total.revenue, previousTotal.revenue);
 
   if (revenueGrowth !== null && Math.abs(revenueGrowth) > 0.1) {
     insights.push({
       tone: revenueGrowth >= 0 ? "success" : "warning",
       icon: TrendingUp,
       label: "Revenue",
+      coverage: period("revenue"),
       title: revenueGrowth >= 0 ? `Revenue increased ${toPercent(revenueGrowth)} vs previous year.` : `Revenue declined ${toPercent(Math.abs(revenueGrowth))} vs previous year.`,
       body: revenueGrowth >= 0 ? "Confirm whether profit conversion is keeping pace with sales growth." : "Review outlet traffic, channel mix and operating calendar.",
     });
   }
   if (total.netProfit < 0) {
-    insights.push({ tone: "danger", icon: AlertTriangle, label: "Critical", title: `${financialTerminology.ebitda} is negative.`, body: `${signedCurrency(total.netProfit)} YTD ${financialTerminology.ebitda}. Review COGS and OpEx immediately.` });
+    insights.push({ tone: "danger", icon: AlertTriangle, label: "Critical", coverage: period("netProfit"), title: `${financialTerminology.ebitda} is negative.`, body: `${signedCurrency(total.netProfit)} YTD ${financialTerminology.ebitda}. Review COGS and OpEx immediately.` });
   }
-  if (total.margin < 15 && total.revenue > 0) {
-    insights.push({ tone: "warning", icon: TrendingDown, label: "Margin", title: `${financialTerminology.ebitdaMargin} dropped below healthy threshold.`, body: `${toPercent(total.margin)} YTD ${financialTerminology.ebitdaMargin}. Review pricing, wastage and controllable expenses.` });
+  if (total.margin !== null && total.margin < 15) {
+    insights.push({ tone: "warning", icon: TrendingDown, label: "Margin", coverage: period("margin"), title: `${financialTerminology.ebitdaMargin} dropped below healthy threshold.`, body: `${toPercent(total.margin)} YTD ${financialTerminology.ebitdaMargin}. Review pricing, wastage and controllable expenses.` });
   }
-  const cogsRatio = total.revenue > 0 ? (total.cogs / total.revenue) * 100 : 0;
   if (cogsRatio > 45) {
-    insights.push({ tone: "warning", icon: BarChart3, label: "COGS", title: "COGS ratio is above 45%.", body: `${toPercent(cogsRatio)} YTD COGS ratio. Check supplier pricing and wastage.` });
-  } else if (latestCogsRatio - previousCogsRatio > 5) {
-    insights.push({ tone: "warning", icon: BarChart3, label: "COGS", title: `COGS ratio increased by ${toPercent(latestCogsRatio - previousCogsRatio)} this month.`, body: "Compare purchase invoices against sales movement for the latest active month." });
+    insights.push({ tone: "warning", icon: BarChart3, label: "COGS", coverage: period("grossProfit"), title: "COGS ratio is above 45%.", body: `${toPercent(cogsRatio)} YTD COGS ratio. Check supplier pricing and wastage.` });
+  } else if (cogsRatioChange > 5) {
+    insights.push({ tone: "warning", icon: BarChart3, label: "COGS", title: `COGS ratio increased by ${toPercent(cogsRatioChange)} in ${latest.label}.`, body: "Compare purchase invoices against sales movement for the latest active month." });
   }
-  if (previousTotal?.revenue && total.revenue > previousTotal.revenue && total.netProfit < previousTotal.netProfit) {
-    insights.push({ tone: "warning", icon: CircleDollarSign, label: financialTerminology.ebitda, title: `Revenue increased but ${financialTerminology.ebitda} dropped.`, body: "Sales improved YoY, but profit conversion weakened. Review cost movement." });
+  if (coverage.revenue.length === coverage.netProfit.length && previousTotal.revenue !== null
+    && previousTotal.netProfit !== null && total.revenue > previousTotal.revenue && total.netProfit < previousTotal.netProfit) {
+    insights.push({ tone: "warning", icon: CircleDollarSign, label: financialTerminology.ebitda, coverage: period("netProfit"), title: `Revenue increased but ${financialTerminology.ebitda} dropped.`, body: "Sales improved YoY, but profit conversion weakened. Review cost movement." });
   }
   if (missingOpexCount) {
     insights.push({ tone: "info", icon: Info, label: "OpEx", title: `Operating expense data missing for ${missingOpexCount} months.`, body: "Enter the missing source evidence to complete the P&L." });
   }
-  const groupNetProfit = rankingRows?.length && rankingRows.every((row) => row.netProfit !== null) ? rankingRows.reduce((sum, row) => sum + row.netProfit, 0) : null;
   const topOutlet = rankingRows?.filter((row) => row.netProfit > 0).sort((a, b) => b.netProfit - a.netProfit)[0];
   if (topOutlet && groupNetProfit > 0) {
     const contribution = (topOutlet.netProfit / groupNetProfit) * 100;
     if (contribution >= 50) {
-      insights.push({ tone: "info", icon: Building2, label: "Group", title: `${topOutlet.outlet.name} contributes ${toPercent(contribution)} of group ${financialTerminology.ebitda}.`, body: "Monitor concentration risk and outlet dependency in monthly management review." });
+      insights.push({ tone: "info", icon: Building2, label: "Group", coverage: period("netProfit"), title: `${topOutlet.outlet.name} contributes ${toPercent(contribution)} of group ${financialTerminology.ebitda}.`, body: "Monitor concentration risk and outlet dependency in monthly management review." });
     }
   }
   if (!insights.length) {
-    insights.push({ tone: "success", icon: Award, label: "Healthy", title: "P&L looks stable.", body: "No major P&L risk signals detected for this selection." });
+    insights.push({ tone: "info", icon: Award, label: "Coverage", title: total.revenue === null ? "Revenue evidence is unavailable." : "No risk signals in the available evidence.", body: `Revenue: ${period("revenue")} · EBITDA: ${period("netProfit")}` });
   }
   return insights.slice(0, 5);
 }
 
-function BreakdownBar({ total }) {
-  if (total.netProfit === null) return <p className="text-sm text-text-secondary">Cost and profit mix unavailable until financial inputs are complete.</p>;
-  const absolute = Math.max(total.revenue, total.cogs + total.opex + Math.max(total.netProfit, 0), 1);
+function BreakdownBar({ total, mix, period }) {
+  if (mix.netProfit === null) return (
+    <dl className="space-y-2 text-sm">
+      {[["revenue", "Revenue"], ["cogs", "COGS"], ["opex", "OpEx"], ["grossProfit", "Gross Profit"]].map(([key, label]) => total[key] !== null && (
+        <div key={key} className="rounded-xl border border-border px-3 py-2">
+          <div className="flex justify-between gap-2"><dt>{label}</dt><dd className="font-bold">{toCurrency(total[key])}</dd></div>
+          <p className="text-xs text-text-muted">{period(key)}</p>
+        </div>
+      ))}
+      <div className="text-text-secondary">Cost and profit mix needs a month with Revenue, COGS and OpEx.</div>
+    </dl>
+  );
+  const absolute = Math.max(mix.revenue, mix.cogs + mix.opex + Math.max(mix.netProfit, 0), 1);
   const parts = [
-    { label: "Revenue", value: total.revenue, color: "bg-slate-900", ring: "#0f172a", muted: true },
-    { label: "COGS", value: total.cogs, color: "bg-emerald-500", ring: "#22c55e" },
-    { label: "OpEx", value: total.opex, color: "bg-amber-400", ring: "#f59e0b" },
-    { label: financialTerminology.ebitda, value: Math.max(total.netProfit, 0), color: "bg-blue-500", ring: "#3b82f6" },
+    { label: "Revenue", value: mix.revenue, color: "bg-slate-900", ring: "#0f172a", muted: true },
+    { label: "COGS", value: mix.cogs, color: "bg-emerald-500", ring: "#22c55e" },
+    { label: "OpEx", value: mix.opex, color: "bg-amber-400", ring: "#f59e0b" },
+    { label: financialTerminology.ebitda, value: Math.max(mix.netProfit, 0), color: "bg-blue-500", ring: "#3b82f6" },
   ];
   const cogsPct = (parts[1].value / absolute) * 100;
   const opexPct = (parts[2].value / absolute) * 100;
@@ -213,7 +232,7 @@ function BreakdownBar({ total }) {
           <div className="grid h-[7.1rem] w-[7.1rem] place-items-center rounded-full bg-surface text-center shadow-[inset_0_0_0_1px_rgba(226,232,240,0.9)]">
             <div>
               <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-text-muted">{financialTerminology.ebitdaMargin}</div>
-              <div className={`mt-1 text-2xl font-semibold tracking-tight ${total.margin < 0 ? "text-rose-600" : "text-text-primary"}`}>{toPercent(total.margin)}</div>
+              <div className={`mt-1 text-2xl font-semibold tracking-tight ${mix.margin < 0 ? "text-rose-600" : "text-text-primary"}`}>{toPercent(mix.margin)}</div>
               <div className="mt-1 text-[10px] font-semibold text-text-muted">YTD</div>
             </div>
           </div>
@@ -227,7 +246,7 @@ function BreakdownBar({ total }) {
                 <span className={`h-2 w-2 rounded-full ${part.color}`} />
                 {part.label}
               </span>
-              <span className="text-sm font-bold text-text-primary">{part.label === financialTerminology.ebitda ? signedCurrency(total.netProfit) : toCurrency(part.value)}</span>
+              <span className="text-sm font-bold text-text-primary">{part.label === financialTerminology.ebitda ? signedCurrency(mix.netProfit) : toCurrency(part.value)}</span>
             </div>
             <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
               <div
@@ -259,7 +278,7 @@ export default function OutletPnlPage({ store, ui, auth }) {
       reportingService.getYearlyScopeFinancialReport({ outletId: scope, year: year - 1 }),
       outletId === "all" ? Promise.all(accessibleOutlets.map(async (outlet) => ({
         outlet: { id: outlet.value, name: outlet.label },
-        ...projectOutletPnl(await reportingService.getYearlyScopeFinancialReport({ outletId: outlet.value, year })).total,
+        pnl: projectOutletPnl(await reportingService.getYearlyScopeFinancialReport({ outletId: outlet.value, year })),
       }))) : Promise.resolve([]),
     ]).then(([current, previous, rankingRows]) => {
       if (!cancelled) setReport({ key: reportKey, loading: false, error: "", current: projectOutletPnl(current), previous: projectOutletPnl(previous), rankingRows });
@@ -268,27 +287,28 @@ export default function OutletPnlPage({ store, ui, auth }) {
     });
     return () => { cancelled = true; };
   }, [reportKey, accessibleKey]);
-  const empty = { monthly: [], total: { revenue: null, cogs: null, opex: null, grossProfit: null, netProfit: null, margin: null } };
+  const empty = projectOutletPnl({ months: [] });
   const current = report.key === reportKey ? report.current ?? empty : empty;
   const previous = report.key === reportKey ? report.previous ?? empty : empty;
+  const previousTotal = comparableOutletPnlTotals(current, previous);
+  const period = (name) => coverageLabel(current.coverage[name], year);
   const exportAllowed = canExport(auth, "outlet_pnl");
-  const rankingRows = (report.key === reportKey ? report.rankingRows ?? [] : []).toSorted((a, b) => (b.netProfit ?? -Infinity) - (a.netProfit ?? -Infinity));
-  const totalGroupNetProfit = rankingRows.length && rankingRows.every((row) => row.netProfit !== null) ? rankingRows.reduce((sum, row) => sum + row.netProfit, 0) : null;
-  const highestRevenue = Math.max(...rankingRows.map((row) => row.revenue), 0);
-  const highestMargin = Math.max(...rankingRows.filter((row) => row.revenue > 0).map((row) => row.margin), 0);
-  const missingOpexCount = current.monthly.filter((item) => !item.future && item.opex === null).length;
-  const insights = pnlInsights({ total: current.total, previousTotal: previous.total, monthly: current.monthly, missingOpexCount, rankingRows });
+  const rankingRows = (report.key === reportKey ? report.rankingRows ?? [] : [])
+    .map(({ outlet, pnl }) => ({ outlet, ...pnl.total, coverage: pnl.coverage }))
+    .toSorted((a, b) => (b.netProfit ?? -Infinity) - (a.netProfit ?? -Infinity));
+  const comparableOutlets = (name) => current.coverage[name].length > 0 && rankingRows.length > 0
+    && rankingRows.every((row) => row.coverage[name].join(",") === current.coverage[name].join(","));
+  const totalGroupNetProfit = comparableOutlets("netProfit") ? current.total.netProfit : null;
+  const highestRevenue = comparableOutlets("revenue") ? Math.max(...rankingRows.map((row) => row.revenue), 0) : null;
+  const highestMargin = comparableOutlets("margin") ? Math.max(...rankingRows.map((row) => row.margin), 0) : null;
+  const visibleMonthly = current.monthly.filter((item) => !item.future);
+  const missingOpexCount = visibleMonthly.filter((item) => item.opex === null).length;
+  const insights = pnlInsights({ total: current.total, previousTotal, monthly: visibleMonthly, coverage: current.coverage, cogsRatio: current.cogsRatio,
+    missingOpexCount, rankingRows, groupNetProfit: totalGroupNetProfit, period });
   const marginHealth = marginStatus(current.total.margin);
-  const today = new Date();
-  const currentCalendarYear = today.getFullYear();
-  const currentCalendarMonth = today.getMonth() + 1;
-  const visibleMonthLimit = Number(year) < currentCalendarYear ? 12 : Number(year) === currentCalendarYear ? currentCalendarMonth : 0;
-  const visibleMonthly = current.monthly.filter((item) => item.month <= visibleMonthLimit);
-  const revenueTrendComplete = visibleMonthly.length > 0 && visibleMonthly.every((item) => item.revenue !== null);
-  const profitTrendComplete = visibleMonthly.length > 0 && visibleMonthly.every((item) => item.netProfit !== null);
   const previousVisible = previous.monthly.slice(0, visibleMonthly.length);
-  const previousRevenueComplete = previousVisible.length > 0 && previousVisible.every((item) => item.revenue !== null);
-  const previousProfitComplete = previousVisible.length > 0 && previousVisible.every((item) => item.netProfit !== null);
+  const previousRevenueAvailable = previousVisible.some((item) => item.revenue !== null);
+  const previousProfitAvailable = previousVisible.some((item) => item.netProfit !== null);
 
   function queueExport(format) {
     if (!exportAllowed) {
@@ -299,6 +319,10 @@ export default function OutletPnlPage({ store, ui, auth }) {
     ui.notify({ title: `${format} export queued`, message: "Outlet P&L export will use the current filter selection." });
   }
 
+  const rankingValue = (row, name, format = toCurrency) => (
+    <div>{format(row[name])}{row[name] !== null && row.coverage[name].length !== current.elapsedMonths &&
+      <div className="text-[10px] text-text-muted" title={coverageLabel(row.coverage[name], year)}>{row.coverage[name].length} mo.</div>}</div>
+  );
   const rankingColumns = [
     {
       key: "outlet",
@@ -317,18 +341,18 @@ export default function OutletPnlPage({ store, ui, auth }) {
         </div>
       ),
     },
-    { key: "revenue", header: "Revenue", align: "right", render: (row) => toCurrency(row.revenue) },
-    { key: "cogs", header: "COGS", align: "right", render: (row) => toCurrency(row.cogs) },
-    { key: "opex", header: "OpEx", align: "right", render: (row) => toCurrency(row.opex) },
-    { key: "netProfit", header: financialTerminology.ebitda, align: "right", render: (row) => <span className={row.netProfit < 0 ? "font-bold text-rose-600" : "font-bold text-text-primary"}>{toCurrency(row.netProfit)}</span> },
-    { key: "margin", header: `${financialTerminology.ebitdaMargin} %`, align: "right", render: (row) => toPercent(row.margin) },
+    { key: "revenue", header: "Revenue", align: "right", render: (row) => rankingValue(row, "revenue") },
+    { key: "cogs", header: "COGS", align: "right", render: (row) => rankingValue(row, "cogs") },
+    { key: "opex", header: "OpEx", align: "right", render: (row) => rankingValue(row, "opex") },
+    { key: "netProfit", header: financialTerminology.ebitda, align: "right", render: (row) => <div className={row.netProfit < 0 ? "font-bold text-rose-600" : "font-bold text-text-primary"}>{rankingValue(row, "netProfit")}</div> },
+    { key: "margin", header: `${financialTerminology.ebitdaMargin} %`, align: "right", render: (row) => rankingValue(row, "margin", toPercent) },
     {
       key: "contribution",
       header: "Contribution %",
       align: "right",
       render: (row) => {
-        if (row.netProfit === null || totalGroupNetProfit === null) return "—";
-        const contribution = totalGroupNetProfit !== 0 ? (row.netProfit / totalGroupNetProfit) * 100 : 0;
+        if (row.netProfit === null || !totalGroupNetProfit) return "—";
+        const contribution = (row.netProfit / totalGroupNetProfit) * 100;
         return (
           <div className="ml-auto w-32">
             <div className="text-xs font-bold text-text-primary">{toPercent(contribution)}</div>
@@ -394,18 +418,18 @@ export default function OutletPnlPage({ store, ui, auth }) {
         />
       </FilterBar>
 
-      {report.loading || report.key !== reportKey ? <p role="status" className="card p-4">Loading canonical Reporting evidence…</p> : report.error ? <p role="alert" className="card p-4 text-rose-700">{report.error} Financial results are unavailable.</p> : current.completeness !== "complete" ? <p role="status" className="card p-4 text-amber-800">Incomplete financial evidence. Missing inputs and dependent totals display —, never RM0.</p> : null}
+      {report.loading || report.key !== reportKey ? <p role="status" className="card p-4">Loading canonical Reporting evidence…</p> : report.error ? <p role="alert" className="card p-4 text-rose-700">{report.error} Financial results are unavailable.</p> : current.completeness !== "complete" && current.elapsedMonths > 0 ? <p role="status" className="card p-4 text-amber-800"><strong>Partial YTD.</strong> Totals use the recorded months shown for each metric. Trend gaps indicate missing inputs.</p> : null}
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <PnlKpiCard label="Total Revenue" value={toCurrency(current.total.revenue)} helper={yoy(current.total.revenue, previous.total.revenue)} icon={TrendingUp} insight="Saved net sales across selected outlets." />
-        <PnlKpiCard label="Gross Profit" value={toCurrency(current.total.grossProfit)} helper={yoy(current.total.grossProfit, previous.total.grossProfit)} icon={BarChart3} insight="Revenue after COGS before OpEx." />
-        <PnlKpiCard primary label={financialTerminology.ebitda} value={signedCurrency(current.total.netProfit)} helper={yoy(current.total.netProfit, previous.total.netProfit)} tone={current.total.netProfit < 0 ? "danger" : "success"} icon={current.total.netProfit < 0 ? TrendingDown : TrendingUp} insight={financialTerminology.ebitdaExplanation} />
+        <PnlKpiCard label="Total Revenue" value={toCurrency(current.total.revenue)} helper={yoy(current.total.revenue, previousTotal.revenue)} coverage={period("revenue")} icon={TrendingUp} insight="Saved net sales across selected outlets." />
+        <PnlKpiCard label="Gross Profit" value={toCurrency(current.total.grossProfit)} helper={yoy(current.total.grossProfit, previousTotal.grossProfit)} coverage={period("grossProfit")} icon={BarChart3} insight="Revenue after COGS before OpEx." />
+        <PnlKpiCard primary label={financialTerminology.ebitda} value={signedCurrency(current.total.netProfit)} helper={yoy(current.total.netProfit, previousTotal.netProfit)} coverage={period("netProfit")} tone={current.total.netProfit === null ? "neutral" : current.total.netProfit < 0 ? "danger" : "success"} icon={current.total.netProfit < 0 ? TrendingDown : TrendingUp} insight={financialTerminology.ebitdaExplanation} />
         <PnlKpiCard
           primary
           label={financialTerminology.ebitdaMargin}
           value={toPercent(current.total.margin)}
-          helper={yoy(current.total.margin, previous.total.margin)}
-          tone={current.total.margin < 5 ? "danger" : current.total.margin < 15 ? "warning" : "success"}
+          helper={yoy(current.total.margin, previousTotal.margin)} coverage={period("margin")}
+          tone={current.total.margin === null ? "neutral" : current.total.margin < 5 ? "danger" : current.total.margin < 15 ? "warning" : "success"}
           icon={CircleDollarSign}
           badge={<span className={`rounded-full border px-2 py-1 text-[11px] font-bold ${marginHealth.className}`}>{marginHealth.label}</span>}
           insight={financialTerminology.ebitdaExplanation}
@@ -415,13 +439,14 @@ export default function OutletPnlPage({ store, ui, auth }) {
       <div className="grid gap-4 xl:grid-cols-2">
         <Card title="Revenue Trend" description="Monthly net sales compared with previous year.">
           <div className="p-4">
-            {revenueTrendComplete ? <TrendChart
+            {current.coverage.revenue.length || previousRevenueAvailable ? <TrendChart
               labels={visibleMonthly.map((month) => month.label)}
               type="area"
+              preserveGaps
               tension={0.38}
               series={[
                 { name: `${year} Revenue`, data: visibleMonthly.map((item) => item.revenue), stroke: "#16a34a", fill: "#22c55e", area: true, areaOpacity: 0.14, format: toCurrency },
-                ...(previousRevenueComplete ? [{ name: `${year - 1} Revenue`, data: previousVisible.map((item) => item.revenue), stroke: "#94a3b8", fill: "#94a3b8", strokeWidth: 2, format: toCurrency }] : []),
+                ...(previousRevenueAvailable ? [{ name: `${year - 1} Revenue`, data: previousVisible.map((item) => item.revenue), stroke: "#94a3b8", fill: "#94a3b8", strokeWidth: 2, format: toCurrency }] : []),
               ]}
               highlightIndex={new Date().getMonth()}
               renderTooltip={({ label, index }) => (
@@ -438,13 +463,14 @@ export default function OutletPnlPage({ store, ui, auth }) {
         </Card>
         <Card title={financialTerminology.ebitdaTrend} description={financialTerminology.ebitdaExplanation}>
           <div className="p-4">
-            {profitTrendComplete ? <TrendChart
+            {current.coverage.netProfit.length || previousProfitAvailable ? <TrendChart
               labels={visibleMonthly.map((month) => month.label)}
               type="area"
+              preserveGaps
               tension={0.38}
               series={[
                 { name: `${year} ${financialTerminology.ebitda}`, data: visibleMonthly.map((item) => item.netProfit), stroke: current.total.netProfit < 0 ? "#e11d48" : "#2563eb", fill: current.total.netProfit < 0 ? "#e11d48" : "#2563eb", area: true, areaOpacity: 0.12, format: toCurrency },
-                ...(previousProfitComplete ? [{ name: `${year - 1} ${financialTerminology.ebitda}`, data: previousVisible.map((item) => item.netProfit), stroke: "#94a3b8", fill: "#94a3b8", strokeWidth: 2, format: toCurrency }] : []),
+                ...(previousProfitAvailable ? [{ name: `${year - 1} ${financialTerminology.ebitda}`, data: previousVisible.map((item) => item.netProfit), stroke: "#94a3b8", fill: "#94a3b8", strokeWidth: 2, format: toCurrency }] : []),
               ]}
               highlightIndex={new Date().getMonth()}
               renderTooltip={({ label, index }) => (
@@ -457,7 +483,7 @@ export default function OutletPnlPage({ store, ui, auth }) {
                   valueClassName={current.monthly[index]?.netProfit < 0 ? "text-rose-600" : "text-text-primary"}
                 />
               )}
-            /> : <p className="text-sm text-text-secondary">EBITDA trend unavailable until Revenue, COGS and OpEx evidence is complete.</p>}
+            /> : <p className="text-sm text-text-secondary">No months with EBITDA evidence in this comparison.</p>}
           </div>
         </Card>
       </div>
@@ -497,7 +523,7 @@ export default function OutletPnlPage({ store, ui, auth }) {
             ))}
             {!visibleMonthly.length ? (
               <div className="col-span-full rounded-2xl border border-border bg-slate-50 p-6 text-sm font-semibold text-text-secondary">
-                {visibleMonthLimit === 0 ? "No months are available for this future year yet." : "Monthly Reporting evidence is not available."}
+                {current.monthly.length > 0 && !current.elapsedMonths ? "No months are available for this future year yet." : "Monthly Reporting evidence is not available."}
               </div>
             ) : null}
           </div>
@@ -506,7 +532,8 @@ export default function OutletPnlPage({ store, ui, auth }) {
         <div className="space-y-4">
           <Card title="P&L Summary YTD" description="Management cost and profit mix.">
             <div className="p-4">
-              <BreakdownBar total={current.total} />
+              {current.coverage.netProfit.length > 0 && <p className="mb-3 text-xs text-text-muted">Matched cost and profit mix · {period("netProfit")}</p>}
+              <BreakdownBar total={current.total} mix={current.mix} period={period} />
             </div>
           </Card>
           <Card title="Profitability Insights">
@@ -521,6 +548,7 @@ export default function OutletPnlPage({ store, ui, auth }) {
                       <FinanceBadge tone={insight.tone}>{insight.label}</FinanceBadge>
                       <div className="mt-1.5 text-sm font-bold text-text-primary">{insight.title}</div>
                       <p className="mt-1 text-xs leading-5 text-text-secondary">{insight.body}</p>
+                      {insight.coverage && <p className="mt-1 text-xs text-text-muted">{insight.coverage}</p>}
                     </div>
                   </div>
                 </div>
