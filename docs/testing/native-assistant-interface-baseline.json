@@ -994,6 +994,7 @@
     "supabase/migrations/20261121032618_restaurant_simplify_stock_uom_change.sql": "b035a5049f658a881f871759be1bd55ae817e0a8689a5cd565adb41e03bd31a9",
     "supabase/migrations/20261121072223_restaurant_uom_ignore_expired_scheduled_checks.sql": "a570ff17ab3fd14093126a0cc8b6947d5f4811c0ff4a00bbd0cfb16568c27174",
     "supabase/migrations/20261121181912_assistant_voice_usage_attribution.sql": "8e8ed5c66c9715930c504904c2b76788d5a9a516f3ca8f70a88864a0b8780866",
-    "supabase/migrations/20261122141501_restaurant_partial_closing_publication.sql": "4272156312f2530e12bc1ef319225366ddba8db90e2f7e0d7115294a395c70a1"
+    "supabase/migrations/20261122141501_restaurant_partial_closing_publication.sql": "4272156312f2530e12bc1ef319225366ddba8db90e2f7e0d7115294a395c70a1",
+    "supabase/migrations/20261122153408_restaurant_closing_submit_publication.sql": "d71d0d32f3c7a9b38affdbc7272147dbb2c603bc86439c267a20527fc1a7bfe5"
   }
 }

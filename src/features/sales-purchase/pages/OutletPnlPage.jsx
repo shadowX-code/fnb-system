@@ -487,7 +487,9 @@ export default function OutletPnlPage({ store, ui, auth }) {
                     </div>
                     {item.closingStockEvidence?.totalItemCount != null && <p>
                       {item.closingStockEvidence.valuedItemCount} of {item.closingStockEvidence.totalItemCount} items valued
-                      {item.closingStockEvidence.actualCountDate && ` · Counted ${formatPhysicalCountDate(item.closingStockEvidence.actualCountDate)} (MYT)`}
+                      {item.closingStockEvidence.actualCountDate
+                        ? ` · Counted ${formatPhysicalCountDate(item.closingStockEvidence.actualCountDate)} (MYT)`
+                        : outletId !== "all" && " · Actual count date not recorded"}
                     </p>}
                   </div>
                 </div>

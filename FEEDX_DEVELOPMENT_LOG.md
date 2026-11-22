@@ -1,5 +1,9 @@
 # FeedX Development Log
 
+## 2026-11-22 — Restaurant Closing Stock submission
+
+Authorized Month-End Closing submission now publishes the pinned valuation and coverage in the same transaction. Edit Closing appends a correction and a linked publication revision. Historical evidence remains unpublished until an authorized user explicitly publishes it. See [Inventory and Assets](docs/domains/inventory-and-assets.md).
+
 ## 2026-11-22 — Native Assistant operational analysis
 
 The shared Assistant dispatcher can coordinate independently authorized reads in a single turn. Domain contracts supply business terminology, source coverage and comparable observations. Finance Analysis and the Assistant reuse the same monthly Reporting interpretation. See [Native Assistant business query reliability](docs/architecture/trusted-authorities.md#native-assistant-business-query-reliability-staging).

@@ -4,6 +4,7 @@ import { getAccessibleOutlets, hasPermission } from '../../../../utils/accessCon
 import { loadStockCheckResult } from './inventoryStockCheckResultService.js';
 import InventoryStockCheckResultModal from './InventoryStockCheckResultModal.jsx';
 import AuditCorrectionDraft from './AuditCorrectionDraft.jsx';
+import { MONTH_END_CLOSING } from './monthEndClosing.js';
 import AuditCorrectionHistory from './AuditCorrectionHistory.jsx';
 import { inventoryLifecycleService } from '../../../../services/inventoryLifecycleService.js';
 import { invalidateInventoryReads } from '../../../../services/inventoryRevalidation.js';
@@ -20,8 +21,9 @@ export default function InventoryStockCheckResultSurface({ checkId, auth, outlet
   const scope = getAccessibleOutlets(auth, outlets).map(outlet => outlet.id).sort().join('|');
   const canView = hasPermission(auth, 'inventory_stock_check.view');
   const canStartClosing = canView && hasPermission(auth, 'inventory_stock_check.create');
+  const canPublishClosing = canView && hasPermission(auth, 'inventory_stock_check.approve');
   const canCorrect = canStartClosing && hasPermission(auth, 'inventory_stock_check.edit');
-  const key = `${auth?.user?.id}:${scope}:${canView}:${canCorrect}:${checkId}`;
+  const key = `${auth?.user?.id}:${scope}:${canView}:${canCorrect}:${canPublishClosing}:${checkId}`;
   const activeKey = useRef(key);
   activeKey.current = key;
   const generation = useRef(0);
@@ -45,6 +47,8 @@ export default function InventoryStockCheckResultSurface({ checkId, auth, outlet
   useEffect(() => { activeKey.current = key; reload(); setPreview(null); return () => { generation.current += 1; activeKey.current = null; }; }, [reload, key]);
   const close = () => { generation.current += 1; activeKey.current = null; onClose(); };
   const data = read.key === key ? read.data : null;
+  const isClosing = data?.check.auditType === MONTH_END_CLOSING;
+  const canEdit = canCorrect && (!isClosing || (canPublishClosing && (!data.closing?.published || data.closing.same_evidence_chain)));
   function openAudit(id) {
     navigateAdminRoute('inventory-stock-check-result', { checkId: id }, resolveAdminLocation(window.location)?.query || {});
   }
@@ -57,7 +61,7 @@ export default function InventoryStockCheckResultSurface({ checkId, auth, outlet
   }
 
   async function createCorrection() {
-    if (!canCorrect || (createState.key === key && createState.busy)) return;
+    if (!canEdit || (createState.key === key && createState.busy)) return;
     if (pending.current?.key !== key) pending.current = { key, requestId: crypto.randomUUID() };
     setCreateState({ key, busy: true, error: '' });
     try {
@@ -74,10 +78,10 @@ export default function InventoryStockCheckResultSurface({ checkId, auth, outlet
   const onRestock = data?.check.stockCheckType === 'scheduled' && (hasPermission(auth, 'inventory_orders.create') || hasPermission(auth, 'inventory_stock_check.review')) ? () => navigateAdminRoute('inventory-stock-check-restock', { checkId }, resolveAdminLocation(window.location)?.query || {}) : undefined;
   if (!data) return <Modal title="Stock Check Result" onClose={close}><p role={read.key === key && read.error ? 'alert' : 'status'}>{read.key === key && read.error ? `${read.state === 'incomplete' ? 'Result incomplete. ' : ''}${read.error}` : 'Loading submitted evidence…'}</p>{read.key === key && read.error ? <button className="btn-secondary mt-3" onClick={reload}>Retry</button> : null}</Modal>;
   if (data.check.status === 'draft') return <AuditCorrectionDraft key={key} check={data.check} source={data.source}
-    itemById={data.itemById} onClose={close} onOpenSource={() => openAudit(data.source.id)} onSubmitted={reload} />;
+    itemById={data.itemById} canPublishClosing={canPublishClosing} onClose={close} onOpenSource={() => openAudit(data.source.id)} onSubmitted={reload} />;
   const history = data.history && <AuditCorrectionHistory check={data.check} history={data.history}
-    published={data.closing?.published} canCorrect={canCorrect}
+    published={data.closing?.published} canCorrect={canEdit}
     onOpen={openAudit} onCreate={createCorrection}
     busy={createState.key === key && createState.busy} error={createState.key === key ? createState.error : ''} />;
-  return <><InventoryStockCheckResultModal key={key} onRestock={onRestock} stockCheck={data.check} correctionHistory={history} correctionSource={data.source} closing={data.closing} canApproveClosing={hasPermission(auth, 'inventory_stock_check.approve')} onStartClosing={canStartClosing ? startNewClosing : undefined} isAuditResult={data.check.stockCheckType === 'audit'} outletName={outlets.find(outlet => outlet.id === data.check.outletId)?.name || 'Outlet'} createdByName={data.actors.createdByName} submittedByName={data.actors.submittedByName} itemById={data.itemById} categoryById={data.categoryById} formatDate={formatDate} formatDateTimeCompact={formatDateTimeCompact} formatCurrency={formatRestaurantRecipeCurrency} ItemThumbnail={InventoryItemThumbnail} onPhotoPreview={setPreview} onClose={close} /><InventoryItemPhotoPreview preview={preview} onClose={() => setPreview(null)} /></>;
+  return <><InventoryStockCheckResultModal key={key} onRestock={onRestock} stockCheck={data.check} correctionHistory={history} correctionSource={data.source} closing={data.closing} canPublishClosing={canPublishClosing} onClosingPublished={reload} onStartClosing={canStartClosing ? startNewClosing : undefined} isAuditResult={data.check.stockCheckType === 'audit'} outletName={outlets.find(outlet => outlet.id === data.check.outletId)?.name || 'Outlet'} createdByName={data.actors.createdByName} submittedByName={data.actors.submittedByName} itemById={data.itemById} categoryById={data.categoryById} formatDate={formatDate} formatDateTimeCompact={formatDateTimeCompact} formatCurrency={formatRestaurantRecipeCurrency} ItemThumbnail={InventoryItemThumbnail} onPhotoPreview={setPreview} onClose={close} /><InventoryItemPhotoPreview preview={preview} onClose={() => setPreview(null)} /></>;
 }

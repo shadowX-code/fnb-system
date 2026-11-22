@@ -137,6 +137,8 @@ Object.assign(resources.inventory, {
   closingCardTitle: "{{month}}结账",
   auditView: "查看",
   auditMoreActions: "更多操作：{{title}}",
+  saveClosingForAdmin: "保存供管理员提交",
+  closingDraftReady: "结账草稿已保存，等待授权管理员提交并发布。",
   closingDetailsRequired: "请选择有效的结账月份。",
   countStartedAt: "盘点开始时间（马来西亚时间）",
   countSubmittedAt: "盘点提交时间（马来西亚时间）",

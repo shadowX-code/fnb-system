@@ -194,7 +194,7 @@ export default function CrewStockCheckMobile({ token, outletId, grants, initialT
     setSkipItem(null);
   }
 
-  async function save(status) {
+  async function save(status, handoff = false) {
     if (busy || !check) return;
     if (isClosing && !closingMonth) { setError(t("inventory.closingDetailsRequired")); return; }
     if (status === "submitted" && !canComplete) { setError(t(isClosing ? "inventory.closingCountsRequired" : "inventory.completeCountsFirst")); setReview(false); return; }
@@ -220,7 +220,7 @@ export default function CrewStockCheckMobile({ token, outletId, grants, initialT
       }
       else {
         setExitOpen(false); setCheck(null); setRows([]); setReview(false); setPurchase(null);
-        setNotice(t("inventory.draftSaved")); await load();
+        setNotice(t(handoff ? "inventory.closingDraftReady" : "inventory.draftSaved")); await load();
       }
     } catch (cause) { setError(formatClosingError(cause.message, t("inventory.closingDetailsRequired")) || t("inventory.saveError")); }
     finally { setBusy(false); }
@@ -296,7 +296,7 @@ export default function CrewStockCheckMobile({ token, outletId, grants, initialT
         body={!skippedOnly || query || category !== "all" ? t("inventory.trySearch") : undefined} />}
     </>}
     {error && <p className="crew-v2-error" role="alert">{error}</p>}
-    {["draft", "in_progress"].includes(check.status) && <div className="crew-inventory-sticky"><button className="crew-mobile-secondary" type="button" disabled={busy} onClick={() => void save("draft")}>{busy ? t("common.saving") : t("inventory.saveDraft")}</button><button className="crew-mobile-primary" type="button" disabled={busy || !canComplete} onClick={() => review ? void save("submitted") : setReview(true)}>{review ? t("inventory.completeCheck") : `${t("inventory.review")} (${counted}/${rows.length})`}</button></div>}
+    {["draft", "in_progress"].includes(check.status) && <div className="crew-inventory-sticky"><button className="crew-mobile-secondary" type="button" disabled={busy} onClick={() => void save("draft")}>{busy ? t("common.saving") : t("inventory.saveDraft")}</button><button className="crew-mobile-primary" type="button" disabled={busy || !canComplete} onClick={() => review ? void save(isClosing ? "draft" : "submitted", isClosing) : setReview(true)}>{review ? t(isClosing ? "inventory.saveClosingForAdmin" : "inventory.completeCheck") : `${t("inventory.review")} (${counted}/${rows.length})`}</button></div>}
     {skipItem && <CrewBottomSheet title={t("inventory.skipItem")} description={skipItem.name} onClose={() => setSkipItem(null)}
       footer={<button className="crew-mobile-primary" type="button" disabled={!itemSkipReason} onClick={confirmItemSkip}>{t("inventory.skipItem")}</button>}>
       <div className="crew-inventory-form">

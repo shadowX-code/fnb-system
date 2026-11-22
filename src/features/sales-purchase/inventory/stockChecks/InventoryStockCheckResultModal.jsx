@@ -7,7 +7,7 @@ import { AdminEvidenceDisclosure } from "../../../../components/layout/AdminAnal
 import AdminSummaryGrid from "../../../../components/ui/AdminSummaryGrid.jsx";
 import { FactoryDataSurface, FactoryTable } from "../../../factory/components/FactoryDataDisplay.jsx";
 import FactoryStatusBadge from "../../../factory/components/FactoryStatusBadge.jsx";
-import ClosingStockApproval from "./ClosingStockApproval.jsx";
+import ClosingStockResult from "./ClosingStockResult.jsx";
 import AuditCountTimestamps from "./AuditCountTimestamps.jsx";
 import { auditItemChanged, formatQuantity, sourceCountLabel, stockCheckCountState } from "./inventoryStockCheckReadModel.js";
 import { auditStockCheckValuation, hasUsableAuditCount } from "./auditStockCheckValuation.js";
@@ -39,7 +39,7 @@ function resultStatus(row, isAuditResult, countState) {
 export default function InventoryStockCheckResultModal({
   stockCheck, isAuditResult, outletName, createdByName, submittedByName, itemById, categoryById,
   formatDate, formatDateTimeCompact, formatCurrency, ItemThumbnail, onPhotoPreview, onClose, onRestock,
-  closing, canApproveClosing, onStartClosing, correctionHistory, correctionSource,
+  closing, canPublishClosing, onStartClosing, onClosingPublished, correctionHistory, correctionSource,
 }) {
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -135,8 +135,8 @@ export default function InventoryStockCheckResultModal({
           <div><span className="text-text-secondary">Checked by</span><div className="font-semibold text-text-primary">{submittedByName}</div></div>
           <div><span className="text-text-secondary">Submitted at</span><div className="font-semibold text-text-primary">{formatDateTimeCompact(stockCheck.submittedAt)}</div></div>
         </div>}
-      {isClosing && <ClosingStockApproval check={stockCheck} context={closing}
-        canApprove={canApproveClosing} formatCurrency={formatCurrency} onShowUnvalued={showUnvaluedItems} onStartClosing={onStartClosing} />}
+      {isClosing && <ClosingStockResult check={stockCheck} context={closing}
+        canPublish={canPublishClosing} formatCurrency={formatCurrency} onShowUnvalued={showUnvaluedItems} onStartClosing={onStartClosing} onPublished={onClosingPublished} />}
       <AdminSummaryGrid variant="compact" ariaLabel="Audit item counts" items={countItems} />
       {isAuditResult ? <>
         <AdminSummaryGrid variant="compact" ariaLabel={valuation.stockIncomplete || valuation.varianceIncomplete ? "Partial audit valuation" : "Full Audit valuation"} items={valueItems} />

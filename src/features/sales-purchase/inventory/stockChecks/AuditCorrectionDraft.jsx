@@ -6,8 +6,10 @@ import { inventoryLifecycleService } from "../../../../services/inventoryLifecyc
 import { invalidateInventoryReads } from "../../../../services/inventoryRevalidation.js";
 import { auditItemChanged, sourceCountLabel } from "./inventoryStockCheckReadModel.js";
 
-export default function AuditCorrectionDraft({ check, source, itemById, onClose, onOpenSource, onSubmitted }) {
+export default function AuditCorrectionDraft({ check, source, itemById, canPublishClosing, onClose, onOpenSource, onSubmitted }) {
   const [rows, setRows] = useState(check.rows);
+  const [notes, setNotes] = useState(check.notes || "");
+  const isClosing = Boolean(check.accountingMonth);
   const [reason, setReason] = useState(check.correctionReason || "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -20,6 +22,9 @@ export default function AuditCorrectionDraft({ check, source, itemById, onClose,
   const visibleRows = onlyChanged ? rows.filter(row => changed.has(row.itemId)) : rows;
   const missing = rows.some(row => row.actualCount === "" && (check.accountingMonth || sourceByItem.get(row.itemId)?.actualCount !== ""));
 
+  const hasChanges = changed.size > 0 || (isClosing && notes !== (source.notes || ""));
+  const canSubmit = hasChanges && !missing && Boolean(reason.trim()) && (!isClosing || canPublishClosing);
+
   function update(itemId, patch) {
     setNotice("");
     setRows(current => current.map(row => row.itemId === itemId ? { ...row, ...patch } : row));
@@ -28,9 +33,10 @@ export default function AuditCorrectionDraft({ check, source, itemById, onClose,
   async function save(event, status) {
     event.preventDefault();
     if (busy || (status === "draft" && !event.currentTarget.form?.reportValidity())) return;
-    if (status === "submitted" && (!reason.trim() || !changed.size || missing)) return;
+    if (status === "submitted" && !canSubmit) return;
     const payload = {
-      check: { id: check.id, outlet_id: check.outletId, stock_check_type: "audit", status, correction_reason: reason.trim() || null },
+      check: { id: check.id, outlet_id: check.outletId, stock_check_type: "audit", status, correction_reason: reason.trim() || null,
+        ...(isClosing ? { notes, ...(status === "submitted" ? { publish_closing: true } : {}) } : {}) },
       items: rows.map(row => ({ item_id: row.itemId, actual_count_quantity: row.actualCount === "" ? null : Number(row.actualCount), notes: row.notes })),
     };
     const signature = JSON.stringify(payload);
@@ -74,12 +80,12 @@ export default function AuditCorrectionDraft({ check, source, itemById, onClose,
     } },
   ];
 
-  return <Modal title="Audit Correction Draft" description={check.auditName} size="2xl"
+  return <Modal title={isClosing ? "Edit Closing" : "Audit Correction Draft"} description={check.auditName} size="2xl"
     onClose={busy ? undefined : onClose} footer={<>
       <button type="button" className="btn-secondary" disabled={busy} onClick={onClose}>Close</button>
       <button type="button" className="btn-secondary" form={formId} disabled={busy} onClick={event => save(event, "draft")}>Save Draft</button>
-      <button type="submit" form={formId} className="btn-primary" disabled={busy || !reason.trim() || !changed.size || missing}>
-        {busy ? "Saving…" : "Submit Correction"}
+      <button type="submit" form={formId} className="btn-primary" disabled={busy || !canSubmit}>
+        {busy ? "Saving…" : isClosing ? "Update Closing" : "Submit Correction"}
       </button>
     </>}>
     <form id={formId} onSubmit={event => save(event, "submitted")} className="space-y-4">
@@ -87,7 +93,7 @@ export default function AuditCorrectionDraft({ check, source, itemById, onClose,
         <div>
           <p className="type-body-sm text-text-secondary">Source audit · {source.auditName}</p>
           {check.accountingMonth && <p className="type-caption text-text-secondary">Closing Month · {check.accountingMonth.slice(0, 7)}</p>}
-          {check.notes && <p className="type-caption break-words text-text-secondary">Audit notes · {check.notes}</p>}
+          {!isClosing && check.notes && <p className="type-caption break-words text-text-secondary">Audit notes · {check.notes}</p>}
         </div>
         <button type="button" className="btn-secondary" disabled={busy} onClick={onOpenSource}>View Source Audit</button>
       </div>
@@ -95,7 +101,12 @@ export default function AuditCorrectionDraft({ check, source, itemById, onClose,
         <textarea className="control min-h-20 w-full py-2" value={reason} maxLength={2000} disabled={busy}
           onChange={event => { setReason(event.target.value); setNotice(""); }} />
       </label>
-      {check.accountingMonth && <p className="type-caption text-text-secondary">Closing Approval publishes the corrected valuation after submission.</p>}
+      {isClosing && <>
+        <label className="grid gap-1 type-body-sm font-semibold">Closing Notes
+          <textarea className="control min-h-16 w-full py-2" value={notes} disabled={busy} onChange={event => setNotes(event.target.value)} />
+        </label>
+        <p className="type-caption text-text-secondary">Update Closing publishes the new revision to the same outlet and month. The source count date, units and pinned costs are retained.</p>
+      </>}
       {error && <p className="type-body-sm text-rose-700" role="alert">{error}</p>}
       {notice && <p className="type-body-sm text-text-secondary" role="status">{notice}</p>}
       <div className="flex flex-wrap items-center justify-between gap-2">
