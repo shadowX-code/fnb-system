@@ -1,6 +1,6 @@
 import {AssistantError} from '../assistantError.js';
-import {outletDirectory,resolveOutlet} from '../assistant/entityResolution.js';
-import {page,permittedOutlet,readContract,rowsEvidence,uuid} from '../assistant/readContract.js';
+import {exactName,outletDirectory,resolveOutlet} from '../assistant/entityResolution.js';
+import {countedRows,page,permittedOutlet,readContract,rowsEvidence,uuid} from '../assistant/readContract.js';
 
 const fields=['id','item_name','sku_code','category_id','unit','inventory_type','status','updated_at'];
 const resource=/\b(?:master inventory|restaurant inventory|inventory master|inventory items?|ingredient catalogue|inventori restoran|inventori induk|stok restoran)\b|餐[厅廳][^，。！？]{0,22}(?:库存|庫存|存货|存貨|inventory)|(?:库存|庫存|存货|存貨)(?:主档|主檔|目录|目錄|品项|品項)/iu;
@@ -19,9 +19,9 @@ async function loadInventory(caller,args,signal){
  if(selected.some(outlet=>!outlet))throw new AssistantError('entity_unresolved',409);
  const outlets=named?[named]:selected.length?[...new Map(selected.map(outlet=>[outlet.id,outlet])).values()]:directory;
  if(outlets&&!outlets.length)throw new AssistantError('entity_scope_required',409);
- const select=(scope,head=false)=>{
+ const select=(scope,head=false,count=head)=>{
   const link=scope? ',inventory_item_outlets!inner(outlet_id)':'';
-  let query=caller.from('inventory_items').select((head?'id':fields.join(','))+link,head?{count:'exact',head:true}:undefined);
+  let query=caller.from('inventory_items').select((head?'id':fields.join(','))+link,count?{count:'exact',head}:undefined);
   if(scope)query=query.in('inventory_item_outlets.outlet_id',scope.map(outlet=>outlet.id));
   if(args.status!=='all')query=query.eq('status',args.status);
   return query;
@@ -41,13 +41,22 @@ async function loadInventory(caller,args,signal){
  }
  const outlet=named?{outlet:named}:{};
  if(args.mode==='summary')return {...outlet,total_matching:await exactCount(outlets),aggregate_complete:true,rows:[]};
- const {data,error}=await select(outlets).order('id').range((args.page-1)*20,args.page*20).abortSignal(signal);
- if(error)throw new AssistantError(error.code==='42501'?'business_read_denied':'business_read_unavailable',error.code==='42501'?403:503);
- return {...outlet,...rowsEvidence(data,fields)};
+ if(args.mode==='detail'){
+  const lookup=async field=>{
+   const {data,error}=await exactName(select(outlets),field,args.query.trim()).limit(2).abortSignal(signal);
+   if(error||!Array.isArray(data))throw new AssistantError(error?.code==='42501'?'business_read_denied':'business_read_unavailable',error?.code==='42501'?403:503);
+   return data;
+  };
+  let rows=await lookup('sku_code');
+  if(!rows.length)rows=await lookup('item_name');
+  return {...outlet,match_status:rows.length===1?'matched':rows.length?'ambiguous':'not_found',...rowsEvidence(rows.length===1?rows:[],fields)};
+ }
+ // Use exact counts with the same outlet and status filters as the list page.
+ return {...outlet,...await countedRows(select(outlets,false,true).order('item_name').order('id'),args,fields,signal)};
 }
 
 export const inventoryMasterRead=readContract({
- id:'read_inventory_items',version:2,module_id:'inventory_master',label:'Restaurant Master Inventory items',
+ id:'read_inventory_items',version:3,module_id:'inventory_master',label:'Restaurant Master Inventory items',
  permission:'inventory_master.view',source:'/restaurant/inventory/master',
  scope:'Master Inventory items linked to authorized outlets. Per-outlet counts cover active authorized outlets unless a specific outlet is named.',
  discoveryPhrases:['Master Inventory','Restaurant inventory','inventory items','inventori restoran','inventori induk','餐厅库存','餐廳庫存','库存主档'],
@@ -56,17 +65,20 @@ export const inventoryMasterRead=readContract({
   if(count.test(prompt)&&(catalogueCount.test(prompt)||!/\b(?:balance|stock quantity|units left)\b|剩[余餘下]/iu.test(prompt)))return 'catalogue_count';
   return /\b(?:list|show|senaraikan)\b|列出|清单|清單/iu.test(prompt)?'catalogue_list':null;
  },
- description:'Restaurant Master Inventory catalogue. Count item types linked to one or each authorized outlet, or list registered items. This does not read equipment assets, movements or physical stock quantities. For item counts use summary and active status unless explicitly asked for other statuses. To break down named outlets use each_outlet with outlet_names. For every authorized active outlet use each_outlet with an empty list. Use accessible for a distinct total across active authorized outlets.',
- properties:{page,outlet_id:{...uuid,nullable:true},outlet_name:{type:'string',nullable:true,maxLength:120},
+ description:'Restaurant Master Inventory catalogue. Count item types linked to one or each authorized outlet, or list registered items with an exact filtered total. Use detail with one authorized named outlet and the exact item name or SKU in query. This does not read equipment assets, movements or physical stock quantities. For item counts use summary and active status unless explicitly asked for other statuses. To break down named outlets use each_outlet with outlet_names. For every authorized active outlet use each_outlet with an empty list. Use accessible for a distinct total across active authorized outlets.',
+ properties:{page,query:{type:'string',maxLength:120,nullable:true},outlet_id:{...uuid,nullable:true},outlet_name:{type:'string',nullable:true,maxLength:120},
   outlet_scope:{type:'string',enum:['catalogue','named','accessible','each_outlet']},
   outlet_names:{type:'array',maxItems:12,items:{type:'string',maxLength:120}},
-  mode:{type:'string',enum:['list','summary']},status:{type:'string',enum:['active','inactive','all']}},
+  mode:{type:'string',enum:['list','summary','detail']},status:{type:'string',enum:['active','inactive','all']}},
+ pageableModes:['list'],
  normalizeArguments(args){
   if(!args||typeof args!=='object'||Array.isArray(args))return args;
-  return {page:1,outlet_id:null,outlet_name:null,outlet_names:[],outlet_scope:'catalogue',mode:'list',status:args.mode==='summary'?'active':'all',...args};
+  return {page:1,query:null,outlet_id:null,outlet_name:null,outlet_names:[],outlet_scope:'catalogue',mode:'list',status:args.mode==='summary'?'active':'all',...args};
  },
  check(args){
   const named=!!(args.outlet_id||args.outlet_name);
+  if((args.mode==='detail')!==!!args.query?.trim()||args.mode==='detail'&&(!named||args.page!==1))
+   throw new AssistantError('tool_arguments_invalid',400);
   if(args.outlet_scope==='named'&&!named)throw new AssistantError('entity_scope_required',409);
   if(args.outlet_names.length&&(named||args.outlet_scope!=='each_outlet')||
    named&&['accessible','each_outlet'].includes(args.outlet_scope)||args.mode==='list'&&args.outlet_scope==='each_outlet'||
@@ -85,6 +97,11 @@ export const inventoryMasterRead=readContract({
   const label=chinese?(status==='all'?'库存品项':status==='inactive'?'已停用库存品项':'启用的库存品项'):
    malay?(status==='all'?'item inventori':status==='inactive'?'item inventori tidak aktif':'item inventori aktif'):
    (status==='all'?'inventory items':status==='inactive'?'inactive inventory items':'active inventory items');
+  if(e.requested_scope?.mode==='list'){
+   const title=(e.outlet?.name|| (chinese?'已授权门店':'Authorized outlets'))+
+    (chinese?'有 '+e.total_matching+' 项'+label+'（第 '+e.page+' 页）。':': '+e.total_matching+' '+label+' (page '+e.page+').');
+   return [title,...e.rows.map(row=>'- '+[row.item_name,row.sku_code,row.unit].filter(Boolean).join(' · '))].join('\n');
+  }
   if(e.by_outlet)return (chinese?'各门店的'+label+'：':malay?'Bilangan '+label+' mengikut cawangan:':label[0].toUpperCase()+label.slice(1)+' by outlet:')+'\n'+
    e.by_outlet.map(row=>'- '+row.outlet.name+': '+row.total_matching).join('\n');
   return (e.outlet?.name||(chinese?'已授权的营业门店':malay?'Cawangan aktif yang dibenarkan':'Authorized active outlets'))+
@@ -92,7 +109,7 @@ export const inventoryMasterRead=readContract({
  },
  load:loadInventory,project:data=>data,
  interface:{authority:'Master Inventory items and unique item-to-outlet configuration under human RLS',
-  queryKinds:['summary','count','list','filter','group'],fields,
-  aggregates:'source_reported',pagination:'Exact active/item-status counts are separate from the 20-row catalogue pages. Per-outlet counts must not be added to claim a distinct total.',
+  queryKinds:['summary','count','list','detail','search','filter','group'],measures:['registered_item_count'],fields,
+  aggregates:'source_reported',pagination:'Exact totals use the same outlet and item-status filters as the 20-row catalogue pages. Per-outlet counts must not be added to claim a distinct total.',
   unsupported:['Physical balance, price, stock movement history and historical catalogue counts are not provided by Master Inventory.']},
 });

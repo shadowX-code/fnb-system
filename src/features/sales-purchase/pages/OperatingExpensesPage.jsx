@@ -6,6 +6,7 @@ import Badge from "../../../components/ui/Badge.jsx";
 import FilterBar from "../../../components/forms/FilterBar.jsx";
 import SelectField from "../../../components/forms/SelectField.jsx";
 import { months } from "../data/mockData.js";
+import { operatingExpenseAmount } from "../../../../supabase/functions/_shared/restaurant/operatingExpenseAmounts.js";
 import { operatingExpenseService } from "../../../services/operatingExpenseService.js";
 import { canWrite, notifyPermissionDenied } from "../../../utils/accessControl.js";
 import { monthLabel, toCurrency } from "../utils/analytics.js";
@@ -41,14 +42,10 @@ function buildDrafts(store, outletId, year) {
   }, {});
 }
 
-function numericAmount(value) {
-  return Math.max(0, Number(value) || 0);
-}
-
 function summaryFromDrafts(drafts) {
   const rows = months.map((month) => ({
     ...month,
-    amount: numericAmount(drafts[month.value]?.amount),
+    amount: operatingExpenseAmount(drafts[month.value]?.amount),
     remark: drafts[month.value]?.remark ?? "",
     saved: Boolean(drafts[month.value]?.saved),
   }));

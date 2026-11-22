@@ -190,8 +190,9 @@ export async function generateText(claim,key,{transport=fetch,signal,business,hi
    }
    let reply=data.output.filter(x=>x.type==='message').flatMap(x=>x.content||[]).filter(x=>x.type==='output_text').map(x=>x.text||'').join('').trim();
    const result=confirmed.find(item=>item.capability===plan?.operation);
-   if(result)reply=business.format?.(plan.operation,result,claim.prompt)||reply;
-   if(!confirmed.some(item=>outcomeFor(item)==='SUCCESS')&&(lastOutcome||plan)){
+   const formatted=result&&business.format?.(plan.operation,result,claim.prompt);
+   if(formatted)reply=formatted;
+   if(!formatted&&!confirmed.some(item=>outcomeFor(item)==='SUCCESS')&&(lastOutcome||plan)){
     reply=businessFailureReply(lastOutcome==='SUCCESS'?'UNSUPPORTED':lastOutcome||'UNSUPPORTED',claim.prompt)||reply;
    }
    if(!reply||reply.includes(key)||reply.length>3000||claim.kind==='test'&&reply!=='READY')throw new AssistantError('provider_reply_invalid',502);

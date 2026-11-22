@@ -26,7 +26,7 @@ import {finishedGoodsRead} from '../_shared/factory/finishedGoodsRead.js';
 import {systemGuidance} from '../_shared/assistant/systemGuidance.js';
 import {entityKey,namedOutlets,outletDirectory,resolveBrand,resolveOutlet} from '../_shared/assistant/entityResolution.js';
 import {invalidArgument,permitted} from '../_shared/assistant/readContract.js';
-import {confirmedOutlet,correctedOutletWording,outcomeFor,outletContinuation} from './businessQuery.js';
+import {confirmedOutlet,continuedPage,correctedOutletWording,outcomeFor,outletContinuation,pageRequest,previousBusinessResult} from './businessQuery.js';
 
 // Composition of implemented module contracts, not a permission or grant store.
 // Discovery never makes a module executable. ACTION tools create previews only.
@@ -111,8 +111,22 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
   if(!prompt)return null;
   const textPage=textPages?await finishedGoodsRead.planTextPage(prompt,history):null;
   if(textPage)return {...planFor(finishedGoodsRead),textPage};
+  // Page-only turns reuse an exact authorized query, never a guessed or mixed one.
+  if(history&&pageRequest(prompt)){
+   const previous=previousBusinessResult(await history());
+   const operation=operations.find(op=>op.id===previous?.capability);
+   const page=continuedPage(prompt,previous,operation);
+   if(page)return {...planFor(operation),page};
+  }
   const operation=planned(prompt);
   if(operation)return {...planFor(operation),intent:operation.queryIntent(prompt),wording:prompt};
+  // Domain-owned follow-ups may constrain the most recent successful scope.
+  if(history){
+   const previous=previousBusinessResult(await history());
+   const prior=operations.find(op=>op.id===previous?.capability);
+   const followUp=prior?.followUp?.(prompt,previous);
+   if(followUp)return {...planFor(prior),followUp};
+  }
   // An outlet-only answer can complete the immediately preceding scoped
   // request. Carry its query shape, never its unresolved outlet or figures.
   const candidate=correctedOutletWording(prompt);
@@ -153,6 +167,8 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
   async resolvedArguments(plan,prompt,history,signal){
    if(!plan?.tool)return null;
    const operation=assistantQuery(plan.operation);
+   if(plan.followUp)return plan.followUp;
+   if(plan.page&&operation.format)return plan.page.args;
    if(!operation.prepareArguments?.(plan.wording||prompt))return null;
    const current=loadConfig?await loadConfig():config||{};
    if(!capabilityConnected(current,operation.id)||!operation.authorized(access||{}))throw new AssistantError('business_read_denied',403);
@@ -212,7 +228,8 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
      const accepted=queryTool(operation).parameters.properties;
      if(Object.keys(args).some(key=>!Object.hasOwn(accepted,key)))invalidArgument('unexpected_field');
      if(plan?.textPage&&operation===finishedGoodsRead)args={...args,...plan.textPage.args};
-     if(properties.outlet_id){
+     if(plan?.page||plan?.followUp)args=plan.page?.args||plan.followUp;
+     if(properties.outlet_id&&!plan?.page&&!plan?.followUp){
       if(args.outlet_name!=null&&(typeof args.outlet_name!=='string'||!args.outlet_name.trim()||args.outlet_name.length>120))
        invalidArgument('unsupported_value','outlet_name');
       // Only an independently identified single-domain turn can bind a name from the whole utterance.

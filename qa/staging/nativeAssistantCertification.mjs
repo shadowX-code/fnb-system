@@ -69,7 +69,7 @@ export const scenarios={
  knowledge_hr_holiday:scenario('People',['read_payroll_holiday_policy'],'What public holiday treatment is recorded in the current applicable policy for the specified Legal Entity? Cite the policy and effective date.',([e],reply,source)=>checkKnowledge(e,reply,source)),
  knowledge_guide:scenario('Platform',['read_assistant_system_guidance'],'How do I reset my Personal Memory preferences in the FeedX Assistant? Cite the guide and version.',([e],reply,source)=>checkKnowledge(e,reply,source)),
  asset_spoon:scenario('Restaurant',['read_asset_catalogue'],'What is the current balance of asset-spoon at Friends Corner?',([e],reply,source)=>{
-  assert.equal(e.source,'/operations/asset-tracking');
+  assert.equal(e.source,e.version>=3?'/restaurant/operations/asset-tracking':'/operations/asset-tracking');
   assert.equal(e.requested_scope?.mode,'detail');
   assert.equal(e.outlet.id,source.outletId);
   assert.equal(e.match_status,'matched');
@@ -262,6 +262,51 @@ const filteredCount=([e],reply,source)=>{
  for(const [key,value] of Object.entries(source.filters))assert.deepEqual(e.requested_scope?.[key]??e[key],value);
  concise(reply,source.count);
 };
+scenarios.asset_catalogue_complete=scenario('Restaurant',['read_asset_catalogue'],
+ 'List the current assets and recorded quantities at one outlet.',(items,reply,source)=>{
+  checkAssetBalances(items,reply,source);
+  assert.equal(items[0].truncated,false);
+ });
+scenarios.asset_dated_history=scenario('Restaurant',['read_asset_catalogue'],
+ 'Show the recorded movements for a named asset at one outlet in the requested date range.',([e],reply,source)=>{
+  assert.equal(e.outlet.id,source.outletId);
+  assert.equal(e.asset.name,source.asset);
+  assert.equal(e.asset.unit,source.unit);
+  assert.equal(e.history_source,'asset_movement_logs');
+  assert.equal(e.requested_scope.mode,'movements');
+  assert.deepEqual([e.requested_scope.from,e.requested_scope.to],[source.from??null,source.to??null]);
+  assert.equal(e.total_matching,source.count);
+  assert.deepEqual(e.rows.map(row=>[row.movement_date,row.quantity_change,row.quantity_before,row.quantity_after]),source.rows);
+  assert.match(reply,new RegExp(escaped(source.outlet),'iu'));
+  for(const [date,change,before,after] of source.rows){
+   assert.match(reply,new RegExp(escaped(date)+'[^\\n]{0,70}'+number(change),'iu'));
+   assert.match(reply,new RegExp(number(before)+'[^\\n]{0,20}'+number(after),'iu'));
+  }
+ });
+scenarios.operating_expense_recorded_year=scenario('Restaurant',['read_operating_expenses'],
+ 'What were the recorded operating expenses at the outlet for the specified year?',([e],reply,source)=>{
+  assert.equal(e.outlet.id,source.outletId);
+  assert.equal(e.year,source.year);
+  assert.equal(e.currency,'MYR');
+  assert.equal(e.total_amount,source.amount);
+  assert.deepEqual(e.rows.map(row=>[row.month,row.amount]),source.months);
+  assert.equal(e.period_complete,source.months.length===12);
+  assert.equal(e.missing_months.length,12-source.months.length);
+  assert.match(plain(reply),new RegExp('(?<![0-9.-])'+escaped(source.amount)+(Number.isInteger(source.amount)?'(?:[.]00)?':'')+'(?![0-9.])','u'));
+  if(source.months.length<12)assert.match(reply,/recorded|已记录|已錄入|direkodkan/iu);
+ });
+scenarios.inventory_stock_position=scenario('Restaurant',['read_inventory_stock_evidence'],
+ 'What does the last verified stock count say for the named item and outlet?',([e],reply,source)=>{
+  assert.equal(e.outlet.id,source.outletId);
+  assert.equal(e.item.sku,source.sku);
+  assert.equal(e.total_matching,1);
+  const [row]=e.rows;
+  assert.equal(row.state,source.state);
+  assert.equal(row.check_date,source.checkDate);
+  assert.equal(row.confirmed_count,source.confirmedCount);
+  if(source.confirmedCount===null)assert.match(reply,/changed|unverified|unavailable|not confirm|未确认|未核实/iu);
+  else assert.match(reply,new RegExp(number(source.confirmedCount),'u'));
+ });
 scenarios.movement_filtered_count=scenario('Restaurant',['read_inventory_movements'],'Count a recorded movement type at a named outlet during a specified period.',filteredCount);
 scenarios.fg_filtered_count=scenario('Factory',['read_factory_finished_goods'],'Count packaging SKUs with a specified recorded status.',filteredCount);
 scenarios.fg_product_count=scenario('Factory',['read_factory_finished_goods'],'Count Finished Goods in the grouped catalogue, treating packaging SKUs as variants.',filteredCount);
@@ -298,6 +343,16 @@ export function generateSourceCases(snapshot){
   if(Number.isSafeInteger(outletAssetCount))add('asset_count','How many current asset records are there at that outlet?',
    {outlet,outletId,count:outletAssetCount},cases.length-1);
  }
+ for(const row of snapshot.assetCatalogues||[])
+  if(row.count<=20)add('asset_catalogue_complete','List all current assets and their balances at '+row.outlet+'.',row);
+ for(const row of snapshot.assetHistory||[]){
+  const period=row.from&&row.to?' from '+row.from+' to '+row.to:'';
+  add('asset_dated_history','Show '+row.asset+' asset movement history at '+row.outlet+period+'.',row);
+ }
+ for(const row of snapshot.operatingExpenses||[])add('operating_expense_recorded_year',
+  'What are the '+row.year+' operating expenses at '+row.outlet+'?',row);
+ for(const row of snapshot.stockPositions||[])add('inventory_stock_position',
+  'What is the verified physical stock for '+row.sku+' at the Restaurant outlet '+row.outlet+'?',row);
  if(snapshot.inventory?.length>=2){
   const selected=snapshot.inventory.slice(0,12);
   const names=selected.map(row=>row.outlet).join(', ');
@@ -378,7 +433,8 @@ export function assertScenarioContracts(){
  }
  for(const operation of operations.filter(operation=>operation.knowledge))assert(knowledgeCoverage.has(operation.id),`Missing knowledge acceptance scenario for ${operation.id}`);
  const supported={
-  read_asset_catalogue:['summary','count','detail','search','list'],
+  read_asset_catalogue:['summary','count','detail','search','list','movement_history'],
+  read_operating_expenses:['summary','list','detail','filter'],
   read_inventory_items:['summary','count','list','group'],
   read_inventory_movements:['summary','count','list','filter'],
   read_departments:['summary','count','list','filter'],

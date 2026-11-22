@@ -27,6 +27,27 @@ export const outletContinuation=prompt=>/\b(?:same outlet|that outlet|this outle
 
 export const correctedOutletWording=prompt=>String(prompt||'').split(/(?:\b(?:i meant|actually use|rather than that,? use|maksud saya|bukan itu,? tetapi)\b|我(?:的意思|说的是|說的是)|更正[：:]?|不是[^，,]{1,80}[，,]\s*(?:而)?是)/iu).at(-1).trim();
 
+// Follow-up scope comes from the most recent completed, unambiguous business read.
+export function previousBusinessResult(history){
+ const turn=(history?.turns||[]).filter(turn=>turn.state==='completed').at(-1);
+ if(turn?.tool_state!=='completed')return null;
+ const items=turn.evidence?.items||[turn.evidence];
+ const [evidence]=items;
+ return items.length===1&&evidence?.capability&&evidence.requested_scope&&outcomeFor(evidence)==='SUCCESS'?evidence:null;
+}
+
+export const pageRequest=prompt=>String(prompt||'').trim().match(/^(?:(?:show |list )?(?:the )?next page|page ([1-9][0-9]?)|(?:halaman seterusnya|下一[页頁])|第\s*([1-9][0-9]?)\s*[页頁])[?!.。！]?$/iu);
+
+export function continuedPage(prompt,evidence,operation){
+ const match=pageRequest(prompt);
+ if(!match||!operation?.pageableModes?.includes(evidence?.requested_scope?.mode)||!evidence.aggregate_complete)return null;
+ const current=evidence.page;
+ if(!Number.isSafeInteger(current)||!Number.isSafeInteger(evidence.total_matching)||evidence.page_size!==20)return null;
+ const page=Number(match[1]||match[2]||current+1);
+ if(page>100||page===current||page>Math.ceil(evidence.total_matching/evidence.page_size))return null;
+ return {operation:operation.id,args:{...evidence.requested_scope,page}};
+}
+
 export function confirmedOutlet(history,operation,domain){
  for(const turn of [...(history?.turns||[])].reverse()){
   if(turn.state!=='completed'||turn.tool_state!=='completed')continue;
@@ -46,7 +67,7 @@ export function businessFailureReply(status,prompt=''){
  return ({
   UNAUTHORIZED:chinese?'当前无法查看这项数据。请检查您的访问权限。':malay?'Akses semasa tidak membenarkan semakan ini.':'Your current access does not allow this read.',
   AMBIGUOUS:chinese?'请确认您指的是哪家门店或哪个品项。':malay?'Cawangan atau item yang mana satu?':'Please confirm which outlet or item you mean.',
-  NO_MATCH:chinese?'在您可查看的范围内没有匹配记录，数量无法确认。':malay?'Tiada padanan dalam skop akses anda. Kuantiti belum dapat disahkan.':'No matching record was found in your accessible scope. The quantity is unconfirmed.',
+  NO_MATCH:chinese?'在您可查看的范围内没有匹配记录。':malay?'Tiada rekod yang sepadan dalam skop akses anda.':'No matching record was found in your accessible scope.',
   UNSUPPORTED:chinese?'目前无法提供这项数据。':malay?'Maklumat ini belum tersedia.':'I can’t answer that from the currently available data.',
   EXECUTION_ERROR:chinese?'暂时无法读取这项数据，请重试。':malay?'Data tidak dapat dibaca buat sementara waktu. Sila cuba lagi.':'The data could not be read. Please try again.',
  })[status]||null;

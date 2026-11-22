@@ -3,8 +3,8 @@ export const coverageLabels = {"full": "Full", "partial": "Partial", "shared": "
 export const assistantCoverageReview = {
   "inventory_movements": {
     classification: "partial",
-    available: "Exact counts and paged movement records by outlet, date and recorded movement type.",
-    missing: "Per-item and reference searches, grouped quantities and current stock balances are outside this read.",
+    available: "Exact counts and paged movement records by outlet, date, item or SKU, reference and recorded movement type.",
+    missing: "Grouped quantities, valuation and current stock balances are outside the movement history.",
     reads: ["read_inventory_movements"],
     evidence: ["src/features/sales-purchase/inventory/movements/inventoryMovementService.js", "supabase/functions/_shared/restaurant/inventoryMovementRead.js"],
     certification: ["movement_filtered_count"]
@@ -65,10 +65,35 @@ export const assistantCoverageReview = {
   },
   "asset_tracking": {
     "classification": "partial",
-    "available": "Current outlet asset quantities by exact name or code, current asset counts and paginated catalogue records.",
-    "missing": "Movement history, condition totals and asset valuation are outside the Assistant read. Ingredient and Factory stock belong to other modules.",
+    "available": "Current outlet asset counts and paginated balances, exact asset lookup, and dated movement history by asset.",
+    "missing": "Inspections, maintenance, condition totals and asset valuation are outside this read. Ingredient and Factory stock belong to other modules.",
     "reads": ["read_asset_catalogue"],
+    "certification": ["asset_catalogue_complete", "asset_dated_history"],
     "evidence": ["src/services/assetTrackingService.js", "supabase/functions/_shared/restaurant/assetCatalogueRead.js"]
+  },
+  "operating-expenses": {
+    classification: "partial",
+    available: "Recorded monthly amounts and complete totals of recorded months for one outlet and year, with missing periods identified.",
+    missing: "The Operating Expenses grid has monthly inputs. Category detail, individual transactions, accounting expenses and cash movement have separate or unavailable sources.",
+    reads: ["read_operating_expenses"],
+    evidence: ["src/services/operatingExpenseService.js", "src/features/sales-purchase/pages/OperatingExpensesPage.jsx", "supabase/functions/_shared/restaurant/operatingExpenseRead.js"],
+    certification: ["operating_expense_recorded_year"]
+  },
+  "inventory_dashboard": {
+    classification: "partial",
+    available: "Paginated stock evidence with an exact positive-par position count, freshness, and an exact item/SKU lookup where eligible.",
+    missing: "Changed and unverified positions cannot establish a current balance. Items with no eligible position, live stock reconstruction and valuation are outside this read.",
+    reads: ["read_inventory_stock_evidence"],
+    certification: ["inventory_stock_position"],
+    evidence: ["src/features/sales-purchase/inventory/dashboard/inventoryDashboardService.js", "supabase/functions/_shared/restaurant/inventoryStockEvidenceRead.js"]
+  },
+  "inventory_master": {
+    classification: "partial",
+    available: "Exact registered item counts by outlet and item status, stable catalogue pages and exact item or SKU detail at one outlet.",
+    missing: "Catalogue data does not include live stock, transactions, supplier prices or historical counts.",
+    reads: ["read_inventory_items"],
+    evidence: ["src/features/sales-purchase/inventory/inventoryItemModel.js", "supabase/functions/_shared/restaurant/inventoryMasterRead.js"],
+    certification: ["master_inventory_by_outlet_en", "master_inventory_by_outlet_ms", "master_inventory_by_outlet_zh"]
   },
   "employees": {
     "classification": "partial",

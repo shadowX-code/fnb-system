@@ -93,7 +93,7 @@ for(const op of reads){
   `${op.module_id} / ${code(op.id)}`,
   `${source} · ${code(op.permission)} · ${contract.source}`,
   question,
-  `${supported.join(', ')}. Inputs: ${fields.join(', ')||'none'}. ${contract.exposure.fields?.length?'Fields: '+contract.exposure.fields.join(', ')+'. ':''}${op.description || op.tool.description}`,
+  `${supported.join(', ')}. ${query.measures?.length?'Measures: '+query.measures.join(', ')+'. ':''}Inputs: ${fields.join(', ')||'none'}. ${contract.exposure.fields?.length?'Fields: '+contract.exposure.fields.join(', ')+'. ':''}${op.description || op.tool.description}`,
   `${contract.aggregates}. ${contract.pagination} ${op.scope} ${query.unsupported.join(' ')}`,
   ['PASS contract gate',
    run?.results?.[op.id] || (run ? enabled.has(op.id)

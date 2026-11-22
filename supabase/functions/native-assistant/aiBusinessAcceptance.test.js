@@ -7,6 +7,7 @@ import {generateText} from './provider.js';
 import {createSdkVoiceHistory} from '../../../src/features/ai-assistant/sdkVoiceHistory.js';
 import {rawMaterialStockStatus} from '../_shared/factory/stockCatalogue.js';
 import {failureOutcome,outcomeFor,outletContinuation} from './businessQuery.js';
+import {malaysiaPeriod} from '../_shared/restaurant/assistantBusinessPeriod.js';
 import {generateSourceCases,certifyScenario} from '../../../qa/staging/nativeAssistantCertification.mjs';
 
 const reads=operations.filter(o=>o.kind==='READ');
@@ -37,6 +38,7 @@ for(const op of reads)test(`${op.id}: discovery, argument fencing, AI policy and
  const byBusinessLabel=await business.execute('find_business_queries',{search:op.label.slice(0,80),page:1});
  assert(byBusinessLabel.operations.some(row=>row.operation===op.id),'The documented business label must surface its operation');
  const args=argsFor(op);
+ if(op.id==='read_operating_expenses')args.year=2026;
  op.validate(args);
  const noSource=()=>assert.fail('Denied read reached a domain source');
  const gated=createBusinessDispatcher({config,access,loadConfig:async()=>({...config,capability_connections:{}}),
@@ -98,15 +100,16 @@ function source({scope=true,brand=true,snapshot,assetRows=assets,outletRows=outl
   },
   from(table){
    calls.push([table]);
-   if(['outlets','asset_items','inventory_items','inventory_movements','departments','job_positions'].includes(table)){
+   if(['outlets','asset_items','asset_movement_logs','operating_expenses','inventory_items','inventory_movements','departments','job_positions'].includes(table)){
     let rows=table==='outlets'?outletRows:table==='asset_items'?assetRows:table==='inventory_items'?inventoryRows:snapshot?.tables[table]||[];
     let head=false,count;
     const builder={
-     select(fields,options){head=options?.head;if(table==='inventory_items')assert.match(fields,/inventory_item_outlets!inner/);return this;},
-     in(field,values){assert.equal(field,'inventory_item_outlets.outlet_id');rows=rows.filter(row=>row.outlets.some(outlet=>values.includes(outlet)));return this;},
+     select(fields,options){head=options?.head;return this;},
+     in(field,values){rows=rows.filter(row=>field==='inventory_item_outlets.outlet_id'?row.outlets.some(outlet=>values.includes(outlet)):values.includes(row[field]));return this;},
      eq(field,value){rows=rows.filter(row=>row[field]===value);return this;},
      neq(field,value){rows=rows.filter(row=>row[field]!==value);return this;},
      gte(field,value){rows=rows.filter(row=>row[field]>=value);return this;},
+     lte(field,value){rows=rows.filter(row=>row[field]<=value);return this;},
      lt(field,value){rows=rows.filter(row=>row[field]<value);return this;},
      ilike(field,pattern){rows=rows.filter(row=>row[field]?.toLowerCase()===pattern.replace(/\\([%_\\])/g,'$1').toLowerCase());return this;},
      limit(max){rows=rows.slice(0,max);return this;},
@@ -178,8 +181,12 @@ test('source-derived business questions use the correct enabled operation throug
    business,onTool:(state,result)=>{if(state==='completed')evidence=result;},
    transport:async(_,init)=>{
     const body=JSON.parse(init.body);
-    if(step++===0)return response([functionCall('find_business_queries',{search:item.question,page:1},'discover')]);
-    if(step===2)return response([functionCall('run_business_query',envelope(operation,args),'read')]);
+    step++;
+    if(step===1&&body.tools.some(tool=>tool.name===operation))
+     return response([functionCall(operation,args,'read')]);
+    if(step===1)return response([functionCall('find_business_queries',{search:item.question,page:1},'discover')]);
+    if(step===2&&body.input.at(-1).type==='function_call_output'&&JSON.parse(body.input.at(-1).output).discovery_only)
+     return response([functionCall('run_business_query',envelope(operation,args),'read')]);
     assert.doesNotMatch(body.input.at(-1).output,/DO_NOT_EXPOSE/);
     const result=JSON.parse(body.input.at(-1).output);
     assert.equal(result.total_matching,item.source.count,item.question);
@@ -925,3 +932,118 @@ if(replayPath){
   assert.equal(evidence[0].capability,operation);
  });
 }
+
+test('complete asset pages preserve scope, include unit balances and never query archived or other-outlet rows',async()=>{
+ const operation='read_asset_catalogue';
+ const assetRows=Array.from({length:22},(_,i)=>({id:'asset-'+i,outlet_id:id,name:'Asset '+i,
+  asset_code:'A'+i,status:'active',current_quantity:i,unit:'unit'})).concat(assets.slice(2));
+ const src=source({assetRows});
+ const business=createBusinessDispatcher({caller:src.caller,config,access});
+ const snapshots=[];
+ const history=async()=>({turns:snapshots});
+ const run=prompt=>generateText({kind:'turn',model:config.model,prompt},'fixture',{
+  business,history,transport:()=>assert.fail('A confirmed catalogue page needs no provider call'),
+  onTool(state,evidence){if(evidence)snapshots.push({state:'completed',tool_state:state,evidence});},
+ });
+ const first=await run('List all assets at Fixture Corner.');
+ const second=await run('Next page');
+ for(const reply of [first,second])assert.equal(reply.input_tokens,0);
+ assert.match(first.reply,/Fixture Corner has 22 current asset records/);
+ assert.match(second.reply,/Page 2 of 2/);
+ assert.deepEqual(snapshots.map(x=>[x.evidence.page,x.evidence.rows.length,x.evidence.total_matching,x.evidence.outlet.id]),[[1,20,22,id],[2,2,22,id]]);
+ assert.deepEqual(snapshots[1].evidence.rows.map(a=>[a.asset_code,a.current_quantity,a.unit]),[['A20',20,'unit'],['A21',21,'unit']]);
+ assert.equal((await business.planTurn('Next page at Different Outlet',history))?.page,undefined);
+ assert.equal((await business.planTurn('Next page',history))?.page,undefined);
+ const denied=createBusinessDispatcher({caller:source({scope:false,assetRows}).caller,config,access});
+ await assert.rejects(denied.execute(operation,{mode:'list',outlet_name:'Fixture Corner'}),{code:'business_read_denied'});
+});
+
+test('Asset Tracking history and a date-only follow-up share the actual SDK tool dispatch and Text evidence',async()=>{
+ const operation='read_asset_catalogue';
+ const movements=[
+  {id:'a',outlet_id:id,asset_id:'fork',movement_date:'2026-11-22',movement_type:'reduce',quantity_change:-1,quantity_before:75,quantity_after:74,remark:'DO_NOT_EXPOSE'},
+  {id:'b',outlet_id:id,asset_id:'fork',movement_date:'2026-05-30',movement_type:'add',quantity_change:75,quantity_before:0,quantity_after:75},
+  {id:'c',outlet_id:id,asset_id:'spoon',movement_date:'2026-11-22',quantity_change:99},
+  {id:'d',outlet_id:otherId,asset_id:'fork',movement_date:'2026-11-22',quantity_change:99},
+ ];
+ const {caller}=source({snapshot:{tables:{asset_movement_logs:movements}}});
+ const business=createBusinessDispatcher({config,access,caller});
+ const prompt='Show the Fork movement history at Fixture Corner.';
+ // The transcript owns history-vs-balance selection even if the model sends the old shape.
+ const args={mode:'detail',query:'Fork',outlet_name:'Fixture Corner'};
+ const original=await business.execute(operation,args,undefined,{prompt,withOutcome:true});
+ assert.equal(original.query_outcome,'SUCCESS');assert.equal(original.total_matching,2);
+ assert.deepEqual(original.rows.map(row=>row.movement_date),['2026-11-22','2026-05-30']);
+ assert.doesNotMatch(JSON.stringify(original),/DO_NOT_EXPOSE/);
+ const datePrompt='From 2026-11-01 to 2026-11-30';
+ const past={state:'completed',tool_state:'completed',evidence:original};
+ const history=async()=>({turns:[past]});
+ let textEvidence,voiceEvidence;
+ const text=await generateText({kind:'turn',model:config.model,prompt:datePrompt},'fixture',{
+  business,history,onTool(_,evidence){if(evidence)textEvidence=evidence;},transport:()=>assert.fail('The dated follow-up needs no model turn'),
+ });
+ assert.match(text.reply,/Fixture Corner has 1 recorded Fork movement/);
+ assert.match(text.reply,/2026-11-22: -1 unit \(75 → 74\)/);
+ const voice=await dispatch(voiceRequest(operation,args),{
+  caller,access,get:()=>undefined,async rpc(action){
+   return action==='history'?{turns:[past,{state:'running',request_id:id,voice_input_available:true,prompt:datePrompt}]}:{config};
+  },reserveRealtime:async()=>{},voiceHistory:async fields=>{voiceEvidence=fields.evidence;},
+ });
+ assert.deepEqual(voiceEvidence.requested_scope,textEvidence.requested_scope);
+ assert.deepEqual(voice.rows,textEvidence.rows);
+ const next=await business.execute(operation,{...args,mode:'movements',query:'Spoon',from:'2026-04-01',to:'2026-04-30'});
+ assert.equal(next.total_matching,0);assert.equal(next.match_status,'matched');
+ assert.equal((await business.planTurn(datePrompt,async()=>({turns:[past,{state:'completed',tool_state:'failed'}]})))?.followUp,undefined);
+});
+
+test('Operating Expenses uses entered monthly amounts, separates empty periods and never falls back to Finance',async()=>{
+ const operation='read_operating_expenses';
+ const {caller,calls}=source({snapshot:{tables:{operating_expenses:[
+  {id:'1',outlet_id:id,year:2026,month:1,amount:10000,remark:'DO_NOT_EXPOSE'},
+  {id:'2',outlet_id:otherId,year:2026,month:2,amount:999},
+  {id:'3',outlet_id:id,year:2025,month:1,amount:999},
+ ]}}});
+ const business=createBusinessDispatcher({config,access,caller});
+ const prompt='What are the 2026 operating expenses at Fixture Corner?';
+ let evidence;
+ const result=await generateText({kind:'turn',model:config.model,prompt},'fixture',{
+  business,onTool(_,value){if(value)evidence=value;},transport:()=>assert.fail('A named outlet and single calendar year resolve directly'),
+ });
+ assert.equal(evidence.period_complete,false);assert.equal(evidence.total_amount,10000);assert.equal(evidence.recorded_months,1);
+ assert.equal(evidence.missing_months.length,11);
+ assert.match(result.reply,/RM\s*10,000.00.*1 of 12 months/);
+ assert(!calls.some(([table])=>table==='reporting_monthly_scope_financials'));
+ assert.doesNotMatch(JSON.stringify(evidence),/DO_NOT_EXPOSE/);
+ const absent=await business.execute(operation,{month:'2026-02-01',outlet_id:id},undefined,{withOutcome:true});
+ assert.equal(absent.total_amount,null);assert.equal(absent.query_outcome,'NO_MATCH');
+ const categories='Break down Fixture Corner operating expenses by category in 2026';
+ assert.equal(await business.resolvedArguments(await business.planTurn(categories),categories),null);
+ await assert.rejects(createBusinessDispatcher({caller,config,access:{}}).execute(operation,{year:2026,outlet_id:id}),{code:'business_read_denied'});
+});
+
+test('Restaurant item identity, posted history and verified stock are separate canonical reads',async()=>{
+ const items=[{id:'r',outlets:[id],item_name:'Rice',sku_code:'R01',status:'active',unit:'kg'}];
+ const movements=[{id:'movement',outlet_id:id,inventory_item_id:'r',movement_type:'Purchase',reference_no:'REF',
+  quantity:4,unit:'kg',created_at:'2026-11-22T10:00:00Z'}];
+ const {caller}=source({inventoryRows:items,snapshot:{
+  rpcs:{inventory_dashboard_stock_evidence:{position_count:1,positions:[{item_id:'r',outlet_id:id,state:'changed',actual_count:6}]}},
+  tables:{inventory_movements:movements},
+ }});
+ const business=createBusinessDispatcher({config,access,caller});
+ const detail=await business.execute('read_inventory_items',{mode:'detail',query:'R01',outlet_id:id});
+ assert.equal(detail.rows[0].item_name,'Rice');assert(!Object.hasOwn(detail.rows[0],'confirmed_count'));
+ const history=await business.execute('read_inventory_movements',{outlet_id:id,item_query:'Rice',reference:'REF',from:'2026-11-22',to:'2026-11-22'});
+ assert.equal(history.rows[0].quantity,4);assert.equal(history.total_matching,1);
+ const stock=await business.execute('read_inventory_stock_evidence',{outlet_id:id,item_query:'R01'});
+ assert.equal(stock.rows[0].state,'changed');assert.equal(stock.rows[0].confirmed_count,null);
+ assert.equal(stock.rows[0].actual_count,6);
+ assert.equal(business.plan('What is the physical stock balance at this Restaurant outlet?').operation,'read_inventory_stock_evidence');
+ assert.equal(business.plan('List inventory movements at Fixture Corner.').operation,'read_inventory_movements');
+});
+
+test('relative period follow-ups use the Malaysian calendar across month and year boundaries',()=>{
+ const midnight=new Date('2026-12-31T16:00:00Z');
+ assert.deepEqual(malaysiaPeriod('month',midnight),{from:'2027-01-01',to:'2027-01-31',year:2027});
+ assert.deepEqual(malaysiaPeriod('previous_month',midnight),{from:'2026-12-01',to:'2026-12-31',year:2026});
+ assert.deepEqual(malaysiaPeriod('previous_year',midnight),{from:'2026-01-01',to:'2026-12-31',year:2026});
+});
