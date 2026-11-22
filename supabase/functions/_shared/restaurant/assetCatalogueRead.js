@@ -93,8 +93,8 @@ export const assetCatalogueRead=readContract({
   return null;
  },
  format(evidence,prompt=''){
+  const chinese=/\p{Script=Han}/u.test(prompt),malay=!chinese&&/\b(?:aset|berapa|baki|bilangan)\b/iu.test(prompt);
   if(evidence.aggregate_complete){
-   const chinese=/\p{Script=Han}/u.test(prompt),malay=!chinese&&/\b(?:aset|berapa|baki|bilangan)\b/iu.test(prompt);
    const total=evidence.total_matching;
    const headline=chinese?evidence.outlet.name+' 有 '+total+' 项资产记录。':
     malay?evidence.outlet.name+' mempunyai '+total+' rekod aset.':evidence.outlet.name+' has '+total+' current asset record'+(total===1?'':'s')+'.';
@@ -104,8 +104,9 @@ export const assetCatalogueRead=readContract({
   }
   const [asset]=evidence.rows||[];
   if(evidence.match_status!=='matched'||!asset||asset.current_quantity==null)return null;
-  const unit=asset.unit==='unit'&&Number(asset.current_quantity)!==1?'units':asset.unit||'';
-  return /\p{Script=Han}/u.test(prompt)
+  const unit=!malay&&asset.unit==='unit'&&Number(asset.current_quantity)!==1?'units':asset.unit||'';
+  if(malay)return 'Baki aset '+asset.name+' di '+evidence.outlet.name+' ialah '+asset.current_quantity+(unit?' '+unit:'')+'.';
+  return chinese
    ?evidence.outlet.name+' 的 '+asset.name+' 当前记录数量是 '+asset.current_quantity+(unit?' '+unit:'')+'。来源：资产追踪。'
    :'The current Asset Tracking balance for '+asset.name+' at '+evidence.outlet.name+' is '+asset.current_quantity+(unit?' '+unit:'')+'.';
  },

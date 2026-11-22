@@ -58,7 +58,7 @@ export function excludeCompetingQueries(operations,prompt){
  return new Set(operations.filter(operation=>namedFamilies.has(operation.discoveryFamily)&&!matched.has(operation)).map(operation=>operation.id));
 }
 
-const grammar = new Set(('a an the of by in from for to show list all top highest lowest count summary how many compare rank ranking status current currently stock balance balances read records operations please what which is are have has '+
+const grammar = new Set(('a an the of by in from for to show list all top highest lowest count summary how many compare rank ranking status current currently stock balance balances read records operations please what which is are there have has authorized authorised '+
  'about using same and unit units three two first page active inactive archived kg g mg ml litre litres pack packs sku').split(' '));
 function discoveryWords(value) {
  const words = value.toLowerCase()

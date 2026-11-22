@@ -1,6 +1,6 @@
 import {readContract, page} from '../assistant/readContract.js';
 import {AssistantError} from '../assistantError.js';
-import {loadStockCatalogue, rawMaterialStockStatus, stockPage, stockQueryFields, stockSku, stockUnit, validateStockQuery} from './stockCatalogue.js';
+import {loadStockCatalogue, rawMaterialStockStatus, stockPage, stockQueryFields, stockSku, stockUnit, validateRecordedStockUnit, validateStockQuery} from './stockCatalogue.js';
 
 const stockFields='id,material_code,name,name_en,name_cn,name_bm,category,uom,current_balance,min_stock_level,status,updated_at';
 const {sku,uom}=stockQueryFields;
@@ -24,6 +24,7 @@ export const rawMaterialRead=readContract({
   fields:stockFields.split(','),aggregates:'complete_filtered_scope',pagination:'Complete identity-checked catalogue (up to 1000 records), paginated at 20 after filtering and ranking.',
   unavailable:'Snapshot drift fails the read. Mixed units need an explicit stock unit. No inventory cost, location, historical stock or ATP authority.'},
  project(data,a){
+  validateRecordedStockUnit(a,data);
   const scoped=data.filter(r=>(a.status==='all'||r.status===a.status)&&(a.uom===null||stockUnit(r.uom)===stockUnit(a.uom))
    &&(a.sku===null||stockSku(r.material_code)===stockSku(a.sku))
    &&[r.material_code,r.name,r.name_en,r.name_cn,r.name_bm].join(' ').toLowerCase().includes(a.query.toLowerCase()))

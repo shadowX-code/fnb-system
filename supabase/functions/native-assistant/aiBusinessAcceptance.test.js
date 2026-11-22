@@ -310,6 +310,76 @@ test('other READ field-combination errors identify safe corrections before domai
  }
 });
 
+test('unrecorded stock units produce correction feedback, while a valid empty filter remains zero',async()=>{
+ const fg='read_factory_finished_goods',rm='read_factory_raw_catalogue';
+ const {caller}=source();
+ const business=createBusinessDispatcher({config,access,caller});
+ for(const operation of [fg,rm]){
+  const error=await business.execute(operation,{mode:'summary',uom:'sku'},undefined,{correctArguments:true});
+  assert.deepEqual(error.validation,{reason:'stock_unit_not_recorded',field:'uom'});
+  assert.equal(error.no_evidence,true);
+  assert.equal((await business.execute(operation,{mode:'summary',status:'archived',uom:'kg'})).total_matching,0);
+ }
+ const prompt='How many active Factory Finished Goods packaging SKUs are registered?';
+ const args={mode:'summary',status:'active',uom:null,measure:'sku'};
+ let step=0;
+ const saved=[];
+ const result=await generateText({kind:'turn',model:config.model,prompt},'fixture',{
+  business,onTool:(_state,evidence)=>{if(evidence)saved.push(evidence);},
+  transport:async(_,init)=>{
+   const body=JSON.parse(init.body);
+   if(++step===1)return response([functionCall(fg,{...args,uom:'sku'},'bad-unit')]);
+   const output=JSON.parse(body.input.at(-1).output);
+   if(step===2){
+    assert.equal(output.validation.field,'uom');
+    assert.equal(saved.length,0);
+    return response([functionCall(fg,args,'all-units')]);
+   }
+   assert.equal(output.total_matching,27);
+   return response([{type:'message',content:[{type:'output_text',text:'27 active packaging SKUs.'}]}]);
+  },
+ });
+ assert.equal(result.reply,'27 active packaging SKUs.');
+ assert.equal(saved.length,1);
+ assert.equal(saved[0].uom,null);
+});
+
+test('Malay single-asset replies preserve source units and use the request language',async()=>{
+ const operation='read_asset_catalogue';
+ const business=createBusinessDispatcher({config,access,caller:source().caller});
+ const prompt='Berapa baki aset Spoon di Fixture Corner sekarang?';
+ const result=await business.execute(operation,{mode:'detail',outlet_id:id,query:'Spoon'});
+ assert.equal(business.format(operation,result,prompt),'Baki aset Spoon di Fixture Corner ialah 15 unit.');
+});
+
+test('each clause offers its authorized READ for a mixed Employees and Finished Goods query',async()=>{
+ const hr='read_employee_directory',fg='read_factory_finished_goods';
+ const question='How many authorized Employees are there, and what is the current Factory Finished Goods stock for SKU S01?';
+ const {caller}=source({snapshot:{rpcs:fixtures,tables:{factory_finished_goods:[{
+  id:'fixture-sku',product_code:'S01',product_name:'Fixture SKU',current_balance:62,uom:'kg',status:'active',
+ }]}}});
+ const business=createBusinessDispatcher({config,access,caller});
+ assert.deepEqual(business.toolsForPrompt(question).map(tool=>tool.name),[hr,fg]);
+ const saved=[];
+ let step=0;
+ const result=await generateText({kind:'turn',model:config.model,prompt:question},'fixture',{
+  business,onTool:(_state,evidence)=>{if(evidence)saved.push(evidence);},
+  transport:async(_,init)=>{
+   const body=JSON.parse(init.body);
+   assert(body.tools.some(t=>t.name===hr));
+   assert(body.tools.some(t=>t.name===fg));
+   if(++step===1)return response([functionCall(fg,{mode:'detail',sku:'S01'},'sku')]);
+   if(step===2)return response([functionCall(hr,{mode:'summary'},'headcount')]);
+   return response([{type:'message',content:[{type:'output_text',text:'6 employees and 62 kg for SKU S01.'}]}]);
+  },
+ });
+ assert.equal(step,3);
+ assert.equal(result.reply,'6 employees and 62 kg for SKU S01.');
+ assert.deepEqual(saved.map(e=>e.capability),[fg,hr]);
+ assert.equal(saved[0].rows[0].current_balance,62);
+ assert.equal(saved[1].summary.total,6);
+});
+
 test('multilingual per-outlet inventory counts use complete Master Inventory results without invoking a model',async()=>{
  const operation='read_inventory_items';
  const inventoryRows=[

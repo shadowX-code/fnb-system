@@ -5,7 +5,7 @@ export const stockQueryFields = {
  mode: {type:'string',enum:['summary','list','detail']},
  sku: {type:['string','null'],maxLength:80,description:'Exact nonblank SKU for detail, otherwise null.'},
  sort: {type:'string',enum:['name','balance_desc','balance_asc'],description:'Use name for summary and detail. In list mode, balance_desc or balance_asc ranks stock before pagination.'},
- uom: {type:['string','null'],maxLength:24,description:'Exact nonblank stock unit, such as kg, or null for no unit filter. Mixed units cannot be ranked together.'},
+ uom: {type:['string','null'],maxLength:24,description:'Filter only when a stock measurement unit is requested (for example kg). Use null for unfiltered SKU counts. SKU identifies a record, not a unit of measurement. Mixed units cannot be ranked together.'},
 };
 export function validateStockQuery(args) {
  if(args.mode!=='list')requireArgumentValues(args,{page:1,sort:'name'});
@@ -15,6 +15,10 @@ export function validateStockQuery(args) {
 }
 export const stockNumber = n => n == null || n === '' || !Number.isFinite(Number(n)) ? null : Number(n);
 export const stockUnit = unit => String(unit || '').trim().toLowerCase();
+export function validateRecordedStockUnit(args,rows) {
+ if(args.uom!==null&&rows.length&&!rows.some(row=>stockUnit(row.uom)===stockUnit(args.uom)))
+  invalidArgument('stock_unit_not_recorded','uom');
+}
 export const stockSku = sku => String(sku||'').normalize('NFKC').trim().toUpperCase();
 
 export async function loadStockCatalogue(caller, {entity,table,fields}, signal) {

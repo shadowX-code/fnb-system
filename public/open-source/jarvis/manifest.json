@@ -1,7 +1,7 @@
 {
   "LICENSE.txt": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
   "PROTOCOL.txt": "afb1880a17e010266f4e92d253967fe894d5a9eed24cda68fa36f859e35d8604",
-  "README.txt": "87515d260d3ba7a7fee74128419216d363c35a954859e7a2f0677aafa5a3cb5b",
+  "README.txt": "c74e99b376fe1ba1d7f10f7bcdc54f4f3d85ca3659787d5bb0d1683d3ecddfeb",
   "THIRD-PARTY-NOTICES.txt": "72350f256b76a68dd5c96b5b998bd84c368bead5d9fceb252acf0e31c350cab6",
   "css/hud.css": "53e0c26310d9b0335607f6dab5d3af5181cacf776a9e748f40ed4946cfbdf96b",
   "disabled-features.js": "913a351d787416135d822cccaab74b7769a1d73c3df94deb454ca845ff6b93a2",
@@ -63,5 +63,5 @@
   "vendor/three/examples/jsm/shaders/LuminosityHighPassShader.js": "3d841cc594a0c1767d1b0185720b32761a0133c5f1b70b56658e28f2fb9b7900",
   "vendor/three/examples/jsm/shaders/OutputShader.js": "53a52e430c27bc36ceaab8ae90a2b4af7b02672d7ee4b29d6ba3c28e09c92c2a",
   "web.css": "dd635ac4722584f11fdeb816425a8290af6f69bc83415eb64dc94fbb5a4cb7da",
-  "web.js": "8e7ae2cc0dcb18d641eae1cd5f2f395fb62e226b46eeb5fc0abbee930d524b62"
+  "web.js": "7d5118a9c4609ee8bfde702aef30c1da942e0f67450a587c63cfcf5924086c47"
 }

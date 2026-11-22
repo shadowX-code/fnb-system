@@ -51,7 +51,14 @@ it('keeps conversation requests inert, bounded, safely rendered and separate fro
     data:{protocol:'feedx.assistant.text.v1',type,...payload},
   }));
   const completed={state:'completed',prompt:'Stock check',reply:'Read complete',voice:true};
-  post('history',{session_id:'saved',turns:[{...completed,request_id:'first'},{...completed,request_id:'second'}]});
+  const factorySummary={capability:'read_factory_finished_goods',mode:'summary',scope:'Factory catalogue',as_of:'2026-11-22'};
+  post('history',{session_id:'saved',turns:[
+   {...completed,request_id:'first',evidence:{...factorySummary,measure:'product',total_matching:25}},
+   {...completed,request_id:'second',evidence:{...factorySummary,measure:'sku',total_matching:1,total_scoped_products:4}},
+  ]});
+  expect($('#webMessages').textContent).toContain('Factory summary · 25 products');
+  expect($('#webMessages').textContent).toContain('Factory summary · 1 packaging SKU');
+  expect($('#webMessages').textContent).not.toContain('undefined');
   const rows=()=>[...document.querySelectorAll('#webActivity > li')];
   expect(rows().map(row=>row.dataset.stage)).toEqual(['complete','complete']);
   const voice=(phase, at, operation)=>post('voice_activity',{session_id:'saved',turn_id:'live',phase,at,operation,

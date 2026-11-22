@@ -163,8 +163,14 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
   excludedForPrompt:prompt=>excludeCompetingQueries(operations,prompt),
   toolsForPrompt(prompt,excluded=new Set()){
    if(typeof prompt!=='string'||!prompt.trim())return [];
-   const match=discoveryRows(queryOperations.filter(operation=>!excluded.has(operation.id)),indexed,{search:prompt.slice(0,240),page:1});
-   return match.operations.filter(item=>item.kind==='READ'||item.kind==='GUIDANCE').slice(0,2).map(item=>queryTool(assistantQuery(item.operation)));
+   const searchable=queryOperations.filter(operation=>!excluded.has(operation.id)&&operation.kind!=='ACTION');
+   const question=prompt.slice(0,240);
+   // Discover each question separately so a strong match on one domain cannot
+   // hide the resource referenced by the other question.
+   const clauses=question.split(/\b(?:and|also)\s+(?=(?:what|how|which|show|count|list)\b)|另外|以及|并且|並且/iu).slice(0,2);
+   const matches=clauses.map(search=>discoveryRows(searchable,indexed,{search,page:1}).operations);
+   const ranked=matches.length===1?matches[0]:[...matches.map(rows=>rows[0]).filter(Boolean),...matches.flat()];
+   return [...new Set(ranked.map(item=>item.operation))].slice(0,2).map(id=>queryTool(assistantQuery(id)));
   },
   async execute(id,args,signal,{correctArguments=false,excluded,prompt,history,withOutcome=false,turnPlan}={}){
    const blocked=excluded||excludeCompetingQueries(operations,prompt);
@@ -246,18 +252,18 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
      }
     }
     operation.validate(args);
+    signal?.throwIfAborted();
+    // caller is the authenticated human client, never the service-role client.
+    const evidence=await (readFactory&&id===finishedGoodsRead.id?readFactory(args,signal):operation.execute(caller,args,signal,sessionId));
+    return withOutcome&&operation.kind!=='ACTION'?{...evidence,query_outcome:outcomeFor(evidence),query_domain:domain}:evidence;
    }catch(error){
     if((enveloped||correctArguments)&&error.code==='tool_arguments_invalid')return {error:'tool_arguments_invalid',not_business_evidence:true,no_evidence:true,
      ...(withOutcome?{query_outcome:'UNSUPPORTED'}:{}),operation:id,operation_label:operation.label,
      parameters:queryTool(operation).parameters,description:operation.tool.description,
      validation:error.diagnostic?.validation||{reason:'invalid_combination'},
-     instruction:'Retry using the schema, operation description and validation fields. Preserve explicit supported filters. No business read or action occurred.'};
+     instruction:'Retry using the schema, operation description and validation fields. Preserve explicit supported filters. No business result or action was produced.'};
     throw error;
    }
-   signal?.throwIfAborted();
-   // caller is the authenticated human client, never the service-role client.
-   const evidence=await (readFactory&&id===finishedGoodsRead.id?readFactory(args,signal):operation.execute(caller,args,signal,sessionId));
-   return withOutcome&&operation.kind!=='ACTION'?{...evidence,query_outcome:outcomeFor(evidence),query_domain:domain}:evidence;
   },
   format(id,evidence,prompt){return assistantQuery(id).format?.(evidence,prompt)||null;},
  };

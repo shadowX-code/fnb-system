@@ -2,7 +2,7 @@ import {declareReadInterface} from '../assistant/moduleInterface.js';
 import {invalidArgument,requireArgumentValues,validateFields} from '../assistant/readContract.js';
 import {AssistantError} from '../assistantError.js';
 import {groupFinishedGoods} from './finishedGoodsGroups.js';
-import {loadStockCatalogue, stockPage, stockQueryFields, stockSku, stockUnit, validateStockQuery} from './stockCatalogue.js';
+import {loadStockCatalogue, stockPage, stockQueryFields, stockSku, stockUnit, validateRecordedStockUnit, validateStockQuery} from './stockCatalogue.js';
 const groupedProductSummary={measure:'product',mode:'summary',page:1,sku:null,query:'',availability:'all',status:'all',sort:'name',uom:null};
 const properties={...stockQueryFields,
  page:{type:'integer',minimum:1,maximum:50,description:'Use 1 except in list mode.'},
@@ -44,6 +44,7 @@ export async function readInventory(caller,args,signal){
  const families=args.measure==='product'
   ?await loadStockCatalogue(caller,{entity:'product_families',table:'factory_product_families',fields:'id'},signal):null;
  if((await callerAccess(caller)).scope_key!==access.scope_key)throw new AssistantError('inventory_scope_changed',409);
+ validateRecordedStockUnit(args,rows);
  if(families){
   const familyIds=new Set(families.map(family=>family.id));
   if(rows.some(sku=>sku.product_family_id&&!familyIds.has(sku.product_family_id)))throw new AssistantError('inventory_scope_changed',409);
