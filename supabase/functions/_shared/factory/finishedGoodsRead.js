@@ -1,25 +1,34 @@
 import {declareReadInterface} from '../assistant/moduleInterface.js';
+import {invalidArgument,requireArgumentValues,validateFields} from '../assistant/readContract.js';
 import {AssistantError} from '../assistantError.js';
 import {groupFinishedGoods} from './finishedGoodsGroups.js';
-import {loadStockCatalogue, stockPage, stockRankFields, stockSku, stockUnit, validateStockRanking} from './stockCatalogue.js';
-export const inventoryTool={type:'function',name:'read_factory_finished_goods',description:'Read current Factory Finished Goods. Summary with measure=product counts the unfiltered Admin grouped catalogue, including families and standalone products. Keep other filters clear. For packaging SKUs use measure=sku, optional recorded status, detail for exact SKU, or list and balance sorting for rankings in one unit. No Company or Outlet scope.',strict:true,parameters:{type:'object',properties:{...stockRankFields,mode:{type:'string',enum:['summary','list','detail']},page:{type:'integer',minimum:1,maximum:50},sku:{type:['string','null'],maxLength:80},query:{type:'string',description:'Name substring; use an empty string when supplying an exact SKU'},availability:{type:'string',enum:['all','low','out_of_stock']},status:{type:'string',enum:['all','active','inactive','archived']},measure:{type:'string',enum:['sku','product']}},required:['mode','page','sku','query','availability','sort','uom','status','measure'],additionalProperties:false}};
+import {loadStockCatalogue, stockPage, stockQueryFields, stockSku, stockUnit, validateStockQuery} from './stockCatalogue.js';
+const groupedProductSummary={measure:'product',mode:'summary',page:1,sku:null,query:'',availability:'all',status:'all',sort:'name',uom:null};
+const properties={...stockQueryFields,
+ page:{type:'integer',minimum:1,maximum:50,description:'Use 1 except in list mode.'},
+ query:{type:'string',maxLength:80,description:'Name substring; use an empty string for an unfiltered query or exact SKU.'},
+ availability:{type:'string',enum:['all','low','out_of_stock']},
+ status:{type:'string',enum:['all','active','inactive','archived']},
+ measure:{type:'string',enum:['sku','product']},
+};
+export const inventoryTool={type:'function',name:'read_factory_finished_goods',strict:true,
+ description:'Read current Factory Finished Goods. Count all grouped products (families and standalone products) with exactly '+JSON.stringify(groupedProductSummary)+
+  '. For packaging SKUs use measure=sku, optional recorded status, detail for exact SKU, or list and balance sorting for rankings in one unit. No Company or Outlet scope.',
+ parameters:{type:'object',properties,required:Object.keys(properties),additionalProperties:false}};
 export function inventoryArguments(value){
- if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).some(k=>!inventoryTool.parameters.required.includes(k)))throw new AssistantError('tool_arguments_invalid',400);
+ if(!value||typeof value!=='object'||Array.isArray(value))invalidArgument('object_required');
  const a={query:'',availability:'all',mode:'list',page:1,sku:null,sort:'name',uom:null,status:'all',measure:'sku',...value};
  // A model can combine an exact SKU with summary/list mode on a mixed query.
  // A supplied SKU narrows the read to the same single record as detail mode.
  if((a.mode==='summary'||a.mode==='list'||a.mode==='detail')&&a.page===1&&typeof a.sku==='string'&&a.sku.trim()){
   a.mode='detail';
   if(a.query===null||typeof a.query==='string'&&a.query.toLowerCase()===a.sku.toLowerCase())a.query='';
-  if(stockRankFields.sort.enum.includes(a.sort))a.sort='name';
+  if(stockQueryFields.sort.enum.includes(a.sort))a.sort='name';
   if(a.uom==='')a.uom=null;
  }
- if(typeof a.query!=='string'||a.query.length>80||!inventoryTool.parameters.properties.status.enum.includes(a.status)||
-  !['all','low','out_of_stock'].includes(a.availability)||!['summary','list','detail'].includes(a.mode)||!Number.isInteger(a.page)||a.page<1||a.page>50||(a.sku!==null&&(typeof a.sku!=='string'||!a.sku.trim()||a.sku.length>80))||(a.mode==='detail')!==(a.sku!==null)||(a.mode!=='list'&&a.page!==1))throw new AssistantError('tool_arguments_invalid',400);
- validateStockRanking(a);
- if(!inventoryTool.parameters.properties.measure.enum.includes(a.measure)||
-  a.measure==='product'&&(a.mode!=='summary'||a.status!=='all'||a.query||a.availability!=='all'||a.uom!==null))
-  throw new AssistantError('tool_arguments_invalid',400);
+ validateFields(properties,a);
+ if(a.measure==='product')requireArgumentValues(a,groupedProductSummary);
+ else validateStockQuery(a);
  return a;
 }
 export async function callerAccess(caller){

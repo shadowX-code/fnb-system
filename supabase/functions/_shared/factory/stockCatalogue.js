@@ -1,12 +1,17 @@
 import {AssistantError} from '../assistantError.js';
+import {invalidArgument,requireArgumentValues} from '../assistant/readContract.js';
 
-export const stockRankFields = {
- sort: {type:'string',enum:['name','balance_desc','balance_asc'],description:'Use balance_desc for highest stock or balance_asc for lowest stock, before pagination.'},
- uom: {type:['string','null'],maxLength:24,description:'Exact stock unit, such as kg. Mixed units cannot be ranked together. Null is allowed when all matching rows use a single known unit.'},
+export const stockQueryFields = {
+ mode: {type:'string',enum:['summary','list','detail']},
+ sku: {type:['string','null'],maxLength:80,description:'Exact nonblank SKU for detail, otherwise null.'},
+ sort: {type:'string',enum:['name','balance_desc','balance_asc'],description:'Use name for summary and detail. In list mode, balance_desc or balance_asc ranks stock before pagination.'},
+ uom: {type:['string','null'],maxLength:24,description:'Exact nonblank stock unit, such as kg, or null for no unit filter. Mixed units cannot be ranked together.'},
 };
-export function validateStockRanking(args) {
- if(!stockRankFields.sort.enum.includes(args.sort) || (args.uom !== null && (typeof args.uom !== 'string'||!args.uom.trim()||args.uom.length>24))
-   || (args.sort !== 'name' && args.mode !== 'list'))throw new AssistantError('tool_arguments_invalid',400);
+export function validateStockQuery(args) {
+ if(args.mode!=='list')requireArgumentValues(args,{page:1,sort:'name'});
+ if(args.mode!=='detail')requireArgumentValues(args,{sku:null});
+ if(args.mode==='detail'&&!args.sku?.trim())invalidArgument('nonblank_text','sku');
+ if(args.uom!==null&&!args.uom.trim())invalidArgument('nonblank_text_or_null','uom');
 }
 export const stockNumber = n => n == null || n === '' || !Number.isFinite(Number(n)) ? null : Number(n);
 export const stockUnit = unit => String(unit || '').trim().toLowerCase();

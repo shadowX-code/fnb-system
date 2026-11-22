@@ -3,22 +3,34 @@ import {AssistantError} from '../assistantError.js';
 export const uuid={type:'string',pattern:'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'};
 export const date={type:'string',pattern:'^20[0-9]{2}-[0-9]{2}-[0-9]{2}$'};
 export const pick=(row,keys)=>Object.fromEntries(keys.filter(k=>Object.hasOwn(row||{},k)).map(k=>[k,row[k]]));
+export function invalidArgument(reason,field){
+ throw new AssistantError('tool_arguments_invalid',400,{validation:{reason,...field?{field}:{}}});
+}
+// Expected values are constants from the owning contract, never submitted values.
+export function requireArgumentValues(args,required){
+ const fields=Object.keys(required).filter(field=>args[field]!==required[field]);
+ if(fields.length)throw new AssistantError('tool_arguments_invalid',400,{validation:{
+  reason:'required_values',fields,expected:pick(required,fields),
+ }});
+}
 export function validateFields(properties,value){
- const invalid=(reason,field)=>{throw new AssistantError('tool_arguments_invalid',400,{validation:{reason,...field?{field}:{}}});};
- if(!value||typeof value!=='object'||Array.isArray(value))invalid('object_required');
- if(Object.keys(value).some(k=>!Object.hasOwn(properties,k)))invalid('unexpected_field');
+ if(!value||typeof value!=='object'||Array.isArray(value))invalidArgument('object_required');
+ if(Object.keys(value).some(k=>!Object.hasOwn(properties,k)))invalidArgument('unexpected_field');
  for(const [key,schema] of Object.entries(properties)){
-  if(!Object.hasOwn(value,key))invalid('missing_field',key);
-  const v=value[key];if(v===null&&schema.nullable)continue;
-  if(schema.type==='array'){
-   if(!Array.isArray(v))invalid('wrong_type',key);
-   if(v.length>schema.maxItems||v.some(item=>typeof item!=='string'||!item.trim()||item.length>schema.items.maxLength))invalid('unsupported_value',key);
+  if(!Object.hasOwn(value,key))invalidArgument('missing_field',key);
+  const types=[schema.type].flat();
+  const v=value[key];if(v===null&&(schema.nullable||types.includes('null')))continue;
+  if(types.includes('array')){
+   if(!Array.isArray(v))invalidArgument('wrong_type',key);
+   if(v.length>schema.maxItems||v.some(item=>typeof item!=='string'||!item.trim()||item.length>schema.items.maxLength))invalidArgument('unsupported_value',key);
    continue;
   }
-  if(typeof v!==schema.type)invalid('wrong_type',key);
-  if(schema.pattern&&!new RegExp(schema.pattern).test(v)||schema.enum&&!schema.enum.includes(v)||schema.maxLength&&v.length>schema.maxLength||schema.type==='number'&&(!Number.isInteger(v)||v<schema.minimum||v>schema.maximum))invalid('unsupported_value',key);
+  const numeric=types.includes('number')||types.includes('integer');
+  if(!types.includes(typeof v)&&!(numeric&&typeof v==='number'))invalidArgument('wrong_type',key);
+  if(numeric&&!Number.isInteger(v))invalidArgument('integer_required',key);
+  if(schema.pattern&&!new RegExp(schema.pattern).test(v)||schema.enum&&!schema.enum.includes(v)||schema.maxLength&&v.length>schema.maxLength||numeric&&(v<schema.minimum||v>schema.maximum))invalidArgument('unsupported_value',key);
   if((schema.pattern===date.pattern||schema.pattern===month.pattern)&&
-   (!Number.isFinite(Date.parse(v))||new Date(v).toISOString().slice(0,10)!==v))invalid('invalid_date',key);
+   (!Number.isFinite(Date.parse(v))||new Date(v).toISOString().slice(0,10)!==v))invalidArgument('invalid_date',key);
  }
  return value;
 }

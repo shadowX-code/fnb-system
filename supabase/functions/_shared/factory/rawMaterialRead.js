@@ -1,9 +1,9 @@
 import {readContract, page} from '../assistant/readContract.js';
 import {AssistantError} from '../assistantError.js';
-import {loadStockCatalogue, rawMaterialStockStatus, stockPage, stockRankFields, stockSku, stockUnit, validateStockRanking} from './stockCatalogue.js';
+import {loadStockCatalogue, rawMaterialStockStatus, stockPage, stockQueryFields, stockSku, stockUnit, validateStockQuery} from './stockCatalogue.js';
 
 const stockFields='id,material_code,name,name_en,name_cn,name_bm,category,uom,current_balance,min_stock_level,status,updated_at';
-const {uom,sort}=stockRankFields;
+const {sku,uom}=stockQueryFields;
 
 export const rawMaterialRead=readContract({
  id:'read_factory_raw_catalogue',module_id:'factory_raw_inventory',label:'Raw Material Inventory stock and rankings',
@@ -12,14 +12,11 @@ export const rawMaterialRead=readContract({
  permission:'factory_raw_inventory.view',source:'/factory',version:2,
  scope:'Factory shared raw-material catalogue under current human permission and row visibility.',
  description:'Read Raw Material Inventory (RM): current stock, search, exact SKU detail and complete filtered counts. For highest or lowest stock use list and balance sort in one recorded unit. No costs, site stock, historical stock, reserved stock or ATP.',
- properties:{mode:{type:'string',enum:['summary','list','detail']},page,query:{type:'string',maxLength:80},
-  sku:{type:'string',nullable:true,maxLength:80}, status:{type:'string',enum:['all','active','archived']},
-  availability:{type:'string',enum:['all','low','out_of_stock']},sort,uom:{...uom,type:'string',nullable:true}},
+ properties:{...stockQueryFields,page:{...page,type:'integer',description:'Use 1 except in list mode.'},query:{type:'string',maxLength:80},
+  sku:{...sku,type:'string',nullable:true},uom:{...uom,type:'string',nullable:true},
+  status:{type:'string',enum:['all','active','archived']},availability:{type:'string',enum:['all','low','out_of_stock']}},
  normalizeArguments:a=>a&&typeof a==='object'&&!Array.isArray(a)?{mode:'list',page:1,query:'',sku:null,status:'all',availability:'all',sort:'name',uom:null,...a}:a,
- check(a){
-  validateStockRanking(a);
-  if((a.mode==='detail')!==(a.sku!==null)||a.sku!==null&&!a.sku.trim()||a.mode!=='list'&&a.page!==1)throw new AssistantError('tool_arguments_invalid',400);
- },
+ check:validateStockQuery,
  query:caller=>({abortSignal:async signal=>({data:await loadStockCatalogue(caller,{
   entity:'raw_materials',table:'factory_raw_materials',fields:stockFields,
  },signal)})}),

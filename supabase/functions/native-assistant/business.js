@@ -25,7 +25,7 @@ import {AssistantError} from '../_shared/assistantError.js';
 import {finishedGoodsRead} from '../_shared/factory/finishedGoodsRead.js';
 import {systemGuidance} from '../_shared/assistant/systemGuidance.js';
 import {entityKey,namedOutlets,outletDirectory,resolveBrand,resolveOutlet} from '../_shared/assistant/entityResolution.js';
-import {permitted} from '../_shared/assistant/readContract.js';
+import {invalidArgument,permitted} from '../_shared/assistant/readContract.js';
 import {confirmedOutlet,correctedOutletWording,outcomeFor,outletContinuation} from './businessQuery.js';
 
 // Composition of implemented module contracts, not a permission or grant store.
@@ -197,15 +197,15 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
    if(operation.kind==='READ'&&typeof prompt==='string'&&operation.scopeTextArguments)args=operation.scopeTextArguments(args,prompt);
    const domain=domainOf(operation);
    try{
-    if(args===undefined)throw new AssistantError('tool_arguments_invalid',400);
+    if(args===undefined)invalidArgument('invalid_json');
     if(operation.kind==='READ'&&args&&typeof args==='object'&&!Array.isArray(args)){
      args={...args};
      const properties=operation.tool.parameters.properties;
      const accepted=queryTool(operation).parameters.properties;
-     if(Object.keys(args).some(key=>!Object.hasOwn(accepted,key)))throw new AssistantError('tool_arguments_invalid',400);
+     if(Object.keys(args).some(key=>!Object.hasOwn(accepted,key)))invalidArgument('unexpected_field');
      if(properties.outlet_id){
       if(args.outlet_name!=null&&(typeof args.outlet_name!=='string'||!args.outlet_name.trim()||args.outlet_name.length>120))
-       throw new AssistantError('tool_arguments_invalid',400);
+       invalidArgument('unsupported_value','outlet_name');
       // Only an independently identified single-domain turn can bind a name from the whole utterance.
       const scopeText=correctedOutletWording(prompt);
       if(plan)await permitted(caller,operation.permission,signal);
@@ -236,7 +236,7 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
      }
      if(properties.brand_id&&!properties.brand_name){
       if(args.brand_name!=null){
-       if(typeof args.brand_name!=='string'||!args.brand_name.trim()||args.brand_name.length>120)throw new AssistantError('tool_arguments_invalid',400);
+       if(typeof args.brand_name!=='string'||!args.brand_name.trim()||args.brand_name.length>120)invalidArgument('unsupported_value','brand_name');
        const brand=await resolveBrand(caller,args.brand_name,signal);
        if(!brand)throw new AssistantError('entity_unresolved',409);
        args.brand_id=brand.id;
@@ -248,7 +248,10 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
     operation.validate(args);
    }catch(error){
     if((enveloped||correctArguments)&&error.code==='tool_arguments_invalid')return {error:'tool_arguments_invalid',not_business_evidence:true,no_evidence:true,
-     ...(withOutcome?{query_outcome:'UNSUPPORTED'}:{}),operation:id,operation_label:operation.label,parameters:queryTool(operation).parameters,validation:error.diagnostic?.validation,instruction:'Correct the argument using the exact schema and operation description. Preserve explicit, supported filters. No business read or action occurred.'};
+     ...(withOutcome?{query_outcome:'UNSUPPORTED'}:{}),operation:id,operation_label:operation.label,
+     parameters:queryTool(operation).parameters,description:operation.tool.description,
+     validation:error.diagnostic?.validation||{reason:'invalid_combination'},
+     instruction:'Retry using the schema, operation description and validation fields. Preserve explicit supported filters. No business read or action occurred.'};
     throw error;
    }
    signal?.throwIfAborted();

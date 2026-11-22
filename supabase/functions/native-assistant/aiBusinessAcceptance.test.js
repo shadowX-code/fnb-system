@@ -49,6 +49,8 @@ for(const op of reads)test(`${op.id}: discovery, argument fencing, AI policy and
  assert.equal(invalid.error,'tool_arguments_invalid');
  assert.equal(invalid.operation,op.id);
  assert.equal(invalid.no_evidence,true);
+ assert.deepEqual(invalid.validation,{reason:'unexpected_field'});
+ assert(!JSON.stringify(invalid).includes('select *'));
 });
 
 // Representative fixed source results. The scripted provider exercises the
@@ -232,6 +234,80 @@ test('Finished Goods summary distinguishes configured groups from packaging SKUs
  assert.equal((await business.execute(op,{mode:'summary'})).total_matching,4);
  assert.equal((await business.execute(op,{mode:'summary',status:'active'})).total_matching,3);
  await assert.rejects(business.execute(op,{mode:'summary',measure:'product',status:'active'}),{code:'tool_arguments_invalid'});
+});
+
+test('model-assisted grouped product count corrects a schema-shaped filter error before reading',async()=>{
+ const operation='read_factory_finished_goods';
+ const prompt='How many products are in the Factory Finished Goods grouped catalogue?';
+ const valid={measure:'product',mode:'summary',page:1,sku:null,query:'',availability:'all',status:'all',sort:'name',uom:null};
+ const families=Array.from({length:6},(_,i)=>({id:'family-'+i}));
+ const skus=Array.from({length:26},(_,i)=>({id:'sku-'+i,product_family_id:i<7?families[i%6].id:null}));
+ const {caller,calls}=source({snapshot:{rpcs:fixtures,tables:{
+  factory_finished_goods:skus,factory_product_families:families,
+ }}});
+ const recorded=[];
+ let step=0;
+ const result=await dispatch({action:'respond',session_id:id,turn_id:id},{
+  access,caller,get:k=>({
+   NATIVE_ASSISTANT_OPENAI_API_KEY:'synthetic-key',NATIVE_ASSISTANT_APPROVED_USE:'native-assistant-phase1a',
+   NATIVE_ASSISTANT_APPROVAL_REFERENCE:'fixture',NATIVE_ASSISTANT_MODELS:config.model,
+  })[k],
+  rpc:async(action,payload)=>{
+   if(action==='status')return {config};
+   if(action==='claim')return {state:'running',lease_id:id,kind:'turn',model:config.model,prompt};
+   if(action==='tool_record'&&payload.evidence)recorded.push(payload.evidence);
+   if(action==='finish')return payload;
+   return {};
+  },
+  transport:async(_,init)=>{
+   const body=JSON.parse(init.body);
+   if(++step===1){
+    const tool=body.tools.find(t=>t.name===operation);
+    assert(tool.description.includes(JSON.stringify(valid)));
+    return response([functionCall(operation,{...valid,query:'PRIVATE_FILTER',status:'active',uom:'kg'},'invalid')]);
+   }
+   const value=JSON.parse(body.input.at(-1).output);
+   if(step===2){
+    assert.deepEqual(value.validation,{reason:'required_values',fields:['query','status','uom'],
+     expected:{query:'',status:'all',uom:null}});
+    assert(!JSON.stringify(value).includes('PRIVATE_FILTER'));
+    assert.equal(value.no_evidence,true);
+    assert.equal(calls.length,0);
+    assert.equal(recorded.length,0);
+    return response([functionCall(operation,{...valid,...value.validation.expected},'corrected')]);
+   }
+   assert.equal(value.total_matching,25);
+   assert.equal(value.aggregate_complete,true);
+   assert.equal(value.measure,'product');
+   return response([{type:'message',content:[{type:'output_text',text:'The grouped catalogue contains 25 finished products.'}]}]);
+  },
+ });
+ assert.equal(step,3);
+ assert(result.input_tokens>0);
+ assert.equal(recorded.length,1);
+ assert.deepEqual(certifyScenario('fg_product_count',{turn:{...result,request_id:id,created_at:'fixture',
+  model:config.model,state:'completed',tool_state:'completed',evidence:recorded[0]},
+  source:{count:25,filters:{measure:'product'}}}).status,'PASS');
+ assert.doesNotMatch(result.reply,/required_values|PRIVATE_FILTER/);
+});
+
+test('other READ field-combination errors identify safe corrections before domain access',async()=>{
+ const noSource=()=>assert.fail('Rejected arguments reached a domain source');
+ const business=createBusinessDispatcher({config,access,caller:{rpc:noSource,from:noSource}});
+ const cases=[
+  ['read_factory_raw_catalogue',{mode:'summary',page:2,sort:'balance_desc'},
+   {reason:'required_values',fields:['page','sort'],expected:{page:1,sort:'name'}}],
+  ['read_inventory_movements',{outlet_id:id,from:'2026-11-01',to:null},
+   {reason:'paired_dates_required',field:'to'}],
+  ['read_operational_financials',{outlet_id:id,year:2026,month:1,compare_year:2026,compare_month:null},
+   {reason:'paired_period_required',field:'compare_month'}],
+ ];
+ for(const [operation,args,validation] of cases){
+  const result=await business.execute('run_business_query',envelope(operation,args));
+  assert.equal(result.operation,operation);
+  assert.equal(result.no_evidence,true);
+  assert.deepEqual(result.validation,validation);
+ }
 });
 
 test('multilingual per-outlet inventory counts use complete Master Inventory results without invoking a model',async()=>{

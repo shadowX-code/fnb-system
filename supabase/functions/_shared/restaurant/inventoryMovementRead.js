@@ -1,5 +1,4 @@
-import { AssistantError } from '../assistantError.js';
-import { countedRows, date, page, readContract, uuid } from '../assistant/readContract.js';
+import { countedRows, date, invalidArgument, page, readContract, requireArgumentValues, uuid } from '../assistant/readContract.js';
 
 const fields = ['id','outlet_id','inventory_item_id','movement_type','quantity','unit','reference_type','reference_no','created_at'];
 const types = ['Purchase','Waste','Adjustment','Transfer In','Transfer Out'];
@@ -9,16 +8,17 @@ export const inventoryMovementRead = readContract({
  label:'Recorded inventory movements',permission:'inventory_movements.view',source:'/sales-purchase',
  scope:'One authorized outlet. Optional recorded movement type and inclusive business-date range.',
  discoveryPhrases:['inventory movements','stock movements','pergerakan inventori','出入库','出入庫','库存变动','庫存異動'],
- description:'Count or list posted Restaurant Inventory Movements at one outlet. Filter by recorded movement type and date range. Count means number of movement records. Quantity and unit are shown per record. This is not a current stock balance or a sum of quantities.',
+ description:'Count or list posted Restaurant Inventory Movements at one outlet. For summary use page 1. Supply both from and to for an inclusive date range of up to 366 days between endpoints, or use null for both. Count means number of movement records. Quantity and unit are shown per record. This is not a current stock balance or a sum of quantities.',
  properties:{page,outlet_id:uuid,mode:{type:'string',enum:['list','summary']},
   movement_type:{type:'string',nullable:true,enum:types},from:{...date,nullable:true},to:{...date,nullable:true}},
  normalizeArguments:args=>args&&typeof args==='object'&&!Array.isArray(args)
   ? {page:1,mode:'list',movement_type:null,from:null,to:null,...args}:args,
  check(args){
   const {from,to}=args;
-  if(args.mode==='summary'&&args.page!==1||(from===null)!==(to===null)||from&&to&&
-   (from>to||Date.parse(to)-Date.parse(from)>366*86400000))
-   throw new AssistantError('tool_arguments_invalid',400);
+  if(args.mode==='summary')requireArgumentValues(args,{page:1});
+  if((from===null)!==(to===null))invalidArgument('paired_dates_required',from===null?'from':'to');
+  if(from&&to&&(from>to||Date.parse(to)-Date.parse(from)>366*86400000))
+   invalidArgument('invalid_date_range','to');
  },
  outletScope:true,
  async load(caller,args,signal){
