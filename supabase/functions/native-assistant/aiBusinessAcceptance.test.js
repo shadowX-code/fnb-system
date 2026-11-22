@@ -134,6 +134,29 @@ const cases=[
 ];
 const response=output=>Response.json({status:'completed',output,usage:{input_tokens:100,output_tokens:10}});
 const functionCall=(name,args,call_id)=>({type:'function_call',name,call_id,arguments:JSON.stringify(args)});
+test('operational revenue discovers Finance and reads the named outlet for the requested month',async()=>{
+ const operation='read_operational_financials';
+ const prompt='What was the recorded operational revenue for Fixture Corner in January 2026? Use the Finance monthly financials in MYR and cite the outlet and month.';
+ const src=source();
+ const business=createBusinessDispatcher({caller:src.caller,config,access});
+ const discovery=await business.execute('find_business_queries',{search:'Finance monthly revenue for Fixture Corner',page:1});
+ assert(discovery.operations.some(item=>item.operation===operation));
+ let calls=0;
+ const result=await generateText({kind:'turn',model:config.model,prompt},'fixture-secret',{business,transport:async(_,init)=>{
+  const body=JSON.parse(init.body);
+  if(calls++===0){
+   assert(body.tools.some(tool=>tool.name===operation));
+   return response([functionCall(operation,{outlet_id:null,outlet_name:'Fixture Corner',year:2026,month:1},'finance')]);
+  }
+  const evidence=JSON.parse(body.input.at(-1).output);
+  assert.equal(evidence.capability,operation);
+  assert.deepEqual(evidence.requested_scope,{outlet_id:id,year:2026,month:1});
+  assert.equal(evidence.report.financials.revenue.amount,125);
+  return response([{type:'message',content:[{type:'output_text',text:'Fixture Corner recorded MYR 125 in operational revenue in January 2026.'}]}]);
+ }});
+ assert.match(result.reply,/MYR 125/);
+ assert(src.calls.some(([name,params])=>name==='reporting_monthly_scope_financials'&&params.p_outlet_id===id&&params.p_month===1));
+});
 for(const [operation,question,args,check] of cases)test(`${operation}: evidence through Text orchestration and SDK handoff`,async()=>{
  const {caller}=source();
  const business=createBusinessDispatcher({caller,config,access});
