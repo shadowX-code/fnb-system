@@ -56,6 +56,14 @@ async function loadInventory(caller,args,signal){
 }
 
 export const inventoryMasterRead=readContract({
+ noMonetaryMeasure:true,
+ analysisObservations(e){
+  if(e.requested_scope.mode!=='summary'||!e.aggregate_complete)return [];
+  return (e.by_outlet||(e.outlet?[e]:[])).map(row=>({
+   metric:'Master Inventory item types',unit:'item types',population:e.requested_scope.status,
+   grain:'snapshot',period:'current',outlet:row.outlet,value:row.total_matching,
+  }));
+ },
  id:'read_inventory_items',version:3,module_id:'inventory_master',label:'Restaurant Master Inventory items',
  permission:'inventory_master.view',source:'/restaurant/inventory/master',
  scope:'Master Inventory items linked to authorized outlets. Per-outlet counts cover active authorized outlets unless a specific outlet is named.',
@@ -109,7 +117,10 @@ export const inventoryMasterRead=readContract({
  },
  load:loadInventory,project:data=>data,
  interface:{authority:'Master Inventory items and unique item-to-outlet configuration under human RLS',
-  queryKinds:['summary','count','list','detail','search','filter','group'],measures:['registered_item_count'],fields,
+  queryKinds:['summary','count','list','detail','search','filter','group'],fields,
+  semantics:{entities:['inventory item','ingredient catalogue','outlet'],time:'Current item master and outlet configuration.',
+   relationships:['An item may be configured at several outlets. Per-outlet counts overlap.'],
+   metrics:{registered_item_count:{field:'total_matching',unit:'item types',definition:'Matching item records in scope, independently per outlet when grouped. This does not describe physical stock.'}}},
   aggregates:'source_reported',pagination:'Exact totals use the same outlet and item-status filters as the 20-row catalogue pages. Per-outlet counts must not be added to claim a distinct total.',
   unsupported:['Physical balance, price, stock movement history and historical catalogue counts are not provided by Master Inventory.']},
 });

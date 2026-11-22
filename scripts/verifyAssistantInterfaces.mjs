@@ -9,7 +9,12 @@ const hash=s=>crypto.createHash('sha256').update(s).digest('hex');
 const serialize=value=>JSON.stringify(value,(_k,v)=>typeof v==='function'?v.toString():v);
 function walk(dir){return fs.readdirSync(dir,{withFileTypes:true}).flatMap(e=>e.isDirectory()?walk(path.join(dir,e.name)):[path.join(dir,e.name)]);}
 const domainFiles=walk('supabase/functions/_shared').filter(p=>/\/(people|factory|crew|finance|restaurant|marketing|assistant)\//.test(p)&&p.endsWith('.js'));
-const tokens=new Set(operations.flatMap(o=>[o.rpc,...[...(o.load||o.query||o.execute).toString().matchAll(/\.(?:rpc|from)\(['"]([^'"]+)['"]/g)].map(m=>m[1])]).filter(Boolean));
+// Directory owners pass a fixed table into the shared loader. Include that
+// declared authority so moving the query into a helper keeps its RLS drift gate.
+const tokens=new Set(operations.flatMap(o=>[
+ o.rpc,/^[a-z][a-z0-9_]+$/.test(o.moduleInterface?.authority||'')?o.moduleInterface.authority:null,
+ ...[...(o.load||o.query||o.execute).toString().matchAll(/\.(?:rpc|from)\(['"]([^'"]+)['"]/g)].map(m=>m[1]),
+]).filter(Boolean));
 const consumers=[...walk('src/services'),...walk('supabase/migrations')].filter(p=>{
  if(!/\.(js|ts|sql)$/.test(p)||p.includes('__tests__'))return false;
  const source=fs.readFileSync(p,'utf8');
@@ -20,6 +25,15 @@ for(const o of operations){
  if(!o.moduleInterface||o.moduleInterface.module_id!==o.module_id||o.moduleInterface.kind!==o.kind)throw Error(`Missing module interface: ${o.id}`);
  if(o.kind==='READ'&&(!o.moduleInterface.human_permission||!o.moduleInterface.source||!o.moduleInterface.exposure))throw Error(`Incomplete READ declaration: ${o.id}`);
  if(o.kind==='ACTION'&&!o.moduleInterface.execution_policy)throw Error(`Missing ACTION execution policy: ${o.id}`);
+ const semantics=o.moduleInterface.semantics;
+ if(semantics){
+  if(!semantics.entities?.length||!semantics.time||!semantics.relationships?.length||!Object.keys(semantics.metrics||{}).length)
+   throw Error(`Incomplete business semantics: ${o.id}`);
+  for(const [name,metric] of Object.entries(semantics.metrics)){
+   if(!metric.field||!metric.definition||Boolean(metric.unit)===Boolean(metric.unit_field))
+    throw Error(`Missing metric evidence, definition or unit contract: ${o.id} / ${name}`);
+  }
+ }
  if(o.knowledge&&(o.kind!=='READ'||o.knowledge.type!=='managed_knowledge'||!o.knowledge.owner||!o.knowledge.authority||
   !o.knowledge.publication||!o.scope||!o.tool.parameters.properties.query||o.moduleInterface.knowledge?.retrieval!=='live_source'))
   throw Error(`Incomplete source authority or retrieval declaration: ${o.id}`);

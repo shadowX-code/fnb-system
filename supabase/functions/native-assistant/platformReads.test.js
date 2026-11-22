@@ -13,7 +13,14 @@ test('fixed connection allowlist covers exactly the shipped contracts',()=>{
  const forward=fs.readFileSync(new URL('../../migrations/20261117094742_module_owned_ai_employee_reads.sql',import.meta.url),'utf8');assert(forward.includes("not in ('read_employee_directory','read_recipe_ingredients'"));assert.equal(new Set(ids).size,ids.length);
 });
 test('every new READ validates exact bounded arguments and rejects arbitrary query selection',()=>{
- for(const o of operations.filter(o=>o.properties)){const a=args(o);o.validate(a);assert.throws(()=>o.validate({...a,table:'employees'}));if(o.arguments)o.arguments(a);if(o.check)o.check(a);}
+ for(const o of operations.filter(o=>o.properties)){
+  const a=args(o);
+  if(o.id==='read_operating_expenses')a.year=2026;
+  const valid=o.validate(a);
+  assert.throws(()=>o.validate({...a,table:'employees'}));
+  if(o.arguments)o.arguments(valid);
+  if(o.check)o.check(valid);
+ }
 });
 test('outlet denial prevents fixed RLS table query and projection excludes sensitive fields',async()=>{
  const o=op('read_inventory_orders');let queried=false;

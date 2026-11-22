@@ -1,4 +1,5 @@
 import {AssistantError} from '../assistantError.js';
+import {businessSemanticEntry} from './moduleInterface.js';
 // Transport envelopes over the existing dispatcher, never a second registry or authority.
 export const queryDiscoveryTools=[
  {type:'function',name:'find_business_queries',description:'Find the authorized operation for a FeedX business question. Search with the current user request or a short business resource. Distinguish Master Inventory item types, asset balances, stock movements, Factory raw materials and finished goods. Returns schemas only.',strict:true,parameters:{type:'object',properties:{search:{type:'string',maxLength:240},page:{type:'integer',minimum:1,maximum:20}},required:['search','page'],additionalProperties:false}},
@@ -19,35 +20,65 @@ export function queryEnvelopeArguments(id,a){
  return {operation:a.operation,args};
 }
 export function discoverQueries(operations,capabilities,args){
- const query=discoveryWords(args.search);
- const competing=excludeCompetingQueries(operations,args.search);
- const ranking=/\b(?:top|highest|lowest|rank(?:ing)?)\b|最高|最低/i.test(args.search);
+ const search=args.search.trim();
+ const query=discoveryWords(search);
+ const identifier=/^(?:read|prepare)_[a-z0-9_]+$/i.test(search);
+ const competing=excludeCompetingQueries(operations,search);
+ const ranking=/\b(?:top|highest|lowest|rank(?:ing)?)\b|最高|最低/i.test(search);
+ const counting=/\b(?:how many|count|number of|headcount|berapa|bilangan)\b|多少|幾個|几个/i.test(search);
  const available=new Set(capabilities.filter(c=>c.availability==='connected').map(c=>c.id));
- const rows=operations.filter(o=>available.has(o.id)&&!competing.has(o.id)).flatMap(operation=>{
-  if(!args.search.trim())return [{operation,score:0}];
-  if(operation.id.toLowerCase()===args.search.trim().toLowerCase())return [{operation,score:1000}];
-  const section=operation.moduleInterface?.source?.split('/')[1];
+ const matches=operations.filter(o=>available.has(o.id)&&!competing.has(o.id)).flatMap(operation=>{
+  const entry=businessSemanticEntry(operation);
+  if(!search)return [{operation,entry,score:0}];
+  if(identifier)return operation.id.toLowerCase()===search.toLowerCase()?[{operation,entry,score:1000,exact:true}]:[];
+  const section=entry.source?.split('/')[1];
   const workspace={people:'HR',inventory:'Restaurant','sales-purchase':'Restaurant'}[section] || section;
-  const identity=discoveryWords([operation.id,operation.module_id,operation.label,workspace].join(' '));
-  const explicitResource=matchesResource(operation,query,args.search)||operation.queryIntent?.(args.search);
-  const exactTerms=query.every(word=>identity.includes(word));
-  if(!explicitResource&&(!query.length||!exactTerms))return [];
-  const label=discoveryWords(operation.label);
-  const modules=discoveryWords(operation.module_id);
-  const supportedRank=ranking&&operation.moduleInterface?.query?.dimensions?.includes('rank');
-  return [{operation,score:(exactTerms?30:0)+(explicitResource?10:0)+(supportedRank?100:0)+query.filter(word=>modules.includes(word)).length*2+query.filter(word=>label.includes(word)).length}];
- }).sort((a,b)=>b.score-a.score).map(row=>row.operation);
+  const identity=discoveryWords([entry.operation,entry.owner,entry.label,workspace].join(' '));
+  const explicitResource=matchesResource(operation,query,search)||operation.queryIntent?.(search);
+  // Match complete owner-declared business names inside a sentence. A word like
+  // "employee" or "amount" alone cannot bind an unrelated question to a source.
+  const named=[entry.label,...(entry.semantics?.entities||[])].some(name=>matchesPhrase(name,query,search))
+   || (entry.query?.measures||[]).some(name=>includesMetricName(search,name));
+  const exactTerms=query.length>0&&query.every(word=>identity.includes(word));
+  if(!explicitResource&&!exactTerms&&!named)return [];
+  const label=discoveryWords(entry.label);
+  const modules=discoveryWords(entry.owner);
+  const supportedRank=ranking&&entry.query?.dimensions?.includes('rank');
+  const ownerCount=counting&&entry.query?.dimensions?.includes('count')&&exactTerms&&query.every(word=>modules.includes(word));
+  return [{operation,entry,strong:Boolean(explicitResource||named||ownerCount),exact:entry.label.toLowerCase()===search.toLowerCase(),
+   score:(exactTerms?30:0)+(explicitResource?12:0)+(named?5:0)+(ownerCount?8:0)+(supportedRank?100:0)+query.filter(word=>modules.includes(word)).length*2+query.filter(word=>label.includes(word)).length}];
+ }).sort((a,b)=>b.score-a.score);
+ const exact=matches.filter(row=>row.exact);
+ const strong=exact.length?exact:matches.filter(row=>row.strong);
+ const preferred=strong.length===1?strong[0].operation.id:null;
  const start=(args.page-1)*8;
- return {discovery_only:true,not_business_evidence:true,total_operations:rows.length,page:args.page,has_more:rows.length>start+8,operations:rows.slice(start,start+8).map(o=>({operation:o.id,module:o.module_id,kind:o.kind,description:o.tool.description,parameters:o.tool.parameters,queries:o.moduleInterface?.query,scope:o.scope,...(o.knowledge?{source_type:o.knowledge.type}:{} )})),
-  ...(!rows.length?{instruction:'No operation matched this search. Retry discovery with just the resource or module name. No business source was queried. If no matching operation is available, explain that the capability could not be found; do not report missing records, zero or permission denial.'}:{})};
+ const entries=matches.slice(start,start+8).map(({operation,entry})=>{
+  const result={operation:entry.operation,module:entry.owner,kind:entry.kind,description:entry.description,
+   parameters:operation.tool.parameters,queries:entry.query,scope:entry.scope};
+  if(operation.knowledge)result.source_type=entry.source_type;
+  if(entry.semantics&&entry.operation===preferred)result.semantics=entry.semantics;
+  return result;
+ });
+ return {discovery_only:true,not_business_evidence:true,total_operations:matches.length,page:args.page,has_more:matches.length>start+8,
+  preferred_operation:preferred,operations:entries,
+  ...(!matches.length?{instruction:'No operation matched this search. Retry discovery with just the resource or module name. No business source was queried. If no matching operation is available, explain that the capability could not be found; do not report missing records, zero or permission denial.'}:{})};
+}
+
+function matchesPhrase(phrase,query,search){
+ if(/\p{Script=Han}/u.test(phrase)&&search.normalize('NFKC').includes(phrase.normalize('NFKC')))return true;
+ const words=discoveryWords(phrase);
+ return words.length>1&&words.every(word=>query.includes(word));
+}
+
+function includesMetricName(search,name){
+ // Match the whole measure including generic words such as "count" or "stock".
+ // Discarding them would turn low_stock_count into a misleading match for "low".
+ const normalize=value=>value.toLowerCase().replace(/[^\p{L}\p{N}]+/gu,' ').trim();
+ return (' '+normalize(search)+' ').includes(' '+normalize(name)+' ');
 }
 
 function matchesResource(operation,query,search){
- return (operation.discoveryPhrases||[]).some(phrase=>{
-  if(/\p{Script=Han}/u.test(phrase)&&search.normalize('NFKC').includes(phrase.normalize('NFKC')))return true;
-  const words=discoveryWords(phrase);
-  return words.length>1&&words.every(word=>query.includes(word));
- });
+ return (operation.discoveryPhrases||[]).some(phrase=>matchesPhrase(phrase,query,search));
 }
 
 export function excludeCompetingQueries(operations,prompt){
@@ -59,7 +90,7 @@ export function excludeCompetingQueries(operations,prompt){
 }
 
 const grammar = new Set(('a an the of by in from for to show list all top highest lowest count summary how many compare rank ranking status current currently stock balance balances read records operations please what which is are there have has authorized authorised '+
- 'about using same and unit units three two first page active inactive archived kg g mg ml litre litres pack packs sku').split(' '));
+ 'about using same and unit units three two first page active inactive archived kg g mg ml litre litres pack packs sku do does did we us our my me you can could get give tell check today').split(' '));
 function discoveryWords(value) {
  const words = value.toLowerCase()
   .replace(/\bfg\b|成品/g,' finished goods ')

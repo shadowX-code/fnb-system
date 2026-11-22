@@ -113,7 +113,15 @@ function completeTextPage(evidence,plan){
 
 // Factory owns the schema, permission, bounded read and evidence semantics.
 export const finishedGoodsRead = Object.freeze({
- moduleInterface:declareReadInterface({module_id:'factory_finished_goods',version:4,permission:'factory_finished_goods.view',scope:'Factory shared catalogue',source:'/factory/warehouse/finished-goods',properties:inventoryTool.parameters.properties,interface:{queryKinds:['summary','count','list','search','detail','filter','rank'],authority:'factory_get_master_id_snapshot + scoped SKU and product-family tables',aggregates:'complete_filtered_scope',fields:['measure','rows','total_scoped_products','total_matching','unknown_minimum_count','low_stock_count','out_of_stock_count','ranking'],pagination:'Complete identity/count-checked SKU and grouped catalogues; SKU rows paginated at 20. Non-atomic source snapshots.',unsupported:['Filtered family counts, category, tags, valuation and per-location stock are outside this read.']}}),
+ moduleInterface:declareReadInterface({module_id:'factory_finished_goods',version:4,permission:'factory_finished_goods.view',scope:'Factory shared catalogue',source:'/factory/warehouse/finished-goods',properties:inventoryTool.parameters.properties,interface:{semantics:{
+  entities:['packaging SKU','finished product family'],time:'Current Factory shared catalogue; separate identity and row reads.',
+  relationships:['A product groups its packaging SKUs. A SKU outside a family is one standalone product.'],
+  metrics:{
+   product_count:{field:'total_matching',unit:'products',definition:'Configured families plus standalone SKUs, only in product summary mode.'},
+   packaging_sku_count:{field:'total_matching',unit:'SKUs',definition:'Matching packaging SKU records in SKU mode.'},
+   recorded_balance:{field:'rows[].current_balance',unit_field:'rows[].uom',definition:'Current aggregate SKU balance. Rank within one recorded unit.'},
+   low_stock_count:{field:'low_stock_count',unit:'SKUs',definition:'Below a strictly positive recorded minimum. A missing or zero minimum is unknown.'},
+  }},queryKinds:['summary','count','list','search','detail','filter','rank'],authority:'factory_get_master_id_snapshot + scoped SKU and product-family tables',aggregates:'complete_filtered_scope',fields:['measure','rows','total_scoped_products','total_matching','unknown_minimum_count','low_stock_count','out_of_stock_count','ranking'],pagination:'Complete identity/count-checked SKU and grouped catalogues; SKU rows paginated at 20. Non-atomic source snapshots.',unsupported:['Filtered family counts, category, tags, valuation and per-location stock are outside this read.']}}),
  id:inventoryTool.name, module_id:'factory_finished_goods', kind:'READ', version:4,
  label:'Factory Finished Goods', permission:'factory_finished_goods.view',
  discoveryPhrases:['finished goods','produk siap','成品库存','成品庫存'],

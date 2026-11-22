@@ -25,6 +25,10 @@ export function outcomeFor(evidence){
 export const outletContinuation=prompt=>/\b(?:same outlet|that outlet|this outlet|same branch|that café|this café|that cafe|this cafe)\b|(?:同一|同一家|该|該|这一个|這一個|这个|這個|那个|那個|这家|這家|那家)\s*(?:餐厅|餐廳|门店|門店|餐館|网点|咖啡店|店)/iu.test(prompt||'')&&
  !/\b(?:also|separately|compare|versus|and\s+(?:what|how|show|give|list))\b|另外|以及|同时|同時|對比|对比/iu.test(prompt||'');
 
+// An evidence-backed analysis may require more than the formatted result of one
+// resolved read. Keep synthesis and read-only discovery available for these turns.
+export const asksForAnalysis=prompt=>/\b(?:why|explain the (?:change|increase|decrease)|analy[sz]e|recommend(?:ations?)?|suggest(?:ions?)?|underperform(?:ed|ing)?|root cause|what (?:should|could|can) we|mengapa|kenapa|cadang(?:an|kan)?|punca)\b|为什么|為什麼|原因|分析|建议|建議|怎[么麼]改善/iu.test(prompt||'');
+
 export const affirmedOutlet=prompt=>/^(?:yes\b|correct\b|that's right\b|betul\b|ya\b|对[，,。]?|對[，,。]?|是的|没错|沒錯)/iu.test(String(prompt||'').trim())&&
  /\b(?:its|there|that outlet|this outlet|at that branch)\b|(?:他|它|那家|这家|這家)(?:在|的)|(?:该|該)(?:店|餐[厅廳]|门店|門店)/iu.test(prompt);
 
@@ -80,4 +84,21 @@ export function businessFailureReply(status,prompt=''){
   UNSUPPORTED:chinese?'目前无法提供这项数据。':malay?'Maklumat ini belum tersedia.':'I can’t answer that from the currently available data.',
   EXECUTION_ERROR:chinese?'暂时无法读取这项数据，请重试。':malay?'Data tidak dapat dibaca buat sementara waktu. Sila cuba lagi.':'The data could not be read. Please try again.',
  })[status]||null;
+}
+
+// Only used when the model omitted part of a goal or contradicted a checked
+// amount. Prefer the owning domain formatter and make remaining limits explicit.
+export function sourcedResultSummary(evidence,prompt=''){
+ const chinese=/\p{Script=Han}/u.test(prompt);
+ const malay=!chinese&&/\b(?:berapa|semak|jumlah|inventori|baki)\b/iu.test(prompt);
+ const citation=evidence?.knowledge?.citations?.[0];
+ if(citation?.title&&citation.excerpt){
+  const excerpt=citation.excerpt.length>300?citation.excerpt.slice(0,297)+'…':citation.excerpt;
+  return citation.title+' ('+citation.version+') — '+excerpt;
+ }
+ const total=evidence?.total_matching??evidence?.total_count;
+ if(evidence?.aggregate_complete===true&&Number.isSafeInteger(total)&&total>=0){
+  return chinese?'符合条件的记录共 '+total+' 条。':malay?total+' rekod sepadan.':total+' matching record'+(total===1?'':'s')+'.';
+ }
+ return chinese?'可查看本次查询已保存的来源。':malay?'Lihat sumber yang disimpan untuk hasil ini.':'The result is available in the saved evidence.';
 }

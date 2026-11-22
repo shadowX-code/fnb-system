@@ -26,7 +26,8 @@ import {finishedGoodsRead} from '../_shared/factory/finishedGoodsRead.js';
 import {systemGuidance} from '../_shared/assistant/systemGuidance.js';
 import {entityKey,namedOutlets,outletDirectory,resolveBrand,resolveOutlet} from '../_shared/assistant/entityResolution.js';
 import {invalidArgument,permitted} from '../_shared/assistant/readContract.js';
-import {affirmedOutlet,confirmedOutlet,continuedPage,correctedOutletWording,outcomeFor,outletContinuation,pageRequest,previousBusinessResult,previousNamedTurn} from './businessQuery.js';
+import {operationalAnalysis,verifiedAnswerAmounts,verifyReadEvidence} from '../_shared/assistant/evidence.js';
+import {affirmedOutlet,asksForAnalysis,confirmedOutlet,continuedPage,correctedOutletWording,outcomeFor,outletContinuation,pageRequest,previousBusinessResult,previousNamedTurn} from './businessQuery.js';
 
 // Composition of implemented module contracts, not a permission or grant store.
 // Discovery never makes a module executable. ACTION tools create previews only.
@@ -107,8 +108,39 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
  };
  const discoveryRows=(ops,available,params)=>discoverQueries(ops.map(operation=>({...operation,tool:queryTool(operation)})),available,params);
  const planFor=operation=>operation?{operation:operation.id,tool:indexed.find(item=>item.id===operation.id)?.availability==='connected'?queryTool(operation):null}:null;
+ // A coordinated question can name several owners. Keep each clause with its own
+ // authority and filters. A list of outlets or two dates alone is not a new read.
+ let lastGoalPrompt, lastGoal;
+ function planGoal(prompt){
+  if(typeof prompt!=='string'||!prompt.trim())return null;
+  if(lastGoalPrompt===prompt)return lastGoal;
+  lastGoalPrompt=prompt;
+  lastGoal=null;
+  const clauses=prompt.split(/\s*[,，]?\s*(?:[;；]|\b(?:and|also|then|separately|serta|dan)\b|另外|以及|并且|並且|同时|同時)\s*/iu).map(s=>s.trim()).filter(Boolean);
+  if(clauses.length<2||clauses.length>5)return null;
+  const steps=[];
+  for(const wording of clauses){
+   const matches=intended(wording);
+   const explicit=matches.length===1?matches[0]:null;
+   const result=discoveryRows(queryOperations.filter(op=>op.kind!=='ACTION'),indexed,{search:wording.slice(0,240),page:1});
+   // A compound plan only coordinates independently identified reads. Keep open
+   // discovery for ambiguous or unsupported clauses rather than forcing a substitute.
+   const preferred=result.preferred_operation||(result.total_operations===1?result.operations[0].operation:null);
+   const operation=explicit||(preferred?assistantQuery(preferred):null);
+   if(!operation&&steps.length&&/^(?:(?:please|briefly)\s+)*(?:recommend|suggest|give (?:one|a) (?:recommendation|next check)|cadangkan|建议|建議)/iu.test(wording)&&!result.total_operations)continue;
+   if(!operation||steps.some(step=>step.operation===operation.id))return null;
+   const prior=steps.at(-1);
+   const sameOutlet=prior&&operation.tool.parameters.properties.outlet_id&&
+    assistantQuery(prior.operation).tool.parameters.properties.outlet_id&&
+    (outletContinuation(wording)||/\b(?:there|at that location|di sana)\b|在那[里裡]|那[家間]店/iu.test(wording));
+   steps.push({...planFor(operation),wording,intent:operation.queryIntent?.(wording),...(sameOutlet?{outletWording:prior.outletWording||prior.wording}:{})});
+  }
+  if(steps.length>=2&&steps.length<=4)lastGoal=steps;
+  return lastGoal;
+ }
  async function planTurn(prompt,history,signal,{textPages=false}={}){
   if(!prompt)return null;
+  if(planGoal(prompt)||asksForAnalysis(prompt))return null;
   const textPage=textPages?await finishedGoodsRead.planTextPage(prompt,history):null;
   if(textPage)return {...planFor(finishedGoodsRead),textPage};
   // Page-only turns reuse an exact authorized query, never a guessed or mixed one.
@@ -150,6 +182,9 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
   const wording=correctedOutletWording(prompt);
   const directory=plan&&prompt&&!plan.outlet?await outletDirectory(caller,signal):[];
   let named=plan?.outlet?[plan.outlet]:namedOutlets(directory,wording);
+  if(!named.length&&plan?.outletWording){
+   return {named:namedOutlets(directory,correctedOutletWording(plan.outletWording)),inherited:null};
+  }
   const inherited=plan?.contextualOutlet||null;
   if(named.length||!history||!outletContinuation(prompt)&&!affirmedOutlet(prompt))return {named,inherited};
   const prior=await history();
@@ -177,8 +212,12 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
   guidance_sources:guideAvailable(config||{},access||{})?[{id:systemGuidance.id,module_id:systemGuidance.module_id,...systemGuidance.knowledge,availability:'live_source',retrieval:'current_release'}]:[],
   tools:(()=>{const offered=queryOperations.filter(operation=>indexed.find(item=>item.id===operation.id)?.availability==='connected');return offered.length>8?queryDiscoveryTools:offered.map(queryTool);})(),
   preferredVoiceTools:operations.filter(operation=>operation.prepareArguments&&planFor(operation)?.tool).map(queryTool),
+  analyze:evidences=>operationalAnalysis(evidences,assistantQuery),
+  validAnswerAmounts:(reply,evidences)=>verifiedAnswerAmounts(reply,evidences,assistantQuery),
+  planGoal,
   planTurn,
   plan(prompt){
+   if(planGoal(prompt)||asksForAnalysis(prompt))return null;
    const operation=planned(prompt);
    return operation?{...planFor(operation),intent:operation.queryIntent(prompt),wording:prompt}:null;
   },
@@ -198,6 +237,8 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
   excludedForPrompt:prompt=>excludeCompetingQueries(operations,prompt),
   toolsForPrompt(prompt,excluded=new Set()){
    if(typeof prompt!=='string'||!prompt.trim())return [];
+   const goal=planGoal(prompt);
+   if(goal)return goal.filter(step=>step.tool&&!excluded.has(step.operation)).map(step=>step.tool);
    const searchable=queryOperations.filter(operation=>!excluded.has(operation.id)&&operation.kind!=='ACTION');
    const question=prompt.slice(0,240);
    // Discover each question separately so a strong match on one domain cannot
@@ -209,21 +250,24 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
   },
   async execute(id,args,signal,{correctArguments=false,excluded,prompt,history,withOutcome=false,turnPlan}={}){
    const blocked=excluded||excludeCompetingQueries(operations,prompt);
+   const goal=planGoal(prompt);
    const enveloped=id==='run_business_query';
    if(isQueryEnvelope(id)){
     const parsed=queryEnvelopeArguments(id,args);
     if(id==='find_business_queries'){
      const current=loadConfig?await loadConfig():config||{};
      const plan=turnPlan??(await planTurn(prompt,history,signal));
-     const result=discoveryRows(queryOperations.filter(operation=>!blocked.has(operation.id)&&(!plan||operation.id===plan.operation)),
+     const result=discoveryRows(queryOperations.filter(operation=>!blocked.has(operation.id)&&(!asksForAnalysis(prompt)||operation.kind!=='ACTION')&&(!goal||goal.some(step=>step.operation===operation.id))&&(!plan||operation.id===plan.operation)),
       withGuide(businessCapabilities(current,access||{}),current),plan?{search:plan.operation,page:1}:parsed);
      return withOutcome?{...result,query_outcome:outcomeFor(result)}:result;
     }
     id=parsed.operation;args=parsed.args;
    }
    const operation=assistantQuery(id);
-   const plan=turnPlan??(await planTurn(prompt,history,signal));
-   if(blocked.has(id)||plan&&plan.operation!==id)throw new AssistantError('tool_not_allowed',403);
+   const step=goal?.find(item=>item.operation===id);
+   const plan=step??turnPlan??(await planTurn(prompt,history,signal));
+   if(blocked.has(id)||goal&&!step||plan&&plan.operation!==id||operation.kind==='ACTION'&&asksForAnalysis(prompt))throw new AssistantError('tool_not_allowed',403);
+   if(step)prompt=step.wording;
    // ACTION requires a separate, server-owned execution authority and confirmed
    // intent. Neither a tool argument nor the human's existing permission grants it.
 
@@ -257,7 +301,7 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
       if(resolved)args={...args,...resolved};
       else if(named.length>1)throw new AssistantError('entity_ambiguous',409);
       else if(named[0])args.outlet_name=named[0].name;
-      if(plan&&!resolved&&!named.length){
+      if(plan&&!resolved&&!named.length&&(!step||step.intent||args.outlet_name||args.outlet_id)){
        const wording=' '+entityKey(scopeText)+' ';
        const supplied=args.outlet_name||args.outlet_id;
        if(inherited||!supplied||!wording.includes(' '+entityKey(supplied)+' ')){
@@ -287,10 +331,11 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
       delete args.brand_name;
      }
     }
-    operation.validate(args);
+    const normalized=operation.validate(args);
     signal?.throwIfAborted();
     // caller is the authenticated human client, never the service-role client.
     const evidence=await (readFactory&&id===finishedGoodsRead.id?readFactory(args,signal):operation.execute(caller,args,signal,sessionId));
+    if(operation.kind==='READ')verifyReadEvidence(operation.moduleInterface,id,evidence,normalized);
     return withOutcome&&operation.kind!=='ACTION'?{...evidence,query_outcome:outcomeFor(evidence),query_domain:domain}:evidence;
    }catch(error){
     if((enveloped||correctArguments)&&error.code==='tool_arguments_invalid')return {error:'tool_arguments_invalid',not_business_evidence:true,no_evidence:true,

@@ -18,7 +18,11 @@ export const plannerRead=readContract({
   const rows=tasks.slice(first,first+20).map(task=>pick(task,['id','title','status','content_type','due_date','revision','updated_at']));
   return {total_matching:tasks.length,aggregate_complete:true,page:args.page,returned:rows.length,truncated:tasks.length>first+20,rows};
  },
- interface:{queryKinds:['count','list','filter'],authority:'marketing_planner_read',aggregates:'complete_filtered_scope',
+ interface:{semantics:{
+  entities:['creative task','Brand'],time:'One selected calendar planning month.',
+  relationships:['A task belongs to the Brand plan; a completed task need not be a published post.'],
+  metrics:{creative_task_count:{field:'total_matching',unit:'tasks',definition:'Saved creative tasks in the Brand plan matching the selected status.'}}},
+  queryKinds:['count','list','filter'],authority:'marketing_planner_read',aggregates:'complete_filtered_scope',
   pagination:'Exact filtered count of saved tasks for the selected Brand/month before paging; up to 20 task summaries.',
   unsupported:['Publishing outcomes, provider delivery, targets, assignee identity and task bodies are outside this read.']},
 });

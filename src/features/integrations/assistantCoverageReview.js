@@ -1,13 +1,77 @@
 // Coverage evidence is separate from server-enforced AI access policy.
 export const coverageLabels = {"full": "Full", "partial": "Partial", "shared": "Shared", "missing": "Not integrated", "blocked": "Not integrated", "not_applicable": "Not applicable"};
 export const assistantCoverageReview = {
+  "purchase-input": {
+    classification: "partial",
+    available: "Monthly entered purchases, matching row count and individual amounts ranked within one authorized outlet/month. Records include visible supplier and category labels.",
+    missing: "Payments, statutory expenses, grouped supplier totals and private remarks are outside this read.",
+    reads: ["read_purchase_records"],
+    evidence: ["src/services/purchaseRecordService.js", "supabase/functions/_shared/restaurant/purchaseInputRead.js"],
+    certification: ["purchase_input_rank"]
+  },
+  "outlets": {
+    classification: "partial",
+    available: "Exact counts and pages of visible outlet directory entries with optional active-status and exact-name filters.",
+    missing: "Addresses, public feedback tokens, attendance locations and business results are excluded.",
+    reads: ["read_outlet_directory"],
+    evidence: ["src/services/outletService.js", "supabase/functions/_shared/restaurant/catalogueReads.js"],
+    certification: ["read_outlet_directory_count"]
+  },
+  "sales-channels": {
+    classification: "partial",
+    available: "Sales-channel directory counts and pages by exact name and active status.",
+    missing: "Revenue, transactions and channel balances have separate source permissions.",
+    reads: ["read_sales_channels"],
+    evidence: ["src/services/salesChannelService.js", "supabase/functions/_shared/restaurant/catalogueReads.js"],
+    certification: ["read_sales_channels_count"]
+  },
+  "purchase-categories": {
+    classification: "partial",
+    available: "Purchase-category directory counts and pages by exact name and active status.",
+    missing: "Purchase amounts and changes to supplier or category assignments are outside the directory read.",
+    reads: ["read_purchase_categories"],
+    evidence: ["src/services/purchaseCategoryService.js", "supabase/functions/_shared/restaurant/catalogueReads.js"],
+    certification: ["read_purchase_categories_count"]
+  },
+  "suppliers": {
+    classification: "partial",
+    available: "Count or page visible Restaurant suppliers and look up an authorized supplier by name.",
+    missing: "The count covers supplier records, regardless of purchase activity. Private contacts and purchase volumes are excluded.",
+    reads: ["read_supplier_directory"],
+    evidence: ["src/services/supplierService.js", "supabase/functions/_shared/restaurant/catalogueReads.js"],
+    certification: ["read_supplier_directory_count"]
+  },
+  "factory_equipment": {
+    classification: "partial",
+    available: "Exact counts and pages of Factory equipment records, including an exact equipment name filter.",
+    missing: "Runtime, maintenance history, calibration and valuation require separate evidence.",
+    reads: ["read_factory_equipment"],
+    evidence: ["src/services/factoryService.js", "supabase/functions/_shared/factory/catalogueReads.js"],
+    certification: ["read_factory_equipment_count"]
+  },
   "inventory_movements": {
     classification: "partial",
     available: "Exact counts and paged movement records by outlet, date, item or SKU, reference and recorded movement type.",
     missing: "Grouped quantities, valuation and current stock balances are outside the movement history.",
     reads: ["read_inventory_movements"],
     evidence: ["src/features/sales-purchase/inventory/movements/inventoryMovementService.js", "supabase/functions/_shared/restaurant/inventoryMovementRead.js"],
-    certification: ["movement_filtered_count"]
+    certification: ["movement_filtered_count", "inventory_movement_item_history"]
+  },
+  "factory_product_movements": {
+    classification: "partial",
+    available: "Dated movement counts and pages by product code or name, recorded batch, reference and movement type. Each row retains its quantity, unit and historical balance after posting when recorded.",
+    missing: "Cross-unit totals, current stock, allocation breakdowns and movement valuation require separate evidence.",
+    reads: ["read_factory_product_movements"],
+    evidence: ["src/services/factoryService.js", "supabase/functions/_shared/factory/movementReads.js"],
+    certification: ["read_factory_product_movements_history"]
+  },
+  "factory_raw_movements": {
+    classification: "partial",
+    available: "Dated raw material movement counts and pages by material code or name, batch, reference and movement type. Rows retain signed quantities, units and recorded historical balances.",
+    missing: "Storage-location filtering, supplier-lot search, current inventory and purchase valuation are outside this read.",
+    reads: ["read_factory_raw_movements"],
+    evidence: ["src/services/factoryService.js", "supabase/functions/_shared/factory/movementReads.js"],
+    certification: ["read_factory_raw_movements_history"]
   },
   "factory_finished_goods": {
     classification: "partial",
@@ -35,11 +99,11 @@ export const assistantCoverageReview = {
   },
   "finance_overview": {
     classification: "partial",
-    available: "Canonical operational monthly reports and comparison of two explicit periods within a single authorized outlet.",
-    missing: "Multi-outlet period comparisons, accounting statements, statutory reports and cash balances are outside this capability.",
+    available: "Monthly operational reports. For one outlet with comparable periods, Finance provides cost changes, reconciled EBITDA contributions and its revenue-growth/EBITDA-margin performance zone.",
+    missing: "No all-outlet performance ranking, accounting statements, statutory figures, cash balances or evidence of business causation.",
     reads: ["read_operational_financials"],
     evidence: ["src/services/reportingService.js", "supabase/functions/_shared/finance/reportRead.js"],
-    certification: ["finance_period_pair", "finance_partial"]
+    certification: ["finance_period_pair", "finance_partial", "finance_performance_change"]
   },
   "crew_leave": {
     classification: "partial",

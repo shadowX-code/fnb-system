@@ -67,6 +67,7 @@ async function loadAssetCatalogue(caller,args,signal){
 }
 
 export const assetCatalogueRead=readContract({
+ noMonetaryMeasure:true,
  id:'read_asset_catalogue',version:3,module_id:'asset_tracking',label:'Restaurant Asset Tracking catalogue',
  discoveryPhrases:['asset tracking','restaurant assets','asset balance','asset catalogue','asset movements','cutlery movements','资产变动','资产追踪','资产数量','餐具数量'],
  // Domain intent only. Entities still resolve from the user's words and the authorized catalogue.
@@ -154,7 +155,15 @@ export const assetCatalogueRead=readContract({
  load:loadAssetCatalogue,project:d=>d,
  interface:{authority:'Asset Tracking service · outlet-scoped asset_items and asset_movement_logs',
   queryKinds:['count','summary','list','search','detail','filter','movement_history'],
-  measures:['current_asset_count','current_quantity','quantity_change','quantity_before','quantity_after'],
+  semantics:{entities:['outlet asset','equipment','asset movement'],time:'Current balances or movements by inclusive recorded movement date.',
+   relationships:['The asset catalogue and its movement log pertain to the same authorized outlet and resolved asset.'],
+   metrics:{
+    current_asset_count:{field:'total_matching',unit:'asset records',definition:'Catalogue record count in catalogue modes. In movement mode total_matching counts events.'},
+    current_quantity:{field:'rows[].current_quantity',unit_field:'rows[].unit',definition:'Recorded current quantity of an individual asset.'},
+    quantity_change:{field:'rows[].quantity_change',unit_field:'asset.unit',definition:'Signed change recorded on one movement.'},
+    quantity_before:{field:'rows[].quantity_before',unit_field:'asset.unit',definition:'Recorded quantity before that movement.'},
+    quantity_after:{field:'rows[].quantity_after',unit_field:'asset.unit',definition:'Recorded quantity after that movement.'},
+   }},
   fields:[...fields,...movementFields],
   aggregates:'source_reported',pagination:'Count is exact for the outlet catalogue or the selected asset and date range. Catalogue and movement pages contain up to 20 rows.',
   unsupported:['Condition summaries, valuation, archived asset history and mixed-unit quantity totals are outside this operation. Ingredient and Factory balances have separate authorities.'],

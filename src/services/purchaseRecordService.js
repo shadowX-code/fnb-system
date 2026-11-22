@@ -1,3 +1,4 @@
+import { purchaseRecordLabels } from "../../supabase/functions/_shared/restaurant/purchaseRecordLabels.js";
 import { supabase } from "../lib/supabase";
 import { auditLogService } from "./auditLogService";
 import { throwSupabaseError } from "./supabaseError";
@@ -34,8 +35,7 @@ function mapPurchaseRecord(record) {
     remark: record.remark,
     created_at: record.created_at,
     updated_at: record.updated_at,
-    supplier_name: record.supplier?.name ?? "",
-    category_name: record.category?.name ?? record.supplier?.category ?? "",
+    ...purchaseRecordLabels(record),
   };
 }
 

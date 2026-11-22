@@ -8,6 +8,8 @@ This domain owns Factory Finished Goods, Dispatch, product movements and stock c
 
 Current Factory warehouse services, migrations, lifecycle authorities, RLS, route contracts, and tests are authoritative.
 
+The Native Assistant reads finished-product and raw-material movement history through the warehouse listing RPCs with the current human permission. Dated evidence preserves signed quantity and the historical balance after posting when available. Finished-product quantities use the register’s packaging-unit basis. Raw materials use the recorded material UOM. The matching count covers the filtered ledger, including subsequent pages. Current inventory and valuation remain separate authorities.
+
 ## Finished Product Storage Control Projection
 
 Factory MeSTI Finished Product Storage Control is a read-only report over canonical completed Production rows and their `factory_finished_good_batch_balances` entries. It uses the completed Production actor and timestamp, Packaging SKU, Finished Good family, batch opening quantity, canonical storage location, manufacturing date, and expiry already captured by the Finished Goods workflow. It never creates or mutates warehouse inventory, movements, batches, or a duplicate MeSTI storage ledger.

@@ -1,3 +1,4 @@
+import {finishedGoodsFixture} from '../../../qa/fixtures/assistantFinishedGoods.js';
 import {createBusinessDispatcher} from './business.js';
 import test from 'node:test';import assert from 'node:assert/strict';
 import {generateText as generateProviderText} from './provider.js';import {inventoryArguments,callerAccess,readInventory} from '../_shared/factory/finishedGoodsRead.js';import {validateBody,dispatch} from './handler.js';
@@ -6,8 +7,8 @@ const response=data=>new Response(JSON.stringify(data));
 const claim={kind:'turn',model:'gpt-4o-mini',prompt:'Check Finished Goods',context:[]};
 test('real transport contract routes one fixed tool, carries authoritative evidence and sums both usages (fixture)',async()=>{
  const statuses=[],bodies=[];let n=0;
- const r=await generateText(claim,'fixture-key',{onTool:(...x)=>statuses.push(x),readTool:async args=>{assert.deepEqual(args,{query:'',availability:'all'});return {capability:'read_factory_finished_goods',as_of:'fixture-time',rows:[{product_name:'Fixture',current_balance:4}]};},transport:async(_,init)=>{bodies.push(JSON.parse(init.body));return response(++n===1?{status:'completed',output:[{type:'function_call',name:'read_factory_finished_goods',call_id:'fixture-call',arguments:'{"query":"","availability":"all"}'}],usage:{input_tokens:40,output_tokens:20}}:{status:'completed',output:[{type:'message',content:[{type:'output_text',text:'Fixture has 4 units.'}]}],usage:{input_tokens:80,output_tokens:10}});}});
- assert.equal(r.reply,'Fixture has 4 units.');assert.equal(r.input_tokens,120);assert.equal(r.output_tokens,30);assert.deepEqual(statuses.map(x=>x[0]),['executing','completed']);assert.equal(bodies[1].tools.length,1);assert.equal(bodies[1].store,false);assert(bodies[1].input.at(-1).output.includes('fixture-time'));
+ const r=await generateText(claim,'fixture-key',{onTool:(...x)=>statuses.push(x),readTool:async args=>{assert.deepEqual(args,{query:'',availability:'all'});return finishedGoodsFixture([{product_name:'Fixture',current_balance:4,uom:'unit'}])(args);},transport:async(_,init)=>{bodies.push(JSON.parse(init.body));return response(++n===1?{status:'completed',output:[{type:'function_call',name:'read_factory_finished_goods',call_id:'fixture-call',arguments:'{"query":"","availability":"all"}'}],usage:{input_tokens:40,output_tokens:20}}:{status:'completed',output:[{type:'message',content:[{type:'output_text',text:'Fixture has 4 units.'}]}],usage:{input_tokens:80,output_tokens:10}});}});
+ assert.equal(r.reply,'Fixture has 4 units.');assert.equal(r.input_tokens,120);assert.equal(r.output_tokens,30);assert.deepEqual(statuses.map(x=>x[0]),['executing','completed']);assert.equal(bodies[1].tools.length,1);assert.equal(bodies[1].store,false);assert(Number.isFinite(Date.parse(JSON.parse(bodies[1].input.at(-1).output).as_of)));
 });
 test('rejects arbitrary tools and arguments; errors never become inventory evidence',async()=>{
  assert.throws(()=>inventoryArguments({query:'',availability:'all',company_id:'unapproved'}));
@@ -29,7 +30,7 @@ test('retired fallback requests are rejected at the Edge boundary',()=>{
 });
 
 test('low-stock evidence returns to the provider instead of a Text-only canned fallback',async()=>{
- let requests=0;const r=await generateText(claim,'fixture',{readTool:async()=>({capability:'read_factory_finished_goods',availability:'low',total_matching:1,unknown_minimum_count:25,rows:[],scope:'Fixture',as_of:'fixture-time'}),transport:async(_url,init)=>{
+ let requests=0;const r=await generateText(claim,'fixture',{readTool:finishedGoodsFixture([{product_name:'Low',current_balance:1,min_stock_level:2},...Array.from({length:25},()=>({min_stock_level:null}))]),transport:async(_url,init)=>{
   requests++;if(requests===1)return response({status:'completed',output:[{type:'function_call',name:'read_factory_finished_goods',call_id:'fixture-call',arguments:'{"query":"","availability":"low"}'}],usage:{input_tokens:80,output_tokens:10}});
   const evidence=JSON.parse(JSON.parse(init.body).input.at(-1).output);assert.equal(evidence.unknown_minimum_count,25);
   return response({status:'completed',output:[{type:'message',content:[{type:'output_text',text:'One low; 25 unknown thresholds.'}]}],usage:{input_tokens:100,output_tokens:10}});

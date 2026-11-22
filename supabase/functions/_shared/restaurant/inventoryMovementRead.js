@@ -49,12 +49,25 @@ export const inventoryMovementRead = readContract({
    query=query.gte('created_at',args.from+'T00:00:00.000Z').lt('created_at',end);
   }
   const result=await countedRows(query.order('created_at',{ascending:false}).order('id'),args,fields,signal);
-  return {...result,...item&&result.total_matching>0?{item:{name:item.item_name,sku:item.sku_code}}:{}};
+  const ids=[...new Set(result.rows.map(row=>row.inventory_item_id).filter(Boolean))];
+  // The UI joins the same human-visible directory. Read only identities needed on this page.
+  const knownItems=item?[item]:ids.length
+   ?await sourceRows(caller.from('inventory_items').select('id,item_name,sku_code').in('id',ids),signal):[];
+  const names=new Map(knownItems.map(row=>[row.id,row]));
+  return {...result,rows:result.rows.map(row=>{
+   const known=names.get(row.inventory_item_id);
+   return {...row,item_name:known?.item_name??null,sku:known?.sku_code??null};
+  }),...item&&result.total_matching>0?{item:{name:item.item_name,sku:item.sku_code}}:{}};
  },
  project:data=>data,
- interface:{queryKinds:['count','summary','list','filter'],fields,
+ interface:{queryKinds:['count','summary','list','filter'],fields:[...fields,'item_name','sku'],
   authority:'Inventory Movements service · inventory_movements and item directory under human RLS',
-  measures:['movement_record_count','recorded_quantity'],
+  semantics:{entities:['inventory item','stock movement','outlet'],time:'Recorded UTC created_at date, inclusive of both supplied dates.',
+   relationships:['A posted movement identifies its outlet and item. Recorded quantities have a per-record unit.'],
+   metrics:{
+    movement_record_count:{field:'total_matching',unit:'movement records',definition:'Matching movement events after outlet, item, reference, type and date filters.'},
+    recorded_quantity:{field:'rows[].quantity',unit_field:'rows[].unit',definition:'Quantity on one posted ingredient movement. No current balance or cross-unit total.'},
+   }},
   aggregates:'complete_filtered_scope',pagination:'Exact filtered record count; list pages of 20.',
   unsupported:['Grouped movement quantities, valuation and current stock balances are outside this capability.']},
 });

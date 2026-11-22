@@ -1,9 +1,11 @@
 // A declaration attached to the existing domain operation, not another registry.
 export function declareReadInterface(def){
  const declared=def.interface||{};
+ const measures=declared.semantics?.metrics?Object.keys(declared.semantics.metrics):declared.measures;
  return Object.freeze({version:1,module_id:def.module_id,kind:'READ',
   query_kinds:declared.queryKinds||['bounded_read'],filters:def.properties,
-  query:Object.freeze({version:1,dimensions:declared.queryKinds||['bounded_read'],...declared.measures?{measures:declared.measures}:{},modes:def.properties?.mode?.enum||null,mode_parameter:def.properties?.mode?'mode':null,allowed_filters:Object.keys(def.properties||{}),unsupported:declared.unsupported||['Undeclared metrics, grouping dimensions and historical comparisons are unavailable.'],follow_up:'Reuse explicit user filters and verified identifiers, then execute fresh authorized evidence. Never infer missing scope or relax filters after denial.'}),
+  query:Object.freeze({version:1,dimensions:declared.queryKinds||['bounded_read'],...measures?{measures}:{},modes:def.properties?.mode?.enum||null,mode_parameter:def.properties?.mode?'mode':null,allowed_filters:Object.keys(def.properties||{}),unsupported:declared.unsupported||['Undeclared metrics, grouping dimensions and historical comparisons are unavailable.'],follow_up:'Reuse explicit user filters and verified identifiers, then execute fresh authorized evidence. Never infer missing scope or relax filters after denial.'}),
+  ...(declared.semantics?{semantics:declared.semantics}:{}),
   policy_group:def.policyGroup||null,
   authority:declared.authority||def.rpc||'domain-owned query',
   human_permission:def.permission,scope:def.scope,
@@ -14,6 +16,28 @@ export function declareReadInterface(def){
   source:def.source,evidence_version:def.version||1,
   ...(def.knowledge?{knowledge:{...def.knowledge,retrieval:'live_source',evidence:'Document identity, version, section and scope; checked on every read.'}}:{}),
  });
+}
+
+// Source metadata only. The caller supplies registered operations; this projection
+// neither stores copies of their data nor decides which user may execute them.
+export function businessSemanticEntry(operation){
+ const contract=operation.moduleInterface;
+ return {
+  operation:operation.id,owner:operation.module_id,label:operation.label,kind:operation.kind,
+  source_type:operation.knowledge?.type||(operation.kind==='ACTION'?'action':'business_data'),
+  source:contract?.source||operation.source||null,scope:operation.scope,
+  authority:operation.knowledge?.authority||contract?.authority||null,
+  evidence_version:contract?.evidence_version||operation.version||null,
+  declared_fields:contract?.exposure?.fields||null,
+  human_permission:operation.permission||null,shared_with:operation.related_module_ids||[],
+  description:operation.tool.description,terms:operation.discoveryPhrases||[],
+  query:contract?.query||null,
+  semantics:contract?.semantics||null,
+  aggregate_scope:contract?.aggregates||null,pagination:contract?.pagination||null,
+  unavailable:contract?.unavailable||null,
+  ...(operation.knowledge?{publication:operation.knowledge.publication,citation:contract?.knowledge?.evidence||null}:{}),
+  ...(contract?.execution_policy?{execution_policy:contract.execution_policy}:{}),
+ };
 }
 export function readCompleteness(contract,projected,args){
  return {aggregate_scope:contract.aggregates,row_scope:'bounded_projection',

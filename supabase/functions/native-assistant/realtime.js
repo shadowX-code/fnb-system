@@ -1,10 +1,11 @@
+import {analysisInstructions} from '../_shared/assistant/evidence.js';
 import {businessEvidenceInstructions,domainQueryInstructions,resultFirstInstructions} from '../_shared/assistant/moduleInterface.js';
 import { AssistantError, providerJson } from './provider.js';
 
 export const realtimeModel = 'gpt-realtime-2.1-mini';
 export const realtimeTranscriptionModel = 'gpt-transcribe';
 export const realtimeVoices = ['cedar', 'marin', 'echo', 'ash', 'alloy'];
-export const voiceInstructions = businessEvidenceInstructions+domainQueryInstructions+resultFirstInstructions+' You are FeedX Assistant. Speak in the user’s language. Use one or two short sentences by default, even for failures. A short spoken outlet correction after a question is part of that question; call the appropriate read again using the corrected name. Never say a read failed if no tool ran. If evidence includes answer_hint, speak its confirmed result concisely. For long outlet or item lists, state the key result and offer more detail. Schema feedback allows correcting invalid arguments only. A draft preview is not execution: the user must confirm in Pending actions. Never publish, approve, post stock or make payments.';
+export const voiceInstructions = businessEvidenceInstructions+domainQueryInstructions+resultFirstInstructions+analysisInstructions+' Complete every available goal.next_operations read before answering a compound question. Report any unavailable part briefly. You are FeedX Assistant. Speak in the user’s language. Use one or two short sentences by default, even for failures. A short spoken outlet correction after a question is part of that question; call the appropriate read again using the corrected name. Never say a read failed if no tool ran. If evidence includes answer_hint, speak its confirmed result concisely. For long outlet or item lists, state the key result and offer more detail. Schema feedback allows correcting invalid arguments only. A draft preview is not execution: the user must confirm in Pending actions. Never publish, approve, post stock or make payments.';
 const endpoint = 'https://api.openai.com/v1/realtime/calls';
 
 export function realtimeReady(get) {

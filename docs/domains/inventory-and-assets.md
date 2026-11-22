@@ -4,6 +4,8 @@
 
 This domain owns restaurant inventory state, controlled movements and reconciliation, recipe/usage relationships used for stock operations, and physical asset lifecycle management.
 
+The Assistant labels paged ingredient movements using the same human-visible inventory directory as the movement register. An unavailable item identity leaves its name and SKU unknown.
+
 ## Canonical Ownership
 
 Current inventory and asset services, lifecycle RPCs, migrations, RLS, and tests are authoritative.

@@ -12,7 +12,7 @@ import FeedXDatePicker from "../components/FeedXDatePicker.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
 import useProductMovementsQuery from "../hooks/useProductMovementsQuery.js";
 import { formatFactoryDate, formatFactoryReadableDate } from "../utils/factoryDates.js";
-import { quantity } from "../utils/factoryFormatters.js";
+import { packagingTypeLabel, quantity } from "../utils/factoryFormatters.js";
 import { productionBatchReference } from "../utils/factoryReferences.js";
 
 function movementTypeLabel(movement) {
@@ -37,10 +37,6 @@ function movementSourceReference(movement) {
 function packSizeText(sku) {
   const quantityValue = Number(sku?.pack_size_qty || sku?.base_qty || 0);
   return quantityValue ? `${quantityValue} ${sku?.pack_size_uom || sku?.base_uom || ""}`.trim() : "";
-}
-
-function packagingTypeLabel(sku) {
-  return sku?.packaging_type || sku?.package_type || "Pack";
 }
 
 function pluralizePackagingType(type, value) {

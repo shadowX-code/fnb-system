@@ -127,11 +127,11 @@ export function createSdkVoiceHistory({ write, read, state, trace, activity = ()
    trace('business_tool_started', turn.number, owner.number, attempted);
    try {
     await turn.started;
-    if (['find_business_queries','read_asset_catalogue','read_inventory_items'].includes(attempted)) {
-     let timer;
-     try { await Promise.race([turn.inputReady,new Promise(resolve => { timer=setTimeout(resolve,1200); })]); }
-     finally { clearTimeout(timer); }
-    }
+    // Every business owner shares the server planner. Let the same turn's
+    // finalized transcript reach it before the first read, including via discovery.
+    let timer;
+    try { await Promise.race([turn.inputReady,new Promise(resolve => { timer=setTimeout(resolve,1200); })]); }
+    finally { clearTimeout(timer); }
     await writes;
     if (!ownsTurn()) return { stale: true };
     activity({ ...tool, phase: 'executing' });

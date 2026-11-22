@@ -9,7 +9,7 @@ export const rawMaterialRead=readContract({
  id:'read_factory_raw_catalogue',module_id:'factory_raw_inventory',label:'Raw Material Inventory stock and rankings',
  discoveryPhrases:['raw materials','raw material inventory'],
  discoveryFamily:'factory_stock_catalogue',
- permission:'factory_raw_inventory.view',source:'/factory',version:2,
+ permission:'factory_raw_inventory.view',source:'/factory/raw-materials/inventory',version:2,
  scope:'Factory shared raw-material catalogue under current human permission and row visibility.',
  description:'Read Raw Material Inventory (RM): current stock, search, exact SKU detail and complete filtered counts. For highest or lowest stock use list and balance sort in one recorded unit. No costs, site stock, historical stock, reserved stock or ATP.',
  properties:{...stockQueryFields,page:{...page,type:'integer',description:'Use 1 except in list mode.'},query:{type:'string',maxLength:80},
@@ -20,7 +20,14 @@ export const rawMaterialRead=readContract({
  query:caller=>({abortSignal:async signal=>({data:await loadStockCatalogue(caller,{
   entity:'raw_materials',table:'factory_raw_materials',fields:stockFields,
  },signal)})}),
- interface:{queryKinds:['summary','count','list','search','detail','filter','rank'],authority:'factory_get_master_id_snapshot + factory_raw_materials',
+ interface:{semantics:{
+  entities:['raw material','material SKU'],time:'Current raw-material master balances.',
+  relationships:['Each material has a recorded stock unit and its own minimum.'],
+  metrics:{
+   material_count:{field:'total_matching',unit:'materials',definition:'Material records matching all requested filters.'},
+   recorded_balance:{field:'rows[].current_balance',unit_field:'rows[].uom',definition:'Current master balance of one material. Compare only within the same unit.'},
+   low_stock_count:{field:'low_stock_count',unit:'materials',definition:'Positive balance at or below a positive minimum. Zero or negative is out of stock.'},
+  }},queryKinds:['summary','count','list','search','detail','filter','rank'],authority:'factory_get_master_id_snapshot + factory_raw_materials',
   fields:stockFields.split(','),aggregates:'complete_filtered_scope',pagination:'Complete identity-checked catalogue (up to 1000 records), paginated at 20 after filtering and ranking.',
   unavailable:'Snapshot drift fails the read. Mixed units need an explicit stock unit. No inventory cost, location, historical stock or ATP authority.'},
  project(data,a){

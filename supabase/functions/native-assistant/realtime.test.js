@@ -1,3 +1,4 @@
+import {finishedGoodsFixture} from '../../../qa/fixtures/assistantFinishedGoods.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { dispatch } from './handler.js';
@@ -49,7 +50,7 @@ test('Realtime inventory requires canonical permission and a charged reservation
  await assert.rejects(dispatch(tool,{...ctx,access:{factory:true},reserveRealtime:async()=>{throw Error('lease denied');}}),{code:'assistant_unavailable',diagnostic:{operation:'read_factory_finished_goods',operation_label:'Factory Finished Goods',stage:'lease',query_outcome:'EXECUTION_ERROR'}});
  const result = await dispatch(tool,{...ctx,access:{factory:true},
   reserveRealtime:async action=>assert.equal(action,'tool'),
-  readFactory:async args=>({query:args.query,source:'/factory/warehouse/finished-goods'}),
+  readFactory:finishedGoodsFixture([{product_name:'Sauce',current_balance:2,uom:'unit'}]),
  });
  assert.equal(result.query,'Sauce');
 });

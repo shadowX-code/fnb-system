@@ -1,3 +1,4 @@
+import {finishedGoodsFixture} from '../../../qa/fixtures/assistantFinishedGoods.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createBusinessDispatcher,businessCapabilities} from './business.js';
@@ -5,8 +6,20 @@ import {finishedGoodsRead} from '../_shared/factory/finishedGoodsRead.js';
 import {dispatch,validateBody} from './handler.js';
 const id='249ec7e0-df75-4145-8a34-ec2baf82f9ef';
 const args={query:'',availability:'all'};
+test('the dispatcher rejects inconsistent evidence before Text or Voice can save a result',async()=>{
+ const config={enabled:true,capability_connections:{read_factory_finished_goods:true}};
+ const read=finishedGoodsFixture([{product_name:'Sauce',current_balance:4,uom:'unit'}]);
+ const readFactory=async params=>({...await read(params),source:'/restaurant/assets'});
+ const access={factory:true};
+ const business=createBusinessDispatcher({config,access,readFactory});
+ await assert.rejects(business.execute(finishedGoodsRead.id,args),{code:'business_read_unavailable'});
+ await assert.rejects(dispatch({action:'realtime_tool',provider:'openai',session_id:id,request_id:id,turn_id:id,
+  operation:finishedGoodsRead.id,arguments:args},{get:()=>undefined,access,readFactory,rpc:async()=>({config}),
+  reserveRealtime:async()=>{},voiceHistory:()=>assert.fail('Invalid evidence cannot be saved'),
+ }),{code:'business_read_unavailable',diagnostic:{operation:finishedGoodsRead.id,operation_label:finishedGoodsRead.label,stage:'dispatch',query_outcome:'EXECUTION_ERROR'}});
+});
 test('discovery, model schemas and execution share the module contract; disabled and unknown actions cannot run',async()=>{
- let reads=0;const readFactory=async()=>{reads++;return {capability:finishedGoodsRead.id};};
+ let reads=0;const readFactory=async args=>{reads++;return finishedGoodsFixture()(args);};
  for(const [enabled,authorized,status] of [[false,true,'disabled'],[true,false,'denied'],[true,true,'connected']]){
   const business=createBusinessDispatcher({config:{capability_connections:{read_factory_finished_goods:enabled}},access:{factory:authorized},readFactory});
   assert.equal(business.capabilities.find(o=>o.id==='read_factory_finished_goods').availability,status);
@@ -20,7 +33,7 @@ test('discovery, model schemas and execution share the module contract; disabled
 });
 test('SDK named dispatch and legacy Grok reserve once and attach classified evidence',async()=>{
  for(const [provider,operation] of [['grok',undefined],['openai',finishedGoodsRead.id]]){
-  let reads=0,reservations=0;const evidence={capability:finishedGoodsRead.id,scope:'fixture',as_of:'fixture',rows:[]};
+  let reads=0,reservations=0;const evidence=await finishedGoodsFixture()(args);
   const result=await dispatch({action:'realtime_tool',provider,session_id:id,request_id:id,turn_id:id,arguments:args,...operation?{operation}:{}},{
    rpc:async()=>({config:{enabled:true,capability_connections:{read_factory_finished_goods:true}}}),get:()=>undefined,access:{factory:true},
    reserveRealtime:async action=>{assert.equal(action,'tool');reservations++;},

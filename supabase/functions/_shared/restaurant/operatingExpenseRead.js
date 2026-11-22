@@ -11,6 +11,14 @@ const fields=['id','year','month','amount','updated_at'];
 export const operatingExpenseRead=readContract({
  id:'read_operating_expenses',version:2,module_id:'operating-expenses',label:'Restaurant Operating Expenses',
  permission:'operating_expenses.view',source:'/restaurant/operations/operating-expenses',
+ answerAmounts:e=>[e.total_amount,...e.rows.map(row=>row.amount==null?null:Number(row.amount))],
+ analysisObservations(e){
+  // Annual entries can be incomplete; the recorded sum is not a comparable full year.
+  if(!e.period_complete||!e.aggregate_complete||e.currency!=='MYR')return [];
+  const month=e.requested_scope.month;
+  return [{metric:'Recorded operating expense',unit:e.currency,outlet:e.outlet,population:'all entered operating expenses',
+   grain:month?'month':'year',period:month?month.slice(0,7):String(e.year),value:e.total_amount}];
+ },
  scope:'Recorded monthly Restaurant Operating Expenses amounts for one authorized outlet and one calendar year or month.',
  discoveryPhrases:['restaurant operating expenses','outlet operating expenses','opex','perbelanjaan operasi','运营费用','營運費用'],
  queryIntent(prompt){
@@ -78,7 +86,13 @@ export const operatingExpenseRead=readContract({
    :'No operating expenses were recorded for '+outlet.name+' in '+period+'.';
  },
  interface:{authority:'Restaurant Operating Expenses service · operating_expenses, unique outlet/year/month',
-  fields,queryKinds:['summary','list','detail','filter'],measures:['recorded_operating_expense_myr','months_recorded'],
+  fields,queryKinds:['summary','list','detail','filter'],semantics:{
+   entities:['monthly operating expense','outlet'],time:'Calendar month or year of entry. A missing month is unknown.',
+   relationships:['Each outlet has at most one recorded expense amount per month. The source does not store transaction or category detail.'],
+   metrics:{
+    recorded_operating_expense_myr:{field:'total_amount',unit:'MYR',definition:'Sum of entered monthly amounts in the selected period, with missing months reported separately.'},
+    months_recorded:{field:'recorded_months',unit:'months',definition:'Number of distinct months with an entered amount in the selected period.'},
+   }},
   aggregates:'complete_recorded_period',pagination:'Unique outlet-month inputs; up to 12 records per year. Missing months are not zero.',
   unsupported:['Category amounts, underlying transactions, accounting expense classifications, cash movements and P&L are not in this source.']},
 });

@@ -1,3 +1,6 @@
+import { packagingTypeLabel } from "../../../../supabase/functions/_shared/factory/packagingUnit.js";
+export { packagingTypeLabel };
+
 export function formatFactoryBatchNo(batchNo) {
   return String(batchNo ?? "").trim() || "Batch number missing";
 }
@@ -12,9 +15,6 @@ export function packSizeText(sku) {
     : "";
 }
 
-export function packagingTypeLabel(sku) {
-  return sku?.packaging_type || "Pack";
-}
 
 export function pluralizePackagingType(type, value) {
   const label = type || "Pack";

@@ -329,11 +329,106 @@ scenarios.finance_period_pair=scenario('Finance',['read_operational_financials']
  assert.doesNotMatch(reply,/outlet_id|read_operational_financials/u);
 });
 
+function checkMovementHistory([e], reply, source) {
+ const restaurant=e.capability==='read_inventory_movements';
+ assert.equal(e.query_outcome,'SUCCESS');
+ assert.equal(e.requested_scope.from,source.from);
+ assert.equal(e.requested_scope.to,source.to);
+ if(restaurant)assert.equal(e.requested_scope.outlet_id,source.outletId);
+ else assert.equal(e.requested_scope.sku,source.sku);
+ assert.equal(e.total_matching,source.count);
+ assert.equal(e.aggregate_complete,true);
+ assert.equal(e.page,source.page??1);
+ assert.equal(e.truncated,e.page*20<source.count);
+ const entries=e.rows.map(row=>({id:row.id,sku:restaurant?row.sku:row.item_code,date:(restaurant?row.created_at:row.movement_date).slice(0,10),
+  quantity:row.quantity,unit:restaurant?row.unit:row.quantity_unit}));
+ assert.deepEqual(entries,source.records);
+ assert.match(reply,new RegExp(escaped(source.sku),'iu'));
+ if(source.count)assert.match(reply,new RegExp(number(entries[0].quantity)+'\\s*'+escaped(entries[0].unit),'iu'));
+ assert.match(reply,new RegExp(number(source.count),'u'));
+}
+for(const [id,label] of [['read_factory_product_movements','finished product'],['read_factory_raw_movements','raw material']]){
+ scenarios[id+'_history']=scenario('Factory',[id],'How many stock movements were posted for this '+label+' SKU in the selected dates, and what was its most recent signed movement and unit?',checkMovementHistory);
+}
+const directoryCases={
+ read_outlet_directory:['Restaurant','outlets'],
+ read_sales_channels:['Restaurant','sales channels'],
+ read_purchase_categories:['Restaurant','purchase categories'],
+ read_supplier_directory:['Restaurant','Restaurant suppliers'],
+ read_factory_equipment:['Factory','Factory equipment records'],
+};
+for(const [id,[domain,label]] of Object.entries(directoryCases)){
+ scenarios[id+'_count']=scenario(domain,[id],'How many '+label+' are recorded in my authorized scope?',([e],reply,source)=>{
+  assert.deepEqual(e.requested_scope,source.scope);
+  assert.equal(e.requested_scope.mode,'summary');
+  assert.equal(e.aggregate_complete,true);
+  assert.equal(e.total_matching,source.count);
+  assert.match(reply,new RegExp(number(source.count),'u'));
+  assert.match(reply,new RegExp(escaped(label.replace(/^(?:Restaurant|Factory) /,'').replace(/ records$/,'')),'iu'));
+ });
+}
+scenarios.purchase_input_rank=scenario('Restaurant',['read_purchase_records'],
+ 'What is the largest individual purchase entry at this outlet for this month? Give its amount, recorded supplier and category, and the number of entered purchase rows.',([e],reply,source)=>{
+  assert.deepEqual(e.requested_scope,source.scope);
+  assert.equal(e.requested_scope.sort,'amount_desc');
+  assert.equal(e.requested_scope.page,1);
+  assert.equal(e.aggregate_complete,true);
+  assert.equal(e.total_matching,source.count);
+  const [first]=e.rows;
+  assert.deepEqual([first.id,Number(first.amount),first.supplier_name,first.category_name],source.largest);
+  assert.match(reply,new RegExp(number(source.largest[1]),'u'));
+  assert.match(reply,new RegExp(number(source.count)+'\\s+(?:(?:recorded|purchase|matching)\\s+)*(?:entries|rows|records)','iu'));
+  for(const label of source.largest.slice(2).filter(Boolean))assert.match(reply,new RegExp(escaped(label),'iu'));
+ });
+scenarios.inventory_movement_item_history=scenario('Restaurant',['read_inventory_movements'],
+ 'How many ingredient movements occurred at this outlet during the specified period? Identify the most recent item by SKU, movement quantity and unit.',checkMovementHistory);
+scenarios.finance_performance_change=scenario('Finance',['read_operational_financials'],
+ 'How did this outlet perform compared with its earlier month? Separate observed cost changes from any suggested investigation.',([e],reply,source)=>{
+ assert.equal(e.report.outlet.id,source.outletId);
+ assert.deepEqual(e.analysis.current_period,source.current);
+ assert.deepEqual(e.analysis.comparison_period,source.previous);
+ for(const [field,expected] of Object.entries(source.analysis))assert.deepEqual(e.analysis[field],expected);
+ for(const amount of [source.analysis.purchase_based_cogs_change_myr,source.analysis.recorded_opex_change_myr]){
+  if(amount!==null)assert.match(reply,new RegExp(number(Math.abs(amount)),'u'));
+ }
+ if(source.analysis.ebitda_contributions_myr===null)assert.match(reply,/missing|unavailable|incomplete|cannot|insufficient/iu);
+});
+
 // Templates consume independently read, scoped records. Neither a generated
 // prompt nor a source snapshot alone qualifies as a live certification.
+scenarios.outlet_expense_and_assets=scenario('Restaurant',['read_operating_expenses','read_asset_catalogue'],
+ 'Give recorded annual operating expenses and the current asset count for one outlet. Recommend one check before interpreting the cost.',
+ ([expense,assets],reply,source)=>{
+  assert.equal(expense.outlet.id,source.outletId);
+  assert.equal(assets.outlet.id,source.outletId);
+  assert.equal(expense.query_outcome,'SUCCESS');
+  assert.equal(assets.query_outcome,'SUCCESS');
+  assert.equal(expense.year,source.year);
+  assert.equal(expense.requested_scope.month,null);
+  assert.equal(expense.currency,'MYR');
+  assert.deepEqual(expense.rows.map(row=>[row.month,Number(row.amount)]),source.months);
+  assert.equal(expense.total_amount,source.amount);
+  assert.equal(expense.period_complete,source.months.length===12);
+  assert.equal(assets.aggregate_complete,true);
+  assert.equal(assets.total_matching,source.assets);
+  assert.match(reply,new RegExp(escaped(source.code),'iu'));
+  assert.match(reply,new RegExp('(?:RM|MYR)\\s*'+escaped(source.amount)+'(?:\\.00)?(?![0-9])','iu'));
+  const assetCount=number(source.assets);
+  assert.match(reply,new RegExp('(?:'+assetCount+'\\s+(?:current\\s+)?asset(?:s| records?)?\\b|asset(?:s| count| records?)\\s*(?:is|are|:|=|—)?\\s*'+assetCount+')','iu'));
+  if(source.months.length<12) {
+   assert.match(reply,/recorded|missing|only|partial|incomplete/iu);
+   assert.match(reply,/check|confirm|review|verify|reconcile|ensure/iu);
+   assert.match(reply,/month|entr(?:y|ies)|input|period/iu);
+  }
+  assert.doesNotMatch(reply,/outlet_id|read_asset_catalogue|read_operating_expenses/iu);
+ });
+
 export function generateSourceCases(snapshot){
  const cases=[];
  const add=(id,question,source,after)=>cases.push({id,question,source,...after?{after}:{}});
+ for(const row of snapshot.outletOperations||[])add('outlet_expense_and_assets',
+  'Give '+row.code+' recorded '+row.year+' operating expenses and '+row.code+
+  ' current asset count, and recommend one next check for interpreting cost.',row);
  for(const {outlet,outletId,name,code,quantity,unit,outletAssetCount} of snapshot.assets||[]){
   const asset={outlet,outletId,name,code,quantity,unit};
   const item=name;
@@ -349,6 +444,14 @@ export function generateSourceCases(snapshot){
   const period=row.from&&row.to?' from '+row.from+' to '+row.to:'';
   add('asset_dated_history','Show '+row.asset+' asset movement history at '+row.outlet+period+'.',row);
  }
+ for(const row of snapshot.directoryCounts||[]){
+  const declaration=directoryCases[row.operation];
+  assert(declaration,'Unsupported directory scenario');
+  const status=row.scope.status&&row.scope.status!=='all'?row.scope.status+' ':'';
+  add(row.operation+'_count','How many '+status+declaration[1]+' are recorded in my authorized scope?',row);
+ }
+ for(const row of snapshot.purchaseRanks||[])add('purchase_input_rank',
+  'How many purchase entries did '+row.outlet+' record for '+row.scope.month.slice(0,7)+' and what was the largest entry? Give its amount, recorded supplier and category.',row);
  for(const row of snapshot.operatingExpenses||[])add('operating_expense_recorded_year',
   'What are the '+row.year+' operating expenses at '+row.outlet+'?',row);
  for(const row of snapshot.stockPositions||[])add('inventory_stock_position',
@@ -364,6 +467,17 @@ export function generateSourceCases(snapshot){
    ['zh','请分别列出这些门店启用的库存品项种类：'+names+'，每家有多少种？'],
   ])add('master_inventory_by_outlet_'+language,question,source);
  }
+ for(const row of snapshot.warehouseMovementHistory||[]){
+  const kind=row.ledger;
+  if(!['finished product','raw material'].includes(kind))throw Error('Unknown Factory movement source');
+  add((kind==='finished product'?'read_factory_product_movements':'read_factory_raw_movements')+'_history',
+   'For '+kind+' SKU '+row.sku+' in Factory, how many stock movements were posted from '+row.from+' to '+row.to+'? Give the latest signed quantity and unit.',row);
+ }
+ for(const row of snapshot.inventoryMovementHistory||[])add('inventory_movement_item_history',
+  'How many ingredient movements occurred at '+row.outlet+' from '+row.from+' to '+row.to+'? Give the latest item SKU, signed quantity and unit.',row);
+ for(const row of snapshot.financePerformance||[])add('finance_performance_change',
+  'At '+row.outlet+', how did purchase costs and recorded operating expenses change in '+row.current.year+'-'+row.current.month+
+  ' versus '+row.previous.year+'-'+row.previous.month+'? What should we look into?',row);
  for(const row of snapshot.movements||[])add('movement_filtered_count',
   'How many '+row.filters.movement_type+' inventory movement records were posted at '+row.outlet+' from '+row.filters.from+' to '+row.filters.to+'?',row);
  for(const row of snapshot.finishedGoods||[])add('fg_filtered_count','How many '+row.filters.status+' Factory Finished Goods packaging SKUs are registered?',row);
@@ -437,6 +551,8 @@ export function assertScenarioContracts(){
   read_operating_expenses:['summary','list','detail','filter'],
   read_inventory_items:['summary','count','list','group'],
   read_inventory_movements:['summary','count','list','filter'],
+  read_factory_product_movements:['count','list','filter','movement_history'],
+  read_factory_raw_movements:['count','list','filter','movement_history'],
   read_departments:['summary','count','list','filter'],
   read_job_positions:['summary','count','list','filter'],
   read_factory_finished_goods:['rank','list'],

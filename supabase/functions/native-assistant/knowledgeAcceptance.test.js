@@ -1,3 +1,4 @@
+import {finishedGoodsFixture} from '../../../qa/fixtures/assistantFinishedGoods.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {businessCapabilities,createBusinessDispatcher,operations} from './business.js';
@@ -159,7 +160,7 @@ test('Text and SDK tools share Factory knowledge and live stock evidence; drafts
    steps:[{id,step_no:1,process_name:'Mix',instruction:'Mix for five minutes.'}]},
   {id:other,title:'Black Pepper Sauce Production SOP',product_name:'Black Pepper Sauce',status:'archived',version:'v1',steps:[{id,step_no:1,instruction:'ARCHIVED RULE'}]},
  ]}};
- const b=dispatcher(state,{readFactory:async()=>({capability:fg,rows:[{product_code:'S01',current_balance:62,uom:'kg'}]})});
+ const b=dispatcher(state,{readFactory:finishedGoodsFixture([{product_code:'S01',product_name:'Black Pepper Sauce',current_balance:62,uom:'kg'}])});
  const question='What is current Factory Finished Goods stock for Black Pepper Sauce and the current Factory Production SOP instruction?';
  const plan=b.toolsForPrompt(question).map(tool=>tool.name);
  assert(plan.includes(factory));assert(plan.includes(fg));

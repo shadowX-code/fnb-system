@@ -21,7 +21,7 @@ test('all operations declare module authority without another dispatcher or ACTI
 });
 test('bounded lists never imply complete inventory, even when no local truncation occurred',async()=>{
  const p=rowsEvidence([{id:'a'}],['id']);assert.equal(p.complete,false);assert.equal(p.truncated,false);assert.match(p.coverage,/not a total/);
- const op=operations.find(o=>o.id==='read_sales_channels');const q=new Proxy({}, {get:(_,k)=>k==='abortSignal'?async()=>({data:[{id:'a'}]}):()=>q});
+ const op=operations.find(o=>o.id==='read_factory_equipment_cleaning_requirements');const q=new Proxy({}, {get:(_,k)=>k==='abortSignal'?async()=>({data:[{id:'a'}]}):()=>q});
  const result=await op.execute({rpc:()=>({abortSignal:async()=>({data:true})}),from:()=>q},{page:1});
  assert.equal(result.completeness.aggregate_scope,'not_asserted');assert.match(result.completeness.total_assertion,/Do not derive/);
 });

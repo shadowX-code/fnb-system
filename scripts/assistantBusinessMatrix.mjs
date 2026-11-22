@@ -1,14 +1,18 @@
 // Emit the acceptance matrix from the same definitions exercised by the build.
 // Live results are recorded separately because they depend on environment and actor.
 import {operations} from '../supabase/functions/native-assistant/business.js';
+import {businessSemanticEntry} from '../supabase/functions/_shared/assistant/moduleInterface.js';
+import {systemGuidance} from '../supabase/functions/_shared/assistant/systemGuidance.js';
 import {readFileSync} from 'node:fs';
 import assert from 'node:assert/strict';
 import {pathToFileURL} from 'node:url';
 import {reconcileBusinessModules} from '../src/features/integrations/businessModuleProjection.js';
 import {assistantCoverageReview} from '../src/features/integrations/assistantCoverageReview.js';
+import {canonicalPathForRoute,resolveCanonicalPath} from '../src/app/routeOwnership.js';
 
 const cell=value=>String(value ?? '').replaceAll('|','\\|').replace(/\s+/g,' ').trim();
 const code=name=>'\x60'+name+'\x60';
+const modulePath=module=>canonicalPathForRoute(module.id)||(module.route&&resolveCanonicalPath(module.route)?module.route:null);
 const reads=operations.filter(operation=>operation.kind==='READ');
 const reviewed=readFileSync(new URL('../docs/audits/native-assistant-gap-closure.md',import.meta.url),'utf8');
 const reviewedModules=new Map(reviewed.split('\n').flatMap(line=>{
@@ -39,7 +43,18 @@ export function moduleCoverage(){
 
 export const operationQuestion=op=>`What information does FeedX have for ${op.label} in the authorized scope? What can the result establish?`;
 
+export function semanticCatalog(){
+ const modules=moduleCoverage().map(({module,direct,shared,actions,coverage,boundary})=>({
+  module:module.id,workspace:module.workspace,domain:module.section,route:modulePath(module),
+  coverage,boundary,reads:direct.map(op=>op.id),shared_reads:shared.map(op=>op.id),actions:actions.map(op=>op.id),
+ }));
+ return {version:1,modules,operations:[...operations,systemGuidance].map(businessSemanticEntry)};
+}
+
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
+if(process.argv[2]==='--catalog'){
+ console.log(JSON.stringify(semanticCatalog(),null,2));
+}else{
 const run=process.argv[2]?JSON.parse(readFileSync(process.argv[2],'utf8')):null;
 const modules=moduleCoverage();
 const counts=Object.groupBy(modules,row=>row.coverage);
@@ -62,8 +77,9 @@ for(const row of modules){
  const available=[...row.direct,...row.shared];
  const policy=available.length===0?'No READ':run?`${available.filter(op=>enabled.has(op.id)).length}/${available.length} enabled`:'Snapshot unavailable';
  const references=(row.review.evidence||[]).map(code).join(', ');
- const evidence=[row.review.available,row.boundary,references].filter(Boolean).join(' ');
- console.log('| '+[`${row.module.workspace} / ${row.module.section} / ${row.module.id}`,row.module.route||'Owner or linked module',row.coverage,[...direct,...shared].join(', ')||'None',policy,row.actions.map(op=>code(op.id)).join(', ')||'None',evidence].map(cell).join(' | ')+' |');
+ const coverageDescription=row.review.available||available.map(op=>op.label+' — '+op.scope).join(' ');
+ const evidence=[coverageDescription,row.boundary,references].filter(Boolean).join(' ');
+ console.log('| '+[`${row.module.workspace} / ${row.module.section} / ${row.module.id}`,modulePath(row.module)||'Owner or linked module',row.coverage,[...direct,...shared].join(', ')||'None',policy,row.actions.map(op=>code(op.id)).join(', ')||'None',evidence].map(cell).join(' | ')+' |');
 }
 console.log(`
 ## READ operation questions
@@ -82,7 +98,7 @@ for(const op of reads){
  const question=query.dimensions.includes('rank')&&op.module_id.startsWith('factory_')
   ?`What are the highest and lowest ${label} balances in one recorded unit? What is the next page or an exact SKU?`
   :query.dimensions.includes('rank')
-   ?`What are the canonical top and lowest products in ${label} for this period? What source coverage applies?`
+   ?`Which records rank highest or lowest on the supported measure in ${label} for this scope? What source coverage applies?`
   :query.dimensions.includes('period_comparison')
    ?`What does ${label} show for the authorized outlet and recorded periods? Which periods are missing?`
    :query.dimensions.includes('count')||query.dimensions.includes('summary')
@@ -102,5 +118,6 @@ for(const op of reads){
     : 'BLOCKED from blanket live sign-off; see run evidence')].join(' / '),
  ];
  console.log('| '+cells.map(cell).join(' | ')+' |');
+}
 }
 }

@@ -60,7 +60,7 @@ for(const op of reads)test(`${op.id}: discovery, argument fencing, AI policy and
 const employee={summary:{total:6,active:4,inactive:2,resigned:2,terminated:0,other:0},
  employment_types:{full_time:2,part_time:1,probation:2,contract:1},rows:[],total_count:6,
  page:1,page_size:20,aggregate_complete:true,schema_version:2,as_of:'fixture'};
-const finance={period:{year:2026,month:11},financial_completeness:'incomplete',
+const finance={outlet:{id,scope:'outlet',outlet_count:1},period:{year:2026,month:11},financial_completeness:'incomplete',
  financials:{revenue:{amount:125,presence:'present'},purchase_based_cogs:{amount:null,presence:'missing'},
   net_profit:{amount:null,presence:'missing'}}};
 const leave={total_count:24,rows:[{id,status:'approved',start_date:'2026-11-01',reason:'DO_NOT_EXPOSE'}]};
@@ -87,6 +87,10 @@ function source({scope=true,brand=true,snapshot,assetRows=assets,outletRows=outl
   rpc(name,args){
    calls.push([name,args]);
    let result={data:(snapshot?.rpcs||fixtures)[name]};
+   if(name==='reporting_monthly_scope_financials'&&!snapshot?.rpcs)result={data:{
+    ...finance,period:{year:args.p_year,month:args.p_month},
+    outlet:{id:args.p_outlet_id,scope:args.p_outlet_id?'outlet':'all',outlet_count:1},
+   }};
    if(name==='current_user_role_id')result={data:'owner'};
    if(name==='current_user_has_permission')result={data:true};
    if(name==='current_user_can_access_outlet')result={data:scope};
@@ -1034,6 +1038,9 @@ test('Restaurant item identity, posted history and verified stock are separate c
  assert.equal(detail.rows[0].item_name,'Rice');assert(!Object.hasOwn(detail.rows[0],'confirmed_count'));
  const history=await business.execute('read_inventory_movements',{outlet_id:id,item_query:'Rice',reference:'REF',from:'2026-11-22',to:'2026-11-22'});
  assert.equal(history.rows[0].quantity,4);assert.equal(history.total_matching,1);
+ assert.equal(history.rows[0].item_name,'Rice');assert.equal(history.rows[0].sku,'R01');
+ const unfiltered=await business.execute('read_inventory_movements',{outlet_id:id});
+ assert.equal(unfiltered.rows[0].item_name,'Rice');assert.equal(unfiltered.rows[0].sku,'R01');
  const stock=await business.execute('read_inventory_stock_evidence',{outlet_id:id,item_query:'R01'});
  assert.equal(stock.rows[0].state,'changed');assert.equal(stock.rows[0].confirmed_count,null);
  assert.equal(stock.rows[0].actual_count,6);
@@ -1096,4 +1103,82 @@ test('relative Mandarin movement follow-up stays in Asset Tracking and retains t
  const wrong=await business.execute(operation,{mode:'detail',query:'No such asset'},undefined,{prompt:speech,history,withOutcome:true});
  assert.equal(wrong.query_outcome,'NO_MATCH');
  assert.equal((await business.planTurn('那工厂的库存进出记录呢？',history))?.operation,undefined);
+});
+
+test('compound business goal retains independent scopes and postpones recommendations until both reads settle',async()=>{
+ const expenses='read_operating_expenses',catalogue='read_asset_catalogue';
+ const prompt='Give Fixture Corner recorded 2026 operating expenses and Different Outlet current asset count, and recommend one next check for interpreting cost.';
+ const {caller}=source({snapshot:{tables:{operating_expenses:[
+  {id:'jan',outlet_id:id,year:2026,month:1,amount:125},
+  {id:'elsewhere',outlet_id:otherId,year:2026,month:1,amount:999},
+ ]}}});
+ const business=createBusinessDispatcher({caller,config,access});
+ assert.deepEqual(business.planGoal(prompt).map(s=>s.operation),[expenses,catalogue]);
+ const saved=[];
+ const result=await generateText({kind:'turn',model:config.model,prompt},'fixture-secret',{
+  business,onTool:(_,e)=>{if(e)saved.push(e);},transport:async(_,init)=>{
+   const body=JSON.parse(init.body);
+   if(saved.length===0){
+    assert.equal(body.tool_choice,'required');
+    return response([functionCall(expenses,{year:2025,outlet_id:otherId},'cost')]);
+   }
+   if(saved.length===1){
+    assert.deepEqual(body.tool_choice,{type:'function',name:catalogue});
+    assert.equal(saved[0].total_amount,125);assert.equal(saved[0].recorded_months,1);
+    return response([functionCall(catalogue,{mode:'summary',outlet_id:id},'assets')]);
+   }
+   assert.equal(body.tool_choice,'none');
+   assert.equal(saved[1].outlet.id,otherId);assert.equal(saved[1].total_matching,1);
+   return response([{type:'message',content:[{type:'output_text',text:
+    'Fixture Corner recorded RM125 in January; 11 months lack entries. Different Outlet has one current asset. Check the missing monthly entries before assessing the annual cost.'}]}]);
+  },
+ });
+ assert.match(result.reply,/RM125.*11 months.*one current asset/i);
+ assert.deepEqual(saved.map(e=>e.capability),[expenses,catalogue]);
+ assert.equal(await business.planTurn('Why did Fixture Corner operating expenses increase this year?'),null);
+ // Advice about the observed expense cannot authorize a write.
+ await assert.rejects(business.execute('prepare_marketing_draft',{},undefined,{prompt}),{code:'tool_not_allowed'});
+ const early=await generateText({kind:'turn',model:config.model,prompt},'fixture-secret',{business,
+  transport:async()=>response([{type:'message',content:[{type:'output_text',text:'Both outlets recorded RM9000.'}]}]),
+ });
+ assert.doesNotMatch(early.reply,/9000/);
+ const revoked=createBusinessDispatcher({caller,config,access,loadConfig:async()=>({...config,
+  capability_connections:{...config.capability_connections,[catalogue]:false}})});
+ let calls=0;
+ const partial=await generateText({kind:'turn',model:config.model,prompt},'fixture-secret',{business:revoked,
+  transport:async()=>{
+   if(++calls===1)return response([functionCall(expenses,{year:2026,outlet_id:id},'cost')]);
+   if(calls===2)return response([functionCall(catalogue,{mode:'summary',outlet_id:otherId},'unavailable')]);
+   return response([{type:'message',content:[{type:'output_text',text:'Expenses were RM9000 and there were 85 assets.'}]}]);
+  },
+ });
+ assert.match(partial.reply,/RM\s*125\.00/);
+ assert.match(partial.reply,/Asset Tracking.*access does not allow/);
+ assert.doesNotMatch(partial.reply,/9000|85 assets/);
+});
+
+test('SDK continuation uses only current-turn scoped evidence and leaves audio continuation with the SDK',async()=>{
+ const expenses='read_operating_expenses',catalogue='read_asset_catalogue';
+ const prompt='Give Fixture Corner recorded 2026 operating expenses and show the current asset count at the same outlet.';
+ const {caller}=source({snapshot:{tables:{operating_expenses:[{id:'jan',outlet_id:id,year:2026,month:1,amount:125}]}}});
+ const saved=[];
+ const deps={caller,access,get:()=>undefined,rpc:async action=>action==='history'?
+  {turns:[{request_id:otherId,state:'completed',tool_state:'completed',evidence:{capability:catalogue,outlet:{id:otherId}}},
+   {request_id:id,voice_input_available:true,prompt}]}:{config},reserveRealtime:async()=>{},
+  voiceHistory:async ({evidence})=>{saved.push(evidence);return {evidence:saved.length===1?evidence:{capability:'business_evidence',items:saved}};},
+ };
+ const first=await dispatch(voiceRequest(expenses,{year:2026,outlet_id:id}),deps);
+ assert.deepEqual(first.goal.next_operations,[catalogue]);
+ const second=await dispatch(voiceRequest(catalogue,{mode:'summary',outlet_id:otherId}),deps);
+ assert.deepEqual(second.goal.next_operations,[]);
+ assert.deepEqual(second.goal.parts.map(s=>s.outcome),['SUCCESS','SUCCESS']);
+ assert.equal(second.outlet.id,id);assert.equal(second.total_matching,2);
+ assert(!saved.some(e=>e.goal));
+ const unresolved=prompt.replace('Fixture Corner','Unrecognized site');
+ const priorScope=async()=>({turns:[{state:'completed',tool_state:'completed',evidence:saved.at(-1)}]});
+ await assert.rejects(createBusinessDispatcher({caller,config,access}).execute(catalogue,{mode:'summary',outlet_id:id},undefined,{
+  prompt:unresolved,history:priorScope,
+ }),{code:'entity_scope_required'});
+ const missingTranscript={...deps,rpc:async action=>action==='history'?{turns:[{request_id:id,voice_input_available:false}]}:{config}};
+ await assert.rejects(dispatch(voiceRequest('read_employee_directory',{mode:'summary'}),missingTranscript),{code:'entity_scope_required'});
 });

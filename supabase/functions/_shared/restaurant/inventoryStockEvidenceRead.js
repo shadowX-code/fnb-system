@@ -48,7 +48,13 @@ export const inventoryStockEvidenceRead=readContract({
  },
  project:data=>data,
  interface:{authority:'Inventory Dashboard · inventory_dashboard_stock_evidence',fields:[...fields,'confirmed_count'],
-  measures:['position_count','last_count_quantity','confirmed_count'],queryKinds:['list','count','detail','search'],
+  semantics:{entities:['stock check','outlet item position'],time:'Latest submitted count and subsequent movement relationship.',
+   relationships:['This dashboard covers active, positive-par item positions for the outlet. A position can lack a usable count.'],
+   metrics:{
+    position_count:{field:'total_matching',unit:'positions',definition:'Matching applicable outlet-item positions.'},
+    last_count_quantity:{field:'rows[].actual_count',unit_field:'item.unit',definition:'Most recent recorded physical count. The item unit is supplied only on item detail.'},
+    confirmed_count:{field:'rows[].confirmed_count',unit_field:'item.unit',definition:'Usable current count only for below-par and sufficient states; otherwise unavailable.'},
+   }},queryKinds:['list','count','detail','search'],
   aggregates:'complete_applicable_positions',pagination:'20 positions per page. Exact position count covers only positive-par positions in this outlet.',
   unsupported:['Live stock for unverified, changed or unconfigured positions, inventory value, equipment assets and Factory stock.']},
 });

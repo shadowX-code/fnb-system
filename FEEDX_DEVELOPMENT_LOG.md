@@ -1,5 +1,9 @@
 # FeedX Development Log
 
+## 2026-11-22 — Native Assistant operational analysis
+
+The shared Assistant dispatcher can coordinate independently authorized reads in a single turn. Domain contracts supply business terminology, source coverage and comparable observations. Finance Analysis and the Assistant reuse the same monthly Reporting interpretation. See [Native Assistant business query reliability](docs/architecture/trusted-authorities.md#native-assistant-business-query-reliability-staging).
+
 ## 2026-11-22 — Native Assistant coverage parity
 
 Closed verified exposure gaps in Restaurant movement counts, Factory SKU filters, People catalogues, Finance period comparisons, Crew leave and Marketing Planner. The coverage matrix now records all canonical modules with their source boundaries and Staging READ policy. Source-derived certification and the build gate track answer coverage separately from live acceptance. See [Trusted Authorities](docs/architecture/trusted-authorities.md#module-owned-assistant-interfaces-and-alignment).
