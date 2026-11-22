@@ -53,9 +53,13 @@ describe("InventoryStockCheckResultModal", () => {
     mount([0, null]);
     const values = screen.getByRole("region", { name: "Partial audit valuation" });
     expect(within(values).getByText("Known Stock Value (Partial)")).toBeTruthy();
-    expect(within(values).getByText("RM0.00")).toBeTruthy();
+    expect(within(values).getAllByText("RM0.00")).toHaveLength(4);
     expect(screen.getByText(/1 of 2 items valued · 1 missing valid pinned cost/)).toBeTruthy();
-    expect(screen.getByText("QA Creator")).toBeTruthy();
+    expect(screen.getByText("QA Creator").closest("details").open).toBe(false);
+    expect(screen.getByText(/Variance coverage 1 of 2 items/)).toBeTruthy();
+    expect(within(values).getByText("Shortage Value (Partial)")).toBeTruthy();
+    expect(within(values).getByText("Excess Value (Partial)")).toBeTruthy();
+    expect(within(values).getByText("Net Variance (Partial)")).toBeTruthy();
     expect(screen.getByText("QA Crew")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Valuation" }));
@@ -63,7 +67,7 @@ describe("InventoryStockCheckResultModal", () => {
     expect(screen.queryByText("Flour")).toBeNull();
     const unvalued = screen.getByText("Oil").closest("tr");
     expect(within(unvalued).getAllByRole("cell")[6].textContent).toBe("—");
-    expect(within(values).getByText("RM0.00")).toBeTruthy();
+    expect(within(values).getAllByText("RM0.00")).toHaveLength(4);
     expect(screen.getByText(/1 of 2 items valued/)).toBeTruthy();
   });
 
@@ -76,7 +80,7 @@ describe("InventoryStockCheckResultModal", () => {
     expect(dataRows()[0].textContent).toContain("Oil");
     expect(dataRows()[1].textContent).toContain("Flour");
     const values = screen.getByRole("region", { name: "Partial audit valuation" });
-    expect(within(values).getByText("RM0.00")).toBeTruthy();
+    expect(within(values).getAllByText("RM0.00")).toHaveLength(4);
     expect(screen.getByText(/1 of 2 items valued/)).toBeTruthy();
   });
 });
