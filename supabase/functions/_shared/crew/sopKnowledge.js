@@ -1,6 +1,6 @@
 import {AssistantError} from '../assistantError.js';
 import {pick,readContract} from '../assistant/readContract.js';
-import {alreadyPublished,knowledgeQuery,knowledgeResult,knowledgeScore,knowledgeSource,optionalId,optionalName,todayInMalaysia} from '../assistant/knowledge.js';
+import {alreadyPublished,knowledgeQuery,knowledgeResult,knowledgeScore,knowledgeSource,optionalId,optionalName,preferNamedScope,todayInMalaysia} from '../assistant/knowledge.js';
 
 export async function resolveCrewKnowledgeOutlet(caller,{outlet_id,outlet_name},signal){
  if(outlet_id)return {id:outlet_id};
@@ -69,8 +69,12 @@ export const crewSopKnowledge=readContract({
  knowledge:{type:'managed_knowledge',owner:'Crew Learning',authority:'Crew SOP Library',publication:'Current published version and effective date. Historical versions require exact SOP ID and version.'},
  description:'Search authorized Crew SOPs by topic and exact outlet name/code or verified outlet ID. Or read a known SOP ID directly. Version must be null for current. Request an older version only with the exact SOP ID and version number, and cite it as historical. Never use historical text as current operations.',
  properties:{sop_id:optionalId,outlet_id:optionalId,outlet_name:optionalName,query:knowledgeQuery,version:{type:'number',minimum:1,maximum:10000,nullable:true}},
- normalizeArguments:a=>a&&typeof a==='object'&&!Array.isArray(a)?{sop_id:null,outlet_id:null,outlet_name:null,query:null,version:null,...a}:a,
- check:a=>{if(a.outlet_id&&a.outlet_name||a.version!==null&&!a.sop_id)throw new AssistantError('tool_arguments_invalid',400);},
+ normalizeArguments(a){
+  if(!a||typeof a!=='object'||Array.isArray(a))return a;
+  const values=preferNamedScope({sop_id:null,outlet_id:null,outlet_name:null,query:null,version:null,...a},'outlet_id','outlet_name');
+  return values.version===null&&(values.outlet_id||values.outlet_name)&&values.query?{...values,sop_id:null}:values;
+ },
+ check:a=>{if(a.version!==null&&!a.sop_id)throw new AssistantError('tool_arguments_invalid',400);},
  load:loadSopKnowledge,project:projectSopKnowledge,
  interface:{authority:'crew_sop_admin_library → crew_sop_admin_detail',queryKinds:['search','detail'],unsupported:['Private media, drafts, archived SOPs and employee-pinned assignments are outside this read.']},
 });

@@ -1,5 +1,4 @@
-import {AssistantError} from '../assistantError.js';
-import {alreadyPublished,knowledgeQuery,knowledgeResult,knowledgeSource,optionalId,optionalName} from '../assistant/knowledge.js';
+import {alreadyPublished,knowledgeQuery,knowledgeResult,knowledgeSource,optionalId,optionalName,preferNamedScope} from '../assistant/knowledge.js';
 import {pick,readContract,rowsEvidence} from '../assistant/readContract.js';
 import {resolveCrewKnowledgeOutlet} from './sopKnowledge.js';
 
@@ -37,8 +36,7 @@ export const crewOnboardingKnowledge=readContract({
  knowledge:{type:'managed_knowledge',owner:'Crew Learning',authority:'Onboarding published lessons',publication:'Current published mandatory Onboarding version under existing Admin learning authority.'},
  description:'Search current Crew Onboarding lesson text for an exact outlet name/code or verified outlet ID. Null query returns existing curriculum metadata. Does not read draft lessons, quiz answers, personal assignments or private media.',
  properties:{outlet_id:optionalId,outlet_name:optionalName,query:knowledgeQuery},
- normalizeArguments:a=>a&&typeof a==='object'&&!Array.isArray(a)?{outlet_id:null,outlet_name:null,query:null,...a}:a,
- check:a=>{if(a.outlet_id&&a.outlet_name)throw new AssistantError('tool_arguments_invalid',400);},
+ normalizeArguments:a=>a&&typeof a==='object'&&!Array.isArray(a)?preferNamedScope({outlet_id:null,outlet_name:null,query:null,...a},'outlet_id','outlet_name'):a,
  load:loadOnboarding,project:projectOnboarding,
  interface:{authority:'crew_admin_onboarding_list → crew_admin_onboarding_detail',queryKinds:['search','list'],
   unsupported:['Draft text, quizzes, media and employee assignment snapshots are excluded.']},

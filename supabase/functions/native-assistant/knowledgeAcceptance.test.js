@@ -57,7 +57,7 @@ test('Crew checks pinned publication, historical versions, future effective date
  let row=structuredClone(crewRow);
  const state={rpcs:{crew_sop_admin_detail:()=>({data:row}),crew_sop_admin_library:()=>({data:{sops:[row]}})},tables:{outlets:[{id,name:'Friends Corner',code:'FC'}]}};
  const business=dispatcher(state);
- const search={outlet_name:'Friends Corner',query:'sanitation'};
+ const search={outlet_id:other,outlet_name:'Friends Corner',query:'sanitation'};
  const first=await business.execute(sop,search);
  assert.equal(first.knowledge.scope.outlet_id,id);
  assert.equal(first.knowledge.citations[0].version,2);
@@ -162,7 +162,7 @@ test('Text and SDK tools share Factory knowledge and live stock evidence; drafts
  const question='What is current Factory Finished Goods stock for Black Pepper Sauce and the current Factory Production SOP instruction?';
  const plan=b.toolsForPrompt(question).map(tool=>tool.name);
  assert(plan.includes(factory));assert(plan.includes(fg));
- const params={query:'Black Pepper Sauce',page:1};
+ const params={query:'Black Pepper Sauce',page:1,sop_id:other};
  const captured=[];let n=0;
  const answer=await generateText({prompt:question,model:'gpt-4o-mini',kind:'turn'},'fixture-provider',{
   business:b,onTool:(status,evidence)=>{if(status==='completed')captured.push(evidence);},

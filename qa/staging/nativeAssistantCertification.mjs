@@ -44,6 +44,7 @@ function checkKnowledge(evidence,reply,source){
  assert.match(citation.excerpt,new RegExp(escaped(source.excerpt),'iu'));
  assert.match(reply,new RegExp(escaped(source.title),'iu'));
  assert.match(reply,new RegExp(`\\b(?:version\\s+|v)?${escaped(source.version)}\\b`,'iu'));
+ if(source.section)assert.match(reply,new RegExp(escaped(source.section),'iu'));
  for(const fact of source.answerFacts)assert.match(reply,new RegExp(escaped(fact),'iu'));
  if(!source.current)assert.match(reply,/historical|formerly|previous version/i);
 }

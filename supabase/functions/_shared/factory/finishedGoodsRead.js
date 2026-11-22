@@ -5,6 +5,9 @@ export const inventoryTool={type:'function',name:'read_factory_finished_goods',d
 export function inventoryArguments(value){
  if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).some(k=>!['query','availability','mode','page','sku','sort','uom'].includes(k)))throw new AssistantError('tool_arguments_invalid',400);
  const a={query:'',availability:'all',mode:'list',page:1,sku:null,sort:'name',uom:null,...value};
+ // A model can combine an exact SKU with summary/list mode on a mixed query.
+ // A supplied SKU narrows the read to the same single record as detail mode.
+ if((a.mode==='summary'||a.mode==='list')&&a.page===1&&typeof a.sku==='string'&&a.sku.trim())a.mode='detail';
  if(typeof a.query!=='string'||a.query.length>80||!['all','low','out_of_stock'].includes(a.availability)||!['summary','list','detail'].includes(a.mode)||!Number.isInteger(a.page)||a.page<1||a.page>50||(a.sku!==null&&(typeof a.sku!=='string'||!a.sku.trim()||a.sku.length>80))||(a.mode==='detail')!==(a.sku!==null)||(a.mode!=='list'&&a.page!==1))throw new AssistantError('tool_arguments_invalid',400);
  validateStockRanking(a);
  return a;

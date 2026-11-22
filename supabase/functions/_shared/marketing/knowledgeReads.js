@@ -1,10 +1,9 @@
 import {AssistantError} from '../assistantError.js';
 import {readContract,rowsEvidence} from '../assistant/readContract.js';
-import {exactScope,knowledgeQuery,knowledgeResult,knowledgeSource,optionalId,optionalName} from '../assistant/knowledge.js';
+import {exactScope,knowledgeQuery,knowledgeResult,knowledgeSource,optionalId,optionalName,preferNamedScope} from '../assistant/knowledge.js';
 
 const scopeFields={brand_id:optionalId,brand_name:optionalName,query:knowledgeQuery};
-const normalize=a=>a&&typeof a==='object'&&!Array.isArray(a)?{brand_id:null,brand_name:null,query:null,...a}:a;
-const check=a=>{if(a.brand_id&&a.brand_name)throw new AssistantError('tool_arguments_invalid',400);};
+const normalize=a=>a&&typeof a==='object'&&!Array.isArray(a)?preferNamedScope({brand_id:null,brand_name:null,query:null,...a},'brand_id','brand_name'):a;
 async function brandScope(caller,args,signal){
  if(args.brand_id)return {id:args.brand_id};
  if(!args.brand_name)throw new AssistantError('knowledge_scope_required',400);
@@ -60,7 +59,7 @@ export const marketingFaqKnowledge=readContract({
  discoveryPhrases:['approved FAQ','brand FAQ','customer FAQ','FAQ answer'],
  knowledge:{type:'managed_knowledge',owner:'Marketing',authority:'FAQ Library',publication:'Current approved, active revision and canonical use decision.'},
  description:'Search current approved FAQ answers for an exact named Brand or verified Brand ID. A draft or stale FAQ cannot answer. Use live operational READs for current stock, prices, hours or promotions.',
- properties:scopeFields,normalizeArguments:normalize,check,load:loadFaq,project:projectFaq,
+ properties:scopeFields,normalizeArguments:normalize,load:loadFaq,project:projectFaq,
  interface:{authority:'marketing_faq_settings_read',queryKinds:['search','list'],unsupported:['Draft, disabled, outdated or unsafe FAQs and private customer conversations are excluded.']},
 });
 
@@ -70,7 +69,7 @@ export const marketingBrandKnowledge=readContract({
  discoveryPhrases:['Brand Knowledge','brand voice','brand identity','brand positioning','brand tone'],
  knowledge:{type:'managed_knowledge',owner:'Marketing',authority:'Brand Knowledge and approved-reply snapshot',publication:'The current Brand revision must match the approved revision and carry verified facts.',additional_permissions:['marketing_inbox.view']},
  description:'Search approved Brand identity, positioning, audience or voice using query and one exact named Brand or verified Brand ID. Null query returns source metadata. Content requires current Brand AI consent and Inbox access. No research, historical prices, live outlet facts or private files.',
- properties:scopeFields,normalizeArguments:normalize,check,load:loadBrand,project:projectBrand,
+ properties:scopeFields,normalizeArguments:normalize,load:loadBrand,project:projectBrand,
  interface:{authority:'marketing_knowledge_workspace + marketing_faq_settings_read',queryKinds:['search','list'],
   unsupported:['Uploaded files, research, unapproved profile fields, historical revisions, contact and operational fields are excluded.']},
 });

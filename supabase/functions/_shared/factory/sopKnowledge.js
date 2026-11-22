@@ -65,9 +65,13 @@ export const factorySopKnowledge=readContract({
  label:'Factory Production SOP and QC instructions',source:'/factory/master-data/production-sops',scope:'Factory shared SOP authority. Instructions from active, effective versions only.',
  discoveryPhrases:['Factory SOP','production SOP','production instructions','Factory QC','QC instructions','生产 SOP','工厂 SOP'],
  knowledge:{type:'managed_knowledge',owner:'Factory',authority:'Factory Production SOP',publication:'Active version, effective date and pinned Recipe version.'},
- description:'Search active Factory Production SOP instructions, steps and specified QC requirements by product/SOP title or topic. Set query for excerpts or use exact sop_id. With both null only paged version metadata is returned. Archived or draft text and actual batch QC readings are excluded.',
+ description:'Search active Factory Production SOP instructions, steps and specified QC requirements with query set to the product/SOP title or topic. For search, set sop_id to null. Use a known exact sop_id only with a null query. Both null returns paged version metadata. Archived or draft text and actual batch QC readings are excluded.',
  properties:{page,sop_id:optionalId,query:knowledgeQuery},
- normalizeArguments:a=>a&&typeof a==='object'&&!Array.isArray(a)?{page:1,sop_id:null,query:null,...a}:a,
+ normalizeArguments(a){
+  if(!a||typeof a!=='object'||Array.isArray(a))return a;
+  const values={page:1,sop_id:null,query:null,...a};
+  return typeof values.query==='string'&&values.query.trim()?{...values,sop_id:null,query:values.query.trim()}:values;
+ },
  check:a=>{if((a.sop_id||a.query)&&a.page!==1)throw new AssistantError('tool_arguments_invalid',400);},
  load:readFactorySop,project:projectFactorySop,
  interface:{authority:'Factory Production SOP canonical root, step, sub-step and QC projections under human RLS',queryKinds:['list','search','detail'],

@@ -5,7 +5,12 @@ export const optionalId={...uuid,nullable:true};
 export const optionalName={type:'string',nullable:true,maxLength:120};
 export const knowledgeQuery={type:'string',nullable:true,maxLength:160,description:'A short topic or document title. Null lists a small number of current excerpts.'};
 
-const stopWords=new Set('a an and are at by can could do does for from how i in is it me of on or our please should that the to what when where which with you current published show tell use version know source'.split(' '));
+export function preferNamedScope(args,idKey,nameKey){
+ if(typeof args[nameKey]!=='string'||!args[nameKey].trim())return args;
+ return {...args,[nameKey]:args[nameKey].trim(),[idKey]:null};
+}
+
+const stopWords=new Set('a an and are at by can could do does for from how i in is it me of on or our please should that the to what when where which with you your current published approved show tell use version know source sop'.split(' '));
 const concepts=[
  ['cleanliness','cleaning','sanitation','hygiene','sanitize','clean','kebersihan','清洁','清潔','卫生','衛生'],
  ['greeting','greet','welcome','goodbye','farewell','sambutan','欢迎','歡迎','告别','告別'],
@@ -60,11 +65,18 @@ export function knowledgeResult(query,documents,{scope,partial=false,status}){
  for(const document of documents){
   const {sections,...citation}=document;
   if(!document.document_id||document.version==null||!document.title||!document.state)continue;
-  const heading=match(query,`${document.title} ${document.searchTerms||''}`);
+  const headingText=`${document.title} ${document.searchTerms||''}`;
+  const heading=match(query,headingText);
+  const headingWords=tokens(headingText);
+  const topic=[...tokens(query)].filter(term=>!headingWords.has(term)).join(' ');
   for(const [index,section] of sections.entries()){
    const text=plainKnowledge(section.text);
    if(!text)continue;
-   const scores=text.split(/(?<=[.!?。！？])\s+|\n+/u).filter(Boolean).map((part,order)=>({part,order,...match(query,`${section.title||''} ${part}`)}));
+   const scores=text.split(/(?<=[.!?。！？])\s+|\n+/u).filter(Boolean).map((part,order)=>{
+    const searchable=`${section.title||''} ${part}`;
+    const relevance=match(query,searchable),specific=topic?match(topic,searchable):{score:0};
+    return {part,order,score:relevance.score+2*specific.score,mode:specific.mode||relevance.mode};
+   });
    const best=scores.reduce((top,part)=>part.score>top.score?part:top,scores[0]);
    if(!best||!heading.score&&!best.score)continue;
    const excerpt=Array.from(best.score?scores.slice(best.order,best.order+2).map(part=>part.part).join(' '):text).slice(0,520).join('');

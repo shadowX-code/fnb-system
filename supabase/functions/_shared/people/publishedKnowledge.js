@@ -1,10 +1,9 @@
 import {AssistantError} from '../assistantError.js';
 import {date,readContract,rowsEvidence} from '../assistant/readContract.js';
-import {alreadyPublished,exactScope,knowledgeQuery,knowledgeResult,knowledgeSource,optionalId,optionalName,todayInMalaysia} from '../assistant/knowledge.js';
+import {alreadyPublished,exactScope,knowledgeQuery,knowledgeResult,knowledgeSource,optionalId,optionalName,preferNamedScope,todayInMalaysia} from '../assistant/knowledge.js';
 
 const entityFields={legal_entity_id:optionalId,legal_entity_name:optionalName};
-const normalize=a=>a&&typeof a==='object'&&!Array.isArray(a)?{legal_entity_id:null,legal_entity_name:null,query:null,...a}:a;
-function check(a){if(a.legal_entity_id&&a.legal_entity_name)throw new AssistantError('tool_arguments_invalid',400);}
+const normalize=a=>a&&typeof a==='object'&&!Array.isArray(a)?preferNamedScope({legal_entity_id:null,legal_entity_name:null,query:null,...a},'legal_entity_id','legal_entity_name'):a;
 async function entityScope(caller,args,signal){
  if(args.legal_entity_id)return {id:args.legal_entity_id};
  if(!args.legal_entity_name)throw new AssistantError('knowledge_scope_required',400);
@@ -35,7 +34,7 @@ export const employmentTemplateKnowledge=readContract({
  discoveryPhrases:['employment contract template','contract template','employment template clause','contract notice period'],
  knowledge:{type:'managed_knowledge',owner:'People / Legal Entities',authority:'Employment Contract Templates',publication:'Active template’s current immutable published version and stored hash.'},
  description:'Search published employment contract template clauses in one exact named Legal Entity or verified entity ID. Cite the version. These are unfilled templates, never an employee contract, employment decision or legal interpretation. Do not render employee data.',
- properties:{...entityFields,query:knowledgeQuery},normalizeArguments:normalize,check,load:loadTemplates,project:projectTemplates,
+ properties:{...entityFields,query:knowledgeQuery},normalizeArguments:normalize,load:loadTemplates,project:projectTemplates,
  interface:{authority:'employment_contract_templates_for_legal_entity',queryKinds:['search','list'],
   unsupported:['Private employment documents, rendered contracts, employer signatures, candidate and employee data, and drafts are excluded.']},
 });
@@ -70,7 +69,6 @@ export const payrollHolidayKnowledge=readContract({
  properties:{...entityFields,query:knowledgeQuery,effective_on:{...date,nullable:true}},
  normalizeArguments:a=>a&&typeof a==='object'&&!Array.isArray(a)?{effective_on:null,...normalize(a)}:a,
  check(args){
-  check(args);
   if(args.effective_on){
    const dateValue=new Date(`${args.effective_on}T00:00:00Z`);
    if(!Number.isFinite(dateValue.valueOf())||!dateValue.toISOString().startsWith(args.effective_on))throw new AssistantError('tool_arguments_invalid',400);
