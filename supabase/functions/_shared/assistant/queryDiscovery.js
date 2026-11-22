@@ -44,7 +44,8 @@ export function discoverQueries(operations,capabilities,args){
   const label=discoveryWords(entry.label);
   const modules=discoveryWords(entry.owner);
   const supportedRank=ranking&&entry.query?.dimensions?.includes('rank');
-  const ownerCount=counting&&entry.query?.dimensions?.includes('count')&&exactTerms&&query.every(word=>modules.includes(word));
+  const ownerCount=counting&&entry.query?.dimensions?.includes('count')&&exactTerms&&
+   query.every(word=>modules.includes(word))&&modules.every(word=>query.includes(word));
   return [{operation,entry,strong:Boolean(explicitResource||named||ownerCount),exact:entry.label.toLowerCase()===search.toLowerCase(),
    score:(exactTerms?30:0)+(explicitResource?12:0)+(named?5:0)+(ownerCount?8:0)+(supportedRank?100:0)+query.filter(word=>modules.includes(word)).length*2+query.filter(word=>label.includes(word)).length}];
  }).sort((a,b)=>b.score-a.score);

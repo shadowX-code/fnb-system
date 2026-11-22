@@ -1,6 +1,9 @@
 import {readFileSync} from 'node:fs';
 import {pathToFileURL} from 'node:url';
 import assert from 'node:assert/strict';
+import {canonicalPathForRoute} from '../../src/app/routeOwnership.js';
+import {operationalScenarios,operationalSourceCases} from './nativeAssistantOperationalCertification.mjs';
+import {registerScenarios,registerSourceCases} from './nativeAssistantRegisterCertification.mjs';
 import {assistantQuery,operations} from '../../supabase/functions/native-assistant/business.js';
 
 const scenario=(domain,operations,question,check,medium='text')=>({domain,operations,question,check,medium});
@@ -50,6 +53,8 @@ function checkKnowledge(evidence,reply,source){
 }
 
 export const scenarios={
+ ...operationalScenarios(operations,canonicalPathForRoute),
+ ...registerScenarios(operations,canonicalPathForRoute),
  knowledge_factory_stock:scenario('Factory',['read_factory_sop_versions','read_factory_finished_goods'],'What is one recorded instruction from the current Dried Shrimp Sambal Production SOP? Separately, what is the current Factory Finished Goods stock for SKU S01?',([sop,stock],reply,source)=>{
   checkKnowledge(sop,reply,source.document);
   const [row]=stock.rows;
@@ -142,7 +147,11 @@ export const scenarios={
  }),
  restaurant_list:scenario('Restaurant',['read_sales_records'],'List the recorded Sales Input entries for [period and authorized outlet]. Say if this is a bounded page.',([e],reply,source)=>{
   assert.deepEqual(e.requested_scope,source.scope);
-  assert.equal(e.completeness.aggregate_scope,'not_asserted');
+  if(e.aggregate_complete===true){
+   assert(Number.isSafeInteger(source.count),'Independent complete filtered count required');
+   assert.equal(e.total_matching,source.count);
+   assert.equal(e.truncated,source.scope.page*e.page_size<source.count);
+  }else assert.equal(e.completeness.aggregate_scope,'not_asserted');
   assert.deepEqual(e.rows.map(row=>[row.channel_name,row.amount]),source.rows);
   for(const [channel,amount] of source.rows)assert.match(reply,new RegExp(`${escaped(channel)}[^\\n]{0,36}${number(amount)}`,'i'));
   assert.match(reply,/page|returned|entries shown/i);
@@ -179,18 +188,23 @@ export function certifyScenario(id,record){
   const {turn,source}=record;
   assert(turn?.request_id&&turn.created_at&&turn.model,'Saved turn identity required');
   assert.equal(turn.state,'completed','Saved turn did not complete');
-  assert.equal(turn.tool_state,'completed','Tool path did not complete with verified evidence');
   if(definition.medium==='voice')assert(turn.voice_lease_id&&turn.voice_input_available,'Saved Voice turn and transcript required');
   else assert(!turn.voice_lease_id,'Text turn required');
   assert.equal(typeof turn.reply,'string');
   assert(turn.reply.trim(),'Final reply is missing');
+  if(definition.independentOwnerCheck&&!source?.capture)return {status:'BLOCKED',reason:'No independent authorized owner capture'};
   assert(source,'Independent source comparison required');
+  if(definition.checkDenial&&['denied','disabled'].includes(source.expectation)){
+   definition.checkDenial(record);
+   return {status:'PASS',request_id:turn.request_id,at:turn.created_at,operations:definition.operations,expectation:source.expectation};
+  }
+  assert.equal(turn.tool_state,'completed','Tool path did not complete with verified evidence');
   const evidence=turn.evidence?.items||[turn.evidence];
   const selected=evidence.map(e=>e?.capability);
   assert.deepEqual([...selected].sort(),[...definition.operations].sort(),'Wrong, missing or duplicate tool evidence');
-  definition.check(definition.operations.map(key=>evidence.find(item=>item.capability===key)),plain(turn.reply),source);
+  definition.check(definition.operations.map(key=>evidence.find(item=>item.capability===key)),plain(turn.reply),source,turn);
   return {status:'PASS',request_id:turn.request_id,at:turn.created_at,operations:definition.operations};
- }catch(error){return {status:'FAIL',reason:String(error.message).split('\n')[0],request_id:record.turn?.request_id};}
+ }catch(error){return {status:error.certificationBlocker?'BLOCKED':'FAIL',reason:String(error.message).split('\n')[0],request_id:record.turn?.request_id};}
 }
 
 for(const [id,question] of [
@@ -417,14 +431,22 @@ scenarios.outlet_expense_and_assets=scenario('Restaurant',['read_operating_expen
   assert.match(reply,new RegExp('(?:'+assetCount+'\\s+(?:current\\s+)?asset(?:s| records?)?\\b|asset(?:s| count| records?)\\s*(?:is|are|:|=|—)?\\s*'+assetCount+')','iu'));
   if(source.months.length<12) {
    assert.match(reply,/recorded|missing|only|partial|incomplete/iu);
-   assert.match(reply,/check|confirm|review|verify|reconcile|ensure/iu);
-   assert.match(reply,/month|entr(?:y|ies)|input|period/iu);
+   const clauses=reply.split(/(?<=[.!?;。！？；])\s*|\n|,\s*(?:then|so|but)\s+/u);
+   const recommendations=clauses.filter(part=>/\b(?:check|confirm|review|verify|reconcile|ensure|validate)\b/iu.test(part));
+   assert(recommendations.some(part=>/\b(?:month(?:s|ly)?|monthly entr(?:y|ies)|periods?)\b/iu.test(part)&&
+    /\b(?:record(?:ed|s)?|unentered|missing|entered|confirm|reconcile|completeness|reconciling)\b/iu.test(part)),
+    'The suggested check must address the completeness of the monthly records');
+   for(const part of clauses.filter(part=>/\b(?:categor(?:y|ies)|breakdown|transactions?|receipts?|rent|utilities|payroll)\b/iu.test(part))){
+    assert(/unavailable|cannot|does not|doesn't|not (?:show|provide|available|recorded|in this source)|no (?:category|transaction)|monthly (?:totals|amounts) only/iu.test(part)&&
+     !/\b(?:check|investigate|review|compare|inspect)\s+(?:(?:the|underlying|individual|expense|cost)\s+)*(?:categor(?:y|ies)|breakdown|transactions?|receipts?|rent|utilities|payroll)/iu.test(part),
+     'A monthly-only source cannot support category or transaction attribution');
+   }
   }
   assert.doesNotMatch(reply,/outlet_id|read_asset_catalogue|read_operating_expenses/iu);
  });
 
 export function generateSourceCases(snapshot){
- const cases=[];
+ const cases=[...operationalSourceCases(snapshot.operationalAnswers||[],scenarios),...registerSourceCases(snapshot.registerAnswers||[],scenarios)];
  const add=(id,question,source,after)=>cases.push({id,question,source,...after?{after}:{}});
  for(const row of snapshot.outletOperations||[])add('outlet_expense_and_assets',
   'Give '+row.code+' recorded '+row.year+' operating expenses and '+row.code+
@@ -493,12 +515,18 @@ export function generateSourceCases(snapshot){
 scenarios.employees_fg_scope=scenario('HR / Factory',['read_employee_directory','read_factory_finished_goods'],
  'How many authorized Employees are there, and what is the current Factory Finished Goods stock for SKU S01?',([employees,stock],reply,source)=>{
   assert.equal(employees.aggregate_complete,true);
+  assert.equal(employees.requested_scope?.status,'all','Unrequested active-only filter');
   assert.equal(employees.summary.total,source.count);
   assert.equal(stock.rows.length,1);
   assert.equal(stock.rows[0].product_code,source.code);
   assert.equal(stock.rows[0].current_balance,source.quantity);
-  assert.match(reply,new RegExp(number(source.count)));
-  assert.match(reply,new RegExp(number(source.quantity)+'\\s*'+escaped(source.unit)+'\\b','iu'));
+  assert.equal(stock.rows[0].uom,source.unit);
+  const total=number(source.count);
+  const people='(?:employees?|staff|headcount|pekerja|員工|员工|人數|人数)';
+  assert.match(reply,new RegExp(people+'[^.!?。！？\\n]{0,40}?'+total+'|'+total+'\\s*(?:(?:authorized|visible|orang)\\s+|[名位个個]\\s*)?'+people,'iu'));
+  assert.doesNotMatch(reply,new RegExp(total+'\\s*(?:active employees?|(?:名|位)?(?:在职|在職|活跃|活躍)员工)','iu'));
+  const unit=source.unit==='kg'?'(?:kg\\b|kilograms?\\b|公斤|千克)':escaped(source.unit);
+  assert.match(reply,new RegExp(escaped(source.code)+'[\\s\\S]{0,180}?'+number(source.quantity)+'\\s*'+unit,'iu'));
  });
 
 export function certifyRun(records={}){
@@ -538,13 +566,16 @@ if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
 export function assertScenarioContracts(){
  const registry=new Map(operations.map(operation=>[operation.id,operation]));
  const knowledgeCoverage=new Set();
+ const certifiedReads=new Set();
  for(const [scenarioId,{operations:ids}] of Object.entries(scenarios)){
   for(const id of ids){
    const operation=assistantQuery(id);
    assert(operation.kind==='READ'||operation.kind==='GUIDANCE',id);
+   if(operation.kind==='READ')certifiedReads.add(id);
    if(scenarioId.startsWith('knowledge_')&&operation.knowledge)knowledgeCoverage.add(id);
   }
  }
+ for(const operation of operations.filter(operation=>operation.kind==='READ'))assert(certifiedReads.has(operation.id),'Missing final-answer acceptance scenario for '+operation.id);
  for(const operation of operations.filter(operation=>operation.knowledge))assert(knowledgeCoverage.has(operation.id),`Missing knowledge acceptance scenario for ${operation.id}`);
  const supported={
   read_asset_catalogue:['summary','count','detail','search','list','movement_history'],

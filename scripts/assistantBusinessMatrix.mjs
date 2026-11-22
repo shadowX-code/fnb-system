@@ -9,6 +9,8 @@ import {pathToFileURL} from 'node:url';
 import {reconcileBusinessModules} from '../src/features/integrations/businessModuleProjection.js';
 import {assistantCoverageReview} from '../src/features/integrations/assistantCoverageReview.js';
 import {canonicalPathForRoute,resolveCanonicalPath} from '../src/app/routeOwnership.js';
+import {scenarios} from '../qa/staging/nativeAssistantCertification.mjs';
+import {adminModuleSource} from './assistantModuleSources.mjs';
 
 const cell=value=>String(value ?? '').replaceAll('|','\\|').replace(/\s+/g,' ').trim();
 const code=name=>'\x60'+name+'\x60';
@@ -35,18 +37,18 @@ export function moduleCoverage(){
   const shared=reads.filter(op=>op.related_module_ids?.includes(module.id));
   const actions=operations.filter(op=>op.kind==='ACTION'&&op.module_id===module.id);
   const coverage=direct.length?'partial':shared.length?'shared':review.classification==='not_applicable'?'not_applicable':'blocked';
-  const boundary=review.missing||review.available;
+  const fallback=/^Only listed operations/.test(review.missing||'');
+  const available=[...direct,...shared];
+  const boundary=fallback&&available.length?available.map(op=>op.scope+' '+op.moduleInterface.pagination).join(' '):review.missing||review.available;
   assert(boundary,`Missing source or authority boundary for ${module.id}`);
-  return {module,direct,shared,actions,coverage,boundary,review};
+  return {module,direct,shared,actions,coverage,boundary,review,adminSource:adminModuleSource(module)};
  });
 }
 
-export const operationQuestion=op=>`What information does FeedX have for ${op.label} in the authorized scope? What can the result establish?`;
-
 export function semanticCatalog(){
- const modules=moduleCoverage().map(({module,direct,shared,actions,coverage,boundary})=>({
+ const modules=moduleCoverage().map(({module,direct,shared,actions,coverage,boundary,adminSource})=>({
   module:module.id,workspace:module.workspace,domain:module.section,route:modulePath(module),
-  coverage,boundary,reads:direct.map(op=>op.id),shared_reads:shared.map(op=>op.id),actions:actions.map(op=>op.id),
+  coverage,boundary,admin_source:adminSource,reads:direct.map(op=>op.id),shared_reads:shared.map(op=>op.id),actions:actions.map(op=>op.id),
  }));
  return {version:1,modules,operations:[...operations,systemGuidance].map(businessSemanticEntry)};
 }
@@ -63,7 +65,7 @@ console.log(`# FeedX Native Assistant business acceptance matrix
 
 Generated from the canonical module projection, module-owned operations and reviewed coverage annotations. ${modules.length} modules include Space Station, a virtual navigation workspace with no independent business authority. There are ${reads.length} READ contracts and ${operations.length-reads.length} separately authorized ACTION contracts.
 
-Every registered READ has a business question and executable contract tests. PASS on those tests covers discovery, schema, policy, invalid arguments and human denial under fixtures. An authenticated answer requires an independent source comparison with \`npm run qa:staging:assistant-certify\`. A disabled capability, missing account or unexecuted scenario is BLOCKED. Undeclared query dimensions are UNSUPPORTED. Each module's settings are independent of this coverage inventory.
+${Object.keys(scenarios).length} source-to-answer scenarios reference the registered operations. Each READ below lists its real certification question and case IDs. Individual module rows identify the owning Admin surface and scope boundary. PASS on those tests covers discovery, schema, policy, invalid arguments and human denial under fixtures. An authenticated answer requires an independent source comparison with \`npm run qa:staging:assistant-certify\`. A disabled capability, missing account or unexecuted scenario is BLOCKED. Undeclared query dimensions are UNSUPPORTED. Each module's settings are independent of this coverage inventory.
 
 Coverage: ${Object.entries(counts).map(([key,rows])=>rows.length+' '+key).join(', ')}.${run?` Staging policy snapshot (${run.as_of}): ${reads.filter(op=>enabled.has(op.id)).length} enabled READs and ${reads.filter(op=>!enabled.has(op.id)).length} disabled READs.`:' Runtime policy is omitted when no Staging snapshot is supplied.'}
 
@@ -76,7 +78,7 @@ for(const row of modules){
  const shared=row.shared.map(op=>`${code(op.id)} via ${op.module_id}`);
  const available=[...row.direct,...row.shared];
  const policy=available.length===0?'No READ':run?`${available.filter(op=>enabled.has(op.id)).length}/${available.length} enabled`:'Snapshot unavailable';
- const references=(row.review.evidence||[]).map(code).join(', ');
+ const references=[...new Set([row.adminSource,...row.review.evidence||[]])].map(code).join(', ');
  const coverageDescription=row.review.available||available.map(op=>op.label+' — '+op.scope).join(' ');
  const evidence=[coverageDescription,row.boundary,references].filter(Boolean).join(' ');
  console.log('| '+[`${row.module.workspace} / ${row.module.section} / ${row.module.id}`,modulePath(row.module)||'Owner or linked module',row.coverage,[...direct,...shared].join(', ')||'None',policy,row.actions.map(op=>code(op.id)).join(', ')||'None',evidence].map(cell).join(' | ')+' |');
@@ -94,16 +96,10 @@ for(const op of reads){
  const fields=Object.keys(op.tool.parameters.properties);
  const supported=[...query.dimensions];
  if(fields.includes('page')&&!supported.includes('list'))supported.push('page');
- const label=op.label;
- const question=query.dimensions.includes('rank')&&op.module_id.startsWith('factory_')
-  ?`What are the highest and lowest ${label} balances in one recorded unit? What is the next page or an exact SKU?`
-  :query.dimensions.includes('rank')
-   ?`Which records rank highest or lowest on the supported measure in ${label} for this scope? What source coverage applies?`
-  :query.dimensions.includes('period_comparison')
-   ?`What does ${label} show for the authorized outlet and recorded periods? Which periods are missing?`
-   :query.dimensions.includes('count')||query.dimensions.includes('summary')
-    ?`What authoritative totals or summary measures are available from ${label} for this scope?`
-    :operationQuestion(op);
+ const cases=Object.entries(scenarios).filter(([,scenario])=>scenario.operations.includes(op.id));
+ const core=cases.find(([,scenario])=>scenario.operations.length===1)??cases[0];
+ assert(core,'No final-answer scenario for '+op.id);
+ const question=core[1].question+' Cases: '+cases.map(([id])=>code(id)).join(', ')+'.';
  const source=op.rpc || [...(op.query?.toString()||op.load?.toString()||'').matchAll(/\.(?:from|rpc)\(['"]([^'"]+)/g)].map(match=>match[1]).join(', ') || contract.authority;
  const cells=[
   `${op.module_id} / ${code(op.id)}`,

@@ -166,3 +166,5 @@ Guest Voice reads the selected outlet's current complete Google review cache thr
 ### Recorded performance observation
 
 `crew_performance_admin_data_snapshot` uses the canonical period/employment result projection without score refresh. Existing interactive calls retain refresh behavior through the shared core. Snapshot output excludes nonexistent results and is explicitly recorded evidence, not newly calculated performance; outlet changes and finalized ownership checks remain canonical.
+
+Assistant reward-cycle questions select the requested outlet and calendar month from the reward authority. The count of matching cycles is separate from the participant and qualified counts recorded on each cycle. An absent cycle cannot establish either employee count.

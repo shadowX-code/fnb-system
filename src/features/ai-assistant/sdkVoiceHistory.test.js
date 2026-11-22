@@ -4,6 +4,29 @@ import { createSdkVoiceHistory } from './sdkVoiceHistory.js';
 import { dispatch } from '../../../supabase/functions/native-assistant/handler.js';
 import { createBusinessDispatcher } from '../../../supabase/functions/native-assistant/business.js';
 
+test('SDK repeated denied calls stay denied, and a new voice turn rechecks authorization',async()=>{
+ let reads=0,turn=0;
+ const history=createSdkVoiceHistory({id:()=>++turn,state(){},write:async()=>{},trace(){},
+  read:async()=>{reads++;throw Object.assign(new Error(),{code:'business_read_denied'});},
+ });
+ const op='read_asset_catalogue',params={mode:'detail',query:'Spoon'};
+ const input=id=>{
+  history.receive({type:'input_audio_buffer.committed',item_id:id});
+  history.receive({type:'conversation.item.input_audio_transcription.completed',item_id:id,transcript:'How many spoons at Fixture Corner?'});
+ };
+ const response=id=>history.receive({type:'response.created',response:{id}});
+ input('a');response('a1');
+ assert.equal((await history.tool(params,'a1',op)).result.query_outcome,'UNAUTHORIZED');
+ response('a2');
+ const repeat=await history.tool({operation:op,arguments_json:JSON.stringify({query:'Spoon',mode:'detail'})},'a2','run_business_query');
+ assert.equal(repeat.result.query_outcome,'UNAUTHORIZED');assert.equal(repeat.result.not_business_evidence,true);
+ assert.equal(reads,1);
+ input('b');response('b1');
+ assert.equal((await history.tool(params,'b1',op)).result.query_outcome,'UNAUTHORIZED');
+ assert.equal(reads,2);
+ await history.close();
+});
+
 test('a scoped SDK tool uses its own late finalized transcript before reading',async()=>{
  const steps=[];
  const history=createSdkVoiceHistory({id:()=> 'turn',state(){},trace(){},

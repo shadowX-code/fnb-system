@@ -12,6 +12,14 @@ export const operatingExpenseRead=readContract({
  id:'read_operating_expenses',version:2,module_id:'operating-expenses',label:'Restaurant Operating Expenses',
  permission:'operating_expenses.view',source:'/restaurant/operations/operating-expenses',
  answerAmounts:e=>[e.total_amount,...e.rows.map(row=>row.amount==null?null:Number(row.amount))],
+ nextCheck(e,language){
+  const now=malaysiaPeriod('month',new Date(e.as_of)).from;
+  const elapsed=e.missing_months.filter(month=>e.year+'-'+String(month).padStart(2,'0')+'-01'<now).length;
+  if(language==='zh')return elapsed?'先核对已过但未录入的 '+elapsed+' 个月，再比较费用。该来源只有月度录入总额。':'比较同一门店已有记录的同等期间。这里只记录每月总额，不能确定具体变动原因。';
+  if(language==='ms')return elapsed?'Semak '+elapsed+' bulan lepas tanpa rekod sebelum membandingkan kos. Sumber ini hanya merekodkan jumlah bulanan.':'Bandingkan tempoh setara yang telah direkodkan bagi cawangan yang sama. Jumlah bulanan sahaja tidak menjelaskan puncanya.';
+  return elapsed?'Check the '+elapsed+' past month'+(elapsed===1?'':'s')+' without entries before comparing costs. This source records monthly totals only.':
+   'Compare equivalent recorded periods at the same outlet. Monthly totals alone cannot establish what caused a change.';
+ },
  analysisObservations(e){
   // Annual entries can be incomplete; the recorded sum is not a comparable full year.
   if(!e.period_complete||!e.aggregate_complete||e.currency!=='MYR')return [];

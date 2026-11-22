@@ -1,5 +1,5 @@
 import {queryDiscoveryTools,isQueryEnvelope,queryEnvelopeArguments,discoverQueries,excludeCompetingQueries} from '../_shared/assistant/queryDiscovery.js';
-import {employeeDirectoryRead} from '../_shared/people/employeeDirectoryRead.js';
+import {employeeDirectoryRead,resolveDirectoryEmployee} from '../_shared/people/employeeDirectoryRead.js';
 import {restaurantGapReads} from '../_shared/restaurant/gapReads.js';
 import {financeGapReads} from '../_shared/finance/gapReads.js';
 import {peopleGapReads} from '../_shared/people/gapReads.js';
@@ -80,9 +80,10 @@ export function queryTool(operation){
  const extra={};
  if(parameters.properties.outlet_id&&!parameters.properties.outlet_name)extra.outlet_name={type:['string','null'],maxLength:120,description:'Exact human-supplied outlet name/code, or null. Use null for a required outlet_id only when providing this name.'};
  if(parameters.properties.brand_id&&!parameters.properties.brand_name)extra.brand_name={type:['string','null'],maxLength:120,description:'Exact human-supplied Brand name, or null.'};
+ if(operation.employeeNameLookup)extra.employee_name={type:['string','null'],maxLength:80,description:'Exact employee name or code from the user. Supply a null employee_id when using the name.'};
  if(!Object.keys(extra).length)return operation.tool;
  const properties={...parameters.properties,...extra};
- for(const field of ['outlet','brand']){
+ for(const field of ['outlet','brand','employee']){
   const id=properties[field+'_id'];
   if(extra[field+'_name']&&id.type==='string')properties[field+'_id']={...id,type:['string','null']};
  }
@@ -116,7 +117,7 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
   if(lastGoalPrompt===prompt)return lastGoal;
   lastGoalPrompt=prompt;
   lastGoal=null;
-  const clauses=prompt.split(/\s*[,，]?\s*(?:[;；]|\b(?:and|also|then|separately|serta|dan)\b|另外|以及|并且|並且|同时|同時)\s*/iu).map(s=>s.trim()).filter(Boolean);
+  const clauses=prompt.split(/\s*[,，]?\s*(?:[;；?？。]|\b(?:and|also|then|separately|serta|dan)\b|另外|以及|并且|並且|同时|同時)\s*/iu).map(s=>s.trim()).filter(Boolean);
   if(clauses.length<2||clauses.length>5)return null;
   const steps=[];
   for(const wording of clauses){
@@ -144,11 +145,10 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
   const textPage=textPages?await finishedGoodsRead.planTextPage(prompt,history):null;
   if(textPage)return {...planFor(finishedGoodsRead),textPage};
   // Page-only turns reuse an exact authorized query, never a guessed or mixed one.
-  if(history&&pageRequest(prompt)){
-   const previous=previousBusinessResult(await history());
-   const operation=operations.find(op=>op.id===previous?.capability);
-   const page=continuedPage(prompt,previous,operation);
-   if(page)return {...planFor(operation),page};
+  if(pageRequest(prompt)){
+   const page=continuedPage(prompt,await history?.(),id=>operations.find(op=>op.id===id));
+   if(page.pagination_reply)return page;
+   return {...planFor(assistantQuery(page.operation)),page};
   }
   const operation=planned(prompt);
   if(operation)return {...planFor(operation),intent:operation.queryIntent(prompt),wording:prompt};
@@ -207,12 +207,32 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
    (defaults.outlet_scope==='each_outlet'||!/\b(?:at|for|in|di)\s+|在|门店|門店/iu.test(prompt)))return defaults;
   return null;
  }
+ function groundedRecommendation(evidences,prompt,goal){
+  if(!asksForAnalysis(prompt)||!evidences.length||evidences.some(e=>!e?.capability||e.no_evidence||e.not_business_evidence||outcomeFor(e)!=='SUCCESS'))return null;
+  const language=/\p{Script=Han}/u.test(prompt)?'zh':/\b(?:berapa|semak|perbelanjaan|kos|cadang(?:an|kan)?|mengapa|kenapa)\b/iu.test(prompt)?'ms':'en';
+  const facts=[],checks=[];
+  for(const evidence of evidences){
+   const owner=assistantQuery(evidence.capability);
+   if(owner.kind!=='READ'||evidence.version!==owner.moduleInterface.evidence_version||evidence.source!==owner.moduleInterface.source)return null;
+   const wording=goal?.find(step=>step.operation===owner.id)?.wording||prompt;
+   const formatted=owner.format?.(evidence,wording);
+   if(!formatted)return null;
+   facts.push(formatted);
+   const check=owner.nextCheck?.(evidence,language);
+   if(check&&!checks.includes(check))checks.push(check);
+  }
+  // A comparative question also needs the actual compared values and change.
+  // The monetary comparison formatter retains ownership of those answers.
+  if(!checks.length||operationalAnalysis(evidences,assistantQuery)?.comparisons.length)return null;
+  return [...facts,...checks].join('\n');
+ }
  return {
   capabilities,
   guidance_sources:guideAvailable(config||{},access||{})?[{id:systemGuidance.id,module_id:systemGuidance.module_id,...systemGuidance.knowledge,availability:'live_source',retrieval:'current_release'}]:[],
   tools:(()=>{const offered=queryOperations.filter(operation=>indexed.find(item=>item.id===operation.id)?.availability==='connected');return offered.length>8?queryDiscoveryTools:offered.map(queryTool);})(),
   preferredVoiceTools:operations.filter(operation=>operation.prepareArguments&&planFor(operation)?.tool).map(queryTool),
   analyze:evidences=>operationalAnalysis(evidences,assistantQuery),
+  groundedRecommendation,
   validAnswerAmounts:(reply,evidences)=>verifiedAnswerAmounts(reply,evidences,assistantQuery),
   planGoal,
   planTurn,
@@ -233,7 +253,6 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
    const {named,inherited}=await resolveTurnScope(operation,plan,prompt,history,signal);
    return turnArguments(operation,plan,prompt,named,inherited);
   },
-  isKnowledgeTool:(tool,args)=>!!queryOperations.find(item=>item.id===(tool==='run_business_query'?args?.operation:tool))?.knowledge,
   excludedForPrompt:prompt=>excludeCompetingQueries(operations,prompt),
   toolsForPrompt(prompt,excluded=new Set()){
    if(typeof prompt!=='string'||!prompt.trim())return [];
@@ -248,7 +267,11 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
    const ranked=matches.length===1?matches[0]:[...matches.map(rows=>rows[0]).filter(Boolean),...matches.flat()];
    return [...new Set(ranked.map(item=>item.operation))].slice(0,2).map(id=>queryTool(assistantQuery(id)));
   },
-  async execute(id,args,signal,{correctArguments=false,excluded,prompt,history,withOutcome=false,turnPlan}={}){
+  async execute(id,args,signal,{correctArguments=false,excluded,prompt,history,withOutcome=false,turnPlan,currentEvidence=[]}={}){
+   if(pageRequest(prompt)){
+    turnPlan=turnPlan??await planTurn(prompt,history,signal);
+    if(turnPlan?.pagination_reply)return {query_outcome:turnPlan.query_outcome,answer_hint:turnPlan.pagination_reply,no_evidence:true,not_business_evidence:true};
+   }
    const blocked=excluded||excludeCompetingQueries(operations,prompt);
    const goal=planGoal(prompt);
    const enveloped=id==='run_business_query';
@@ -320,6 +343,20 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
        delete args.outlet_name;
       }
      }
+     if(operation.employeeNameLookup&&Object.hasOwn(args,'employee_name')){
+      const name=args.employee_name;
+      if(name!==null){
+       if(typeof name!=='string'||!name.trim()||name.length>80)invalidArgument('unsupported_value','employee_name');
+       if(!capabilityConnected(current,employeeDirectoryRead.id))throw new AssistantError('capability_disconnected',403);
+       await permitted(caller,operation.permission,signal);
+       await permitted(caller,employeeDirectoryRead.permission,signal);
+       const values=employeeDirectoryRead.validate({mode:'list',query:name.trim()});
+       const employee=await resolveDirectoryEmployee(caller,values,signal);
+       if(args.employee_id&&args.employee_id!==employee.id)throw new AssistantError('entity_ambiguous',409);
+       args.employee_id=employee.id;
+      }
+      delete args.employee_name;
+     }
      if(properties.brand_id&&!properties.brand_name){
       if(args.brand_name!=null){
        if(typeof args.brand_name!=='string'||!args.brand_name.trim()||args.brand_name.length>120)invalidArgument('unsupported_value','brand_name');
@@ -333,11 +370,23 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
     }
     const normalized=operation.validate(args);
     signal?.throwIfAborted();
+    if(operation.kind==='READ'&&!operation.knowledge){
+     const prior=currentEvidence.find(row=>row?.capability===id&&row.source===operation.moduleInterface.source&&row.version===operation.version&&
+      row.requested_scope&&Object.keys(normalized).length===Object.keys(row.requested_scope).length&&
+      Object.entries(normalized).every(([key,value])=>JSON.stringify(row.requested_scope[key])===JSON.stringify(value)));
+     if(prior)return {operation:id,query_outcome:outcomeFor(prior),already_read:true,not_business_evidence:true,
+      instruction:'This exact scoped read already returned in this turn. Use its earlier evidence. Ask for clarification if unresolved.'};
+    }
     // caller is the authenticated human client, never the service-role client.
     const evidence=await (readFactory&&id===finishedGoodsRead.id?readFactory(args,signal):operation.execute(caller,args,signal,sessionId));
     if(operation.kind==='READ')verifyReadEvidence(operation.moduleInterface,id,evidence,normalized);
-    return withOutcome&&operation.kind!=='ACTION'?{...evidence,query_outcome:outcomeFor(evidence),query_domain:domain}:evidence;
+    return withOutcome&&operation.kind!=='ACTION'?{...evidence,...operation.kind==='READ'&&!evidence.requested_scope?{requested_scope:normalized}:{},
+     query_outcome:outcomeFor(evidence),query_domain:domain}:evidence;
    }catch(error){
+    if(error.code==='business_result_limit'&&['single_record_exceeds_evidence_limit','metadata_exceeds_evidence_limit'].includes(error.diagnostic?.reason))
+     return {error:'business_result_limit',reason:error.diagnostic.reason,not_business_evidence:true,no_evidence:true,
+      query_outcome:'EXECUTION_ERROR',operation:id,operation_label:operation.label,
+      instruction:error.diagnostic.reason==='single_record_exceeds_evidence_limit'?'Even one record exceeds the safe response size. Explain the limitation and direct the user to the owning module.':'The required summary metadata exceeds the safe response size. Explain the limitation and direct the user to the owning module.'};
     if((enveloped||correctArguments)&&error.code==='tool_arguments_invalid')return {error:'tool_arguments_invalid',not_business_evidence:true,no_evidence:true,
      ...(withOutcome?{query_outcome:'UNSUPPORTED'}:{}),operation:id,operation_label:operation.label,
      parameters:queryTool(operation).parameters,description:operation.tool.description,

@@ -6,6 +6,8 @@ This domain owns Factory Production Planning, Production Overview, Job Orders, p
 
 ## Canonical Ownership
 
+The Assistant production-register read counts or lists a requested batch, product, recorded production date, status or QC status under Factory Production access. Each result keeps production, manufacturing and end dates separate, with good output and wastage in their recorded units.
+
 Current Factory production pages/services, migrations, RPCs, RLS, route contracts, and tests are authoritative.
 Current implementation overrides historical refactor-phase assumptions.
 Factory Warehouse owns physical raw and finished-goods movement.
@@ -111,3 +113,5 @@ Label setup is centralized under Factory Settings → Label Management. Draft ed
 ### External Agent lifecycle actions
 
 The fixed Gateway action manifest exposes Job Order Create/Update, Submit (canonical Release), and pre-start Cancel; Production Update records QC progress, Complete consumes canonical batch allocations, and Verify uses the existing verification authority. These delegate to the same private business bodies as human RPCs. The physical operator remains the existing canonical Employee evidence, distinct from the machine recorder. QC/completion/verification require exact human evidence confirmation; an Agent cannot review its own linked Job Order/Production work, even after key replacement. No new Production start/cancel/approval lifecycle is invented. See Trusted Authorities → Factory operational actions for grants, retry receipts and concurrency.
+
+Completed production QC and finished-product storage entries are available with scoped counts and filters. Storage entries retain batch dates and recorded completion units. They are distinct from present warehouse balances. Factory audit searches use the human read-only trail and exclude before/after records, actor contact details, device metadata and private notes.

@@ -7,6 +7,8 @@ It groups related finance pages under one business authority rather than documen
 
 ## Canonical Ownership
 
+The Assistant Sales Input read returns the exact count and pages of entered channel records for an authorized outlet and calendar month. An exact recorded channel name narrows both. Each amount stays attached to its channel. Reporting and Sales Comparison retain their existing revenue and deduction definitions.
+
 Current services, migrations, trusted RPCs, and financial contract tests are authoritative.
 The domain owns sales records, purchase records, sales channels, purchase categories, outlet tax configuration, operating expenses, supplier purchasing relationships, purchase orders, import batches, data health, alerts, and financial period snapshots.
 Inventory receipt and stock movement ownership belongs to `inventory-and-assets.md`, even when initiated by purchasing.

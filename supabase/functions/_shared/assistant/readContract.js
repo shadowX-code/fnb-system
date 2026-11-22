@@ -72,7 +72,11 @@ export function readContract(def){
    }
    const evidence={capability:def.id,source:def.source,scope:def.scope,requested_scope:args,as_of:new Date().toISOString(),version:def.version||1,...projected};
    evidence.completeness=readCompleteness(moduleInterface,evidence,args);
-   if(new TextEncoder().encode(JSON.stringify(evidence)).length>10000)throw new AssistantError('business_result_limit',413);
+   const fits=value=>new TextEncoder().encode(JSON.stringify(value)).length<=10000;
+   if(!fits(evidence)){
+    if(def.fitEvidence)return def.fitEvidence(evidence,fits);
+    throw new AssistantError('business_result_limit',413);
+   }
    return evidence;
   }
  });
@@ -86,6 +90,16 @@ export function rowsEvidence(rows,keys,limit=20){
  return {rows:rows.slice(0,limit).map(r=>pick(r,keys)),returned_count:Math.min(rows.length,limit),truncated:rows.length>limit,complete:false,coverage:'Bounded results; not a complete inventory. returned_count is not a total; truncated=false does not assert completeness.'};
 }
 
+// For RPCs that return both an exact filtered count and a page from that same query.
+export function rpcPageEvidence(rows,total,pageNumber,fields){
+ const offset=(pageNumber-1)*20;
+ if(!Number.isSafeInteger(total)||total<0||!Array.isArray(rows)||rows.length!==Math.min(20,Math.max(0,total-offset))){
+  throw new AssistantError('business_read_unavailable',503);
+ }
+ return {rows:rows.map(row=>pick(row,fields)),page:pageNumber,page_size:20,pageable:true,total_count:total,total_matching:total,
+  aggregate_complete:true,returned_count:rows.length,truncated:total>offset+20};
+}
+
 // Counts are calculated by the same canonical query and filters as the page.
 export async function countedRows(query,args,fields,signal){
  const first=(args.page-1)*20;
@@ -94,6 +108,6 @@ export async function countedRows(query,args,fields,signal){
  if(error||!Number.isSafeInteger(count)||count<0||
   args.mode!=='summary'&&(!Array.isArray(data)||data.length!==Math.min(20,Math.max(count-first,0))))
   throw new AssistantError('business_read_unavailable',503);
- return {rows:args.mode==='summary'?[]:data.map(row=>pick(row,fields)),
+ return {rows:args.mode==='summary'?[]:data.map(row=>pick(row,fields)),...(args.mode!=='summary'?{pageable:true}:{}),
   total_matching:count,aggregate_complete:true,page:args.page,page_size:20,truncated:args.mode!=='summary'&&count>first+20};
 }

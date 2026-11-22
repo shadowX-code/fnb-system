@@ -27,7 +27,7 @@ export const outletContinuation=prompt=>/\b(?:same outlet|that outlet|this outle
 
 // An evidence-backed analysis may require more than the formatted result of one
 // resolved read. Keep synthesis and read-only discovery available for these turns.
-export const asksForAnalysis=prompt=>/\b(?:why|explain the (?:change|increase|decrease)|analy[sz]e|recommend(?:ations?)?|suggest(?:ions?)?|underperform(?:ed|ing)?|root cause|what (?:should|could|can) we|mengapa|kenapa|cadang(?:an|kan)?|punca)\b|为什么|為什麼|原因|分析|建议|建議|怎[么麼]改善/iu.test(prompt||'');
+export const asksForAnalysis=prompt=>/\b(?:why|explain the (?:change|increase|decrease)|analy[sz]e|recommend(?:ations?)?|suggest(?:ions?)?|underperform(?:ed|ing)?|root cause|what (?:should|could|can) we|next (?:check|step)|mengapa|kenapa|cadang(?:an|kan)?|langkah seterusnya|punca)\b|为什么|為什麼|原因|分析|建议|建議|下一步|怎[么麼]改善/iu.test(prompt||'');
 
 export const affirmedOutlet=prompt=>/^(?:yes\b|correct\b|that's right\b|betul\b|ya\b|对[，,。]?|對[，,。]?|是的|没错|沒錯)/iu.test(String(prompt||'').trim())&&
  /\b(?:its|there|that outlet|this outlet|at that branch)\b|(?:他|它|那家|这家|這家)(?:在|的)|(?:该|該)(?:店|餐[厅廳]|门店|門店)/iu.test(prompt);
@@ -49,29 +49,76 @@ export function previousBusinessResult(history){
  return items.length===1&&evidence?.capability&&evidence.requested_scope&&outcomeFor(evidence)==='SUCCESS'?evidence:null;
 }
 
-export const pageRequest=prompt=>String(prompt||'').trim().match(/^(?:(?:show |list )?(?:the )?next page|page ([1-9][0-9]?)|(?:halaman seterusnya|下一[页頁])|第\s*([1-9][0-9]?)\s*[页頁])[?!.。！]?$/iu);
+export const pageRequest=prompt=>String(prompt||'').trim().match(/^(?:(?:show |list )?(?:the )?(?:next page|page [1-9][0-9]{0,3})|halaman (?:seterusnya|[1-9][0-9]{0,3})|下一[页頁]|第\s*[1-9][0-9]{0,3}\s*[页頁])[?!.。！]?$/iu);
 
-export function continuedPage(prompt,evidence,operation){
- const match=pageRequest(prompt);
- if(!match||!operation?.pageableModes?.includes(evidence?.requested_scope?.mode)||!evidence.aggregate_complete)return null;
- const current=evidence.page;
- if(!Number.isSafeInteger(current)||!Number.isSafeInteger(evidence.total_matching)||evidence.page_size!==20)return null;
- const page=Number(match[1]||match[2]||current+1);
- if(page>100||page===current||page>Math.ceil(evidence.total_matching/evidence.page_size))return null;
- return {operation:operation.id,args:{...evidence.requested_scope,page}};
+// Only complete, confirmed list coordinates may seed the next query. A
+// compound result containing two lists needs the user's choice even when one
+// of them has just reached its last page.
+export function continuedPage(prompt,history,lookup){
+ const latest=history?.turns?.filter(turn=>['completed','failed','cancelled'].includes(turn.state)).at(-1);
+ const saved=latest?.state==='completed'&&latest.tool_state==='completed'?latest.evidence:null;
+ const lists=(saved?.items||[saved]).flatMap(e=>{
+  const op=e?.capability&&lookup(e.capability);
+  if(!op?.tool.parameters.properties.page||e.source!==op.moduleInterface.source||e.version!==op.moduleInterface.evidence_version||
+   !e.requested_scope||!e.aggregate_complete||e.no_evidence||e.not_business_evidence||outcomeFor(e)!=='SUCCESS'||
+   !(op.pageableModes?.includes(e.requested_scope.mode)||e.pageable===true))return [];
+  const total=e.total_matching??e.total_count;
+  const sizes=op.tool.parameters.properties.page_size?.enum??[20];
+  const requested=e.requested_scope.page_size??20,size=e.page_size;
+  if(!sizes.includes(size)||!sizes.includes(requested)||size>requested||!Number.isSafeInteger(e.requested_scope.page)||e.requested_scope.page<1||
+   !Number.isSafeInteger(e.page)||e.page<1||(e.page-1)*size!==(e.requested_scope.page-1)*requested||
+   !Number.isSafeInteger(total)||total<0||!Array.isArray(e.rows)||e.rows.length!==Math.min(size,Math.max(0,total-(e.page-1)*size)))return [];
+  return [{op,e,total}];
+ });
+ const zh=/\p{Script=Han}/u.test(prompt),ms=/\bhalaman\b/iu.test(prompt);
+ if(lists.length!==1)return {pagination_reply:zh?'您想继续哪一份列表？':ms?'Senarai mana yang anda mahu sambungkan?':'Which list would you like to continue?',query_outcome:'AMBIGUOUS'};
+ const {op,e,total}=lists[0],page=Number(prompt.match(/[0-9]+/u)?.[0]||e.page+1);
+ if(page>op.tool.parameters.properties.page.maximum||page>Math.ceil(total/e.page_size))return {
+  pagination_reply:zh?'上次的列表没有这一页。您可以重新查询最新列表。':ms?'Senarai sebelumnya tiada halaman itu. Anda boleh meminta senarai terkini.':'The last result has no such page. You can ask for a fresh list.',
+  query_outcome:'UNSUPPORTED',
+ };
+ const args={...e.requested_scope,page,...op.tool.parameters.properties.page_size?{page_size:e.page_size}:{}};
+ try{if(op.tool.parameters.properties.page_size)op.validate(args);}catch{return {pagination_reply:zh?'已达到可分页的范围，请缩小筛选范围。':ms?'Had halaman telah dicapai. Kecilkan skop carian.':'The page limit has been reached. Narrow the filters to continue.',query_outcome:'UNSUPPORTED'};}
+ return {operation:op.id,args};
 }
 
 export function confirmedOutlet(history,operation,domain){
  for(const turn of [...(history?.turns||[])].reverse()){
+  // A failed correction is a scope boundary. Never silently recover an older
+  // outlet when the user next refers to “there” or “the same outlet”.
+  if(turn.tool_state==='failed'||turn.state==='failed'||turn.state==='cancelled'){
+   const wording=turn.prompt?.trim();
+   if(wording&&(correctedOutletWording(wording)!==wording||!outletContinuation(wording)&&
+    /\b(?:at|outlet|branch|cawangan|di)\s+|在|门店|門店/iu.test(wording)))return null;
+   continue;
+  }
   if(turn.state!=='completed'||turn.tool_state!=='completed')continue;
   const evidence=turn.evidence?.items||[turn.evidence];
-  const matching=evidence.filter(entry=>entry?.capability===operation&&outcomeFor(entry)==='SUCCESS'||
-   domain&&entry?.query_domain===domain&&outcomeFor(entry)==='SUCCESS');
+  const matching=evidence.filter(entry=>entry&&(entry.capability===operation||domain&&entry.query_domain===domain));
+  if(matching.some(entry=>outcomeFor(entry)!=='SUCCESS'||entry.requested_scope?.outlet_scope==='each_outlet'))return null;
   const ids=new Set(matching.map(entry=>entry.outlet?.id||entry.knowledge?.scope?.outlet_id||entry.requested_scope?.outlet_id).filter(Boolean));
   if(ids.size===1)return [...ids][0];
-  if(ids.size>1)return null;
+  if(matching.length||evidence.some(entry=>entry?.outlet?.id||entry?.requested_scope?.outlet_id))return null;
  }
  return null;
+}
+
+export function sourceLimitation(evidence,prompt=''){
+ const zh=/\p{Script=Han}/u.test(prompt);
+ const ms=!zh&&/\b(?:berapa|semak|jumlah|kaedah|tertinggi|inventori|baki|cawangan)\b/iu.test(prompt);
+ if(evidence?.ranking?.status==='unit_required'){
+  const choices=evidence.ranking.available_units;
+  const units=Array.isArray(choices)?choices.filter(unit=>typeof unit==='string').slice(0,8).join(', '):'';
+  return zh?'这些库存使用不同单位。您要按哪个单位排名'+(units?'（'+units+'）':'')+'？':
+   ms?'Stok menggunakan beberapa unit. Unit yang mana untuk kedudukan'+(units?' ('+units+')':'')+'?':
+   'These stocks use different units. Which unit should I rank'+(units?' ('+units+')':'')+'?';
+ }
+ switch(evidence?.knowledge?.status){
+  case 'no_current_version':return zh?'此范围内没有可核实的当前已发布版本。':ms?'Tiada versi terkini yang diterbitkan dapat disahkan dalam skop ini.':'There is no verified current published version in this scope.';
+  case 'no_matching_excerpt':return zh?'在可查看的文档中没有找到回答这个问题的段落。':ms?'Tiada petikan yang menjawab soalan ini dalam dokumen yang boleh diakses.':'I found no passage answering that question in the accessible documents.';
+  case 'source_ai_not_allowed':return zh?'此来源目前未授权供助手使用。':ms?'Sumber ini belum membenarkan penggunaan oleh pembantu.':'This source currently does not allow Assistant use.';
+  default:return null;
+ }
 }
 
 export function businessFailureReply(status,prompt=''){

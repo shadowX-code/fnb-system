@@ -63,7 +63,11 @@ Native Assistant Asset Tracking uses `asset_tracking.view` and rechecks the auth
 
 Native Assistant Master Inventory uses `inventory_master.view` and the same item-to-outlet links as the Admin catalogue. Filters apply to both exact counts and list pages. One outlet can resolve an exact item name or SKU. A linked item can appear in multiple outlet counts, while a distinct scoped total counts it once. Inventory Movements uses `inventory_movements.view` with its own outlet and recorded date, type, item and reference filters. Counts measure movement records and preserve recorded quantity and unit per row.
 
+The Assistant reads Stock Check publication state from the current authorized outlet/month audit context. It reports submitted evidence, current publication revision and coverage through Stock Check. Reporting supplies monetary valuation. Waste, purchase order, recipe and stock-check-group lists retain source filters and exact matching record counts across pages. Quantities remain attached to individual items and units.
+
 Inventory Dashboard stock evidence is a separate read under `inventory_dashboard.view`. It covers active positive-par positions and retains check date and source freshness. Only a sufficient or below-par position asserts a usable count. A changed, unverified or missing position does not supply current on-hand stock.
+
+For one outlet the Assistant can list positions or count them by the Dashboard’s own evidence states. Historical units are withheld when the current basis is unverified. The separate Par Levels read identifies configured quantities by outlet, item name or SKU and distinguishes positive Par from all saved configurations.
 
 Inspection item and evidence reads are constrained to inspection headers already returned under the current outlet/RLS scope. Actor display lookup is a limited Asset service projection; it is not a page-level employee-directory query. Direct Admin condition edits remain a deployed compatibility boundary; inspection draft persistence and archival use their scoped server-authoritative lifecycle paths.
 

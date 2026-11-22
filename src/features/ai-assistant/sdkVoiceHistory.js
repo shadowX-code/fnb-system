@@ -1,3 +1,5 @@
+import {createQueryRecovery} from '../../../supabase/functions/_shared/assistant/queryRecovery.js';
+
 const toolFailureReasons = {
  business_read_denied: 'Current user permissions or scope deny this read.',
  factory_read_denied: 'Current user permissions or scope deny this read.',
@@ -52,7 +54,7 @@ export function createSdkVoiceHistory({ write, read, state, trace, activity = ()
 
  function receive({ type, item_id, response, response_id, transcript, delta }) {
   if (type === 'input_audio_buffer.committed' && item_id && !inputs.has(item_id)) {
-   current = { id: id(), number: inputs.size + 1 };
+   current = { id: id(), number: inputs.size + 1, recovery:createQueryRecovery() };
    current.inputReady = new Promise(resolve => { current.settleInput = resolve; });
    inputs.set(item_id, current);
    activity({ turn_id: current.id, phase: 'processing' });
@@ -135,8 +137,9 @@ export function createSdkVoiceHistory({ write, read, state, trace, activity = ()
     await writes;
     if (!ownsTurn()) return { stale: true };
     activity({ ...tool, phase: 'executing' });
-    const result = await read(turn.id, args, operation);
+    const result = turn.recovery.before(operation,args) || await read(turn.id, args, operation);
     if (!ownsTurn()) return { stale: true };
+    turn.recovery.after(operation,args,result);
     activity({ ...tool, label: result.operation_label, phase: result.error || result.no_evidence ? 'failed' : 'complete' });
     trace('business_tool_finished', turn.number, owner.number, result.error || (result.discovery_only ? 'discovery' : 'returned'));
     return { result };
@@ -154,8 +157,10 @@ export function createSdkVoiceHistory({ write, read, state, trace, activity = ()
     const instruction=code==='tool_not_allowed'&&operation==='run_business_query'
      ? 'Discover the intended domain with find_business_queries and use a returned operation ID and schema. No business read occurred.'
      : 'Briefly explain the actual failure in the user’s language. Do not switch domains, invent evidence, or retry automatically.';
-    return { result: { error: code, operation: capability, operation_label: label, reason,
-     query_outcome:error.diagnostic?.query_outcome||'EXECUTION_ERROR',no_evidence: true, instruction } };
+    const result={ error:code,operation:capability,operation_label:label,reason,
+     query_outcome:error.diagnostic?.query_outcome||(denied?'UNAUTHORIZED':'EXECUTION_ERROR'),no_evidence:true,instruction };
+    turn.recovery.after(operation,args,result);
+    return {result};
    } finally {
     turn.toolPending = false;
     if (ownsTurn()) state('thinking');

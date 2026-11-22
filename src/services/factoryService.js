@@ -1,5 +1,6 @@
 import { supabase } from "../lib/supabase";
 import { beginRecipeDiagnostic, recipeQueryKey } from "./factoryRecipeDiagnostics.js";
+import { recipeProductIdentity } from "../../supabase/functions/_shared/factory/productRecipeGroups.js";
 import { auditLogService } from "./auditLogService";
 import { throwSupabaseError } from "./supabaseError";
 import { uploadOptimizedImage } from "../utils/imageUpload.js";
@@ -1067,20 +1068,12 @@ function mapRecipe(row) {
   return {
     id: row.id,
     recipe_code: row.recipe_code || "",
-    finished_good_id: row.finished_good_id || "",
-    product_family_id: row.product_family_id || finishedGood.product_family_id || "",
-    product_family_name: productFamily.name_en || "",
+    ...recipeProductIdentity(row),
     product_code: finishedGood.product_code || "",
     recipe_name: row.recipe_name || productFamily.name_en || finishedGood.product_name || row.product_name || "",
-    product_name: productFamily.name_en || finishedGood.product_name || row.product_name || "",
-    product_name_en: productFamily.name_en || finishedGood.product_name_en || finishedGood.product_name || row.product_name || "",
-    product_name_cn: productFamily.name_cn || finishedGood.product_name_cn || "",
-    product_name_bm: productFamily.name_bm || finishedGood.product_name_bm || "",
-    version: row.version || "v1",
     yield_quantity: normalizeNumber(row.yield_quantity, 1),
     uom: row.uom || "",
     estimated_production_time_minutes: normalizeNumber(row.estimated_production_time_minutes),
-    status: row.status || "draft",
     notes: row.notes || "",
     remarks: row.remarks || row.notes || "",
     created_by: row.created_by || "",

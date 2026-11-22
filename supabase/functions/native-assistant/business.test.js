@@ -38,9 +38,9 @@ test('SDK named dispatch and legacy Grok reserve once and attach classified evid
    rpc:async()=>({config:{enabled:true,capability_connections:{read_factory_finished_goods:true}}}),get:()=>undefined,access:{factory:true},
    reserveRealtime:async action=>{assert.equal(action,'tool');reservations++;},
    readFactory:async value=>{assert.deepEqual(value,args);reads++;return evidence;},
-   voiceHistory:async payload=>{assert.equal(payload.step,'evidence');assert.deepEqual(payload.evidence,{...evidence,query_outcome:'SUCCESS',query_domain:'factory'});},
+   voiceHistory:async payload=>{assert.equal(payload.step,'evidence');assert.deepEqual(payload.evidence,{...evidence,requested_scope:finishedGoodsRead.validate(args),query_outcome:'SUCCESS',query_domain:'factory'});},
   });
-  assert.deepEqual(result,{...evidence,query_outcome:'SUCCESS',query_domain:'factory'});assert.equal(reads,1);assert.equal(reservations,1);
+  assert.deepEqual(result,{...evidence,requested_scope:finishedGoodsRead.validate(args),query_outcome:'SUCCESS',query_domain:'factory'});assert.equal(reads,1);assert.equal(reservations,1);
  }
 });
 test('public intents cannot supply action authority, confirmation, a caller or arbitrary operation',()=>{

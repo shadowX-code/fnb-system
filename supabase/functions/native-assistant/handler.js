@@ -8,7 +8,7 @@ import {createGrokSession,grokReady,grokVoices} from './grokVoice.js';
 import {finishedGoodsRead} from '../_shared/factory/finishedGoodsRead.js';
 import {isQueryEnvelope,queryDiscoveryTools} from '../_shared/assistant/queryDiscovery.js';
 import {createBusinessDispatcher,validateBusinessArguments,businessOperation,assistantQuery,businessToolIdentity,businessToolArgumentShape} from './business.js';
-import {asksForAnalysis,failureOutcome,outcomeFor} from './businessQuery.js';
+import {asksForAnalysis,failureOutcome,outcomeFor,sourceLimitation} from './businessQuery.js';
 import {realtimeModel,realtimeTranscriptionModel,realtimeReady,realtimeVoices,voiceInstructions} from './realtime.js';
 import {AssistantError,connection,publicRuntime,generateText,models} from './provider.js';
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -143,10 +143,14 @@ export async function dispatch(body,{voiceUsage,rpc,get,signal,transport,caller,
     let snapshot;
     const history=()=>snapshot??=rpc('history',{session_id:args.session_id});
     const turn=args.provider==='openai'&&args.turn_id?(await history())?.turns?.find(row=>row.request_id===args.turn_id):null;
+    const priorHistory=async()=>{
+     const snapshot=await history();
+     return turn?{...snapshot,turns:snapshot.turns.filter(row=>row.request_id!==args.turn_id)}:snapshot;
+    };
     if(turn&&!turn.voice_input_available&&tool!=='find_business_queries')throw new AssistantError('entity_scope_required',409);
     const transcript=turn?.voice_input_available?turn.prompt:undefined;
     const evidence=await business.execute(tool,args.arguments,signal,{correctArguments:args.provider==='openai',
-     prompt:transcript,history,withOutcome:true});
+     prompt:transcript,history:priorHistory,withOutcome:true,currentEvidence:turn?.evidence?.capability==='business_evidence'?turn.evidence.items:turn?.evidence?[turn.evidence]:[]});
     let saved;
     if(args.turn_id&&!evidence.not_business_evidence){
      stage = 'evidence';
@@ -154,7 +158,7 @@ export async function dispatch(body,{voiceUsage,rpc,get,signal,transport,caller,
     }
     traceTool(stage,evidence.error || (evidence.discovery_only ? 'discovery' : 'returned'),evidence.discovery_only?evidence.total_operations:undefined,evidence.validation);
     const goal=business.planGoal(transcript);
-    const current=saved?.evidence||evidence;
+    const current=saved?.evidence||(evidence.not_business_evidence?turn?.evidence:null)||evidence;
     const items=current?.capability==='business_evidence'?current.items:[current];
     const analysis=business.analyze(items);
     if(goal){
@@ -162,10 +166,11 @@ export async function dispatch(body,{voiceUsage,rpc,get,signal,transport,caller,
       const item=items.find(entry=>entry?.capability===step.operation&&!entry.not_business_evidence&&!entry.no_evidence);
       return {part:i+1,...step.tool?{operation:step.operation}:{},outcome:!step.tool?'unavailable':item?outcomeFor(item):'pending'};
      });
-     return {...evidence,goal:{parts:progress,next_operations:progress.filter(p=>p.outcome==='pending').map(p=>p.operation)},...(analysis?{verified_comparisons:analysis}:{})};
+     const hint=progress.every(p=>p.outcome==='SUCCESS')?business.groundedRecommendation(items,transcript,goal):null;
+     return {...evidence,goal:{parts:progress,next_operations:progress.filter(p=>p.outcome==='pending').map(p=>p.operation)},...(hint?{answer_hint:hint}:{}),...(analysis?{verified_comparisons:analysis}:{})};
     }
-    const answer_hint=transcript&&!asksForAnalysis(transcript)&&identity.operation&&!evidence.not_business_evidence&&!evidence.error
-     ?business.format(identity.operation,evidence,transcript):null;
+    const answer_hint=transcript&&identity.operation&&!evidence.not_business_evidence&&!evidence.error
+     ?sourceLimitation(evidence,transcript)||(asksForAnalysis(transcript)?business.groundedRecommendation(items,transcript):business.format(identity.operation,evidence,transcript)):null;
     return answer_hint||analysis?{...evidence,...(answer_hint?{answer_hint}:{}),...(analysis?{verified_comparisons:analysis}:{})}:evidence;
    } catch(error) {
     const failure = voiceToolFailure(error,identity,stage);

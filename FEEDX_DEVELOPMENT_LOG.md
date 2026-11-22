@@ -1331,3 +1331,7 @@ Master Inventory records forward purchase-unit conversions in append-only UOM Hi
 ## 2026-11-21 — Restaurant Master Inventory item UOM
 
 Edit Item now manages the canonical item UOM and append-only change history. Saved operational evidence blocks changes, and stock writes detect stale units on items that have changed. New purchases use the item UOM, with existing order pins retained for receiving compatibility. See `docs/domains/inventory-and-assets.md`.
+
+## 2026-11-23 — Native Assistant operational query reliability
+
+Extended the existing domain-owned READs, including counted Factory and Restaurant registers, HR employee identity and dated assignments, Crew records, scoped Marketing collections and Finance closing-stock valuation. Text and Realtime tools share verified continuation scope, bounded recovery and evidence-backed recommendations. All 110 READ contracts have source-to-answer certification cases. The module matrix records canonical ownership, registered operations and current limits. See `docs/audits/native-assistant-business-acceptance-matrix.md` and `docs/testing/native-assistant-certification.md` for coverage and acceptance requirements.

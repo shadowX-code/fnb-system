@@ -26,7 +26,10 @@ test('outlet denial prevents fixed RLS table query and projection excludes sensi
  const o=op('read_inventory_orders');let queried=false;
  const caller={rpc(name){return{abortSignal:async()=>({data:name==='current_user_has_permission'})}},from(){queried=true;throw Error('must not query');}};
  await assert.rejects(o.execute(caller,{outlet_id:id,page:1}),{code:'business_read_denied'});assert.equal(queried,false);
- const p=o.project([{id,status:'draft',contact:'private',notes:'private',token:'secret'}]);assert.deepEqual(p.rows,[{id,status:'draft'}]);
+ const exposed={id,status:'draft',contact:'private',notes:'private',token:'secret'};
+ const page=new Proxy({},{get:(_,key)=>key==='abortSignal'?async()=>({data:[exposed],count:1}):()=>page});
+ const allowed={rpc:()=>({abortSignal:async()=>({data:true})}),from:()=>page};
+ const p=await o.execute(allowed,{outlet_id:id,page:1});assert.deepEqual(p.rows,[{id,status:'draft'}]);assert.equal(p.total_matching,1);
 });
 test('published SOP text requires published root and version; excludes media and draft',()=>{
  const o=op('read_crew_published_sop');const args={sop_id:id,query:null};
@@ -50,7 +53,7 @@ test('table adapters are fixed, page-bound and use exact human client',async()=>
 });
 test('date windows and evidence size fail closed',async()=>{
  const o=op('read_factory_transfers');assert.throws(()=>o.check({from:'2026-01-01',to:'2026-12-31'}));
- const caller={rpc:n=>({abortSignal:async()=>({data:n==='current_user_has_permission'?true:{rows:[{id,transfer_no:'x'.repeat(12000)}]}})})};
+ const caller={rpc:n=>({abortSignal:async()=>({data:n==='current_user_has_permission'?true:{total_count:1,rows:[{id,transfer_no:'x'.repeat(12000)}]}})})};
  await assert.rejects(o.execute(caller,{page:1,from:'2026-11-01',to:'2026-11-02'}),{code:'business_result_limit'});
 });
 test('each ACTION is separately connected/authorized and policy accepts only registered ACTIONs',async()=>{
@@ -82,7 +85,7 @@ test('new MeSTI reads keep human RPCs, dates and narrow evidence projections',()
  const waste=op('read_factory_waste_disposal');const p=waste.project([{location_name:'Kitchen',days:{'2026-11-01':{required_count:1,completed_count:0,session_status:null,events:[{completed_by_name:'private'}],verified_by_name:'private'}}}]);
  assert.equal(p.rows[0].days['2026-11-01'].session_status,null);assert(!JSON.stringify(p).includes('private'));
  const raw=op('read_factory_raw_control_evidence');assert.deepEqual(raw.arguments({from:'2026-11-01',to:'2026-11-02'}),{p_date_from:'2026-11-01',p_date_to:'2026-11-02'});assert.equal(raw.permission,'factory_raw_receiving.view');
- assert(!JSON.stringify(raw.project([{id,received_by_name:'private',control_methods_snapshot:'pinned'}])).includes('private'));
+ assert(!JSON.stringify(raw.project([{id,received_by_name:'private',control_methods_snapshot:'pinned'}],raw.validate({from:'2026-11-01',to:'2026-11-02'}))).includes('private'));
 });
 test('shared module coverage does not duplicate callable tools or connection authority',()=>{
  const report=op('read_operational_financials');assert(report.related_module_ids.includes('finance_analysis'));

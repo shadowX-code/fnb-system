@@ -9,7 +9,34 @@ import {generateText} from './provider.js';
 import {dispatch,validateBody} from './handler.js';
 import {semanticCatalog} from '../../../scripts/assistantBusinessMatrix.mjs';
 import {resolveCanonicalPath} from '../../../src/app/routeOwnership.js';
+import {adminModuleBinding,presentationBindings,routeAssemblySignature} from '../../../scripts/assistantModuleSources.mjs';
 const factory='read_factory_finished_goods';
+test('Admin parity follows a route selector through shared workspaces to its demonstrated page or legacy renderer',()=>{
+ const factory=adminModuleBinding({id:'factory_equipment'});
+ assert.deepEqual(factory.owners,['src/features/factory/pages/FactoryEquipmentPage.jsx']);
+ assert.equal(factory.props.initialTab,'equipment');assert.match(factory.permission,/factory_equipment\.view/);
+ assert(factory.via.includes('src/features/factory/pages/FactoryWorkspaceRuntime.jsx'));
+ const legacy=adminModuleBinding({id:'factory_raw_receiving'});
+ assert.deepEqual(legacy.callbacks,['legacy.renderRawReceiving']);assert.deepEqual(legacy.owners,[]);
+ const inventory=adminModuleBinding({id:'inventory_master'}),dashboard=adminModuleBinding({id:'inventory_dashboard'});
+ assert.deepEqual(inventory.owners,['src/features/sales-purchase/inventory/master/InventoryMasterPage.jsx']);
+ assert.deepEqual(dashboard.owners,['src/features/sales-purchase/inventory/dashboard/InventoryDashboardPage.jsx']);
+});
+test('Admin drift follows read calls, filters, permissions and sources without hashing UI copy, spacing or colors',()=>{
+ const file='src/features/fixture/Local.jsx';
+ const page='import {stock} from "./stockService.js"; export default function Page({auth,outlet}) { if(!auth.can("stock.view")) return null; const data=stock.list({outlet, status:"active"}); return <div className="p-4 text-teal">Stock {data.total}</div>; }';
+ const sig=source=>presentationBindings(source,file);
+ const base=sig(page);
+ assert.deepEqual(base,sig(page.replace('p-4 text-teal','p-6 text-green').replace('>Stock ','>Current inventory ').replace('stock.list({','stock.list( /* selected outlet */ {')));
+ for(const [from,to] of [['stock.list','stock.summary'],['stockService.js','otherSource.js'],['stock.view','stock.edit'],['status:"active"','status:"all"']])
+  assert.notDeepEqual(base,sig(page.replace(from,to)));
+ assert.deepEqual(base,sig('import useTheme from "./hooks/useTheme.js";'+page));
+ assert.notDeepEqual(sig('export const P = ({store}) => <div>{store.sales.length}</div>;'),
+  sig('export const P = ({store}) => <div>{store.purchases.length}</div>;'));
+ const routes='export const salesPurchaseRoutes = modules.filter(m => m.routable).map(m => ({component:m.view,permission:m.readPermission,label:"Stock"}));';
+ assert.deepEqual(routeAssemblySignature(routes),routeAssemblySignature(routes.replace('"Stock"','"Assets"')));
+ assert.notDeepEqual(routeAssemblySignature(routes),routeAssemblySignature(routes.replace('m.readPermission','null')));
+});
 test('business catalog follows canonical module ownership and clearly identifies source-only limitations',()=>{
  const catalog=semanticCatalog();
  const modules=new Map(catalog.modules.map(row=>[row.module,row]));
@@ -25,7 +52,8 @@ test('business catalog follows canonical module ownership and clearly identifies
  }
  const assets=catalog.operations.find(row=>row.operation==='read_asset_catalogue');
  assert.equal(assets.semantics.metrics.quantity_change.unit_field,'asset.unit');
- assert.equal(catalog.operations.find(row=>row.operation==='read_factory_equipment_cleaning_requirements').semantics,null);
+ assert.equal(catalog.operations.find(row=>row.operation==='read_factory_equipment_cleaning_requirements').semantics.metrics.entry_count.field,'total_matching');
+ assert.equal(catalog.operations.find(row=>row.operation==='read_accounting_source_health').semantics,null);
  assert.equal(catalog.operations.find(row=>row.operation==='read_assistant_system_guidance').source_type,'system_guidance');
  for(const id of ['read_purchase_records','read_supplier_directory','read_purchase_categories','read_outlet_directory',
   'read_sales_channels','read_factory_equipment','read_factory_raw_catalogue','read_crew_leave']){

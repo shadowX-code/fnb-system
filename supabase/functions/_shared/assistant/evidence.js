@@ -34,8 +34,13 @@ export function verifyReadEvidence(contract,operation,evidence,args) {
   requireEvidence(count(evidence.total_matching));
   if(evidence.page_size!==undefined && Array.isArray(evidence.rows)) {
    const {page,page_size:size}=evidence;
-   requireEvidence(Number.isSafeInteger(page)&&page>=1&&Number.isSafeInteger(size)&&size>0 &&
-    (args.page==null||args.page===page));
+   requireEvidence(Number.isSafeInteger(page)&&page>=1&&Number.isSafeInteger(size)&&size>0);
+   const allowedSizes=contract.filters?.page_size?.enum;
+   if(allowedSizes){
+    const requested=args.page_size??20;
+    requireEvidence(allowedSizes.includes(size)&&allowedSizes.includes(requested)&&size<=requested&&
+     (page-1)*size===(args.page-1)*requested&&(size===requested||args.mode==='list'&&typeof evidence.pagination_adjustment==='string'));
+   }else requireEvidence(args.page==null||args.page===page);
    const available=evidence.ranking?.ranked_count??evidence.total_matching;
    requireEvidence(count(available)&&available<=evidence.total_matching);
    const end=Math.max(0,available-(page-1)*size);

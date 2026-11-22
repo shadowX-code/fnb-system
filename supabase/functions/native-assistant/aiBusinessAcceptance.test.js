@@ -104,8 +104,8 @@ function source({scope=true,brand=true,snapshot,assetRows=assets,outletRows=outl
   },
   from(table){
    calls.push([table]);
-   if(['outlets','asset_items','asset_movement_logs','operating_expenses','inventory_items','inventory_movements','departments','job_positions'].includes(table)){
-    let rows=table==='outlets'?outletRows:table==='asset_items'?assetRows:table==='inventory_items'?inventoryRows:snapshot?.tables[table]||[];
+   if(['outlets','asset_items','asset_movement_logs','operating_expenses','inventory_items','inventory_movements','departments','job_positions','sales_records'].includes(table)){
+    let rows=table==='outlets'?outletRows:table==='asset_items'?assetRows:table==='inventory_items'?inventoryRows:snapshot?.tables[table]||(table==='sales_records'?sales:[]);
     let head=false,count;
     const builder={
      select(fields,options){head=options?.head;return this;},
@@ -142,7 +142,10 @@ const cases=[
   assert.equal(r.outlet.code,'FC');assert.deepEqual(r.rows.map(row=>[row.name,row.current_quantity,row.unit]),[['Spoon',15,'unit']]);
  }],
  ['read_crew_leave','How many leave requests overlapped these dates?',{outlet_id:id,from:'2026-11-01',to:'2026-11-02'},r=>{assert.equal(r.total_matching,24);assert.equal(r.rows.length,1);}],
- ['read_sales_records','Show monthly sales input for this outlet',{outlet_id:id,month:'2026-11-01',page:1},r=>{assert.equal(r.rows[0].amount,125);assert.equal(r.completeness.aggregate_scope,'not_asserted');}],
+ ['read_sales_records','Show monthly sales input for this outlet',{outlet_id:id,month:'2026-11-01',page:1},r=>{
+  assert.equal(r.rows[0].amount,125);assert.equal(r.rows[0].outlet_id,id);assert.equal(r.rows[0].month,11);assert.equal(r.total_matching,1);
+  assert.equal(r.completeness.aggregate_scope,'complete_filtered_scope');assert.equal(r.rows[0].remark,undefined);
+ }],
  ['read_operational_financials','What finance figures exist for this reporting period?',{outlet_id:id,year:2026,month:11},r=>assert.deepEqual(r.report,finance)],
  ['read_marketing_plan','How many tasks are in this Brand planning month?',{organization_id:id,brand_id:id,month:'2026-11-01'},r=>assert.equal(r.total_matching,1)],
 ];
@@ -433,10 +436,16 @@ test('each clause offers its authorized READ for a mixed Employees and Finished 
  assert.equal(saved[0].rows[0].current_balance,62);
  assert.equal(saved[1].summary.total,6);
  const summary={mode:'summary',status:'active'};
- for(const prompt of ['How many employees are there?','Give me the total employee headcount.']){
+ for(const prompt of ['How many employees are there?','Give me the total employee headcount.',
+  'How many employees are there, and how many are active?', // Both values are available only from the unfiltered summary.
+  '我可查看的员工总人数是多少？另外，工厂成品 SKU S01 目前的库存余额是多少公斤？',
+  '員工總人數是多少？','Berapakah jumlah keseluruhan kakitangan saya?',
+  'Berapa jumlah pekerja, dan berapa bahan mentah aktif dalam kilang?',
+  'How many employees are there and which raw materials are active?']){
   assert.equal((await business.execute(hr,summary,undefined,{prompt})).requested_scope.status,'all');
  }
- for(const prompt of ['How many active employees are there?','How many employees are there, and how many are active?']){
+ for(const prompt of ['How many active employees are there?','How many employees, active only?',
+  '在职员工总人数是多少？','在職員工有多少？','员工总人数？仅限在职。','Berapakah jumlah pekerja aktif?']){
   assert.equal((await business.execute(hr,summary,undefined,{prompt})).requested_scope.status,'active');
  }
 });
@@ -527,7 +536,7 @@ test('operational revenue discovers Finance and reads the named outlet for the r
   }
   const evidence=JSON.parse(body.input.at(-1).output);
   assert.equal(evidence.capability,operation);
-  assert.deepEqual(evidence.requested_scope,{outlet_id:id,year:2026,month:1,compare_year:null,compare_month:null});
+  assert.deepEqual(evidence.requested_scope,{outlet_id:id,year:2026,month:1,compare_year:null,compare_month:null,measure:'financials'});
   assert.equal(evidence.report.financials.revenue.amount,125);
   return response([{type:'message',content:[{type:'output_text',text:'Fixture Corner recorded MYR 125 in operational revenue in January 2026.'}]}]);
  }});
@@ -1034,14 +1043,17 @@ test('Restaurant item identity, posted history and verified stock are separate c
   tables:{inventory_movements:movements},
  }});
  const business=createBusinessDispatcher({config,access,caller});
- const detail=await business.execute('read_inventory_items',{mode:'detail',query:'R01',outlet_id:id});
+ const detail=await business.execute('read_inventory_items',{mode:'detail',query:'Rice',outlet_id:id});
  assert.equal(detail.rows[0].item_name,'Rice');assert(!Object.hasOwn(detail.rows[0],'confirmed_count'));
  const history=await business.execute('read_inventory_movements',{outlet_id:id,item_query:'Rice',reference:'REF',from:'2026-11-22',to:'2026-11-22'});
  assert.equal(history.rows[0].quantity,4);assert.equal(history.total_matching,1);
  assert.equal(history.rows[0].item_name,'Rice');assert.equal(history.rows[0].sku,'R01');
  const unfiltered=await business.execute('read_inventory_movements',{outlet_id:id});
  assert.equal(unfiltered.rows[0].item_name,'Rice');assert.equal(unfiltered.rows[0].sku,'R01');
- const stock=await business.execute('read_inventory_stock_evidence',{outlet_id:id,item_query:'R01'});
+ const dashboardSource=source({inventoryRows:[...items,{id:'elsewhere',outlets:[otherId],item_name:'Rice',sku_code:'R02',status:'active',unit:'bags'}],
+  snapshot:{rpcs:{inventory_dashboard_stock_evidence:{position_count:1,positions:[{item_id:'r',outlet_id:id,state:'changed',actual_count:6}]}}}});
+ const dashboard=createBusinessDispatcher({config,access,caller:dashboardSource.caller});
+ const stock=await dashboard.execute('read_inventory_stock_evidence',{outlet_id:id,item_query:'Rice'});
  assert.equal(stock.rows[0].state,'changed');assert.equal(stock.rows[0].confirmed_count,null);
  assert.equal(stock.rows[0].actual_count,6);
  assert.equal(business.plan('What is the physical stock balance at this Restaurant outlet?').operation,'read_inventory_stock_evidence');
@@ -1130,10 +1142,11 @@ test('compound business goal retains independent scopes and postpones recommenda
    assert.equal(body.tool_choice,'none');
    assert.equal(saved[1].outlet.id,otherId);assert.equal(saved[1].total_matching,1);
    return response([{type:'message',content:[{type:'output_text',text:
-    'Fixture Corner recorded RM125 in January; 11 months lack entries. Different Outlet has one current asset. Check the missing monthly entries before assessing the annual cost.'}]}]);
+    'Fixture Corner recorded RM125 and Different Outlet has one asset. Look at utility categories to explain this cost.'}]}]);
   },
  });
- assert.match(result.reply,/RM125.*11 months.*one current asset/i);
+ assert.match(result.reply,/RM\s*125.*1 of 12 months.*Different Outlet has 1 current asset.*monthly totals only/is);
+ assert.doesNotMatch(result.reply,/categories|utility/i);
  assert.deepEqual(saved.map(e=>e.capability),[expenses,catalogue]);
  assert.equal(await business.planTurn('Why did Fixture Corner operating expenses increase this year?'),null);
  // Advice about the observed expense cannot authorize a write.
@@ -1159,7 +1172,7 @@ test('compound business goal retains independent scopes and postpones recommenda
 
 test('SDK continuation uses only current-turn scoped evidence and leaves audio continuation with the SDK',async()=>{
  const expenses='read_operating_expenses',catalogue='read_asset_catalogue';
- const prompt='Give Fixture Corner recorded 2026 operating expenses and show the current asset count at the same outlet.';
+ const prompt='Give Fixture Corner recorded 2026 operating expenses and show the current asset count at the same outlet, and recommend one next check for interpreting cost.';
  const {caller}=source({snapshot:{tables:{operating_expenses:[{id:'jan',outlet_id:id,year:2026,month:1,amount:125}]}}});
  const saved=[];
  const deps={caller,access,get:()=>undefined,rpc:async action=>action==='history'?
@@ -1169,11 +1182,14 @@ test('SDK continuation uses only current-turn scoped evidence and leaves audio c
  };
  const first=await dispatch(voiceRequest(expenses,{year:2026,outlet_id:id}),deps);
  assert.deepEqual(first.goal.next_operations,[catalogue]);
+ assert.equal(first.answer_hint,undefined);
  const second=await dispatch(voiceRequest(catalogue,{mode:'summary',outlet_id:otherId}),deps);
  assert.deepEqual(second.goal.next_operations,[]);
  assert.deepEqual(second.goal.parts.map(s=>s.outcome),['SUCCESS','SUCCESS']);
  assert.equal(second.outlet.id,id);assert.equal(second.total_matching,2);
- assert(!saved.some(e=>e.goal));
+ assert.match(second.answer_hint,/RM\s*125.*1 of 12 months.*2 current asset.*monthly totals only/is);
+ assert.doesNotMatch(second.answer_hint,/categor|utility/i);
+ assert(!saved.some(e=>e.goal||e.answer_hint));
  const unresolved=prompt.replace('Fixture Corner','Unrecognized site');
  const priorScope=async()=>({turns:[{state:'completed',tool_state:'completed',evidence:saved.at(-1)}]});
  await assert.rejects(createBusinessDispatcher({caller,config,access}).execute(catalogue,{mode:'summary',outlet_id:id},undefined,{
@@ -1181,4 +1197,123 @@ test('SDK continuation uses only current-turn scoped evidence and leaves audio c
  }),{code:'entity_scope_required'});
  const missingTranscript={...deps,rpc:async action=>action==='history'?{turns:[{request_id:id,voice_input_available:false}]}:{config}};
  await assert.rejects(dispatch(voiceRequest('read_employee_directory',{mode:'summary'}),missingTranscript),{code:'entity_scope_required'});
+});
+
+test('translation recovery after discovery validates the actual enveloped arguments once per operation',async()=>{
+ const op='read_asset_catalogue';
+ const {caller}=source();
+ const business=createBusinessDispatcher({caller,config,access});
+ const saved=[];
+ let calls=0;
+ const params={mode:'detail',outlet_name:'Fixture Corner',query:'汤匙'};
+ const answer=await generateText({kind:'turn',model:config.model,prompt:'Use the catalogue for the item called 汤匙.'},'fixture-secret',{
+  business,onTool:(_,e)=>{if(e)saved.push(e);},
+  transport:async(_,init)=>{
+   const body=JSON.parse(init.body);
+   if(++calls===1)return response([functionCall('find_business_queries',{search:'asset tracking',page:1},'find')]);
+   if(calls===2)return response([functionCall('run_business_query',envelope(op,params),'original')]);
+   if(calls===3){
+    const feedback=JSON.parse(body.input.at(-1).output);
+    assert.equal(feedback.resolution_required,'cross_language_name');
+    assert(!feedback.candidates.some(c=>'current_quantity' in c));
+    return response([functionCall('run_business_query',envelope(op,{...params,query:'Spoon'}),'translation')]);
+   }
+   const e=JSON.parse(body.input.at(-1).output);
+   assert.equal(e.outlet.id,id);assert.equal(e.rows[0].name,'Spoon');
+   return response([{type:'message',content:[{type:'output_text',text:'Fixture Corner 有 15 把汤匙。'}]}]);
+  },
+ });
+ assert.match(answer.reply,/15/);
+ assert.equal(saved.length,1);
+ assert.equal(saved[0].rows[0].current_quantity,15);
+});
+
+test('repeated scoped SDK reads reuse the current turn while changed arguments still query their owner',async()=>{
+ const op='read_asset_catalogue';
+ const {caller,calls}=source();
+ let turn={request_id:id,voice_input_available:true,prompt:'Can you check the asset records?'};
+ const deps={caller,access,get:()=>undefined,rpc:async action=>action==='history'?{turns:[turn]}:{config},
+  reserveRealtime:async()=>{},voiceHistory:async({evidence})=>{turn={...turn,evidence};return turn;},
+ };
+ const args={mode:'detail',query:'Spoon',outlet_name:'Fixture Corner'};
+ const first=await dispatch(voiceRequest(op,args),deps);
+ const accesses=calls.filter(([name])=>name==='asset_items').length;
+ const again=await dispatch(voiceRequest('run_business_query',envelope(op,{outlet_name:'Fixture Corner',query:'Spoon',mode:'detail'})),deps);
+ assert.equal(again.already_read,true);assert.equal(again.rows,undefined);
+ assert.equal(calls.filter(([name])=>name==='asset_items').length,accesses);
+ assert.equal(turn.evidence.rows[0].id,first.rows[0].id);
+ const changed=await dispatch(voiceRequest(op,{...args,query:'Fork'}),deps);
+ assert.equal(changed.rows[0].name,'Fork');
+});
+
+test('a failed named outlet correction cannot silently borrow an older balance on a later follow-up',async()=>{
+ const op='read_asset_catalogue';
+ const b=createBusinessDispatcher({config,access,caller:source().caller});
+ const old=await b.execute(op,{mode:'detail',query:'Spoon',outlet_id:id},undefined,{withOutcome:true});
+ const history=async()=>({turns:[{state:'completed',tool_state:'completed',evidence:old},
+  {state:'completed',tool_state:'failed',prompt:'Actually use Unknown Corner.'}]});
+ await assert.rejects(b.execute(op,{mode:'detail',query:'Spoon',outlet_id:id},undefined,{prompt:'How many spoons at that outlet?',history}),{code:'entity_scope_required'});
+ const explicit=await b.execute(op,{mode:'detail',query:'Spoon',outlet_id:otherId},undefined,{prompt:'How many spoons at Fixture Corner?',history});
+ assert.equal(explicit.outlet.id,id);
+});
+
+test('Text and SDK ask for the actual ranking unit when the Factory source spans incompatible units',async()=>{
+ const op='read_factory_raw_catalogue',params={mode:'list',sort:'balance_desc',status:'active'};
+ const prompt='Which raw materials have the highest balances?';
+ const {caller}=source(),business=createBusinessDispatcher({config,access,caller});
+ const saved=[];
+ let calls=0;
+ const text=await generateText({kind:'turn',model:config.model,prompt},'fixture-secret',{business,
+  onTool:(_,e)=>{if(e)saved.push(e);},
+  transport:async()=>++calls===1?response([functionCall(op,params,'rank')]):
+   response([{type:'message',content:[{type:'output_text',text:'The largest raw material has 999 units.'}]}]),
+ });
+ assert.match(text.reply,/Which unit should I rank.*kg/i);
+ assert.doesNotMatch(text.reply,/999/);
+ assert.equal(saved[0].ranking.status,'unit_required');
+ const spoken=await dispatch(voiceRequest(op,params),{caller,access,get:()=>undefined,
+  rpc:async action=>action==='history'?{turns:[{request_id:id,voice_input_available:true,prompt}]}:{config},
+  voiceHistory:async({evidence})=>({evidence}),reserveRealtime:async()=>{},
+ });
+ assert.equal(spoken.answer_hint,text.reply);
+});
+
+test('a mixed turn continues its only exact list in both transports and clarifies between two lists',async()=>{
+ const departments='read_departments';
+ const departmentRows=Array.from({length:24},(_,i)=>({id:String(i),name:'Department '+i,status:i===23?'inactive':'active'}));
+ const {caller}=source({snapshot:{tables:{departments:departmentRows}}});
+ const b=createBusinessDispatcher({config,access,caller});
+ const first=await b.execute(departments,{mode:'list',status:'active'},undefined,{withOutcome:true});
+ const summary=await b.execute('read_asset_catalogue',{mode:'summary',outlet_id:id},undefined,{withOutcome:true});
+ const turn={request_id:otherId,state:'completed',tool_state:'completed',evidence:{capability:'business_evidence',items:[summary,first]}};
+ const history=async()=>({turns:[turn]});
+ const page=await b.planTurn('下一页',history);
+ assert.equal(page.operation,departments);assert.equal(page.page.args.status,'active');assert.equal(page.page.args.page,2);
+ let count=0;
+ const answer=await generateText({kind:'turn',model:config.model,prompt:'下一页'},'fixture-secret',{business:b,history,
+  transport:async(_,init)=>{
+   if(++count===1)return response([functionCall(departments,{status:'inactive',mode:'list',page:1},'next')]);
+   const e=JSON.parse(JSON.parse(init.body).input.at(-1).output);
+   assert.equal(e.total_matching,23);assert.deepEqual(e.rows.map(r=>r.name),['Department 20','Department 21','Department 22']);
+   return response([{type:'message',content:[{type:'output_text',text:'第二页有三项：Department 20、Department 21、Department 22。'}]}]);
+  },
+ });
+ assert.match(answer.reply,/Department 22/);
+ const deps={caller,access,get:()=>undefined,rpc:async action=>action==='history'?{turns:[turn,
+  {request_id:id,state:'cancelled',voice_input_available:true,prompt:'Halaman seterusnya'}]}:{config},
+  reserveRealtime:async()=>{},voiceHistory:async({evidence})=>({evidence})};
+ const spoken=await dispatch(voiceRequest(departments,{mode:'list',status:'inactive',page:1}),deps);
+ assert.equal(spoken.requested_scope.status,'active');assert.equal(spoken.rows.length,3);assert.equal(spoken.page,2);
+ const gated=createBusinessDispatcher({config,access,caller,loadConfig:async()=>({...config,capability_connections:{}})});
+ await assert.rejects(gated.execute(departments,{mode:'list'},undefined,{prompt:'Next page',history}),{code:'capability_disconnected'});
+ const second=await b.execute(departments,{mode:'list',status:'inactive'},undefined,{withOutcome:true});
+ turn.evidence.items.push(second);
+ const clarified=await generateText({kind:'turn',model:config.model,prompt:'Next page'},'fixture-secret',{business:b,history,
+  transport:()=>assert.fail('No model submission needed for ambiguous pagination')});
+ assert.equal(clarified.reply,'Which list would you like to continue?');
+ const ambiguous=await dispatch(voiceRequest(departments,{}),deps);
+ assert.equal(ambiguous.query_outcome,'AMBIGUOUS');assert.equal(ambiguous.not_business_evidence,true);
+ turn.evidence=spoken;
+ const end=await b.planTurn('Next page',history);
+ assert.match(end.pagination_reply,/no such page/);
 });

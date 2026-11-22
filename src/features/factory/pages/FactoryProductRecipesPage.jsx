@@ -21,6 +21,7 @@ import { formatFactoryDate } from "../utils/factoryDates.js";
 import { money, quantity } from "../utils/factoryFormatters.js";
 import { canArchiveActiveProductRecipe, canDeleteDraftProductRecipe } from "../utils/factoryPermissionActions.js";
 import { jobStatusLabel } from "../utils/factoryStatus.js";
+import { groupProductRecipes } from "../../../../supabase/functions/_shared/factory/productRecipeGroups.js";
 
 function recipeReadiness(recipe) {
   if (recipe.status === "archived") return { isReady: false, label: "Not applicable", tone: "gray" };
@@ -35,20 +36,10 @@ function costPerKgDisplay(cost) {
 }
 
 function productFirstRecipes(recipes, productFamilies, receivings) {
-  const groups = new Map();
-  recipes.forEach((recipe) => {
-    const family = productFamilies.find((item) => item.id === recipe.product_family_id);
-    const storedName = recipe.product_name_en || recipe.product_name || recipe.product_family_name || "Finished Good";
-    const key = recipe.product_family_id ? `family:${recipe.product_family_id}` : recipe.finished_good_id ? `sku:${recipe.finished_good_id}` : `legacy:${String(storedName).toLowerCase()}:${recipe.id}`;
-    if (!groups.has(key)) groups.set(key, { id: key, productName: family?.name_en || storedName, productNameCn: family?.name_cn || recipe.product_name_cn || "", recipes: [] });
-    groups.get(key).recipes.push(recipe);
-  });
-  return [...groups.values()].map((group) => {
-    const versions = [...group.recipes]
-      .sort((left, right) => String(right.version || "").localeCompare(String(left.version || ""), "en-MY", { numeric: true, sensitivity: "base" }) || String(right.updated_at || right.created_at || "").localeCompare(String(left.updated_at || left.created_at || "")) || String(left.id || "").localeCompare(String(right.id || "")))
-      .map((recipe) => ({ ...recipe, productName: group.productName, productNameCn: group.productNameCn, cost: recipeCostInfo(recipe, receivings), readiness: recipeReadiness(recipe), versionCount: group.recipes.length }));
+  return groupProductRecipes(recipes, productFamilies).map((group) => {
+    const versions = group.versions.map((recipe) => ({ ...recipe, productName: group.productName, productNameCn: group.productNameCn, cost: recipeCostInfo(recipe, receivings), readiness: recipeReadiness(recipe), versionCount: group.versions.length }));
     return { ...versions[0], versions };
-  }).sort((left, right) => left.productName.localeCompare(right.productName, "en-MY", { numeric: true, sensitivity: "base" }));
+  });
 }
 
 export default function FactoryProductRecipesPage() {

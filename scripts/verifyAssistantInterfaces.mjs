@@ -3,6 +3,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import {operations,queryTool} from '../supabase/functions/native-assistant/business.js';
 import {moduleCoverage} from './assistantBusinessMatrix.mjs';
+import {adminModuleBinding,boundDomainFiles,readBindingSignature,registeredRouteBindings} from './assistantModuleSources.mjs';
 import {systemGuidance} from '../supabase/functions/_shared/assistant/systemGuidance.js';
 import {scenarios,assertScenarioContracts} from '../qa/staging/nativeAssistantCertification.mjs';
 const hash=s=>crypto.createHash('sha256').update(s).digest('hex');
@@ -40,7 +41,8 @@ for(const o of operations){
 }
 const coverage=moduleCoverage();
 assertScenarioContracts();
-const paritySources=new Set();
+const bindings=new Map(coverage.map(row=>[row.module.id,adminModuleBinding(row.module)]));
+const paritySources=new Set([...bindings.values()].flatMap(binding=>[...binding.via,...binding.owners]));
 for(const {module,direct,shared,review} of coverage.filter(row=>row.review.certification)){
  const allowed=new Set([...direct,...shared].map(op=>op.id));
  if(!review.certification.length||!review.evidence?.length)throw Error(`Incomplete parity review: ${module.id}`);
@@ -54,33 +56,36 @@ for(const {module,direct,shared,review} of coverage.filter(row=>row.review.certi
 }
 const scenarioOperations=new Set(Object.values(scenarios).flatMap(scenario=>scenario.operations));
 const certificationGaps=operations.filter(op=>op.kind==='READ'&&!scenarioOperations.has(op.id)).map(op=>op.id).sort();
+if(certificationGaps.length)throw Error('Missing dedicated business-answer certification: '+certificationGaps.join(', '));
 if(operations.some(o=>o.id===systemGuidance.id)||!coverage.some(({module})=>module.id===systemGuidance.module_id))
  throw Error('System guidance must remain attached to its canonical module and separate from business grants.');
+// Presentation files may share large workspace wrappers. Trace their actual
+// data bindings and service sources; a JSX label or class has no data authority.
+const dataOwners=[...paritySources].filter(p=>p.endsWith('.jsx')).flatMap(boundDomainFiles);
+const sourceHash=file=>file==='src/app/routes.jsx'?hash(serialize(registeredRouteBindings)):
+ hash(file.endsWith('.jsx')?serialize(readBindingSignature(file)):fs.readFileSync(file));
 const current={
- version:2,
+ version:4,
  certification_gaps:certificationGaps,
  modules:Object.fromEntries(coverage.map(({module,direct,shared,actions,coverage,review})=>[module.id,hash(serialize({
-  workspace:module.workspace,section:module.section,route:module.route,coverage,review,
+  workspace:module.workspace,section:module.section,route:module.route,humanPermissions:module.permissions,routeBinding:bindings.get(module.id),coverage,review,
   reads:direct.map(op=>op.id),shared:shared.map(op=>op.id),actions:actions.map(op=>op.id),
   scenarios:Object.entries(scenarios).filter(([,scenario])=>scenario.operations.some(id=>[...direct,...shared].some(op=>op.id===id))),
  }))])),
  operations:Object.fromEntries(operations.map(o=>[o.id,hash(serialize({interface:o.moduleInterface,tool:queryTool(o),discovery:o.discoveryPhrases,discoveryFamily:o.discoveryFamily,intent:o.queryIntent,prepare:o.prepareArguments,textScope:o.scopeTextArguments,load:o.load,query:o.query,rpc:o.rpc,arguments:o.arguments,project:o.project,check:o.check,normalize:o.normalizeArguments,policyGroup:o.policyGroup,execute:o.execute,authorize:o.authorized}))])),
- sources:Object.fromEntries([...new Set([...domainFiles,...consumers,...fixed,...paritySources,
-  'src/app/routeOwnership.js','src/app/routes.jsx','qa/staging/nativeAssistantCertification.mjs'])].sort().map(p=>[p,hash(fs.readFileSync(p))])),
+ sources:Object.fromEntries([...new Set([...domainFiles,...consumers,...fixed,...paritySources,...dataOwners,
+  'src/app/routeOwnership.js','src/app/routes.jsx','scripts/assistantModuleSources.mjs',
+  ...walk('qa/staging').filter(p=>/nativeAssistant(?:OperationalCases|RegisterCertification|OperationalCertification|Certification)\.mjs$/.test(p))])].sort().map(p=>[p,sourceHash(p)])),
 };
 const file='docs/testing/native-assistant-interface-baseline.json';
 const baseline=JSON.parse(fs.readFileSync(file,'utf8'));
 if(process.argv.includes('--record-reviewed')){
- const newGaps=certificationGaps.filter(id=>{
-  if(!baseline.certification_gaps)return !baseline.operations[id];
-  return !baseline.certification_gaps.includes(id)||baseline.operations[id]!==current.operations[id];
- });
- if(newGaps.length)throw Error('Add answer certification for new or changed READs:\n'+newGaps.join('\n'));
  fs.writeFileSync(file,JSON.stringify(current,null,2)+'\n');
  console.log(`Recorded reviewed interfaces: ${operations.length}; dependencies: ${Object.keys(current.sources).length}`);
 }
 else {
  const changes=['modules','operations','sources'].flatMap(group=>[...new Set([...Object.keys(current[group]),...Object.keys(baseline[group]||{})])].filter(key=>current[group][key]!==baseline[group]?.[key]).map(key=>`${group}: ${key}`));
+ if(current.version!==baseline.version)changes.push('Baseline format changed');
  if(serialize(certificationGaps)!==serialize(baseline.certification_gaps))changes.push('READ certification scenario coverage');
  if(changes.length){console.error('Assistant contract alignment review required. Verify semantics, permissions, exposure, completeness and compatibility before recording a new baseline.\n'+changes.join('\n'));process.exitCode=1;}
  else console.log(`Assistant interface alignment verified: ${operations.length} contracts across ${coverage.length} modules.`);
