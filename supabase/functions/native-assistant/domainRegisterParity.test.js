@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {assistantQuery} from './business.js';
+import {assistantQuery,createBusinessDispatcher} from './business.js';
+import {generateText} from './provider.js';
 import {monthlyFinancialDataset} from '../_shared/finance/monthlyReporting.js';
 
 const outlet='10000000-0000-4000-8000-000000000001';
@@ -78,6 +79,37 @@ test('Factory Product Recipes chooses current standards before filtering status 
  const from=incomplete.from;
  incomplete.from=key=>{const q=from(key);q.abortSignal=async()=>({data:[],count:1001});return q;};
  await assert.rejects(op.execute(incomplete,{measure:'current_products',mode:'summary'}),{code:'business_result_limit'});
+});
+
+test('recipe status comparison speaks for fresh source populations and drops cost guidance from an earlier turn',async()=>{
+ const op=assistantQuery('read_factory_recipe_versions');
+ const caller=fixture({tables:{factory_product_recipes:[
+  {id:'old',product_family_id:'group',version:'v1',status:'active'},
+  {id:'new',product_family_id:'group',version:'v2',status:'draft'},
+  {id:'single',product_family_id:'other',version:'v1',status:'active'},
+ ]}});
+ const business=createBusinessDispatcher({caller,access:{permissions:{[op.permission]:true}},config:{capability_connections:{[op.id]:true}}});
+ const prompt='In Factory Product Recipes, how many products have active current recipe standards out of all current standards? How many saved recipe versions are active out of all saved versions, including earlier versions?';
+ const args={mode:'summary',measure:'current_products',status:'active'};
+ const toolEvidence=[];let providerRequests=0;
+ const result=await generateText({kind:'turn',model:'gpt-4o-mini',prompt,context:[{prompt:'How can I lower costs?',reply:'Check supplier prices and Restaurant purchases.'}]},'fixture-token',{business,
+  onTool(state,evidence){if(state==='completed')toolEvidence.push(evidence);},transport:async()=>{
+   const output=providerRequests++===0?[{type:'function_call',name:op.id,call_id:'fixture',arguments:JSON.stringify(args)}]:
+    [{type:'message',content:[{type:'output_text',text:'There is one active current recipe. Check Restaurant supplier prices, ingredient costs and purchasing next.'}]}];
+   return Response.json({status:'completed',output,usage:{input_tokens:11,output_tokens:3}});
+  }});
+ assert.equal(providerRequests,2);assert.equal(toolEvidence.length,1);
+ const evidence=toolEvidence[0];
+ assert.deepEqual(evidence.current_products,{total:2,by_status:{active:1,draft:1,archived:0}});
+ assert.deepEqual(evidence.recorded_versions,{total:3,by_status:{active:2,draft:1,archived:0}});
+ assert.equal(result.reply,'1 of 2 current product recipe standards is active. 2 of 3 saved recipe versions are active.');
+ for(const [q,expected] of [
+  ['当前产品配方标准和所有已保存配方版本中，各有多少已启用？','目前 2 项产品配方标准中，1 项为启用；3 个已保存配方版本中，2 个为启用。'],
+  ['目前產品配方標準和所有已儲存配方版本中，各有多少已啟用？','目前 2 項產品配方標準中，1 項為啟用；3 個已儲存配方版本中，2 個為啟用。'],
+  ['Berapa standard resipi produk semasa yang aktif berbanding semua versi resipi tersimpan?','Daripada 2 standard resipi produk semasa, 1 berstatus aktif. Daripada 3 versi resipi tersimpan, 2 berstatus aktif.'],
+ ])assert.equal(op.format(evidence,q),expected);
+ for(const q of ['What is the recipe yield?','List the active recipe versions by product name.',prompt+' What costs can we reduce?',prompt+' Show recommendations.',prompt+' Cover active and archived.',prompt+' Limit to 2025.',prompt.replaceAll('active','not active'),prompt.replaceAll('active','inactive'),prompt+' Limit to v2.'])assert.equal(op.format(evidence,q),null);
+ for(const patch of [{aggregate_complete:false},{current_products:null},{requested_scope:{...evidence.requested_scope,product_name:'Other'}},{requested_scope:{...evidence.requested_scope,status:'archived'}}])assert.equal(op.format({...evidence,...patch},prompt),null);
 });
 
 test('Dashboard labels and stock counts respect evidence state; Par measures only configuration',async()=>{

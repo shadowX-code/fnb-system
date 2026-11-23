@@ -1,5 +1,5 @@
 import {countedRows,invalidArgument,month,readContract} from '../assistant/readContract.js';
-import {loadSupplierPurchases,purchaseAnswerAmounts,purchaseOutlet,purchaseOutletFields,supplierFilter,supplierPurchaseIntent,supplierPurchaseMetrics,validatePurchaseScope} from './supplierPurchases.js';
+import {formatSupplierPurchases,loadSupplierPurchases,purchaseAnswerAmounts,purchaseOutlet,purchaseOutletFields,purchasePageSize,supplierFilter,supplierPurchaseIntent,supplierPurchaseMetrics,validatePurchaseScope} from './supplierPurchases.js';
 import {purchaseRecordLabels} from './purchaseRecordLabels.js';
 
 const fields=['id','outlet_id','year','month','supplier_id','category_id','amount','updated_at'];
@@ -10,7 +10,7 @@ export const purchaseInputRead=readContract({
  id:'read_purchase_records',module_id:'purchase-input',version:3,label:'Restaurant monthly purchase entries and supplier totals',
  permission:'purchase_input.view',source:'/restaurant/purchases/input',scope:'Entered purchase rows for one authorized Restaurant outlet and calendar month.',
  discoveryPhrases:['purchase input','purchase entries','recorded purchase amounts','采购录入','采购金额','rekod pembelian','本月供应商采购额','本月供應商採購額','pembelian pembekal bulan ini'],
- answerAmounts:purchaseAnswerAmounts,
+ answerAmounts:purchaseAnswerAmounts,format:formatSupplierPurchases,fixedPageSize:purchasePageSize,
  queryIntent:prompt=>supplierPurchaseIntent(prompt)==='supplier_month'?'monthly_supplier_purchases':null,
  narrowerOffer:{en:'I can check recorded supplier purchases for one outlet and month. Which month would you like?',zh:'我可以按门店查看一个月已记录的供应商采购额。您想查哪个月？',ms:'Saya boleh semak pembelian pembekal yang direkodkan untuk satu cawangan dan satu bulan. Bulan mana yang anda mahu semak?'},
  description:'Count or list Restaurant Purchase Input entries for an outlet and calendar month. Use amount_desc or amount_asc to rank individual entries before paging; id preserves the existing stable row order. Use supplier and category labels when recorded. For the total purchases per supplier or all suppliers for one month, use supplier_totals with optional recorded supplier_name. Amounts are MYR; these are recorded purchases, not payments or inventory-adjusted costs.',

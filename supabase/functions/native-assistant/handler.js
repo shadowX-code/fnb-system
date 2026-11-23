@@ -172,7 +172,7 @@ export async function dispatch(body,{voiceUsage,rpc,get,signal,transport,caller,
      return {...evidence,goal:{parts:progress,next_operations:progress.filter(p=>p.outcome==='pending').map(p=>p.operation)},...(hint?{answer_hint:hint}:{}),...(analysis?{verified_comparisons:analysis}:{})};
     }
     const answer_hint=transcript&&identity.operation&&!evidence.not_business_evidence&&!evidence.error
-     ?sourceLimitation(evidence,transcript)||(asksForAnalysis(transcript)?business.groundedRecommendation(items,transcript):business.format(identity.operation,evidence,transcript)):null;
+     ?sourceLimitation(evidence,transcript)||(asksForAnalysis(transcript)?business.groundedRecommendation(items,transcript):business.format(identity.operation,evidence,transcript,{medium:'voice'})):null;
     return answer_hint||analysis?{...evidence,...(answer_hint?{answer_hint}:{}),...(analysis?{verified_comparisons:analysis}:{})}:evidence;
    } catch(error) {
     const failure = voiceToolFailure(error,identity,stage);

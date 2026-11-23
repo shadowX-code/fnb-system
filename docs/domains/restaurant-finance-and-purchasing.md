@@ -11,6 +11,8 @@ The Assistant Sales Input read returns the exact count and pages of entered chan
 
 Purchase Input owns monthly recorded entry amounts and supplier totals. Purchase Comparison can show each month and the recorded total across a calendar year, including months with purchases and no sales. Supplier totals group by recorded supplier identity across categories. Months without purchase entries have no recorded amount, while an entered zero is a recorded value. These figures describe recorded purchases, not disbursements, statutory expenses or stock-adjusted COGS. The Assistant uses the same amount calculations under the existing human, outlet and AI access policies.
 
+For period summaries, the purchase owner formats the recorded total, the amounts for each requested month and the months with no entries from the same scoped read. A named supplier remains part of the displayed scope. A Voice summary includes individual amounts when requested.
+
 Current services, migrations, trusted RPCs, and financial contract tests are authoritative.
 The domain owns sales records, purchase records, sales channels, purchase categories, outlet tax configuration, operating expenses, supplier purchasing relationships, purchase orders, import batches, data health, alerts, and financial period snapshots.
 Inventory receipt and stock movement ownership belongs to `inventory-and-assets.md`, even when initiated by purchasing.

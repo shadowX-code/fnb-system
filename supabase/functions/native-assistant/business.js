@@ -272,7 +272,7 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
    if(!plan?.tool)return null;
    const operation=assistantQuery(plan.operation);
    if(plan.followUp)return plan.followUp;
-   if(plan.page&&operation.format)return plan.page.args;
+   if(plan.page&&operation.formatsListPages===true)return plan.page.args;
    if(!operation.prepareArguments?.(plan.wording||prompt))return null;
    const current=loadConfig?await loadConfig():config||{};
    if(!capabilityConnected(current,operation.id)||!operation.authorized(access||{}))throw new AssistantError('business_read_denied',403);
@@ -424,7 +424,7 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
     throw error;
    }
   },
-  format(id,evidence,prompt){return assistantQuery(id).format?.(evidence,prompt)||null;},
+  format(id,evidence,prompt,options){return assistantQuery(id).format?.(evidence,prompt,options)||null;},
   completeTextPage(evidence,plan){return plan?.textPage?finishedGoodsRead.completeTextPage(evidence,plan.textPage):null;},
  };
 }

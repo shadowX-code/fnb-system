@@ -4,6 +4,7 @@ import {readFileSync} from 'node:fs';
 import {operations,createBusinessDispatcher,queryTool} from './business.js';
 import {dispatch} from './handler.js';
 import {generateText} from './provider.js';
+import {assembleContext} from './conversationContext.js';
 import {createSdkVoiceHistory} from '../../../src/features/ai-assistant/sdkVoiceHistory.js';
 import {rawMaterialStockStatus} from '../_shared/factory/stockCatalogue.js';
 import {failureOutcome,outcomeFor,outletContinuation} from './businessQuery.js';
@@ -104,7 +105,7 @@ function source({scope=true,brand=true,snapshot,assetRows=assets,outletRows=outl
   },
   from(table){
    calls.push([table]);
-   if(['outlets','asset_items','asset_movement_logs','operating_expenses','inventory_items','inventory_movements','departments','job_positions','sales_records'].includes(table)){
+   if(['outlets','asset_items','asset_movement_logs','operating_expenses','inventory_items','inventory_movements','departments','job_positions','sales_records','factory_product_recipes'].includes(table)){
     let rows=table==='outlets'?outletRows:table==='asset_items'?assetRows:table==='inventory_items'?inventoryRows:snapshot?.tables[table]||(table==='sales_records'?sales:[]);
     let head=false,count;
     const builder={
@@ -1362,12 +1363,75 @@ test('private recall and conceptual questions mentioning business measures keep 
  const b=createBusinessDispatcher({config,access,caller:source().caller});
  for(const prompt of ['Hello','How is the Factory recipe version count calculated?',
   'Recall our previous conversation about the Factory recipe version count.']){
-  const {reply}=await generateText({kind:'turn',model:config.model,prompt},'fixture-secret',{
+  const assembled=prompt.startsWith('Recall')?assembleContext({},[{title:'Recipe review',seq:2,prompt:'Review the saved recipe counts before Friday.'}]):undefined;
+  const {reply}=await generateText({kind:'turn',model:config.model,prompt,assembled},'fixture-secret',{
    business:b,transport:async(_,init)=>{
-    assert.equal(JSON.parse(init.body).tool_choice,'auto');
+    const body=JSON.parse(init.body);
+    assert.equal(body.tool_choice,'auto');
+    if(assembled)assert.match(body.instructions,/Review the saved recipe counts before Friday/);
     return response([{type:'message',content:[{type:'output_text',text:'Conversation reply.'}]}]);
    },
   });
   assert.equal(reply,'Conversation reply.');
  }
+});
+
+test('a fresh Factory count after a JYMT recommendation excludes the earlier task from both provider rounds',async()=>{
+ const prior='Give JYMT recorded operating expenses and current asset count, and recommend one next check for interpreting cost.';
+ const previous={seq:1,prompt:prior,reply:'Check whether all months have recorded expenses.',has_evidence:true};
+ const assembled=assembleContext({context:[previous]});
+ const {caller}=source({snapshot:{tables:{factory_product_recipes:[
+  {id:'a1',product_name:'Product A',version:'v1',status:'active'},
+  {id:'a2',product_name:'Product A',version:'v2',status:'draft'},
+  {id:'b1',product_name:'Product B',version:'v1',status:'active'},
+ ]}}});
+ const business=createBusinessDispatcher({config,access,caller});
+ for(const prompt of [
+  'In Factory Product Recipes, how many products have active current recipe standards out of all current standards? How many saved recipe versions are active out of all saved versions, including earlier versions?',
+  'What is the Factory recipe version count?',
+ ]){
+  let calls=0,saved;
+  const answer=await generateText({kind:'turn',model:config.model,prompt,assembled},'fixture-secret',{
+   business,
+   history:async()=>({turns:[{...previous,state:'completed',tool_state:'completed',evidence:{items:[
+    {capability:'read_operating_expenses',requested_scope:{year:2026}},{capability:'read_asset_catalogue',requested_scope:{mode:'summary'}},
+   ]}}]}),
+   onTool:(_,evidence)=>{if(evidence)saved=evidence;},
+   transport:async(_,init)=>{
+    const body=JSON.parse(init.body);
+    assert.doesNotMatch(JSON.stringify(body.input),/JYMT|interpreting cost|expense|next check/i);
+    assert.doesNotMatch(body.instructions,/recommend a concrete next check/i);
+    assert.match(body.instructions,/equivalent populations, units and periods/i);
+    if(++calls===1)return response([functionCall('read_factory_recipe_versions',{
+     mode:'summary',measure:'versions',page:1,name:null,code:null,product_name:null,status:null,
+    },'recipes')]);
+    const evidence=JSON.parse(body.input.at(-1).output);
+    assert.equal(evidence.recorded_versions.total,3);
+    return response([{type:'message',content:[{type:'output_text',text:'1 of 2 current product recipe standards is active. 2 of 3 saved recipe versions are active.'}]}]);
+   },
+  });
+  assert.equal(calls,2);
+  assert.equal(saved.capability,'read_factory_recipe_versions');
+  assert.match(answer.reply,/2 of 3 saved recipe versions/);
+  assert.doesNotMatch(answer.reply,/JYMT|expense|recommend|next check/i);
+ }
+});
+
+test('a reference to the same verified READ keeps its adjacent turn without replaying earlier unrelated user goals',async()=>{
+ const business=createBusinessDispatcher({config,access});
+ const previous='How many Factory recipe versions are saved?';
+ const assembled=assembleContext({context:[
+  {prompt:'Recommend one next check for JYMT operating costs.',reply:'Use only recorded months.',has_evidence:true},
+  {prompt:previous,reply:'There were 3 saved versions.',has_evidence:true},
+ ]});
+ const history=async()=>({turns:[{state:'completed',tool_state:'completed',
+  evidence:{capability:'read_factory_recipe_versions',requested_scope:{mode:'summary'}}}]});
+ await generateText({kind:'turn',model:config.model,prompt:'How many of those Factory recipe versions are active?',assembled},'fixture-secret',{
+  business,history,transport:async(_,init)=>{
+   const body=JSON.parse(init.body);
+   assert(body.input.some(item=>item.content===previous));
+   assert.doesNotMatch(JSON.stringify(body.input),/JYMT|recorded months/i);
+   return response([{type:'message',content:[{type:'output_text',text:'No source fetched.'}]}]);
+  },
+ });
 });

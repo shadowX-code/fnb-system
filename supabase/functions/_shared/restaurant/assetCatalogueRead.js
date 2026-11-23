@@ -99,7 +99,7 @@ export const assetCatalogueRead=readContract({
   if(a.mode!=='movements'&&(a.from||a.to))invalidArgument('unsupported_value','mode');
   if((a.from===null)!==(a.to===null)||a.from&&a.from>a.to)invalidArgument('invalid_date_range','to');
  },
- pageableModes:['list','summary_with_balances','movements'],
+ pageableModes:['list','summary_with_balances','movements'],formatsListPages:true,
  followUp(prompt,evidence){
   if(evidence.version!==3||!evidence.outlet?.id||!evidence.asset?.name||evidence.requested_scope.mode!=='movements')return null;
   const match=prompt.trim().match(conciseHistoryFollowUp);

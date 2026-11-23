@@ -78,7 +78,7 @@ export const inventoryMasterRead=readContract({
   outlet_scope:{type:'string',enum:['catalogue','named','accessible','each_outlet']},
   outlet_names:{type:'array',maxItems:12,items:{type:'string',maxLength:120}},
   mode:{type:'string',enum:['list','summary','detail']},status:{type:'string',enum:['active','inactive','all']}},
- pageableModes:['list'],
+ pageableModes:['list'],formatsListPages:true,
  normalizeArguments(args){
   if(!args||typeof args!=='object'||Array.isArray(args))return args;
   return {page:1,query:null,outlet_id:null,outlet_name:null,outlet_names:[],outlet_scope:'catalogue',mode:'list',status:args.mode==='summary'?'active':'all',...args};

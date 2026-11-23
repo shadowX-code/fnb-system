@@ -195,6 +195,7 @@ test('expense and asset advice checks missing monthly entries without inventing 
  const turn={...rank.turn,evidence:{items:[expense,assets]}};
  const check=end=>certifyScenario('outlet_expense_and_assets',{turn:{...turn,reply:'Example Outlet recorded RM10000 in operating expenses (1 of 12 months) and has 5 current assets. '+end},source}).status;
  assert.equal(check('Check the missing monthly entries before interpreting this amount. Category detail is unavailable.'),'PASS');
+ assert.equal(check('Check the 9 past months without entries before comparing costs. This source records monthly totals only.'),'PASS');
  assert.equal(check('Check the missing monthly entries. Investigate rent and utilities to explain high costs.'),'FAIL');
  assert.equal(check('Review the transactions and receipts.'),'FAIL');
 });
@@ -223,6 +224,9 @@ test('current Factory recipe standards and their historical versions are distinc
  assert.equal(check(record),'PASS');
  assert.equal(check({...record,turn:{...record.turn,reply:'1 active product (2 total), while 2 saved versions are active (3 total).'}}),'PASS');
  assert.equal(check({...record,turn:{...record.turn,reply:'2 active products (3 total), while 1 active saved version (2 total).'}}),'FAIL');
+ const listed='There are a total of 2 current recipe standards.\n- Active: 1\n- Draft: 1\nFor saved recipe versions:\n- There are a total of 3 recorded versions.\n- Active: 2';
+ assert.equal(check({...record,turn:{...record.turn,reply:listed}}),'PASS');
+ assert.equal(check({...record,turn:{...record.turn,reply:listed+'\nConsider ingredient pricing and production efficiency.'}}),'FAIL');
  const alternate=(measure,status,total_matching)=>({...record,turn:{...record.turn,evidence:{...record.turn.evidence,
   requested_scope:{...record.source.scope,measure,status},total_matching}}});
  assert.equal(check(alternate('versions',null,3)),'PASS');

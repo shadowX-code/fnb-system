@@ -183,6 +183,8 @@ export function registerScenarios(operations,canonicalPath){
    assert.deepEqual(e.current_products,products);assert.deepEqual(e.recorded_versions,versions);
    const population=e.requested_scope.measure==='current_products'?products:versions;
    assert.equal(e.total_matching,e.requested_scope.status==='active'?population.by_status.active:population.total);
+   assert.doesNotMatch(reply,/\b(?:ingredient pric(?:es|ing)|production efficiency|breakdown of costs|cost implications)\b/iu,
+    'Recipe status counts do not support an unsolicited cost or efficiency recommendation');
    for(const [noun,v] of [['(?:products?|(?:current )?(?:recipe )?standards?)',products],['(?:saved |recorded |recipe )?versions?',versions]]){
     const count=n=>'(?<![.\\d])'+n+'(?!\\d|\\.\\d)';
     const active=count(v.by_status.active),total=count(v.total);
@@ -190,7 +192,8 @@ export function registerScenarios(operations,canonicalPath){
     const labeledActive='(?:'+active+'\\s+active|active\\s*[:=]\\s*'+active+'|'+active+'\\s+(?:'+noun+'\\s+)?(?:are|were|is) active)';
     const labeledTotal='(?:'+total+'\\s+(?:in )?total|total\\s*[:=]\\s*'+total+'|out of (?:all |the )?'+total+')';
     const clauses=reply.split(/[.;\n]|,?\s+(?:whereas|while)\s+|\s+and\s+(?=(?:\d|(?:saved|recorded|current)\s))/iu);
-    assert(clauses.some(part=>new RegExp(noun,'iu').test(part)&&/\bactive\b/iu.test(part)&&
+    const statusList=new RegExp('total of\\s+'+total+'\\s+(?:current |product |recipe |saved |recorded )*'+noun+'[.:]?\\s*(?:[-•]\\s*)?active\\s*:\\s*'+active,'iu');
+    assert(statusList.test(reply)||clauses.some(part=>new RegExp(noun,'iu').test(part)&&/\bactive\b/iu.test(part)&&
      (new RegExp(ratio,'iu').test(part)||(new RegExp(labeledActive,'iu').test(part)&&new RegExp(labeledTotal,'iu').test(part)))),
      'Final answer must pair active count, total and recipe population');
    }

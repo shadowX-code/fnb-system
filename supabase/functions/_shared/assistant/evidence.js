@@ -107,9 +107,15 @@ export function operationalAnalysis(evidences,lookup) {
 // For comparable amounts return the scoped observations; checking an unordered
 // set of numbers cannot tell which period or outlet a sentence assigned them to.
 export function verifiedAnswerAmounts(reply,evidences,lookup) {
- const text=reply.replaceAll('**','').replaceAll('−','-');
+ const text=reply.replace(/(?<=\d)[\u00a0\u202f](?=\d{3}(?:\D|$))/gu,'').normalize('NFKC').replaceAll('**','').replaceAll('−','-');
  const amount=/[+-]?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?/g.source;
- const claims=[...text.matchAll(new RegExp('(?:\\b(?:MYR|RM)\\s*('+amount+')|('+amount+')\\s*(?:MYR\\b|ringgit\\b|令吉))','giu'))];
+ const gap='\\p{Zs}*';
+ const scale='(?:thousand\\b|million\\b|[km]\\b|[千万萬])';
+ const digits='('+amount+')(?:'+gap+'('+scale+'))?';
+ // Do not pair a date, count or prior table row with the next amount's currency.
+ const prefix='(?:\\b(?:MYR|RM)|令吉|马币|馬幣)';
+ const suffix='(?:(?:MYR|RM)\\b(?!'+gap+'[+-]?\\d)|ringgit\\b|令吉|马币|馬幣)';
+ const claims=[...text.matchAll(new RegExp('(?:'+prefix+gap+digits+'|'+digits+gap+suffix+')','giu'))];
  if(!claims.length||!evidences.length)return null;
  const supported=[];
  let monetary=false;
@@ -141,12 +147,13 @@ export function verifiedAnswerAmounts(reply,evidences,lookup) {
   return {comparisons:monetaryComparisons,facts,has_more:analysis?.has_more,coveredEvidence};
  }
  return claims.every(match=>{
-  let value=Number((match[1]||match[2]).replaceAll(',',''));
+  let value=Number((match[1]||match[3]).replaceAll(',',''));
   const prefix=text.slice(0,match.index);
   const suffix=text.slice(match.index+match[0].length);
   if(prefix.endsWith('-')||/\(\s*$/.test(prefix)&&/^\s*\)/.test(suffix))value=-Math.abs(value);
-  const scale=/^\s*(?:k\b|thousand\b)/iu.test(suffix)?1000:/^\s*(?:m\b|million\b)/iu.test(suffix)?1000000:1;
-  return supported.some(x=>Math.round(x*100)===Math.round(value*scale*100));
+  const unit=(match[2]||match[4]||'').toLowerCase();
+  const multiplier={k:1000,thousand:1000,'千':1000,'万':10000,'萬':10000,m:1000000,million:1000000}[unit]||1;
+  return supported.some(x=>Math.round(x*100)===Math.round(value*multiplier*100));
  });
 }
 
@@ -173,4 +180,7 @@ export function formatMonetaryComparisons(analysis,prompt,{recommend=false}={}) 
  return rows.join('\n');
 }
 
-export const analysisInstructions=' For analysis, lead with what the records show. Use checked comparisons or domain-reported drivers when available. Distinguish measured changes from possible explanations. Recommend a concrete next check tied to an observed fact, and say what evidence would distinguish causes. Never infer an expense category, a performance target, or a cause from a balance, missing period, or partial page. Compare only equivalent populations, units and periods. A recommendation is advisory and cannot authorize an action.';
+const comparableFacts=' Use checked comparisons or domain-reported drivers when available. Distinguish measured changes from possible explanations.';
+const comparisonLimits=' Never infer an expense category, a performance target, or a cause from a balance, missing period, or partial page. Compare only equivalent populations, units and periods.';
+export const comparisonInstructions=comparableFacts+comparisonLimits;
+export const analysisInstructions=' For analysis, lead with what the records show.'+comparableFacts+' Recommend a concrete next check tied to an observed fact, and say what evidence would distinguish causes.'+comparisonLimits+' A recommendation is advisory and cannot authorize an action.';

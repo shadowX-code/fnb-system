@@ -434,7 +434,7 @@ scenarios.outlet_expense_and_assets=scenario('Restaurant',['read_operating_expen
    const clauses=reply.split(/(?<=[.!?;。！？；])\s*|\n|,\s*(?:then|so|but)\s+/u);
    const recommendations=clauses.filter(part=>/\b(?:check|confirm|review|verify|reconcile|ensure|validate)\b/iu.test(part));
    assert(recommendations.some(part=>/\b(?:month(?:s|ly)?|monthly entr(?:y|ies)|periods?)\b/iu.test(part)&&
-    /\b(?:record(?:ed|s)?|unentered|missing|entered|confirm|reconcile|completeness|reconciling)\b/iu.test(part)),
+    /\b(?:record(?:ed|s)?|unentered|missing|entered|confirm|reconcile|completeness|reconciling|without (?:any )?entries)\b/iu.test(part)),
     'The suggested check must address the completeness of the monthly records');
    for(const part of clauses.filter(part=>/\b(?:categor(?:y|ies)|breakdown|transactions?|receipts?|rent|utilities|payroll)\b/iu.test(part))){
     assert(/unavailable|cannot|does not|doesn't|not (?:show|provide|available|recorded|in this source)|no (?:category|transaction)|monthly (?:totals|amounts) only/iu.test(part)&&

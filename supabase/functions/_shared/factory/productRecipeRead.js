@@ -17,6 +17,44 @@ function statusCounts(rows){
  for(const row of rows)counts.set(row.status,(counts.get(row.status)||0)+1);
  return {total:rows.length,by_status:Object.fromEntries(counts)};
 }
+const lifecycleLabels={
+ active:{match:/\b(?:active|aktif)\b|启用|啟用|活跃|活躍|生效|在用/iu,en:'active',zh:'启用',hant:'啟用',ms:'aktif'},
+ draft:{match:/\b(?:drafts?|draf)\b|草稿/iu,en:'draft',zh:'草稿',hant:'草稿',ms:'draf'},
+ archived:{match:/\b(?:archived|diarkibkan|arkib)\b|归档|歸檔|已封存/iu,en:'archived',zh:'已归档',hant:'已歸檔',ms:'diarkibkan'},
+};
+// This comparison needs both populations and a single named lifecycle status.
+// Leave broader questions to their normal field- and scope-aware answer path.
+function requestedRecipeComparison(prompt){
+ if(!/(?:\b(?:recipes?|bom|resipi)\b|配方|食谱|食譜)/iu.test(prompt)
+  ||!/(?:\b(?:current(?:ly)?|latest|semasa|terkini)\b|当前|當前|现行|現行|目前|最新)/iu.test(prompt)
+  ||!/(?:\b(?:standards?|piawai(?:an)?|products?|produk)\b|标准|標準|产品|產品)/iu.test(prompt)
+  ||!/(?:\b(?:versions?|versi)\b|版本)/iu.test(prompt)
+  ||!/(?:\b(?:saved|recorded|earlier|historical|all (?:recipe )?versions|tersimpan|disimpan|direkodkan|semua versi)\b|保存|储存|儲存|歷史|历史|所有(?:配方)?版本|全部(?:配方)?版本)/iu.test(prompt)
+  ||!/(?:\b(?:how many|counts?|totals?|compare|comparison|berapa|bilangan|jumlah|bandingkan)\b|多少|总数|總數|数量|數量|对比|對比|比较|比較)/iu.test(prompt))return null;
+ if(/\b(?:costs?|prices?|ingredients?|yield|time|durations?|quantities|why|recommend\w*|suggest\w*|advice|names?|list|which|kos|harga|bahan|senarai|mengapa|cadang\w*)\b|成本|价格|價格|用料|产量|產量|原因|建议|建議|名称|名稱|哪些|清单|清單|详情|詳情/iu.test(prompt))return null;
+ if(/\b(?:inactive|non[- ]active|not active|not archived|not draft|tidak aktif|since|between|last year|last month|outlet|v\d+(?:\.\d+)*)\b|\b20\d{2}\b|未启用|未啟用|非[启啟]用|门店|門店|上月|去年/iu.test(prompt))return null;
+ const statuses=Object.keys(lifecycleLabels).filter(key=>lifecycleLabels[key].match.test(prompt));
+ return statuses.length===1?statuses[0]:null;
+}
+function formatRecipeComparison(e,prompt=''){
+ const status=requestedRecipeComparison(prompt),scope=e.requested_scope;
+ if(!status||!e.aggregate_complete||scope?.mode!=='summary'||scope.page!==1||!['versions','current_products'].includes(scope.measure)||
+  scope.status&&norm(scope.status)!==status||scope.code||scope.name||scope.product_name)return null;
+ const counts=[e.current_products,e.recorded_versions];
+ if(!counts.every(c=>Number.isSafeInteger(c?.total)&&c.total>=0&&c.by_status&&Object.hasOwn(c.by_status,status)&&
+  Object.values(c.by_status).every(v=>Number.isSafeInteger(v)&&v>=0)&&Object.values(c.by_status).reduce((sum,n)=>sum+n,0)===c.total))return null;
+ const [products,versions]=counts,productCount=products.by_status[status],versionCount=versions.by_status[status];
+ if(products.total>versions.total)return null;
+ const label=lifecycleLabels[status];
+ if(/\p{Script=Han}/u.test(prompt)){
+  const traditional=/標準|產品|總數|數量|當前|啟用|歸檔|食譜|對比|比較/u.test(prompt);
+  return traditional?'目前 '+products.total+' 項產品配方標準中，'+productCount+' 項為'+label.hant+'；'+versions.total+' 個已儲存配方版本中，'+versionCount+' 個為'+label.hant+'。':
+   '目前 '+products.total+' 项产品配方标准中，'+productCount+' 项为'+label.zh+'；'+versions.total+' 个已保存配方版本中，'+versionCount+' 个为'+label.zh+'。';
+ }
+ if(/\b(?:berapa|resipi|kilang|semasa|piawai(?:an)?|jumlah|versi)\b/iu.test(prompt))return 'Daripada '+products.total+' standard resipi produk semasa, '+productCount+' berstatus '+label.ms+'. Daripada '+versions.total+' versi resipi tersimpan, '+versionCount+' berstatus '+label.ms+'.';
+ const line=(n,total,noun)=>n+' of '+total+' '+noun+(total===1?'':'s')+(n===1?' is ':' are ')+(status==='draft'?'marked draft':label.en)+'.';
+ return line(productCount,products.total,'current product recipe standard')+' '+line(versionCount,versions.total,'saved recipe version');
+}
 async function load(caller,a,signal){
  const versions=a.measure==='versions';
  const plainVersions=versions&&(a.mode==='list'||a.name||a.code||a.product_name);
@@ -51,6 +89,8 @@ async function load(caller,a,signal){
 
 export const recipeVersionRead=readContract({
  id:'read_factory_recipe_versions',module_id:'factory_product_recipes',version:3,label:'Factory recipe versions and current product standards',
+ queryIntent:prompt=>requestedRecipeComparison(prompt)?'current_standards_and_recorded_versions':null,
+ format:formatRecipeComparison,
  source:'/factory/master-data/product-recipes',permission:'factory_product_recipes.view',scope:'Factory Product Recipes / BOM register under current human permission and row access.',
  description:'For the number of products with active or draft current standards, or comparison to saved recipe versions, use measure=current_products, mode=summary. One scoped snapshot returns both current product counts and recorded version counts, including a status breakdown for each. Use measure=versions to read version records by exact code, name, recorded product name or status. Yield has its recorded unit.',
  discoveryPhrases:['Factory product recipes','Factory recipe versions','current product standards','current recipe standards','product recipe versions','配方版本','配方标准','标准食谱','标准食譜'],

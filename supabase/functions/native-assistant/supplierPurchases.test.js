@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {operations} from './business.js';
+import {createBusinessDispatcher,operations} from './business.js';
+import {generateText} from './provider.js';
 import {getPurchaseTotal,getSupplierPurchaseAmount} from '../_shared/restaurant/analytics.js';
 import {supplierPurchaseIntent} from '../_shared/restaurant/supplierPurchases.js';
 
@@ -15,8 +16,9 @@ function scopedCaller({entries=records,deny=null,extra=0}={}){
  return {tables,rpc(n,p){return {abortSignal:async()=>({data:n==='current_user_has_permission'?deny!==p.permission_code:deny!=='outlet'&&p.target_outlet_id===a})};},
   from(table){tables.push(table);assert(['purchase_records','outlets'].includes(table));
    let rows=table==='outlets'?[shop]:entries;
+   let start=0,end;
    const q={select:()=>q,order:()=>q,limit:()=>q,eq(k,v){rows=rows.filter(r=>r[k]===v);return q;},ilike(k,v){rows=rows.filter(r=>r[k].toLowerCase()===v.toLowerCase());return q;},
-    abortSignal:async()=>({data:rows,count:rows.length+extra})};return q;
+    range(first,last){start=first;end=last+1;return q;},abortSignal:async()=>({data:rows.slice(start,end),count:rows.length+extra})};return q;
   }};
 }
 const annual={mode:'supplier_year',outlet_name:shop.name,month:'2026-11-01'};
@@ -79,5 +81,85 @@ test('shared answer amount guard accepts recorded purchases and literal efficien
  const e={capability:input.id,source:input.source,version:input.version,rows:[{id:99,amount:'12.30'},{id:20,amount:null}],entry_count:2};
  assert.equal(verify('RM 12.30',e),true);for(const n of [0,2,99,20])assert.equal(verify('RM '+n,e),false);
  assert.equal(op.format(grouped,'按类别显示全年采购金额'), 'Example Shop 2026 年有 2 个月的采购记录，共 RM 1,700.00。这项年度汇总可按供应商查看，暂不提供采购类别明细。');
- assert.equal(op.format(grouped,'Monthly supplier purchases?'),null);
+ assert.match(op.format(grouped,'Monthly supplier purchases?'),/January RM 800.00, June RM 900.00/);
+ for(const text of ['年度采购 0.17 万令吉。','共计 RM 0.17万。','全年记录 1\u202f700.00 馬幣。','全年记录 RM１，７００。'])
+  assert.equal(verify(text,grouped),true,text);
+ for(const text of ['0.18 万令吉','1800 馬幣','RM 1.7万','RM 800\nRM 901'])
+  assert.equal(verify(text,grouped),false,text);
+ assert.equal(verify('2026 MYR 1,700.00',grouped),true,'The reporting year is not an amount');
+});
+
+test('Text renders a source-verified period series when proposed amounts are wrong or assigned to the wrong months',async()=>{
+ const operation='read_purchase_comparison',owner=read(operation);
+ const business=createBusinessDispatcher({config:{enabled:true,capability_connections:{[operation]:true}},access:{permissions:{[owner.permission]:true}}});
+ const caller=scopedCaller({entries:[entry('one',1,500),entry('two',1,14),entry('zero',2,0,'second','Second'),entry('six',6,32)]});
+ const args={...annual,month:'2026-01-01'};
+ const e=await owner.execute(caller,args);
+ const evidence={...e,query_outcome:'SUCCESS'};
+ assert.equal(evidence.total_matching,2);assert.equal(evidence.entry_count,4);
+ const prompt='请列出 Example Shop 2026 年每个月的 supplier 采购额、全年总额和没有采购记录的月份。';
+ const confirmed=[];
+ for(const proposed of ['采购额 RM 888.88。','1月 RM32.00，6月 RM514.00。']){
+  let step=0;
+  const result=await generateText({kind:'turn',model:'fixture-model',prompt},'fixture-token',{
+   business:{...business,execute:async(id,received)=>{assert.equal(id,operation);assert.deepEqual(received,args);return evidence;}},
+   onTool:async(state,source)=>{if(state==='completed')confirmed.push(source);},
+   transport:async()=>Response.json({status:'completed',usage:{input_tokens:1,output_tokens:1},output:++step===1?
+    [{type:'function_call',call_id:'purchase',name:operation,arguments:JSON.stringify(args)}]:
+    [{type:'message',content:[{type:'output_text',text:proposed}]}]}),
+  });
+  assert.equal(step,2);assert.equal(confirmed.at(-1),evidence);
+  assert.match(result.reply,/Example Shop 2026.*全年.*RM 546\.00/u);
+  assert.match(result.reply,/1月 RM 514\.00，2月 RM 0\.00，6月 RM 32\.00/u);
+  assert.match(result.reply,/3月至5月、7月至12月没有采购记录/u);
+  assert.doesNotMatch(result.reply,/无法核实|符合条件|888\.88/u);
+ }
+ const one=await owner.execute(caller,{...args,supplier_name:'Second'});
+ const voice=business.format(operation,one,'What were annual supplier purchases?',{medium:'voice'});
+ assert.match(voice,/Example Shop · Second recorded an annual total of RM 0.00/);
+ assert.match(voice,/January, March to December/);assert.doesNotMatch(voice,/February RM/u);
+ assert.match(business.format(operation,one,'What were monthly supplier purchases?',{medium:'voice'}),/February RM 0.00/);
+ const empty=await owner.execute(caller,{...args,supplier_name:'Absent'});
+ assert.match(owner.format(empty,prompt),/Example Shop · Absent.*没有采购记录/u);
+ const monthly=await read('read_purchase_records').execute(caller,{...args,mode:'supplier_totals',supplier_name:'First'});
+ assert.match(business.format(monthly.capability,monthly,'Berapa jumlah pembelian pembekal?'),/Example Shop · First.*Januari 2026.*RM 514.00/);
+ for(const partial of [{aggregate_complete:false},{monthly_totals:e.monthly_totals.slice(1)},{missing_months:[]},{recorded_total:99},{entry_count:2}])
+  assert.equal(owner.format({...e,...partial},prompt),null);
+ for(const other of ['List the top suppliers by annual purchases','Compare purchase amounts with last year'])
+  assert.equal(owner.format(e,other),null);
+});
+
+test('purchase entry and supplier-group page continuations retain their distinct fixed sizes, complete scope and model-assisted list answers',async()=>{
+ const entries=Array.from({length:25},(_,i)=>entry('p'+i,1,100+i,'s'+i,'Supplier '+i));
+ const caller=scopedCaller({entries});
+ const input=read('read_purchase_records'),comparison=read('read_purchase_comparison');
+ const business=createBusinessDispatcher({caller,config:{capability_connections:{[input.id]:true,[comparison.id]:true}},
+  access:{permissions:{[input.permission]:true,[comparison.permission]:true}}});
+ for(const [owner,mode,size] of [[input,'list',20],[input,'supplier_totals',10],[comparison,'supplier_year',10]]){
+  const request={mode,outlet_name:shop.name,month:'2026-01-01',page:1};
+  const first=await owner.execute(caller,request);
+  assert.equal(first.rows.length,size);assert.equal(first.page_size,size);
+  assert.equal(owner.format(first,'List the suppliers and their amounts'),null);
+  const history=async()=>({turns:[{state:'completed',tool_state:'completed',evidence:first}]});
+  const next=await business.planTurn('next page',history);
+  assert.deepEqual(next.page.args,{...first.requested_scope,page:2});
+  assert.equal(await business.resolvedArguments(next,'next page',history),null,'A summary formatter does not own list pages');
+  let calls=0;
+  const committed=[];
+  const result=await generateText({kind:'turn',model:'fixture-model',prompt:'next page'},'fixture-token',{business,history,
+   onTool:async(state,evidence)=>{if(state==='completed')committed.push(evidence);},
+   transport:async()=>Response.json({status:'completed',usage:{input_tokens:1,output_tokens:1},output:++calls===1?
+    [{type:'function_call',call_id:'page',name:owner.id,arguments:JSON.stringify({...request,outlet_name:'Wrong suggestion',page:1})}]:
+    [{type:'message',content:[{type:'output_text',text:'The second page lists '+(mode==='list'?'purchase entries.':'recorded supplier groups.')}]}]}),
+  });
+  assert.match(result.reply,/^The second page lists /);assert.equal(calls,2);assert.equal(committed.length,1);
+  const e=committed[0];
+  assert.deepEqual(e.requested_scope,next.page.args);assert.equal(e.total_matching,25);
+  assert.equal(e.rows.length,mode==='list'?5:10);assert.equal(e.page,2);
+  const key=row=>mode==='list'?row.id:row.supplier_name;
+  const firstKeys=new Set(first.rows.map(key));assert(e.rows.every(row=>!firstKeys.has(key(row))));
+  const broken={...first,page_size:size===10?20:10};
+  const ambiguous=await business.planTurn('next page',async()=>({turns:[{state:'completed',tool_state:'completed',evidence:broken}]}));
+  assert.equal(ambiguous.query_outcome,'AMBIGUOUS');
+ }
 });

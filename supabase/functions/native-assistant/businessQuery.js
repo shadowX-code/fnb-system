@@ -64,8 +64,9 @@ export function continuedPage(prompt,history,lookup){
    !e.requested_scope||!e.aggregate_complete||e.no_evidence||e.not_business_evidence||outcomeFor(e)!=='SUCCESS'||
    !(op.pageableModes?.includes(e.requested_scope.mode)||e.pageable===true))return [];
   const total=e.total_matching??e.total_count;
-  const sizes=op.tool.parameters.properties.page_size?.enum??[20];
-  const requested=e.requested_scope.page_size??20,size=e.page_size;
+  const defaultSize=op.fixedPageSize?.(e.requested_scope)??20;
+  const sizes=op.tool.parameters.properties.page_size?.enum??[defaultSize];
+  const requested=e.requested_scope.page_size??defaultSize,size=e.page_size;
   if(!sizes.includes(size)||!sizes.includes(requested)||size>requested||!Number.isSafeInteger(e.requested_scope.page)||e.requested_scope.page<1||
    !Number.isSafeInteger(e.page)||e.page<1||(e.page-1)*size!==(e.requested_scope.page-1)*requested||
    !Number.isSafeInteger(total)||total<0||!Array.isArray(e.rows)||e.rows.length!==Math.min(size,Math.max(0,total-(e.page-1)*size)))return [];
