@@ -153,8 +153,11 @@
 .crew-inventory-sticky button { min-width: 0; min-height: 48px; flex: 1; }
 .crew-inventory-review { display: grid; gap: 8px; }
 .crew-inventory-review>p { color: var(--crew-color-text-secondary); }
-.crew-inventory-review>div { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; border-bottom: 1px solid var(--crew-color-divider); padding: 11px 0; }
-.crew-inventory-review>div>span { display: grid; gap: 3px; }
+.crew-inventory-review>div { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; border-bottom: 1px solid var(--crew-color-divider); padding: 8px 0; }
+.crew-inventory-review .crew-inventory-thumb { width: 36px; height: 36px; }
+.crew-inventory-review-item, .crew-inventory-review-count { display: grid; gap: 3px; }
+.crew-inventory-review-item { overflow-wrap: anywhere; }
+.crew-inventory-review-count { text-align: end; }
 .crew-inventory-review small { color: var(--crew-color-text-secondary); }
 .crew-inventory-result>p { display: flex; align-items: center; gap: 7px; color: var(--crew-color-success); font-weight: 700; }
 .crew-inventory-result-summary { display: grid; gap: 4px; margin: 12px 0 14px; padding-bottom: 12px; border-bottom: 1px solid var(--crew-color-divider); }

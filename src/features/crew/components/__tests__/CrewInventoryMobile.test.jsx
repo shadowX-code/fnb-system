@@ -274,14 +274,19 @@ describe("Crew Inventory mobile authority boundary", () => {
     expect(api.inventoryPurchaseOrders).not.toHaveBeenCalled();
   });
 
-  it("hands a Month-End Closing draft to Admin with a Closing Month and explicit zero, without a cutoff", async () => {
+  it("confirms a Month-End Closing with explicit zero only after the server reports submission", async () => {
     api.inventoryStockChecks.mockResolvedValue({ ...stock, can_create_audit_stock_check: true });
     const year = new Date().getFullYear();
     const draft = { id: "closing-audit", stock_check_type: "audit", audit_type: "Month-End Closing", status: "draft",
       accounting_month: `${year}-08-01`, audit_name: `Month-End Closing · Aug ${year} · 20 Nov ${year}`,
       check_date: `${year}-11-20`, created_at: `${year}-11-20T01:00:00Z` };
-    api.saveInventoryStockCheck.mockResolvedValue({ check: draft });
-    render(<CrewStockCheckMobile token="token" outletId="outlet-1" grants={{ can_create_audit_stock_check: true }} onBack={() => {}} />);
+    const items = [{ item_id: "item-1", unit: "kg", actual_count_quantity: 0 }];
+    api.inventoryMobileCatalog.mockResolvedValue({ ...catalog, items: [{ ...catalog.items[0], photo_url: "https://example.test/rice.jpg" }] });
+    api.saveInventoryStockCheck.mockResolvedValueOnce({ check: draft })
+      .mockRejectedValueOnce(new Error("Closing counts must include every active outlet item exactly once. Start a new audit if the outlet roster changed."))
+      .mockResolvedValueOnce({ check: draft, items })
+      .mockResolvedValueOnce({ check: { ...draft, status: "submitted", submitted_at: `${year}-11-20T02:00:00Z` }, items });
+    const { container } = render(<CrewStockCheckMobile token="token" outletId="outlet-1" grants={{ can_create_audit_stock_check: true }} onBack={() => {}} />);
     fireEvent.click(await screen.findByRole("tab", { name: "Audit" }));
     fireEvent.click(screen.getByRole("button", { name: "Audit" }));
     fireEvent.click(screen.getByRole("button", { name: /Audit type/i }));
@@ -307,13 +312,23 @@ describe("Crew Inventory mobile authority boundary", () => {
     fireEvent.click(screen.getByRole("button", { name: "Review (1/1)" }));
     expect(screen.getByText("Closing Month")).toBeTruthy();
     expect(screen.getByText(`August ${year}`)).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Save for Admin" }));
+    expect(container.querySelector(".crew-inventory-review img")?.getAttribute("src")).toBe("https://example.test/rice.jpg");
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    expect(await screen.findByText(/Start a new audit if the outlet roster changed/)).toBeTruthy();
+    expect(screen.getByText("Draft")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    expect(await screen.findByText(/Submission could not be confirmed/)).toBeTruthy();
+    expect(screen.getByText("Draft")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
     await waitFor(() => expect(api.saveInventoryStockCheck).toHaveBeenLastCalledWith("token", "outlet-1", expect.any(String),
-      expect.objectContaining({ status: "draft", accounting_month: `${year}-08-01`,
+      expect.objectContaining({ status: "submitted", accounting_month: `${year}-08-01`,
         audit_name: expect.stringContaining(`Month-End Closing · Aug ${year} · `) }),
       [expect.objectContaining({ item_id: "item-1", actual_count_quantity: 0 })]));
-    expect(api.saveInventoryStockCheck.mock.calls[1][3]).not.toHaveProperty("physical_count_cutoff");
-    expect(await screen.findByText("Closing draft saved for an authorized Admin to submit and publish.")).toBeTruthy();
+    const payload = api.saveInventoryStockCheck.mock.lastCall[3];
+    expect(payload).not.toHaveProperty("physical_count_cutoff");
+    expect(payload).not.toHaveProperty("publish_closing");
+    expect(await screen.findByText("Closing count submitted. An authorized Admin can now publish Closing Stock.")).toBeTruthy();
+    expect(screen.getByText(`20 Nov ${year} · 10:00 AM`)).toBeTruthy();
   });
 
   it("saves closing skips with a reason and requires explicit counts after undo, even when filtered", async () => {
@@ -332,7 +347,7 @@ describe("Crew Inventory mobile authority boundary", () => {
     }));
     api.saveInventoryStockCheck.mockImplementation(async (_token, _outlet, _request, payload, rows) => {
       items = rows;
-      return { check: { ...closing, stock_check_type: "audit", status: payload.status } };
+      return { check: { ...closing, stock_check_type: "audit", status: payload.status }, items };
     });
     render(<CrewStockCheckMobile token="token" outletId="outlet-1" grants={{ can_create_audit_stock_check: true }}
       initialTarget={{ id: closing.id }} onBack={() => {}} />);
@@ -381,9 +396,9 @@ describe("Crew Inventory mobile authority boundary", () => {
     fireEvent.change(resumed, { target: { value: "0" } });
     fireEvent.click(screen.getByRole("button", { name: "Dry Goods" }));
     fireEvent.click(screen.getByRole("button", { name: "Review (2/2)" }));
-    fireEvent.click(screen.getByRole("button", { name: "Save for Admin" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
     await waitFor(() => expect(api.saveInventoryStockCheck).toHaveBeenLastCalledWith("token", "outlet-1", expect.any(String),
-      expect.objectContaining({ status: "draft" }), [
+      expect.objectContaining({ status: "submitted" }), [
         expect.objectContaining({ item_id: "item-1", skipped: false, skip_reason: null, actual_count_quantity: 0 }),
         expect.objectContaining({ item_id: "item-2", actual_count_quantity: 7 }),
       ]));

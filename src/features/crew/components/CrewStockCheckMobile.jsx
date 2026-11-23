@@ -120,7 +120,7 @@ export default function CrewStockCheckMobile({ token, outletId, grants, initialT
   }
 
   async function openSaved(id) {
-    setBusy(true); setError("");
+    setBusy(true); setError(""); setNotice("");
     try {
       const result = await crewService.inventoryStockChecks(token, outletId, id);
       if (!activeRef.current) return;
@@ -194,7 +194,7 @@ export default function CrewStockCheckMobile({ token, outletId, grants, initialT
     setSkipItem(null);
   }
 
-  async function save(status, handoff = false) {
+  async function save(status) {
     if (busy || !check) return;
     if (isClosing && !closingMonth) { setError(t("inventory.closingDetailsRequired")); return; }
     if (status === "submitted" && !canComplete) { setError(t(isClosing ? "inventory.closingCountsRequired" : "inventory.completeCountsFirst")); setReview(false); return; }
@@ -212,15 +212,24 @@ export default function CrewStockCheckMobile({ token, outletId, grants, initialT
     try {
       const result = await persistCheck(payload, items);
       if (!activeRef.current) return;
+      if (isClosing && status === "submitted" &&
+        (result?.check?.status !== "submitted" || result.check.id !== check.id || !Array.isArray(result.items))) {
+        throw new Error(t("inventory.closingSubmissionUnconfirmed"));
+      }
       setDirty(false);
       if (status === "submitted") {
         const completedId = result.check.id;
         setCheck({ ...check, ...payload, ...result.check, status: "completed" }); setReview(false);
-        setNotice(t("inventory.checkCompleted")); void loadPurchaseResult(completedId, check.stock_check_type);
+        if (isClosing) {
+          setRows(result.items.map(asRow));
+          setTab("history");
+        }
+        setNotice(t(isClosing ? "inventory.closingSubmitted" : "inventory.checkCompleted"));
+        void loadPurchaseResult(completedId, check.stock_check_type);
       }
       else {
         setExitOpen(false); setCheck(null); setRows([]); setReview(false); setPurchase(null);
-        setNotice(t(handoff ? "inventory.closingDraftReady" : "inventory.draftSaved")); await load();
+        setNotice(t("inventory.draftSaved")); await load();
       }
     } catch (cause) { setError(formatClosingError(cause.message, t("inventory.closingDetailsRequired")) || t("inventory.saveError")); }
     finally { setBusy(false); }
@@ -277,6 +286,7 @@ export default function CrewStockCheckMobile({ token, outletId, grants, initialT
         {check.correction_of_id && <p>{t("inventory.correctedAuditEvidence")}</p>}
         {check.correction_reason && <p>{t("inventory.auditCorrectionReason", { reason: check.correction_reason })}</p>}
       </div>}
+    {isClosing && check.status === "completed" && notice && <p className="crew-inventory-notice" role="status">{notice}</p>}
     {check.status === "completed" ? <CompletedResult check={check} rows={rows} itemById={itemById} purchase={purchase} canReviewSuggestions={grants?.can_manage_purchase_orders} onRetry={() => void loadPurchaseResult(check.id, check.stock_check_type)} onReview={() => onReviewSuggestions?.(check.id)} onOpenPurchaseOrder={onOpenPurchaseOrder} t={t} language={i18n.language} /> : ["skipped", "missed"].includes(check.status) ? <LifecycleResult check={check} t={t} language={i18n.language} /> : review ? <ReviewRows rows={rows} itemById={itemById} t={t} /> : <>
       {isClosing && <div className="crew-inventory-form">
         <CrewDatePicker monthOnly label={t("inventory.accountingMonth")} placeholder={t("inventory.selectAccountingMonth")}
@@ -296,7 +306,7 @@ export default function CrewStockCheckMobile({ token, outletId, grants, initialT
         body={!skippedOnly || query || category !== "all" ? t("inventory.trySearch") : undefined} />}
     </>}
     {error && <p className="crew-v2-error" role="alert">{error}</p>}
-    {["draft", "in_progress"].includes(check.status) && <div className="crew-inventory-sticky"><button className="crew-mobile-secondary" type="button" disabled={busy} onClick={() => void save("draft")}>{busy ? t("common.saving") : t("inventory.saveDraft")}</button><button className="crew-mobile-primary" type="button" disabled={busy || !canComplete} onClick={() => review ? void save(isClosing ? "draft" : "submitted", isClosing) : setReview(true)}>{review ? t(isClosing ? "inventory.saveClosingForAdmin" : "inventory.completeCheck") : `${t("inventory.review")} (${counted}/${rows.length})`}</button></div>}
+    {["draft", "in_progress"].includes(check.status) && <div className="crew-inventory-sticky"><button className="crew-mobile-secondary" type="button" disabled={busy} onClick={() => void save("draft")}>{busy ? t("common.saving") : t("inventory.saveDraft")}</button><button className="crew-mobile-primary" type="button" disabled={busy || !canComplete} onClick={() => review ? void save("submitted") : setReview(true)}>{review ? t(isClosing ? "inventory.confirmClosing" : "inventory.completeCheck") : `${t("inventory.review")} (${counted}/${rows.length})`}</button></div>}
     {skipItem && <CrewBottomSheet title={t("inventory.skipItem")} description={skipItem.name} onClose={() => setSkipItem(null)}
       footer={<button className="crew-mobile-primary" type="button" disabled={!itemSkipReason} onClick={confirmItemSkip}>{t("inventory.skipItem")}</button>}>
       <div className="crew-inventory-form">
@@ -461,7 +471,25 @@ function CountRow({ row, item, counted, onSkip, onChange, t }) {
 }
 
 function ReviewRows({ rows, itemById, t }) {
-  return <div className="crew-inventory-review"><p>{t("inventory.reviewHelp")}</p>{rows.map((row) => <div key={row.item_id}><span><strong>{itemById.get(row.item_id)?.name || row.item_name || t("inventory.item")}</strong><small>{t("inventory.expectedPar")}: {row.par_level_quantity ?? "—"} {row.unit}</small>{row.skipped && row.skip_reason && <small>{localizeStockCheckSkipReason(row.skip_reason, t)}</small>}</span><strong>{row.skipped ? t("inventory.skipped") : `${row.actual_count_quantity} ${row.unit}`}</strong>{!row.skipped && row.par_level_quantity != null && Number(row.actual_count_quantity) !== Number(row.par_level_quantity) && <small>{t("inventory.variance", { value: Number(row.actual_count_quantity) - Number(row.par_level_quantity) })}</small>}</div>)}</div>;
+  return <div className="crew-inventory-review">
+    <p>{t("inventory.reviewHelp")}</p>
+    {rows.map((row) => {
+      const item = itemById.get(row.item_id);
+      return <div key={row.item_id}>
+        <CrewInventoryItemThumb item={item} />
+        <span className="crew-inventory-review-item">
+          <strong>{item?.name || row.item_name || t("inventory.item")}</strong>
+          <small>{t("inventory.expectedPar")}: {row.par_level_quantity ?? "—"} {row.unit}</small>
+          {row.skipped && row.skip_reason && <small>{localizeStockCheckSkipReason(row.skip_reason, t)}</small>}
+        </span>
+        <span className="crew-inventory-review-count">
+          <strong>{row.skipped ? t("inventory.skipped") : `${row.actual_count_quantity} ${row.unit}`}</strong>
+          {!row.skipped && row.par_level_quantity != null && Number(row.actual_count_quantity) !== Number(row.par_level_quantity) &&
+            <small>{t("inventory.variance", { value: Number(row.actual_count_quantity) - Number(row.par_level_quantity) })}</small>}
+        </span>
+      </div>;
+    })}
+  </div>;
 }
 
 function LifecycleResult({ check, t }) {
