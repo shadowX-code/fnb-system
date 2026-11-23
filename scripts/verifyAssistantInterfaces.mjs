@@ -85,6 +85,7 @@ const current={
  operations:Object.fromEntries(operations.map(o=>[o.id,hash(serialize({interface:o.moduleInterface,tool:queryTool(o),discovery:o.discoveryPhrases,discoveryFamily:o.discoveryFamily,intent:o.queryIntent,prepare:o.prepareArguments,textScope:o.scopeTextArguments,load:o.load,query:o.query,rpc:o.rpc,arguments:o.arguments,project:o.project,check:o.check,normalize:o.normalizeArguments,policyGroup:o.policyGroup,execute:o.execute,authorize:o.authorized}))])),
  sources:Object.fromEntries([...new Set([...domainFiles,...consumers,...fixed,...paritySources,...dataOwners,
   'src/app/routeOwnership.js','src/app/routes.jsx','scripts/assistantModuleSources.mjs',
+  'supabase/functions/_shared/assistant/operationalGuidance.json',...walk('docs/domains').filter(p=>p.endsWith('.md')),
   ...walk('qa/staging').filter(p=>/\/nativeAssistant\w*(?:Cases|Certification)\.mjs$/.test(p))])].sort().map(p=>[p,sourceHash(p)])),
 };
 const file='docs/testing/native-assistant-interface-baseline.json';

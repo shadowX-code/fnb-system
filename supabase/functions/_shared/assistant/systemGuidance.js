@@ -16,13 +16,19 @@ const document={
 export const systemGuidance={
  id:'read_assistant_system_guidance',kind:'GUIDANCE',module_id:'ai_assistant',label:'FeedX Assistant user guide',source,
  scope:'Current application guide for authenticated Admin Assistant users.',
- discoveryPhrases:['assistant user guide','assistant help','personal memory','conversation history','start voice','AI Access'],
+ discoveryPhrases:['assistant user guide','assistant help','personal memory','conversation history','start voice','AI Access','workflow','business lifecycle','troubleshoot','module ownership','工作流程','aliran kerja'],
  knowledge:{type:'system_guidance',owner:'Platform',authority:'FeedX Assistant user guide',publication:'Version 1, shipped with the application.'},
- tool:{type:'function',name:'read_assistant_system_guidance',strict:true,description:'Search the current FeedX Assistant guide for History, Personal Memory, Voice controls, read evidence and AI Access. Provides workflow guidance, never business figures.',
+ tool:{type:'function',name:'read_assistant_system_guidance',strict:true,description:'Search the current FeedX Assistant guide for History, Personal Memory, Voice controls, read evidence and AI Access. Also retrieve documented module workflows, state transitions and dependencies. For a discrepancy, use this for the rule and the authorized business READ for the observed state.',
   parameters:{type:'object',properties:{query:{type:['string','null'],maxLength:160}},required:['query'],additionalProperties:false}},
  validate:args=>validateFields(properties,args),
- async execute(_,args){
+ async execute(_,args,signal,sessionId,workflow){
+  const result=knowledgeResult(args.query,[document],{scope:{surface:'admin_assistant'}});
+  if(workflow && args.query && !/^(?:history|memory|voice|evidence)$|personal memory|conversation history|start voice|end voice|AI Access/i.test(args.query)){
+   const citations=await workflow(args.query);
+   return {capability:systemGuidance.id,source,scope:systemGuidance.scope,as_of:new Date().toISOString(),version:1,
+    knowledge:{...result.knowledge,status:citations.length?'found':'no_matching_excerpt',coverage:'bounded_excerpt_selection',citations}};
+  }
   return {capability:systemGuidance.id,source,scope:systemGuidance.scope,as_of:new Date().toISOString(),version:1,
-   ...knowledgeResult(args.query,[document],{scope:{surface:'admin_assistant'}})};
+   ...result};
  },
 };

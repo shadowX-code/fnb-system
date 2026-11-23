@@ -52,3 +52,9 @@ For complete RPC collections a long row can reduce the returned page size from 2
 
 
 The module matrix separates the human permission and documented source limits from UI fields that a reviewed Assistant projection omits. Each registered READ contributes its actual source or RPC, scoped population, and any document publication/version condition. The field-restrictions column records intentional privacy omissions separately from missing source data. A UI-only finding cites the specific human UI and READ implementation, including the owning READ for shared modules. An exclusion can protect sensitive data. Other dimensions stay undetermined until a source comparison establishes their status. Adding a scenario changes the test inventory; a recorded source-backed browser outcome is needed to change live acceptance.
+
+### Operational workflow guidance
+
+The existing system-guidance tool searches reviewed release passages from canonical domain documents. Each citation pins its document, section and passage revision. Release passages describe rules. A current balance, actual transition, private SOP or confirmed cause requires the corresponding authorized live source. Human permissions and existing per-capability policy are rechecked by the dispatcher. The Assistant user guide remains independently available.
+
+The build verifies every mapped passage against its source section and fails on domain-document or tracked service drift until reviewed. Check an independently selected passage, a scoped live READ and the final conclusion separately for a mixed investigation. Provider-free Text/SDK tests establish tool handling and evidence retention. A model-assisted conclusion and real microphone interaction require separately recorded acceptance.

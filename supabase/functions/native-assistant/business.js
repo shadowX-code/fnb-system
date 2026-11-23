@@ -23,6 +23,7 @@ import {employmentRead} from '../_shared/people/employmentRead.js';
 import {cleaningRead} from '../_shared/factory/cleaningRead.js';
 import {AssistantError} from '../_shared/assistantError.js';
 import {finishedGoodsRead} from '../_shared/factory/finishedGoodsRead.js';
+import {asksWorkflow,workflowKnowledge} from '../_shared/assistant/workflowGuidance.js';
 import {systemGuidance} from '../_shared/assistant/systemGuidance.js';
 import {entityKey,namedOutlets,outletDirectory,resolveBrand,resolveOutlet} from '../_shared/assistant/entityResolution.js';
 import {invalidArgument,permitted} from '../_shared/assistant/readContract.js';
@@ -141,6 +142,7 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
  // authority and filters. A list of outlets or two dates alone is not a new read.
  let lastGoalPrompt, lastGoal;
  function planGoal(prompt){
+  if(asksWorkflow(prompt))return null;
   if(typeof prompt!=='string'||!prompt.trim())return null;
   if(lastGoalPrompt===prompt)return lastGoal;
   lastGoalPrompt=prompt;
@@ -170,7 +172,7 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
  }
  async function planTurn(prompt,history,signal,{textPages=false}={}){
   if(!prompt)return null;
-  if(planGoal(prompt)||asksForAnalysis(prompt))return null;
+  if(asksWorkflow(prompt)||planGoal(prompt)||asksForAnalysis(prompt))return null;
   const textPage=textPages?await finishedGoodsRead.planTextPage(prompt,history):null;
   if(textPage)return {...planFor(finishedGoodsRead),textPage};
   // Page-only turns reuse an exact authorized query, never a guessed or mixed one.
@@ -275,7 +277,7 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
    return unavailableDiscovery(plan,businessCapabilities(current,access||{}),prompt);
   },
   plan(prompt){
-   if(planGoal(prompt)||asksForAnalysis(prompt))return null;
+   if(asksWorkflow(prompt)||planGoal(prompt)||asksForAnalysis(prompt))return null;
    const operation=planned(prompt);
    return operation?{...planFor(operation),intent:operation.queryIntent(prompt),wording:prompt}:null;
   },
@@ -303,7 +305,7 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
    const clauses=question.split(/\b(?:and|also)\s+(?=(?:what|how|which|show|count|list)\b)|另外|以及|并且|並且/iu).slice(0,2);
    const matches=clauses.map(search=>discoveryRows(searchable,indexed,{search,page:1}).operations);
    const ranked=matches.length===1?matches[0]:[...matches.map(rows=>rows[0]).filter(Boolean),...matches.flat()];
-   return [...new Set(ranked.map(item=>item.operation))].slice(0,2).map(id=>queryTool(assistantQuery(id)));
+   return [...new Set([...(asksWorkflow(prompt)&&guideAvailable(config||{},access||{})?[systemGuidance.id]:[]),...ranked.map(item=>item.operation)])].slice(0,2).map(id=>queryTool(assistantQuery(id)));
   },
   async execute(id,args,signal,{correctArguments=false,excluded,prompt,history,withOutcome=false,turnPlan,currentEvidence=[]}={}){
    if(pageRequest(prompt)){
@@ -329,7 +331,8 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
    const operation=assistantQuery(id);
    const step=goal?.find(item=>item.operation===id);
    const plan=step??turnPlan??(await planTurn(prompt,history,signal));
-   if(blocked.has(id)||goal&&!step||plan&&plan.operation!==id||operation.kind==='ACTION'&&asksForAnalysis(prompt))throw new AssistantError('tool_not_allowed',403);
+   const supplementaryGuide=id===systemGuidance.id&&asksWorkflow(prompt);
+   if(blocked.has(id)||!supplementaryGuide&&(goal&&!step||plan&&plan.operation!==id)||operation.kind==='ACTION'&&asksForAnalysis(prompt))throw new AssistantError('tool_not_allowed',403);
    if(step)prompt=step.wording;
    // ACTION requires a separate, server-owned execution authority and confirmed
    // intent. Neither a tool argument nor the human's existing permission grants it.
@@ -418,7 +421,8 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
       instruction:'This exact scoped read already returned in this turn. Use its earlier evidence. Ask for clarification if unresolved.'};
     }
     // caller is the authenticated human client, never the service-role client.
-    const evidence=await (readFactory&&id===finishedGoodsRead.id?readFactory(args,signal):operation.execute(caller,args,signal,sessionId));
+    const evidence=await (readFactory&&id===finishedGoodsRead.id?readFactory(args,signal):operation.kind==='GUIDANCE'?operation.execute(caller,args,signal,sessionId,query=>workflowKnowledge(query,operations,
+     op=>capabilityConnected(current,op.id)&&op.authorized(access||{})&&(op.knowledge?.additional_permissions||[]).every(p=>access?.permissions?.[p]===true),caller,signal,{prompt,history})):operation.execute(caller,args,signal,sessionId));
     if(operation.kind==='READ')verifyReadEvidence(operation.moduleInterface,id,evidence,normalized);
     return withOutcome&&operation.kind!=='ACTION'?{...evidence,...operation.kind==='READ'&&!evidence.requested_scope?{requested_scope:normalized}:{},
      query_outcome:outcomeFor(evidence),query_domain:domain}:evidence;

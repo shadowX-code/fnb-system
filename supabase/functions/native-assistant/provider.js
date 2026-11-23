@@ -1,3 +1,4 @@
+import {asksWorkflow} from '../_shared/assistant/workflowGuidance.js';
 import {businessEvidenceInstructions,domainQueryInstructions,resultFirstInstructions} from '../_shared/assistant/moduleInterface.js';
 import {analysisInstructions,comparisonInstructions,formatMonetaryComparisons} from '../_shared/assistant/evidence.js';
 import {contextInstructions,explicitRecallQuery} from './conversationContext.js';
@@ -61,6 +62,7 @@ export async function generateText(claim,key,{transport=fetch,signal,business,hi
  const measured=!planned&&!goal&&claim.kind==='turn'&&!recall&&asksForMeasure(claim.prompt)
   ?business?.measureOwner?.(claim.prompt):null;
  const plan=planned||measured;
+ const workflow=claim.kind==='turn'&&asksWorkflow(claim.prompt);
  if(plan?.pagination_reply)return {reply:plan.pagination_reply,input_tokens:0,output_tokens:0,latency_ms:Date.now()-started};
  // A source named independently in this turn does not inherit earlier user
  // directives or extractive notes. Referenced or recalled context stays bounded.
@@ -79,23 +81,27 @@ export async function generateText(claim,key,{transport=fetch,signal,business,hi
  const usesDiscovery=configuredTools.some(tool=>tool.name==='find_business_queries');
  const analytical=claim.kind==='turn'&&asksForAnalysis(claim.prompt);
  const promptTools=goal?goal.flatMap(step=>step.tool?[step.tool]:[]):plan?.tool?[plan.tool]:usesDiscovery||analytical?business?.toolsForPrompt?.(claim.prompt,excluded)||[]:[];
+ const guide=workflow&&business?.toolsForPrompt?.(claim.prompt,excluded).find(tool=>tool.name==='read_assistant_system_guidance');
  let matchingTools=promptTools;
  const discovered=new Set();
  const max=claim.kind==='test'?32:500;
  const bytes=value=>new TextEncoder().encode(JSON.stringify(value)).length;
  let lastOutcome=null, lastDiscovery=null;
  let attemptedRead=false;
+ let workflowFailure=null;
  const recovery=createQueryRecovery();
  const confirmed=[];
  const steps=new Map();
  const pendingSteps=()=>goal?.filter(step=>step.tool&&!steps.get(step.operation)?.settled)||[];
  const payload=(remaining,allowTools)=>{
   const tools=claim.kind==='test'||!allowTools?[]:goal?promptTools:planned?.tool?[planned.tool]:[...matchingTools,...configuredTools.filter(tool=>(tool.name!=='run_business_query'||discovered.size)&&!matchingTools.some(named=>named.name===tool.name))];
-  const required=plan?.tool&&!confirmed.length&&(!lastOutcome||!attemptedRead&&lastDiscovery?.preferred_operation===plan.operation||['UNSUPPORTED','AMBIGUOUS'].includes(lastOutcome)&&exchanges.length<=2&&
+  if(guide && allowTools && !tools.some(tool=>tool.name===guide.name))tools.push(guide);
+  const needsGuide=guide&&allowTools&&!exchanges.some(x=>x.name===guide.name);
+  const required=allowTools&&plan?.tool&&!confirmed.some(e=>e.capability===plan.operation)&&(!lastOutcome||workflow&&lastOutcome==='SUCCESS'||!attemptedRead&&lastDiscovery?.preferred_operation===plan.operation||['UNSUPPORTED','AMBIGUOUS'].includes(lastOutcome)&&exchanges.length<=2&&
    (lastOutcome!=='AMBIGUOUS'||recovery.pending(plan.operation)));
   const pending=pendingSteps();
   const needsAnalysisRead=analytical&&promptTools.length&&!attemptedRead;
-  const choice=required?{type:'function',name:plan.tool.name}:pending.length===1?{type:'function',name:pending[0].operation}:pending.length||needsAnalysisRead?'required':goal?'none':'auto';
+  const choice=needsGuide?{type:'function',name:guide.name}:required?{type:'function',name:plan.tool.name}:pending.length===1?{type:'function',name:pending[0].operation}:pending.length||needsAnalysisRead?'required':goal?'none':'auto';
   const coverage=goal?.map((step,i)=>({part:i+1,operation:step.tool?step.operation:undefined,outcome:step.tool?steps.get(step.operation)?.outcome||'pending':'unavailable'}));
   return {model:claim.model,instructions:claim.kind==='test'?'Reply with READY only.':instructions+businessEvidenceInstructions+domainQueryInstructions+resultFirstInstructions+(analytical?analysisInstructions:comparisonInstructions)+
    (goal?' For each requested part use its own scoped evidence. Report unavailable or unfinished parts explicitly. No result for one part can support another. Current read progress: '+JSON.stringify(coverage):'')+
@@ -172,7 +178,7 @@ export async function generateText(claim,key,{transport=fetch,signal,business,hi
     try{
      if(args===undefined)throw new AssistantError('tool_arguments_invalid',400);
      if(calls[0].name==='run_business_query'&&!discovered.has(args?.operation))throw new AssistantError('tool_not_allowed',403);
-     if(measured&&!discovery&&businessToolIdentity(calls[0].name,args).operation!==measured.operation)throw new AssistantError('tool_not_allowed',403);
+     if(measured&&!discovery&&calls[0].name!==guide?.name&&businessToolIdentity(calls[0].name,args).operation!==measured.operation)throw new AssistantError('tool_not_allowed',403);
      const prior=recovery.before(calls[0].name,args);
      if(prior)evidence=prior;
      else {
@@ -195,6 +201,8 @@ export async function generateText(claim,key,{transport=fetch,signal,business,hi
      evidence={error:error.code,...businessToolIdentity(calls[0].name,args),no_evidence:true,query_outcome:failureOutcome(error.code)};
     }
     lastOutcome=evidence.query_outcome||outcomeFor(evidence);
+    if(guide&&calls[0].name===guide.name&&!evidence.knowledge?.citations?.length)
+     workflowFailure=lastOutcome==='UNAUTHORIZED'?'UNAUTHORIZED':'UNSUPPORTED';
     if(goal){
      const operation=businessToolIdentity(calls[0].name,args).operation;
      const attempts=(steps.get(operation)?.attempts||0)+1;
@@ -259,8 +267,16 @@ export async function generateText(claim,key,{transport=fetch,signal,business,hi
      /\p{Script=Han}/u.test(claim.prompt)?'无法核实回复中的金额。':/\b(?:berapa|jumlah|kos)\b/iu.test(claim.prompt)?'Amaun dalam jawapan tidak dapat disahkan.':'The amount in the proposed answer could not be verified.';
     reply=[answer,...verified].join('\n');
    }
-   if(analytical&&!partialGoal){
+   if(analytical&&!partialGoal&&!workflow){
     reply=business?.groundedRecommendation?.(confirmed,claim.prompt,goal)||reply;
+   }
+   if(workflow&&guide&&(workflowFailure||!confirmed.some(e=>e.capability===guide.name&&e.knowledge?.citations?.length))){
+    const currentFacts=confirmed.filter(e=>e.capability!==guide.name&&!e.knowledge&&outcomeFor(e)==='SUCCESS');
+    reply=[...currentFacts.map(e=>business.format?.(e.capability,e,claim.prompt)||sourcedResultSummary(e,claim.prompt)),
+     businessFailureReply(workflowFailure||'UNSUPPORTED',claim.prompt)].join('\n');
+   }else if(workflow&&measured&&!confirmed.some(e=>e.capability===measured.operation&&outcomeFor(e)==='SUCCESS')){
+    const rule=confirmed.find(e=>e.capability===guide?.name)?.knowledge?.citations?.find(c=>c.source_kind==='documented_rule');
+    reply=[rule?.excerpt,unverifiedReadReply(claim.prompt)].filter(Boolean).join('\n');
    }
    if(!reply||reply.includes(key)||reply.length>3000||claim.kind==='test'&&reply!=='READY')throw new AssistantError('provider_reply_invalid',502);
    return {reply,input_tokens:inputTokens,output_tokens:outputTokens,latency_ms:Date.now()-started};

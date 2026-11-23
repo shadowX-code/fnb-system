@@ -224,3 +224,28 @@ test('source declarations are discoverable through the current policy, with guid
  await assert.rejects(createBusinessDispatcher({config,access:{}}).execute(guide,{query:'History'}),{code:'business_read_denied'});
  assert(!businessCapabilities(config,access).some(op=>op.id===guide));
 });
+
+test('a workflow discrepancy obtains a cited rule independently from current stock, on Text and the SDK tool path',async()=>{
+ const state={rpcs:{},tables:{}};
+ const b=dispatcher(state,{readFactory:finishedGoodsFixture([{product_code:'S01',product_name:'Black Pepper Sauce',current_balance:62,uom:'kg'}])});
+ const prompt='Explain the Factory Dispatch reversal workflow and show the current Finished Goods balance of S01.';
+ const args={query:'Factory completed Dispatch reversal'};
+ const captured=[];let calls=0;
+ const answer=await generateText({prompt,model:'gpt-4o-mini',kind:'turn'},'fixture-provider',{
+  business:b,onTool:(status,e)=>{if(status==='completed')captured.push(e);},
+  transport:async(_,init)=>{
+   const body=JSON.parse(init.body);
+   if(++calls===1){assert.equal(body.tool_choice.name,guide);return response([request(guide,args,'rule')]);}
+   if(calls===2)return response([request(fg,{mode:'detail',sku:'S01'},'stock')]);
+   assert(captured.some(e=>e.knowledge?.citations.some(c=>c.excerpt.includes('Reversal'))));
+   return response([{type:'message',content:[{type:'output_text',text:'S01 has 62 kg. A completed Dispatch requires a Dispatch Reversal for correction. Check the original dispatch and any linked reversal.'}]}]);
+  },
+ });
+ assert.match(answer.reply,/62 kg/);assert.match(answer.reply,/Reversal/);
+ assert.equal(captured.length,2);
+ const saved=[];
+ const sdk=await dispatch({action:'realtime_tool',provider:'openai',session_id:id,turn_id:id,request_id:id,operation:'run_business_query',arguments:envelope(guide,args)},{
+  caller:makeCaller(state),access,get:()=>undefined,rpc:async()=>({config}),reserveRealtime:async()=>{},voiceHistory:async value=>saved.push(value.evidence),
+ });
+ assert.deepEqual(sdk.knowledge,captured[0].knowledge);assert.deepEqual(saved,[sdk]);
+});

@@ -1343,3 +1343,7 @@ Three authenticated Text questions checked the final reply against the matching 
 The Finance source-health read now pages and counts all matching owner-visible connection bindings. The deployed source-status RPC hides rows from non-owners by returning an empty array. The Assistant checks the existing Admin options authority on an empty result so an access denial cannot become a zero count.
 
 The Finished Goods catalogue shares Admin grouping and filtering for counts and paginated product-family lists. Factory calibration distinguishes the current schedule from retained checks. Job orders, dispatches and stock checks expose scoped document counts and pages. Finance Costs returns a named outlet's six- or twelve-month recorded cost series, preserving missing months and unclassified labour. The interface gate now tracks named RPC definitions and their grants alongside the owning services and certification cases.
+
+## 2026-11-23 — Native Assistant operational guidance
+
+Extended release guidance with scoped domain-document citations and the existing READ catalog's metric definitions and relationships. Mixed troubleshooting can request a documented rule and independent current evidence. Canonical source-section, permission, ownership, follow-up and provider-free Text/SDK regressions run during the build. Scope and exceptions are recorded in `docs/audits/native-assistant-operational-guidance.md`.

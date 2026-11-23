@@ -1,0 +1,795 @@
+[
+  {
+    "source": "factory-warehouse",
+    "section": "Lifecycle And Business Rules",
+    "text": "Dispatch reserves and moves eligible finished goods through the defined allocation and confirmation states.",
+    "modules": [
+      "factory_finished_goods_dispatch",
+      "factory_finished_goods",
+      "factory_product_movements"
+    ],
+    "version": "19f9ba44a03aa375"
+  },
+  {
+    "source": "factory-warehouse",
+    "section": "Lifecycle And Business Rules",
+    "text": "A completed Dispatch may only be corrected through the trusted Dispatch Reversal authority.",
+    "modules": [
+      "factory_finished_goods_dispatch",
+      "factory_finished_goods",
+      "factory_product_movements"
+    ],
+    "version": "43908e66a31b9695"
+  },
+  {
+    "source": "factory-warehouse",
+    "section": "Lifecycle And Business Rules",
+    "text": "Internal Transfers move only positive, exact Raw Material or Finished Good batch balances between different active, storage-enabled Factory Locations.",
+    "modules": [
+      "factory_internal_transfer",
+      "factory_storage_locations"
+    ],
+    "version": "a7152afe15bd1cf0"
+  },
+  {
+    "source": "factory-warehouse",
+    "section": "Lifecycle And Business Rules",
+    "text": "Raw receiving validates supplier/reference, material, quantity, lot, and storage context before accepted stock becomes available.",
+    "modules": [
+      "factory_raw_inventory",
+      "factory_raw_receiving",
+      "factory_raw_movements",
+      "factory_suppliers",
+      "factory_mesti_raw_material_control"
+    ],
+    "version": "6e1f369a7033c8af"
+  },
+  {
+    "source": "factory-warehouse",
+    "section": "Lifecycle And Business Rules",
+    "text": "Raw Material balances, batches, allocations, and deductions remain in each material's storage UOM.",
+    "modules": [
+      "factory_raw_inventory",
+      "factory_raw_receiving",
+      "factory_raw_movements",
+      "factory_suppliers",
+      "factory_mesti_raw_material_control"
+    ],
+    "version": "4f7c743b2927cfae"
+  },
+  {
+    "source": "factory-warehouse",
+    "section": "Lifecycle And Business Rules",
+    "text": "Transfers, issues, returns, adjustments, and stock checks use controlled lifecycle paths.",
+    "modules": [
+      "factory_product_stock_check",
+      "factory_raw_stock_check"
+    ],
+    "version": "19fcb774966d8283"
+  },
+  {
+    "source": "factory-warehouse",
+    "section": "Lifecycle And Business Rules",
+    "text": "Raw and finished-goods balances are server-derived from canonical posted evidence or established read models.",
+    "modules": [
+      "factory_product_stock_check",
+      "factory_raw_stock_check"
+    ],
+    "version": "3fdf7023a7ae6a75"
+  },
+  {
+    "source": "factory-warehouse",
+    "section": "Petty Cash Ledger",
+    "text": "Factory Petty Cash records physical operational cash only.",
+    "modules": [
+      "factory_petty_cash"
+    ],
+    "version": "d7f8de0cf33966ac"
+  },
+  {
+    "source": "factory-production",
+    "section": "Lifecycle And Business Rules",
+    "text": "Planning establishes intended production and may create or feed Job Orders through current controlled workflows.",
+    "modules": [
+      "factory_dashboard",
+      "factory_production_planning",
+      "factory_job_orders",
+      "factory_job_order_records",
+      "factory_production",
+      "factory_batch_traceability",
+      "factory_production_reports"
+    ],
+    "version": "bb2be8eceee90528"
+  },
+  {
+    "source": "factory-production",
+    "section": "Lifecycle And Business Rules",
+    "text": "Job Orders move through defined preparation, release, execution, completion, and exception states.",
+    "modules": [
+      "factory_dashboard",
+      "factory_production_planning",
+      "factory_job_orders",
+      "factory_job_order_records",
+      "factory_production",
+      "factory_batch_traceability",
+      "factory_production_reports"
+    ],
+    "version": "9bc3e46374b7cafb"
+  },
+  {
+    "source": "factory-production",
+    "section": "Lifecycle And Business Rules",
+    "text": "Execution pins the product recipe/BOM and SOP/version context needed to preserve historical meaning.",
+    "modules": [
+      "factory_dashboard",
+      "factory_production_planning",
+      "factory_job_orders",
+      "factory_job_order_records",
+      "factory_production",
+      "factory_batch_traceability",
+      "factory_production_reports"
+    ],
+    "version": "ae3d6692a89aac14"
+  },
+  {
+    "source": "factory-master-data",
+    "section": "Lifecycle And Business Rules",
+    "text": "Published or execution-ready recipes and SOPs are versioned or pinned according to current contracts.",
+    "modules": [
+      "factory_product_recipes",
+      "factory_production_sop"
+    ],
+    "version": "a50b73e602a5064f"
+  },
+  {
+    "source": "factory-master-data",
+    "section": "Lifecycle And Business Rules",
+    "text": "Every Production SOP version pins one explicit Product Recipe version.",
+    "modules": [
+      "factory_product_recipes",
+      "factory_production_sop"
+    ],
+    "version": "a50ad69ec896ecd7"
+  },
+  {
+    "source": "inventory-and-assets",
+    "section": "Lifecycle And Business Rules",
+    "text": "Inventory owns an append-only publication chain per outlet and month.",
+    "modules": [
+      "inventory_stock_check",
+      "inventory_dashboard",
+      "outlet-pnl",
+      "finance_overview",
+      "finance_analysis"
+    ],
+    "version": "600f8d3d72603032"
+  },
+  {
+    "source": "inventory-and-assets",
+    "section": "Lifecycle And Business Rules",
+    "text": "The Audit Stock Check Result pins the canonical Master Inventory unit cost into each item evidence row at submission, only when a cost was explicitly configured and the item's count UOM matches the cost UOM.",
+    "modules": [
+      "inventory_stock_check",
+      "inventory_dashboard",
+      "outlet-pnl",
+      "finance_overview",
+      "finance_analysis"
+    ],
+    "version": "f4a33e91a8489c63"
+  },
+  {
+    "source": "finance",
+    "section": "Metrics And Classifications",
+    "text": "Canonical accounting EBITDA excludes separately classified Labour and OPEX, with no double counting.",
+    "modules": [
+      "finance_overview",
+      "finance_analysis",
+      "finance_statements",
+      "finance_costs"
+    ],
+    "version": "81538aedf7ba3e5e"
+  },
+  {
+    "source": "inventory-and-assets",
+    "section": "Lifecycle And Business Rules",
+    "text": "Stock changes occur through established lifecycle authorities that validate scope, quantities, state, and retry identity.",
+    "modules": [
+      "inventory_master",
+      "inventory_movements",
+      "inventory_orders",
+      "inventory_waste",
+      "inventory_par_levels",
+      "inventory_recipes",
+      "recipe_intelligence"
+    ],
+    "version": "ee0d0b0464fee8d2"
+  },
+  {
+    "source": "inventory-and-assets",
+    "section": "Lifecycle And Business Rules",
+    "text": "The canonical balance is server-derived from accepted evidence or the established read model; the browser must not manufacture final stock.",
+    "modules": [
+      "inventory_master",
+      "inventory_movements",
+      "inventory_orders",
+      "inventory_waste",
+      "inventory_par_levels",
+      "inventory_recipes",
+      "recipe_intelligence"
+    ],
+    "version": "e7e88a7859644beb"
+  },
+  {
+    "source": "inventory-and-assets",
+    "section": "Lifecycle And Business Rules",
+    "text": "Stock Check Groups is an outlet-scoped configuration surface; due/completed state and last-check evidence belong to Stock Check execution.",
+    "modules": [
+      "inventory_groups"
+    ],
+    "version": "1c27f899fa8112f0"
+  },
+  {
+    "source": "inventory-and-assets",
+    "section": "Asset Tracking Application Read Boundary",
+    "text": "Asset availability and physical condition are separate canonical projections.",
+    "modules": [
+      "asset_tracking"
+    ],
+    "version": "7b79992e1c9155de"
+  },
+  {
+    "source": "restaurant-finance-and-purchasing",
+    "section": "Lifecycle And Business Rules",
+    "text": "Financial records begin as controlled manual or imported inputs and feed canonical period projections.",
+    "modules": [
+      "dashboard",
+      "reports",
+      "sp-dashboard",
+      "sales-input",
+      "sales-comparison",
+      "sales-channels",
+      "tax-settings",
+      "purchase-input",
+      "purchase-comparison",
+      "suppliers",
+      "purchase-categories",
+      "operating-expenses",
+      "data-health",
+      "product_analytics"
+    ],
+    "version": "be6fc8ef3ba0cb06"
+  },
+  {
+    "source": "restaurant-finance-and-purchasing",
+    "section": "Lifecycle And Business Rules",
+    "text": "Period snapshot authorities freeze the business state required for reproducible reporting.",
+    "modules": [
+      "dashboard",
+      "reports",
+      "sp-dashboard",
+      "sales-input",
+      "sales-comparison",
+      "sales-channels",
+      "tax-settings",
+      "purchase-input",
+      "purchase-comparison",
+      "suppliers",
+      "purchase-categories",
+      "operating-expenses",
+      "data-health",
+      "product_analytics"
+    ],
+    "version": "a20610981645fddd"
+  },
+  {
+    "source": "people-identity-rbac",
+    "section": "Lifecycle And Business Rules",
+    "text": "Employee identity, job position, role, Admin access, and Crew Access are distinct concepts.",
+    "modules": [
+      "employees",
+      "hr_dashboard",
+      "job-positions",
+      "departments",
+      "roles",
+      "legal-entities",
+      "crew_employees"
+    ],
+    "version": "f551d79026b3ed9b"
+  },
+  {
+    "source": "people-identity-rbac",
+    "section": "Lifecycle And Business Rules",
+    "text": "People owns one append-only effective-dated Employment Assignment Timeline for Employment Type, Employment Status, Position, Legal Employer and Workplace.",
+    "modules": [
+      "employees",
+      "hr_dashboard",
+      "job-positions",
+      "departments",
+      "roles",
+      "legal-entities",
+      "crew_employees"
+    ],
+    "version": "289041f6f0eb90f1"
+  },
+  {
+    "source": "crew-workforce",
+    "section": "Lifecycle And Business Rules",
+    "text": "Crew Access is a one-to-one extension of an eligible employee and remains separate from Admin access.",
+    "modules": [
+      "crew_employees",
+      "crew_dashboard"
+    ],
+    "version": "79441c3ccd6ac738"
+  },
+  {
+    "source": "people-identity-rbac",
+    "section": "Warning lifecycle",
+    "text": "People owns employee warnings and disciplinary records.",
+    "modules": [
+      "employee_disciplinary"
+    ],
+    "version": "c3514908dc637168"
+  },
+  {
+    "source": "people-identity-rbac",
+    "section": "Food Handling Compliance V1",
+    "text": "People owns the user-facing Food Handling Compliance capability.",
+    "modules": [
+      "employee_compliance"
+    ],
+    "version": "b87779e8929f19d2"
+  },
+  {
+    "source": "recruitment",
+    "section": "Ownership",
+    "text": "People owns Recruitment before employment.",
+    "modules": [
+      "recruitment"
+    ],
+    "version": "d1b5b823673c07a0"
+  },
+  {
+    "source": "crew-workforce",
+    "section": "Lifecycle And Business Rules",
+    "text": "Draft Duty Roster weeks are editable by authorized Admins and are not Crew-visible.",
+    "modules": [
+      "crew_roster",
+      "crew_attendance"
+    ],
+    "version": "a5523132ceb58766"
+  },
+  {
+    "source": "crew-workforce",
+    "section": "Lifecycle And Business Rules",
+    "text": "Publishing atomically creates an immutable Crew-facing revision for one outlet week.",
+    "modules": [
+      "crew_roster",
+      "crew_attendance"
+    ],
+    "version": "a02d7c3e76c619fc"
+  },
+  {
+    "source": "crew-workforce",
+    "section": "Lifecycle And Business Rules",
+    "text": "Attendance is recorded through token-bound server authority.",
+    "modules": [
+      "crew_roster",
+      "crew_attendance"
+    ],
+    "version": "8877fa73c7d84639"
+  },
+  {
+    "source": "crew-workforce",
+    "section": "Lifecycle And Business Rules",
+    "text": "Leave balances are server-derived from policy, entitlement, approved usage, pending reservations, adjustments, carry-forward, and expiry evidence.",
+    "modules": [
+      "crew_leave"
+    ],
+    "version": "07874bf70fa108da"
+  },
+  {
+    "source": "crew-workforce",
+    "section": "Lifecycle And Business Rules",
+    "text": "Leave Policy owns effective-dated eligible Employment Types, annual allowance or unlimited method, and an explicit calendar-day or no-proration rule.",
+    "modules": [
+      "crew_leave"
+    ],
+    "version": "e3040893a36969e0"
+  },
+  {
+    "source": "crew-operations",
+    "section": "Permissions, Snapshots, And Audit",
+    "text": "Admin task and cash actions require the relevant Crew Operations permission plus outlet scope.",
+    "modules": [
+      "crew_operations",
+      "crew_cash_checkout",
+      "crew_cash_deposit"
+    ],
+    "version": "4d8272df2937f97a"
+  },
+  {
+    "source": "crew-operations",
+    "section": "Permissions, Snapshots, And Audit",
+    "text": "Published task/content versions, completion evidence, cash calculations, float adjustments, handover confirmations, and ledger entries retain immutable or append-only history.",
+    "modules": [
+      "crew_operations",
+      "crew_cash_checkout",
+      "crew_cash_deposit"
+    ],
+    "version": "c38060fc5324f402"
+  },
+  {
+    "source": "crew-learning",
+    "section": "Lifecycle And Business Rules",
+    "text": "Published versions are immutable; edits create a new draft/version rather than rewriting Crew history.",
+    "modules": [
+      "crew_learning",
+      "crew_sop_library",
+      "crew_growth_skills"
+    ],
+    "version": "a9d7b1d62a886653"
+  },
+  {
+    "source": "crew-learning",
+    "section": "Lifecycle And Business Rules",
+    "text": "Assignments pin the learning and SOP versions needed for reproducible progression.",
+    "modules": [
+      "crew_learning",
+      "crew_sop_library",
+      "crew_growth_skills"
+    ],
+    "version": "28b9343c627e1198"
+  },
+  {
+    "source": "crew-learning",
+    "section": "Lifecycle And Business Rules",
+    "text": "Learning completion may produce evidence used for skills or certification, but the operational status or reward consequence belongs to Crew Performance and Reward.",
+    "modules": [
+      "crew_learning",
+      "crew_sop_library",
+      "crew_growth_skills"
+    ],
+    "version": "70135f50d77ee6c6"
+  },
+  {
+    "source": "crew-performance-and-reward",
+    "section": "Lifecycle And Business Rules",
+    "text": "Monthly Performance uses defined, private evidence adapters rather than reading mutable page state.",
+    "modules": [
+      "crew_reward",
+      "crew_growth",
+      "crew_performance"
+    ],
+    "version": "6fd68a6303201ee3"
+  },
+  {
+    "source": "crew-performance-and-reward",
+    "section": "Lifecycle And Business Rules",
+    "text": "Finalized scores, approved reward outcomes, and payout evidence are immutable or superseded through explicit correction authority.",
+    "modules": [
+      "crew_reward",
+      "crew_growth",
+      "crew_performance"
+    ],
+    "version": "17bf79d51970fae0"
+  },
+  {
+    "source": "crew-performance-and-reward",
+    "section": "Lifecycle And Business Rules",
+    "text": "Customer Feedback preserves each guest submission as independent evidence.",
+    "modules": [
+      "crew_customer_feedback"
+    ],
+    "version": "661f9e1993478797"
+  },
+  {
+    "source": "crew-team-review",
+    "section": "Ownership",
+    "text": "Team Review is an independent monthly coworker-evidence domain under the Performance workspace.",
+    "modules": [
+      "crew_team_review"
+    ],
+    "version": "69458c132a1fc81f"
+  },
+  {
+    "source": "crew-team-review",
+    "section": "Eligibility And Window",
+    "text": "An active Job Position explicitly opts into Team Review.",
+    "modules": [
+      "crew_team_review"
+    ],
+    "version": "15ba47fb8abdbb22"
+  },
+  {
+    "source": "crew-team-review",
+    "section": "Crew And Admin Evidence",
+    "text": "The Team Review result is the direct average of the four dimension averages, rounded to two decimals on a five-point scale.",
+    "modules": [
+      "crew_team_review"
+    ],
+    "version": "8bb9277c50592aad"
+  },
+  {
+    "source": "marketing",
+    "section": "Ownership",
+    "text": "Platform owns the Brand Master and explicit Brand–Outlet mappings; Restaurant retains the Outlet Master.",
+    "modules": [
+      "brands",
+      "outlets",
+      "platform_organizations",
+      "marketing_overview",
+      "marketing_planning_insights",
+      "marketing_connections",
+      "marketing_creators",
+      "marketing_ads"
+    ],
+    "version": "2c7bcfc61a6ae4d2"
+  },
+  {
+    "source": "marketing",
+    "section": "Content Authority",
+    "text": "A creative concept has one immutable revision payload containing title, canonical outlet targets and one Facebook and/or one Instagram variant.",
+    "modules": [
+      "marketing_planner",
+      "marketing_calendar",
+      "marketing_media"
+    ],
+    "version": "8dd3e3f243102c5c"
+  },
+  {
+    "source": "marketing",
+    "section": "Content Authority",
+    "text": "Lifecycle: Draft → Review → Approved → Scheduled → Published, with Rejected, Failed and Cancelled outcomes.",
+    "modules": [
+      "marketing_planner",
+      "marketing_calendar",
+      "marketing_media"
+    ],
+    "version": "2d91d483142561c3"
+  },
+  {
+    "source": "marketing",
+    "section": "Inbox FAQ and suggestion management",
+    "text": "Brand Knowledge owns positioning, identity/story, audience, voice and communication guidelines.",
+    "modules": [
+      "marketing_knowledge",
+      "marketing_faq"
+    ],
+    "version": "77b61b902c88b781"
+  },
+  {
+    "source": "factory-master-data",
+    "section": "Lifecycle And Business Rules",
+    "text": "MeSTI Cleaning of Area Requirements bind tasks directly to one or more canonical Factory Locations.",
+    "modules": [
+      "factory_mesti_cleaning"
+    ],
+    "version": "bf634eb641b252c9"
+  },
+  {
+    "source": "factory-master-data",
+    "section": "Lifecycle And Business Rules",
+    "text": "MeSTI Cleaning of Equipment has two canonical sources: scheduled Requirements bind tasks to active Equipment on a daily or selected-weekday recurrence, while After Production occurrences are created only when a completed Production uses a canonical Equipment binding from its pinned Production SOP.",
+    "modules": [
+      "factory_mesti_equipment_cleaning"
+    ],
+    "version": "dd9bb03a53785192"
+  },
+  {
+    "source": "factory-master-data",
+    "section": "Lifecycle And Business Rules",
+    "text": "MeSTI Calibration Requirements bind one active Factory Equipment instance and Calibration Type to one logical, forward-effective version lineage.",
+    "modules": [
+      "factory_mesti_calibration"
+    ],
+    "version": "3e538c8a113d524d"
+  },
+  {
+    "source": "factory-master-data",
+    "section": "Permissions, Versions, And Audit",
+    "text": "MeSTI Health Declaration is one unified Factory compliance evidence domain for Employee and Visitor submissions.",
+    "modules": [
+      "factory_mesti_health_declaration"
+    ],
+    "version": "925a6292ff39edfa"
+  },
+  {
+    "source": "factory-master-data",
+    "section": "Permissions, Versions, And Audit",
+    "text": "MeSTI Operator Hygiene Inspection records one daily inspection session keyed by inspection date.",
+    "modules": [
+      "factory_mesti_operator_hygiene"
+    ],
+    "version": "97215ee0265f55c4"
+  },
+  {
+    "source": "factory-master-data",
+    "section": "Permissions, Versions, And Audit",
+    "text": "MeSTI Waste Disposal uses versioned Location requirements with a positive required count for each scheduled day.",
+    "modules": [
+      "factory_mesti_waste_disposal"
+    ],
+    "version": "92917cbc429bb77d"
+  },
+  {
+    "source": "factory-production",
+    "section": "Factory Label Printing (Staging)",
+    "text": "Label Management → Printers displays the reported connection and availability.",
+    "modules": [
+      "factory_label_management"
+    ],
+    "version": "87171d763690832c"
+  },
+  {
+    "source": "factory-production",
+    "section": "Lifecycle And Business Rules",
+    "text": "Production SOPs bind the canonical active Factory Equipment instances required by the controlled process.",
+    "modules": [
+      "factory_equipment"
+    ],
+    "version": "498152fe3aa7cc88"
+  },
+  {
+    "source": "people-identity-rbac",
+    "section": "Employment Contract Builder V2",
+    "text": "Templates are English Full-Time or Part-Time contract templates.",
+    "modules": [
+      "employment_contract_templates"
+    ],
+    "version": "c7724dacf96d1de6"
+  },
+  {
+    "source": "people-identity-rbac",
+    "section": "Lifecycle And Business Rules",
+    "text": "The Employment Timeline may present Payroll pay revisions and Employment Documents as context, but those remain separate write authorities.",
+    "modules": [
+      "employee_employment_documents"
+    ],
+    "version": "6a43bd9ee401eaf8"
+  },
+  {
+    "source": "marketing",
+    "section": "WhatsApp template catalog and staff suggestions",
+    "text": "AI Flows offers an authorized read-only catalog reference for WhatsApp flows.",
+    "modules": [
+      "marketing_whatsapp_workflows"
+    ],
+    "version": "4cf34ba5db87ce5b"
+  },
+  {
+    "source": "marketing",
+    "section": "WhatsApp conversation presentation",
+    "text": "The WhatsApp Chat customer service window is projected only from signed, current-generation customer inbound evidence.",
+    "modules": [
+      "marketing_whatsapp_chat"
+    ],
+    "version": "28803333fec50e2c"
+  },
+  {
+    "source": "marketing",
+    "section": "WhatsApp template catalog and staff suggestions",
+    "text": "Chat and Campaign Message use the same WABA catalog with their existing send eligibility and template fingerprint checks.",
+    "modules": [
+      "marketing_campaigns"
+    ],
+    "version": "05818b9193c0d72c"
+  },
+  {
+    "source": "factory-product-feedback",
+    "section": "Ownership and lifecycle",
+    "text": "Only the authenticated Product Feedback admin read authority may return contact evidence.",
+    "modules": [
+      "factory_product_feedback"
+    ],
+    "version": "f5853f6e6a2500b4"
+  },
+  {
+    "source": "finance",
+    "section": "Data Sources Management",
+    "text": "The Assistant uses the same owner-scoped source-status RPC as Data Sources.",
+    "modules": [
+      "finance_data_sources"
+    ],
+    "version": "fd38acb8b58ca0c3"
+  },
+  {
+    "source": "marketing",
+    "section": "Reel covers and provider live availability",
+    "text": "Calendar, List, Detail and Social Analytics show the same availability while retaining historical publication and metric semantics.",
+    "modules": [
+      "marketing_analytics"
+    ],
+    "version": "ccdf0f4e402256eb"
+  },
+  {
+    "source": "factory-warehouse",
+    "section": "Workflows And Integrations",
+    "text": "Factory Master Data supplies materials, products, storage-enabled Factory Locations, supplier, customer, recipe, and unit references.",
+    "modules": [
+      "factory_customers"
+    ],
+    "version": "6c00db56f9e3ba89"
+  },
+  {
+    "source": "marketing",
+    "section": "Customer conversation presentation",
+    "text": "Unified Inbox defaults to real social conversations; internal cases have an explicit separate channel view.",
+    "modules": [
+      "marketing_inbox"
+    ],
+    "version": "c0885b4b2988a84d"
+  },
+  {
+    "source": "marketing",
+    "section": "Phase 3A/3B Hybrid WhatsApp",
+    "text": "Marketing owns append-only WhatsApp consent evidence (exact brand/customer/current phone, decision, source/reference, occurred/recorded time and optional expiry), suppression, language/tag/outlet segments, registered sender declarations, immutable campaign revisions, approvals, recipient queues and staff action events.",
+    "modules": [
+      "platform_customers",
+      "marketing_audience"
+    ],
+    "version": "1ffd0f098a5dace5"
+  },
+  {
+    "source": "restaurant-finance-and-purchasing",
+    "section": "Lifecycle And Business Rules",
+    "text": "Alerts may identify risk but do not become an alternative source for underlying values.",
+    "modules": [
+      "alerts"
+    ],
+    "version": "6f192cc386eae4e6"
+  },
+  {
+    "source": "factory-warehouse",
+    "section": "Finished Product Storage Control Projection",
+    "text": "Factory MeSTI Finished Product Storage Control is a read-only report over canonical completed Production rows and their `factory_finished_good_batch_balances` entries.",
+    "modules": [
+      "factory_mesti_finished_product_storage_control"
+    ],
+    "version": "5b0e9900b5102c5f"
+  },
+  {
+    "source": "factory-production",
+    "section": "External Agent lifecycle actions",
+    "text": "Completed production QC and finished-product storage entries are available with scoped counts and filters.",
+    "modules": [
+      "factory_mesti_food_processing_control"
+    ],
+    "version": "973649bb0372d87a"
+  },
+  {
+    "source": "payroll",
+    "section": "Phase 5 V1 — Draft and Private Final Payslips",
+    "text": "Payroll owns payslips separately from Legal Contracts and Employment Documents.",
+    "modules": [
+      "payroll"
+    ],
+    "version": "6c0b3cd3b4ff0f83"
+  },
+  {
+    "source": "payroll",
+    "section": "Ownership and Phase",
+    "text": "Duty Roster remains scheduled work, Attendance remains actual evidence, and neither becomes payable time until Payroll explicitly approves a result.",
+    "modules": [
+      "payroll"
+    ],
+    "version": "6266718acdad0dd3"
+  },
+  {
+    "source": "people-identity-rbac",
+    "section": "Canonical Ownership",
+    "text": "Current employee, role, permission, Auth-link, role-configuration, RLS, and audit contracts are authoritative.",
+    "modules": [
+      "audit-logs"
+    ],
+    "version": "bb29c4389bbdcc88"
+  },
+  {
+    "source": "factory-production",
+    "section": "Permissions, Snapshots, And Audit",
+    "text": "Released/completed orders, pinned master-data versions, material consumption, outputs, exceptions, and batch lineage retain auditable evidence.",
+    "modules": [
+      "factory_audit_logs"
+    ],
+    "version": "156994c7d4d83927"
+  }
+]
