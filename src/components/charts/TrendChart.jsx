@@ -50,11 +50,21 @@ function defaultTickFormatter(value, yAxisType) {
 }
 
 function buildPointList(data, yForValue) {
-  return data.map((value, index) => ({
+  return data.map((value, index) => value === null ? null : ({
     x: (index / Math.max(data.length - 1, 1)) * 100,
     y: yForValue(value),
     value,
   }));
+}
+
+function buildPointSegments(points) {
+  const segments = [];
+  points.forEach((point, index) => {
+    if (!point) return;
+    if (!points[index - 1]) segments.push([]);
+    segments.at(-1).push(point);
+  });
+  return segments;
 }
 
 function buildSmoothPath(points, tension = 0.4) {
@@ -114,17 +124,21 @@ export default function TrendChart({
   highlightIndex,
   tension = 0.4,
   renderTooltip,
+  preserveGaps = false,
 }) {
   const [hoverIndex, setHoverIndex] = useState(null);
   const safeLabels = Array.isArray(labels) ? labels : [];
   const safeSeries = Array.isArray(series)
     ? series.map((item) => ({
         ...item,
-        data: safeLabels.map((_, index) => Number(item.data?.[index] || 0)),
+        data: safeLabels.map((_, index) => {
+          const value = item.data?.[index];
+          return preserveGaps ? Number.isFinite(value) ? value : null : Number(value || 0);
+        }),
       }))
     : [];
   const allValues = safeSeries.flatMap((item) => item.data).filter((value) => Number.isFinite(value));
-  const hasData = safeLabels.length > 0 && allValues.some((value) => Math.abs(value) > 0);
+  const hasData = preserveGaps ? allValues.length > 0 : allValues.some((value) => Math.abs(value) > 0);
   const maxValue = Math.max(...allValues, 0);
   const minValue = Math.min(...allValues, 0);
   const { ticks, top, bottom } = useMemo(() => buildSignedTicks(minValue, maxValue, yAxisType, safeLabels.length > 6), [maxValue, minValue, safeLabels.length, yAxisType]);
@@ -213,7 +227,8 @@ export default function TrendChart({
                     onMouseLeave={() => setHoverIndex(null)}
                   >
                     {safeSeries.map((item, seriesIndex) => {
-                    const value = Number(item.data[index] || 0);
+                    const value = item.data[index];
+                    if (value === null) return null;
                     const y = yForValue(value);
                       const baseline = yForValue(0);
                       const height = Math.abs(baseline - y);
@@ -249,23 +264,23 @@ export default function TrendChart({
               </defs>
               {safeSeries.map((item, seriesIndex) => {
                 const pointList = buildPointList(item.data, yForValue);
-                const smoothPath = buildSmoothPath(pointList, tension);
-                return (
-                <g key={item.name}>
-                  {item.area || type === "area" ? (
-                    <path d={buildAreaPath(pointList, yForValue(0), tension)} fill={`url(#${gradientPrefix}-area-${seriesIndex})`} />
-                  ) : null}
-                  <path
-                    d={smoothPath}
-                    fill="none"
-                    stroke={item.stroke}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={item.strokeWidth ?? 3}
-                    vectorEffect="non-scaling-stroke"
-                  />
-                </g>
-              )})}
+                return buildPointSegments(pointList).map((segment) => (
+                  <g key={`${item.name}-${segment[0].x}`}>
+                    {item.area || type === "area" ? (
+                      <path d={buildAreaPath(segment, yForValue(0), tension)} fill={`url(#${gradientPrefix}-area-${seriesIndex})`} />
+                    ) : null}
+                    <path
+                      d={buildSmoothPath(segment, tension)}
+                      fill="none"
+                      stroke={item.stroke}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={item.strokeWidth ?? 3}
+                      vectorEffect="non-scaling-stroke"
+                    />
+                  </g>
+                ));
+              })}
               {safeLabels.map((label, index) => {
                 const x = (index / Math.max(safeLabels.length - 1, 1)) * 100;
                 return (
@@ -284,7 +299,7 @@ export default function TrendChart({
             </svg>
             {safeSeries.map((item) => {
               const pointList = buildPointList(item.data, yForValue);
-              return pointList.map((point, index) => (
+              return pointList.map((point, index) => point && (
                 <ChartDot
                   key={`${item.name}-${safeLabels[index]}-dot`}
                   point={point}
@@ -315,7 +330,7 @@ export default function TrendChart({
                 {safeSeries.map((item) => (
                   <div key={item.name} className="mt-1 flex justify-between gap-6 text-text-secondary">
                     <span>{item.name}</span>
-                    <strong className="text-text-primary">{item.format ? item.format(item.data[hoverIndex]) : item.data[hoverIndex]}</strong>
+                    <strong className="text-text-primary">{item.data[hoverIndex] === null ? "—" : item.format ? item.format(item.data[hoverIndex]) : item.data[hoverIndex]}</strong>
                   </div>
                 ))}
               </>
