@@ -1,5 +1,9 @@
 # FeedX Development Log
 
+## 2026-11-23 — Crew Month-End Closing confirmation
+
+Crew Confirm submits the complete count through the scoped Stock Check gateway and opens the saved result. Publication remains an authorized Admin action on the submitted evidence. See [Inventory and Assets](docs/domains/inventory-and-assets.md).
+
 ## 2026-11-22 — Restaurant Closing Stock submission
 
 Authorized Month-End Closing submission now publishes the pinned valuation and coverage in the same transaction. Edit Closing appends a correction and a linked publication revision. Historical evidence remains unpublished until an authorized user explicitly publishes it. See [Inventory and Assets](docs/domains/inventory-and-assets.md).

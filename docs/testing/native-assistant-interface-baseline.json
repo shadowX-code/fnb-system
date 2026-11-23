@@ -259,7 +259,7 @@
     "docs/domains/factory-warehouse.md": "32e0c77e75015b11413ef7204e5d2203520660b33994b91f6599b7f89124bddc",
     "docs/domains/finance.md": "6a58c07edc08e3ab8d728dff05d4588c09ea8106542e505ac381f52e763da778",
     "docs/domains/guest-ai.md": "d436aafcf4b6be0da888e3652ef548e6cd871e02108997b2515c8bc0ba48b717",
-    "docs/domains/inventory-and-assets.md": "de98d7d1477e1813eef9c3f934d2b42f8be70a2aa1a2330f84fc17b1bd51d2df",
+    "docs/domains/inventory-and-assets.md": "42c9f1c0944ff484c14eef0055a0376618ba0aa565e23688a7c4e89e53335185",
     "docs/domains/marketing.md": "c1e2efef13e498115931fa2b36bc5851adcdeeb88f2d9d9267a790f0ff09dc15",
     "docs/domains/payroll.md": "40e038c211a72adb240945a5f800fb52f09cf3f0fb372caa8bd5cf038a2ade6e",
     "docs/domains/people-identity-rbac.md": "d75e2a6db35236fe3237b543942be21113f1122858770403854b6253882380e8",
@@ -1107,6 +1107,7 @@
     "supabase/migrations/20261121072223_restaurant_uom_ignore_expired_scheduled_checks.sql": "a570ff17ab3fd14093126a0cc8b6947d5f4811c0ff4a00bbd0cfb16568c27174",
     "supabase/migrations/20261121181912_assistant_voice_usage_attribution.sql": "8e8ed5c66c9715930c504904c2b76788d5a9a516f3ca8f70a88864a0b8780866",
     "supabase/migrations/20261122141501_restaurant_partial_closing_publication.sql": "4272156312f2530e12bc1ef319225366ddba8db90e2f7e0d7115294a395c70a1",
-    "supabase/migrations/20261122153408_restaurant_closing_submit_publication.sql": "d71d0d32f3c7a9b38affdbc7272147dbb2c603bc86439c267a20527fc1a7bfe5"
+    "supabase/migrations/20261122153408_restaurant_closing_submit_publication.sql": "d71d0d32f3c7a9b38affdbc7272147dbb2c603bc86439c267a20527fc1a7bfe5",
+    "supabase/migrations/20261123043604_restaurant_crew_closing_submission.sql": "457b384374b6a6293fa9f4dd54bad622f22130211edfeead519ed1389ae8e25e"
   }
 }
