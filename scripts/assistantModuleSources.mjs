@@ -14,6 +14,20 @@ function visit(node,fn){
   else if(value?.type)visit(value,fn);
  }
 }
+
+// Domain reads can select an owner RPC by a fixed register name or call it
+// through a local helper. Direct caller.rpc('name') inspection misses both.
+export function domainSqlNames(source){
+ const literals=new Set();
+ visit(parse(source),node=>{
+  if(node.type==='Literal'&&typeof node.value==='string'&&/^[a-z][a-z0-9_]*$/.test(node.value))literals.add(node.value);
+ });
+ return literals;
+}
+export function referencedPublicFunctions(sql,domainNames){
+ return [...sql.matchAll(/\b(?:create\s+(?:or\s+replace\s+)?function|alter\s+function|drop\s+function(?:\s+if\s+exists)?|on\s+(?:function|routine))\s+"?public"?\s*\.\s*"?([a-z][a-z0-9_]*)"?\s*\(/gi)]
+  .map(match=>match[1].toLowerCase()).filter(name=>domainNames.has(name));
+}
 function importsOf(ast){
  const imports=new Map();
  for(const statement of ast.body){

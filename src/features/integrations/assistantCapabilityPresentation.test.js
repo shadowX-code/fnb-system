@@ -28,13 +28,17 @@ it('filters and collapses normalized inventory; external operations cannot becom
 
 it('keeps reviewed coverage separate from administrator policy',async()=>{
  const {assistantCoverageReview}=await import('./assistantCoverageReview.js');
- expect(Object.keys(assistantCoverageReview)).toHaveLength(40);
  expect(assistantCoverageReview.asset_tracking.classification).toBe('partial');
  expect(assistantCoverageReview.space_station.classification).toBe('not_applicable');
  const rows=capabilityInventory(operations);expect(rows.filter(r=>r.operations.length)).toHaveLength(116);
  for(const row of rows)expect(row.coverage.classification).toBeTruthy();
  for(const review of Object.values(assistantCoverageReview))expect(review.missing).toBeTruthy();
- for(const id of Object.keys(assistantCoverageReview)){const r=rows.find(r=>r.id===id);expect(r.coverageReads.map(o=>o.id)).toEqual(r.coverage.reads);}
+ for(const [id,review] of Object.entries(assistantCoverageReview)){
+  const row=rows.find(r=>r.id===id);
+  expect(row,id).toBeDefined();
+  expect(row.coverage.classification,id).toBe(review.classification);
+  expect(row.coverageReads.map(operation=>operation.id),id).toEqual(row.coverage.reads);
+ }
  const enabled=capabilityInventory(operations.map(o=>({...o,connection_enabled:true,ai_execution_enabled:true})));
  expect(enabled.map(r=>r.coverage.classification)).toEqual(rows.map(r=>r.coverage.classification));
  expect(rows.find(r=>r.id==='crew_operations').status).toBe('disabled');

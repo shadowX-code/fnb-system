@@ -3,7 +3,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import {operations,queryTool} from '../supabase/functions/native-assistant/business.js';
 import {moduleCoverage} from './assistantBusinessMatrix.mjs';
-import {adminModuleBinding,boundDomainFiles,readBindingSignature,registeredRouteBindings} from './assistantModuleSources.mjs';
+import {adminModuleBinding,boundDomainFiles,domainSqlNames,readBindingSignature,referencedPublicFunctions,registeredRouteBindings} from './assistantModuleSources.mjs';
 import {systemGuidance} from '../supabase/functions/_shared/assistant/systemGuidance.js';
 import {scenarios,assertScenarioContracts} from '../qa/staging/nativeAssistantCertification.mjs';
 const hash=s=>crypto.createHash('sha256').update(s).digest('hex');
@@ -16,10 +16,11 @@ const tokens=new Set(operations.flatMap(o=>[
  o.rpc,/^[a-z][a-z0-9_]+$/.test(o.moduleInterface?.authority||'')?o.moduleInterface.authority:null,
  ...[...(o.load||o.query||o.execute).toString().matchAll(/\.(?:rpc|from)\(['"]([^'"]+)['"]/g)].map(m=>m[1]),
 ]).filter(Boolean));
+const names=new Set(domainFiles.flatMap(file=>[...domainSqlNames(fs.readFileSync(file,'utf8'))]));
 const consumers=[...walk('src/services'),...walk('supabase/migrations')].filter(p=>{
  if(!/\.(js|ts|sql)$/.test(p)||p.includes('__tests__'))return false;
  const source=fs.readFileSync(p,'utf8');
- return [...tokens].some(t=>source.includes(t));
+ return [...tokens].some(t=>source.includes(t))||p.endsWith('.sql')&&referencedPublicFunctions(source,names).length>0;
 });
 const fixed=['supabase/functions/native-assistant/business.js','supabase/functions/native-assistant/businessQuery.js','supabase/functions/native-assistant/handler.js','supabase/functions/native-assistant/provider.js','supabase/functions/native-assistant/realtime.js','supabase/functions/native-assistant/context.js','src/features/ai-assistant/sdkVoiceHistory.js','src/features/company-users/pages/UsersPage.jsx','src/features/sales-purchase/pages/AssetTrackingPage.jsx','supabase/functions/_shared/completeRows.js','supabase/functions/_shared/hrWorkforceModel.js','src/features/sales-purchase/utils/analytics.js'];
 for(const o of operations){
@@ -84,7 +85,7 @@ const current={
  operations:Object.fromEntries(operations.map(o=>[o.id,hash(serialize({interface:o.moduleInterface,tool:queryTool(o),discovery:o.discoveryPhrases,discoveryFamily:o.discoveryFamily,intent:o.queryIntent,prepare:o.prepareArguments,textScope:o.scopeTextArguments,load:o.load,query:o.query,rpc:o.rpc,arguments:o.arguments,project:o.project,check:o.check,normalize:o.normalizeArguments,policyGroup:o.policyGroup,execute:o.execute,authorize:o.authorized}))])),
  sources:Object.fromEntries([...new Set([...domainFiles,...consumers,...fixed,...paritySources,...dataOwners,
   'src/app/routeOwnership.js','src/app/routes.jsx','scripts/assistantModuleSources.mjs',
-  ...walk('qa/staging').filter(p=>/nativeAssistant(?:OperationalCases|RegisterCertification|OperationalCertification|Certification)\.mjs$/.test(p))])].sort().map(p=>[p,sourceHash(p)])),
+  ...walk('qa/staging').filter(p=>/\/nativeAssistant\w*(?:Cases|Certification)\.mjs$/.test(p))])].sort().map(p=>[p,sourceHash(p)])),
 };
 const file='docs/testing/native-assistant-interface-baseline.json';
 const baseline=JSON.parse(fs.readFileSync(file,'utf8'));

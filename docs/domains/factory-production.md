@@ -4,6 +4,8 @@
 
 This domain owns Factory Production Planning, Production Overview, Job Orders, production execution, batches, Batch Traceability, and read-only MeSTI Finished Product Storage Control and Food Processing Control projections.
 
+The Assistant's Job Order Records read preserves the source dashboard status totals and can separately count or page matching job headers by planned date, reference, product, SKU or status. It uses the existing read-only Job Orders RPC. Neither reading the register nor querying its totals releases a job or opens an operator session.
+
 ## Canonical Ownership
 
 The Assistant production-register read counts or lists a requested batch, product, recorded production date, status or QC status under Factory Production access. Each result keeps production, manufacturing and end dates separate, with good output and wastage in their recorded units.

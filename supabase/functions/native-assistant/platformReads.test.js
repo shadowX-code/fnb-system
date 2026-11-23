@@ -70,10 +70,10 @@ test('permission discovery is one bounded canonical call, missing/error grants f
  assert.equal(calls,1);assert.equal(result.factory,true);assert.equal(result.permissions['reports.view'],false);assert(!Object.hasOwn(result.permissions,'unexpected'));
  await assert.rejects(businessAccess({rpc:async()=>({error:{}})}),{code:'admin_required'});
 });
-test('parameterless Admin READ test passes an empty argument object through the real dispatcher',async()=>{
+test('legacy calibration Admin READ test uses the current schedule with its default scope',async()=>{
  const {dispatch}=await import('./handler.js');const operation=op('read_factory_calibration');
  const config={capability_connections:{[operation.id]:true}};let invoked=0;
- const q={range(){return this;},async abortSignal(){invoked++;return {data:[]};}};
+ const q={range(){return this;},async abortSignal(){invoked++;return {data:[],count:0};}};
  const result=await dispatch({action:'capability_test',operation:operation.id},{rpc:async()=>({config,can_edit:true}),get:()=>undefined,access:{permissions:{[operation.permission]:true}},caller:{rpc(name){return name==='current_user_has_permission'?{abortSignal:async()=>({data:true})}:q;}}});
  assert.equal(result.outcome,'verified');assert.equal(invoked,1);
 });

@@ -9,8 +9,13 @@ import {generateText} from './provider.js';
 import {dispatch,validateBody} from './handler.js';
 import {semanticCatalog} from '../../../scripts/assistantBusinessMatrix.mjs';
 import {resolveCanonicalPath} from '../../../src/app/routeOwnership.js';
-import {adminModuleBinding,presentationBindings,routeAssemblySignature} from '../../../scripts/assistantModuleSources.mjs';
+import {adminModuleBinding,domainSqlNames,presentationBindings,referencedPublicFunctions,routeAssemblySignature} from '../../../scripts/assistantModuleSources.mjs';
 const factory='read_factory_finished_goods';
+test('owner RPCs selected by scoped register or helper remain covered by migration drift checks',()=>{
+ const names=domainSqlNames("const sources={history:'history_read'}; export const load=(name)=>query(name||'owner_options');");
+ const sql='create or replace function public.history_read() returns jsonb; CREATE FUNCTION "public"."owner_options"() returns jsonb; create function private.history_read(); create function public.unrelated(); revoke execute on function public.owner_options() from authenticated; select public.history_read();';
+ assert.deepEqual(referencedPublicFunctions(sql,names),['history_read','owner_options','owner_options']);
+});
 test('Admin parity follows a route selector through shared workspaces to its demonstrated page or legacy renderer',()=>{
  const factory=adminModuleBinding({id:'factory_equipment'});
  assert.deepEqual(factory.owners,['src/features/factory/pages/FactoryEquipmentPage.jsx']);
@@ -53,7 +58,7 @@ test('business catalog follows canonical module ownership and clearly identifies
  const assets=catalog.operations.find(row=>row.operation==='read_asset_catalogue');
  assert.equal(assets.semantics.metrics.quantity_change.unit_field,'asset.unit');
  assert.equal(catalog.operations.find(row=>row.operation==='read_factory_equipment_cleaning_requirements').semantics.metrics.entry_count.field,'total_matching');
- assert.equal(catalog.operations.find(row=>row.operation==='read_accounting_source_health').semantics,null);
+ assert.equal(catalog.operations.find(row=>row.operation==='read_accounting_source_health').semantics.metrics.record_count.unit,'accounting connections');
  assert.equal(catalog.operations.find(row=>row.operation==='read_assistant_system_guidance').source_type,'system_guidance');
  for(const id of ['read_purchase_records','read_supplier_directory','read_purchase_categories','read_outlet_directory',
   'read_sales_channels','read_factory_equipment','read_factory_raw_catalogue','read_crew_leave']){

@@ -97,7 +97,7 @@ function source({scope=true,brand=true,snapshot,assetRows=assets,outletRows=outl
    if(name==='current_user_can_access_outlet')result={data:scope};
    if(name==='factory_get_master_id_snapshot'){
     const table=args.p_entity==='finished_goods'?'factory_finished_goods':
-     args.p_entity==='product_families'?'factory_product_families':'factory_raw_materials';
+     args.p_entity==='product_families'?'factory_product_families':args.p_entity==='finished_good_categories'?'factory_finished_good_categories':'factory_raw_materials';
     result={data:(snapshot?.tables[table]||stock).map(r=>r.id)};
    }
    if((name==='marketing_planner_read'&&!brand)||(name==='crew_leave_requests_admin_page'&&!scope))result={error:{code:'42501'}};
@@ -248,13 +248,13 @@ test('Finished Goods summary distinguishes configured groups from packaging SKUs
  assert.equal(grouped.query_outcome,'SUCCESS');
  assert.equal((await business.execute(op,{mode:'summary'})).total_matching,4);
  assert.equal((await business.execute(op,{mode:'summary',status:'active'})).total_matching,3);
- await assert.rejects(business.execute(op,{mode:'summary',measure:'product',status:'active'}),{code:'tool_arguments_invalid'});
+ assert.equal((await business.execute(op,{mode:'summary',measure:'product',status:'active'})).total_matching,3);
 });
 
 test('model-assisted grouped product count corrects a schema-shaped filter error before reading',async()=>{
  const operation='read_factory_finished_goods';
  const prompt='How many products are in the Factory Finished Goods grouped catalogue?';
- const valid={measure:'product',mode:'summary',page:1,sku:null,query:'',availability:'all',status:'all',sort:'name',uom:null};
+ const valid={measure:'product',mode:'summary',page:1,sku:null,query:'',availability:'all',status:'all',sort:'name',uom:null,category_name:null,tag_name:null};
  const families=Array.from({length:6},(_,i)=>({id:'family-'+i}));
  const skus=Array.from({length:26},(_,i)=>({id:'sku-'+i,product_family_id:i<7?families[i%6].id:null}));
  const {caller,calls}=source({snapshot:{rpcs:fixtures,tables:{
@@ -283,8 +283,7 @@ test('model-assisted grouped product count corrects a schema-shaped filter error
    }
    const value=JSON.parse(body.input.at(-1).output);
    if(step===2){
-    assert.deepEqual(value.validation,{reason:'required_values',fields:['query','status','uom'],
-     expected:{query:'',status:'all',uom:null}});
+    assert.deepEqual(value.validation,{reason:'required_values',fields:['uom'],expected:{uom:null}});
     assert(!JSON.stringify(value).includes('PRIVATE_FILTER'));
     assert.equal(value.no_evidence,true);
     assert.equal(calls.length,0);
@@ -304,6 +303,118 @@ test('model-assisted grouped product count corrects a schema-shaped filter error
   model:config.model,state:'completed',tool_state:'completed',evidence:recorded[0]},
   source:{count:25,filters:{measure:'product'}}}).status,'PASS');
  assert.doesNotMatch(result.reply,/required_values|PRIVATE_FILTER/);
+});
+
+const groupedFixture=()=>{
+ const families=[
+  {id:'f1',name_en:'Dark soy',status:'archived',category_id:'sauce'},
+  {id:'f2',name_en:'Empty blend',name_cn:'空酱',status:'active',category_id:'sauce'},
+  {id:'f3',name_en:'Tea',status:'active',category_id:'drink'},
+ ];
+ const skus=[
+  {id:'s1',product_code:'S01',variant_name:'200g',product_family_id:'f1',status:'active',category_id:'drink',current_balance:0},
+  {id:'s2',product_code:'S02',product_family_id:'f1',status:'archived',category_id:'sauce',current_balance:5},
+  {id:'s3',product_code:'T01',product_family_id:'f3',status:'active',category_id:'drink',current_balance:5},
+  {id:'s4',product_code:'L01',product_name:'Loose sauce',status:'active',category_id:'sauce',current_balance:0},
+ ];
+ const tags={tags:[{id:'food',name:'Food Service'}],assignments:[
+  {product_family_id:'f1',tag_id:'food'},{product_family_id:'f2',tag_id:'food'},
+ ]};
+ return {rpcs:{factory_get_finished_good_tags:tags},tables:{factory_finished_goods:skus,factory_product_families:families,
+  factory_finished_good_categories:[{id:'sauce',name:'Sauce'},{id:'drink',name:'Drink'}]}};
+};
+
+test('Admin family/SKU filters use a surviving child, matching empty families and independent standalone products',async()=>{
+ const op='read_factory_finished_goods';
+ const snapshot=groupedFixture();
+ const {caller,calls}=source({snapshot});
+ const business=createBusinessDispatcher({config,access,caller});
+ const count=async args=>(await business.execute(op,{mode:'summary',measure:'product',...args})).total_matching;
+ assert.equal(await count({}),4);
+ assert(!calls.some(([rpc,args])=>rpc==='factory_get_finished_good_tags'||args?.p_entity==='finished_good_categories'));
+ assert.equal(await count({query:'空酱'}),1,'empty family name');
+ assert.equal(await count({query:'200g'}),1,'packaging variant');
+ assert.equal(await count({availability:'out_of_stock'}),2);
+ assert.equal(await count({query:'not recorded'}),0);
+ assert.equal(await count({status:'active',category_name:'Sauce'}),2,'an active child in a different category cannot satisfy both filters');
+ assert.equal(await count({status:'active',category_name:'Drink',tag_name:'Food Service'}),1,'archived family has a matching active child');
+ const skus=await business.execute(op,{category_name:'SAUCE',tag_name:'food service'});
+ assert.deepEqual(skus.rows.map(row=>row.product_code),['S02']);
+ assert.equal(skus.category_name,'Sauce');assert.equal(skus.tag_name,'Food Service');
+ assert(!['tags','category_id','product_family_id'].some(field=>field in skus.rows[0]));
+ await assert.rejects(count({category_name:'Unlisted'}),{code:'entity_unresolved'});
+ await assert.rejects(count({tag_name:'Food Servic'}),{code:'entity_ambiguous'});
+ snapshot.rpcs.factory_get_finished_good_tags.tags.push({id:'different-tag',name:'Food-Service'});
+ await assert.rejects(count({tag_name:'Food Service'}),{code:'entity_ambiguous'});
+ snapshot.rpcs.factory_get_finished_good_tags.assignments.push({tag_id:'invalid',product_family_id:'f1'});
+ await assert.rejects(count({tag_name:'Food Service'}),{code:'inventory_unavailable'});
+ const denied=()=>assert.fail('A denied operation reached its domain or label lookup');
+ for(const [policy,grants,reason] of [[config,{},'factory_read_denied'],[{...config,capability_connections:{}},access,'capability_disconnected']]){
+  const gated=createBusinessDispatcher({config:policy,access:grants,caller:{rpc:denied,from:denied}});
+  await assert.rejects(gated.execute(op,{mode:'summary',measure:'product',tag_name:'Food Service'}),{code:reason});
+ }
+});
+
+test('a filtered Finished Goods answer is certified against independently captured Admin group identities and scope',async()=>{
+ const op='read_factory_finished_goods';
+ const scope={measure:'product',mode:'summary',page:1,sku:null,query:'',availability:'all',status:'all',sort:'name',uom:null,
+  category_name:'Sauce',tag_name:'Food Service'};
+ const sourceCapture={scope,admin_group_count:2,group_keys:['f1','f2'],all_group_pages:true,scope_label:'Factory Finished Goods, category Sauce, tagged Food Service'};
+ const actor='qa-fixture';
+ const question='How many grouped Factory Finished Goods products are in the Sauce category with the Food Service tag?';
+ const business=createBusinessDispatcher({config,access,caller:source({snapshot:groupedFixture()}).caller});
+ let evidence,submissions=0;
+ const result=await generateText({kind:'turn',model:config.model,prompt:question},'fixture',{
+  business,onTool:(state,value)=>{if(state==='completed')evidence=value;},
+  transport:async(_,init)=>{
+   const body=JSON.parse(init.body);
+   if(++submissions===1){
+    assert(body.tools.some(tool=>tool.name===op));
+    return response([functionCall(op,{...scope,measure:'sku'},'read')]);
+   }
+   assert.equal(JSON.parse(body.input.at(-1).output).total_matching,2);
+   return response([{type:'message',content:[{type:'output_text',text:'There are 99 packaging SKUs.'}]}]);
+  },
+ });
+ assert.equal(submissions,2);
+ assert.equal(result.reply,'2 grouped products (Sauce · Food Service).');
+ const record={turn:{...result,evidence,request_id:id,created_at:evidence.as_of,model:config.model,actor_ref:actor,state:'completed',tool_state:'completed'},
+  source:{...sourceCapture,capture:{environment:'staging',method:'admin_view',module_id:'factory_finished_goods',
+   authority:'/factory/warehouse/finished-goods',at:evidence.as_of,actor_ref:actor}}};
+ const check=(turn=record.turn,source=record.source)=>certifyScenario('fg_filtered_product_groups',{turn,source});
+ assert.equal(check().status,'PASS',JSON.stringify(check()));
+ assert.equal(check({...record.turn,reply:'2 packaging SKUs (Sauce · Food Service).'}).status,'FAIL');
+ assert.equal(check({...record.turn,reply:'2 grouped products (Sauce).'}).status,'FAIL');
+ assert.equal(check(record.turn,{...record.source,group_keys:['f1','f1']}).status,'FAIL');
+ assert.equal(check(record.turn,{...record.source,all_group_pages:false}).status,'FAIL');
+ assert.equal(check(record.turn,{...record.source,capture:{...record.source.capture,actor_ref:'other'}}).status,'FAIL');
+});
+
+test('product-group pages retain family identities, empty families and the matching SKU count on continuation',async()=>{
+ const op='read_factory_finished_goods';
+ const families=Array.from({length:21},(_,i)=>({id:'family-'+i,name_en:'Family '+String(i).padStart(2,'0'),status:'active'}));
+ const skus=[{id:'sku-a',product_family_id:'family-20',product_name:'Box A',product_code:'BX'},{id:'sku-b',product_family_id:'family-20',product_name:'Bag B',product_code:'BG'},
+  {id:'loose',product_name:'Unassigned pack',product_code:'U'}];
+ const {caller}=source({snapshot:{rpcs:fixtures,tables:{factory_finished_goods:skus,factory_product_families:[...families].reverse()}}});
+ const dispatcher=createBusinessDispatcher({caller,config,access});
+ const first=await dispatcher.execute(op,{mode:'list',measure:'product'},undefined,{withOutcome:true});
+ assert.equal(first.rows.length,20);assert(first.rows.every(row=>row.matching_packaging_skus===0));
+ assert.equal(first.truncated,true);
+ const prior={tool_state:'completed',state:'completed',evidence:first};
+ const plan=await dispatcher.planTurn('next page',async()=>({turns:[prior]}));
+ assert.deepEqual(plan.page.args,{...first.requested_scope,page:2});
+ const next=await dispatcher.execute(op,plan.page.args,undefined,{withOutcome:true});
+ assert.equal(next.total_matching,22);assert.equal(next.truncated,false);
+ const reply=dispatcher.format(op,next,'List product groups in Factory');
+ const groups=[...families.map((f,i)=>({key:f.id,name:f.name_en,skus:i===20?2:0})),{key:'__sku_loose',name:'Unassigned pack',skus:1}];
+ const capture={environment:'staging',method:'admin_view',module_id:'factory_finished_goods',authority:'/factory/warehouse/finished-goods',at:next.as_of,actor_ref:'fixture'};
+ const record={source:{capture,groups,all_group_pages:true,scope:next.requested_scope},turn:{request_id:id,created_at:next.as_of,model:'fixture',state:'completed',tool_state:'completed',actor_ref:'fixture',evidence:next,reply}};
+ const check=text=>certifyScenario('fg_product_group_page',{...record,turn:{...record.turn,reply:text}});
+ assert.equal(check(reply).status,'PASS',JSON.stringify(check(reply)));
+ assert.equal(check(reply.replace('2 matching','1 matching')).status,'FAIL');
+ assert.equal(check(reply.replace('Unassigned pack','Family 19')).status,'FAIL');
+ const spoken=dispatcher.format(op,first,'List product groups',{medium:'voice'});
+ assert.match(spoken,/first 3/);assert.doesNotMatch(spoken,/Family 03/);
 });
 
 test('other READ field-combination errors identify safe corrections before domain access',async()=>{

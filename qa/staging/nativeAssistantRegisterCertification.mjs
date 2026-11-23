@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
+import {checkFinanceCostTrend} from './nativeAssistantFinanceCostCertification.mjs';
 import {checkCapture} from './nativeAssistantOperationalCertification.mjs';
 
 // The noun is the grain of the owning read model. A roster entry is a duty
 // assignment, a recipe row is a version, and an observed post is not an impression.
 const counts=[
+ ['Finance','read_accounting_source_health','owner-visible AutoCount connection records matching the selected filters, including historical bindings','(?:accounting |autocount |source )?(?:connections?|bindings?)(?: records?)?'],
  ['Restaurant','read_inventory_stock_evidence','matching stock positions','(?:stock )?positions?'],
  ['Restaurant','read_inventory_par_levels','item-to-outlet par configurations','(?:par )?(?:settings|configurations?)'],
  ['Factory','read_factory_audit_events','Factory audit events','(?:audit )?events?'],
@@ -107,10 +109,10 @@ function checkRecordedSupplierYear(e,reply,src){
 
 export function registerScenarios(operations,canonicalPath){
  const map=new Map(operations.map(op=>[op.id,op]));
- const wrap=(id,domain,question,check,businessScope=scope=>scope)=>{
+ const wrap=(id,domain,question,check,businessScope=scope=>scope,captureOwner)=>{
   const op=map.get(id);
   assert(op?.kind==='READ','Scenario needs a bound READ: '+id);
-  const owner={owner:op.module_id,canonicalRoute:canonicalPath(op.module_id),rpc:op.rpc};
+  const owner={owner:captureOwner||op.module_id,canonicalRoute:canonicalPath(captureOwner||op.module_id),rpc:op.rpc};
   return {domain,operations:[id],medium:'text',question,independentOwnerCheck:true,
    check:([e],reply,source,turn)=>{
     checkCapture(owner,source,turn,e.as_of);
@@ -122,6 +124,48 @@ export function registerScenarios(operations,canonicalPath){
    }};
  };
  const cases={};
+ cases.fg_product_group_page=wrap('read_factory_finished_goods','Factory',
+  'List the Factory product families and standalone products on this page, their matching packaging SKU counts and the total number of groups.',(e,reply,s)=>{
+   assert.equal(s.capture.method,'admin_view');
+   assert.equal(s.scope.measure,'product');assert.equal(s.scope.mode,'list');
+   assert.equal(e.aggregate_complete,true);assert.equal(e.page_size,20);assert.equal(e.page,s.scope.page);
+   assert.equal(s.all_group_pages,true);
+   const groups=s.groups;
+   assert(Array.isArray(groups)&&groups.every(g=>g.key&&g.name&&Number.isSafeInteger(g.skus)&&g.skus>=0));
+   assert.equal(new Set(groups.map(g=>g.key)).size,groups.length);
+   assert.equal(e.total_matching,groups.length);
+   const start=(e.page-1)*20;
+   const page=[...groups].sort((a,b)=>a.name.localeCompare(b.name,'en')||a.key.localeCompare(b.key,'en')).slice(start,start+20);
+   assert.deepEqual(e.rows.map(r=>[r.id,r.product_group_name,r.matching_packaging_skus]),page.map(r=>[r.key,r.name,r.skus]));
+   assert.equal(e.truncated,start+page.length<groups.length);
+   assert.match(reply,new RegExp('(?<!\\d)'+groups.length+'\\s+(?:grouped products?|product groups?)\\b','iu'));
+   const lines=reply.split(/\n/u);
+   for(const group of page){
+    const name=group.name.replace(/[.*+?^${}()|[\]\\]/gu,'\\$&');
+    const pair=new RegExp('(?<![\\p{L}\\p{N}])'+name+'\\s*(?:[(:|—-]|has|with)\\s*'+group.skus+'\\s+(?:matching )?packaging SKUs?\\b','iu');
+    const index=lines.findIndex(line=>pair.test(line));
+    assert(index>=0,'Answer omitted a group or mismatched its packaging SKU count');
+    lines.splice(index,1);
+   }
+  });
+ cases.fg_filtered_product_groups=wrap('read_factory_finished_goods','Factory',
+  'How many matching products are in the Finished Goods grouped view? Include the selected filter in the answer.',(e,reply,s)=>{
+   assert.equal(s.capture.method,'admin_view');
+   assert.equal(s.scope.measure,'product');assert.equal(s.scope.mode,'summary');assert.equal(s.scope.page,1);
+   assert.equal(e.aggregate_complete,true);assert.equal(e.measure,'product');assert.deepEqual(e.rows,[]);
+   assert.equal(s.all_group_pages,true,'Capture every matching grouped-view page');
+   assert(Array.isArray(s.group_keys)&&s.group_keys.every(key=>typeof key==='string'&&key.trim()));
+   assert.equal(new Set(s.group_keys).size,s.group_keys.length);assert.equal(s.admin_group_count,s.group_keys.length);
+   assert.equal(e.total_matching,s.admin_group_count);
+   const qualifiers=[s.scope.query,s.scope.category_name,s.scope.tag_name,s.scope.status!=='all'&&s.scope.status,s.scope.availability!=='all'&&s.scope.availability].filter(Boolean);
+   assert(qualifiers.length,'At least one real filter is required');
+   for(const label of [s.scope.query,s.scope.category_name,s.scope.tag_name].filter(Boolean))assert(reply.toLowerCase().includes(label.toLowerCase()),'Answer omitted a named filter');
+   if(s.scope.status==='active')assert.match(reply,/\b(?:active|aktif)\b|启用|啟用|活跃|活躍/iu);
+   if(s.scope.status==='archived')assert.match(reply,/\b(?:archived|diarkibkan)\b|归档|歸檔/iu);
+   if(s.scope.availability==='out_of_stock')assert.match(reply,/out[ -]of[ -]stock|habis stok|缺货|缺貨/iu);
+   const n='(?<![.\\d])'+s.group_keys.length+'(?!\\d|\\.\\d)';
+   assert.match(reply,new RegExp(n+'\\s*(?:matching\\s+)?(?:grouped products?|product (?:groups?|families)|kumpulan produk|(?:个|個)?(?:成品[组組]|产品组|產品組))','iu'));
+  });
  for(const [domain,id,label,noun,boundary] of counts){
   cases[id+'_filtered_register_count']=wrap(id,domain,'How many '+label+' match those conditions?',(e,reply,s)=>{
    if(boundary!=='page')assert.equal(s.scope.mode,'summary');
@@ -169,6 +213,43 @@ export function registerScenarios(operations,canonicalPath){
   });
  cases.restaurant_supplier_monthly_recorded_purchases=wrap('read_purchase_comparison','Restaurant',
   'What are this outlet’s supplier purchases by month, recorded total for the year, and months without purchase entries?',checkRecordedSupplierYear,annualPurchaseScope);
+ for(const [id,authority,dateBasis,unit] of [
+  ['read_factory_job_summary','factory_list_job_order_records','planned_date','job orders'],
+  ['read_factory_dispatch_summary','factory_finished_good_dispatches','dispatch_date','dispatches'],
+  ['read_factory_raw_checks','factory_raw_material_stock_checks','check_date','raw material stock checks'],
+  ['read_factory_product_checks','factory_product_stock_checks','check_date','finished product stock checks'],
+ ]){
+  cases[id+'_filtered_header_count']=wrap(id,'Factory','For the specified status and date range, how many '+unit+' are recorded? Count documents rather than items or units.',(e,reply,src)=>{
+   assert.equal(src.capture.method,'admin_view');assert.equal(src.scope.mode,'count');assert.equal(src.scope.page,1);
+   assert(src.scope.from&&src.scope.to&&src.scope.status,'Select an explicit status and calendar range');
+   assert(Array.isArray(src.matching_ids)&&src.matching_ids.every(id=>typeof id==='string'&&id.length));
+   assert.equal(new Set(src.matching_ids).size,src.matching_ids.length);assert.equal(e.header_authority,authority);
+   assert.equal(e.date_basis,dateBasis);assert.equal(e.aggregate_complete,true);assert.equal(e.total_matching,src.matching_ids.length);
+   const count=src.matching_ids.length||'(?:0|zero|no)';
+   const noun=unit==='dispatches'?'(?:dispatches|dispatch(?: records?)?)':unit==='job orders'?'job orders?':'(?:raw.material |finished.product |product |material )?stock[ -]checks?';
+   assert.match(reply,new RegExp('(?<![\\d.])'+count+'(?![\\d.])\\s+(?:matching |'+src.scope.status.replaceAll('_','[ -]')+' )*'+noun,'iu'));
+   assert.match(reply,new RegExp(src.scope.status.replaceAll('_','[ -]'),'iu'),'The answer must retain the selected status');
+  });
+ }
+ for(const register of ['schedule','history']){
+  const history=register==='history';
+  cases['factory_calibration_'+register+'_count']=wrap('read_factory_calibration','Factory',history
+   ?'How many calibration records match the selected verification status and calibration dates? Count the records, not the current requirements.'
+   :'How many current calibration requirements match the selected equipment status and due dates? Count requirements, not historical calibrations.',(e,reply,src)=>{
+    assert.equal(src.capture.method,'admin_view','Capture the independently scoped Calibration Schedule or Record tab');
+    assert.equal(src.scope.register,register);assert.equal(src.scope.mode,'summary');assert.equal(src.scope.page,1);
+    assert(src.scope.status&&src.scope.from&&src.scope.to,'Provide an independently selected status and date range');
+    assert(Array.isArray(src.matching_ids)&&src.matching_ids.every(id=>typeof id==='string'&&id.length));
+    assert.equal(new Set(src.matching_ids).size,src.matching_ids.length);
+    assert.equal(e.register,register);assert.equal(e.evidence_rpc,'factory_mesti_calibration_'+(history?'records':'schedule'));
+    assert.equal(e.date_basis,history?'calibrated_date':'next_due');assert.equal(e.aggregate_complete,true);
+    assert.equal(e.total_matching,src.matching_ids.length);
+    const units=history?'(?:calibration )?(?:records?|calibrations?)':'(?:current |calibration |schedule(?:d)? )*(?:requirements?|scheduled calibrations?)';
+    const n=src.matching_ids.length,quantity=n?'(?<![.\\d])'+n+'(?![.\\d])':'(?:0|zero|no)';
+    assert.match(reply,new RegExp(quantity+'\\s+(?:matching |verified |recorded |overdue |due |pending )*'+units,'iu'));
+    assert.match(reply,new RegExp(src.scope.status.replaceAll('_','[ -]'),'iu'),'Report the selected status alongside the count');
+   });
+ }
  cases.factory_recipe_standards_and_versions=wrap('read_factory_recipe_versions','Factory',
   'How many products have active current recipe standards out of all current standards? Compare this with active saved versions out of all recorded versions.',(e,reply,s)=>{
    assert.equal(e.aggregate_complete,true);
@@ -239,6 +320,8 @@ export function registerScenarios(operations,canonicalPath){
    }
    validateFinalAmount(reply,null);
   });
+ cases.finance_operational_cost_trend=wrap('read_operational_financials','Finance',
+  'Show the monthly Finance cost trend for this scope in MYR.',checkFinanceCostTrend,scope=>scope,'finance_costs');
  cases.finance_closing_valuation=wrap('read_operational_financials','Finance',
   'What is the published closing stock valuation? Include its currency, valuation coverage and whether the amount is partial or complete.',(e,reply,s)=>{
    assert.equal(s.scope.measure,'closing_stock');
@@ -270,7 +353,7 @@ export function registerSourceCases(samples,scenarios){
   const id=source.scenario;
   const definition=scenarios[id];
   assert(definition&&Object.prototype.hasOwnProperty.call(scenarios,id)&&definition.independentOwnerCheck&&
-   (id.endsWith('_filtered_register_count')||['stock_closing_publication','finance_closing_valuation','customer_filtered_and_brand_totals','crew_review_assignment_count','workflow_source_ceiling','receiving_quantity_units','factory_recipe_standards_and_versions','restaurant_supplier_monthly_recorded_purchases'].includes(id)),'Unsupported register scenario');
+   (id.endsWith('_filtered_register_count')||id.endsWith('_filtered_header_count')||['fg_filtered_product_groups','fg_product_group_page','stock_closing_publication','finance_closing_valuation','finance_operational_cost_trend','customer_filtered_and_brand_totals','crew_review_assignment_count','workflow_source_ceiling','receiving_quantity_units','factory_recipe_standards_and_versions','factory_calibration_schedule_count','factory_calibration_history_count','restaurant_supplier_monthly_recorded_purchases'].includes(id)),'Unsupported register scenario');
   assert(typeof source.scope_label==='string'&&source.scope_label.trim()&&source.scope_label.length<=300,'A source-derived scope description is required');
   assert(!/[a-f\d]{8}-(?:[a-f\d]{4}-){3}[a-f\d]{12}/i.test(source.scope_label),'Use human-readable scope in questions');
   return {id,question:source.scope_label.trim()+'. '+definition.question,source};

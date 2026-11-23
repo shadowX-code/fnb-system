@@ -42,6 +42,27 @@ test('a short source page or missing canonical count cannot become a complete ze
  assert.equal(rpcPageEvidence([],0,1,[]).total_matching,0);
 });
 
+test('Finance counts owner-visible connection bindings, pages history and distinguishes denied access from an empty register',async()=>{
+ const read=operation('read_accounting_source_health');
+ const rows=Array.from({length:26},(_,i)=>({id:String(100+i),legalEntityLabel:'Company A',sourceBook:'Book',active:i<23,syncState:i<23?'ready':null,syncError:'PRIVATE',datasets:[{token:'PRIVATE'}]})).reverse();
+ const owner=source({finance_accounting_source_status:rows});
+ const page=await read.execute(owner,{legal_entity:'company a',active:true,page:2});
+ assert.deepEqual(page.rows.map(row=>row.id),['120','121','122']);
+ assert.equal(page.aggregate_complete,true);
+ assert.equal(page.total_matching,23);
+ assert.equal(JSON.stringify(page).includes('PRIVATE'),false);
+ assert.equal((await read.execute(owner,{mode:'summary',active:false})).total_matching,3);
+ await assert.rejects(read.execute(owner,{active:'unknown'}),{code:'tool_arguments_invalid'});
+ assert.equal(owner.calls.some(c=>c.name==='finance_accounting_connector_options'),false);
+ const empty=await read.execute(source({finance_accounting_source_status:[],finance_accounting_connector_options:[]}),{mode:'summary'});
+ assert.equal(empty.total_matching,0);
+ await assert.rejects(read.execute(source({finance_accounting_source_status:[rows[0],rows[0]]}),{}),{code:'business_read_unavailable'});
+ await assert.rejects(read.execute(source({finance_accounting_source_status:[],finance_accounting_connector_options:null}),{}),{code:'business_read_denied'});
+ await assert.rejects(read.execute(source({finance_accounting_source_status:[],finance_accounting_connector_options:{}}),{}),{code:'business_read_unavailable'});
+ await assert.rejects(read.execute(source({finance_accounting_source_status:()=>({error:{code:'PT403'}})}),{}),{code:'business_read_denied'});
+ await assert.rejects(read.execute(source({},['reports.view']),{}),{code:'business_read_denied'});
+});
+
 test('an exact employee name uses both authorities and honors dated assignment history',async()=>{
  const name='Sample Staff';
  const data={

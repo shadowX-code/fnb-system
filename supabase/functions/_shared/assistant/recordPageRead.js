@@ -30,7 +30,7 @@ export function recordPageRead({id,module_id,label,permission,source,scope,table
    if(calendarMonth)query=query.eq('year',Number(args.month.slice(0,4))).eq('month',Number(args.month.slice(5,7)));
    if(dateField&&args.from)query=query.gte(dateField,args.from).lte(dateField,args.to);
    for(const [name,column] of Object.entries(filters))if(args[name])query=exactName(query,column,args[name].trim());
-   for(const {key,descending} of order)query=query.order(key,{ascending:!descending});
+   for(const {key,descending,nullsFirst} of order)query=query.order(key,{ascending:!descending,...(nullsFirst===undefined?{}:{nullsFirst})});
    const result=await countedRows(query,args,fields,signal);
    return {...result,returned_count:result.rows.length,complete:false};
   },

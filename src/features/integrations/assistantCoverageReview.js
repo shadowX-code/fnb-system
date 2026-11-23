@@ -2,6 +2,8 @@
 export const coverageLabels = {"full": "Full", "partial": "Partial", "shared": "Shared", "missing": "Not integrated", "blocked": "Not integrated", "not_applicable": "Not applicable"};
 export const assistantCoverageReview = {
   "purchase-input": {
+    sourceLimit: "Purchase Input reads entered purchase records for one authorized outlet and month. Missing entries do not establish actual cash payments.",
+    privacyLimit: "Private purchase remarks are excluded from Assistant evidence.",
     classification: "partial",
     available: "Monthly recorded purchases for one authorized outlet, including the total, amounts by recorded supplier, individual entries, and visible supplier and category labels.",
     missing: "Payments, statutory expenses, private remarks and unentered purchases are unavailable. Use Purchase Comparison for an annual breakdown.",
@@ -10,6 +12,7 @@ export const assistantCoverageReview = {
     certification: ["purchase_input_rank"]
   },
   "outlets": {
+    privacyLimit: "Public feedback tokens, addresses and attendance-location data are excluded from the outlet directory projection.",
     classification: "partial",
     available: "Exact counts and pages of visible outlet directory entries with optional active-status and exact-name filters.",
     missing: "Addresses, public feedback tokens, attendance locations and business results are excluded.",
@@ -18,6 +21,7 @@ export const assistantCoverageReview = {
     certification: ["read_outlet_directory_count"]
   },
   "sales-channels": {
+    limitBasis: "authority",
     classification: "partial",
     available: "Sales-channel directory counts and pages by exact name and active status.",
     missing: "Revenue, transactions and channel balances have separate source permissions.",
@@ -34,6 +38,8 @@ export const assistantCoverageReview = {
     certification: ["read_purchase_categories_count"]
   },
   "suppliers": {
+    sourceLimit: "The supplier directory counts visible supplier records independently of purchases.",
+    privacyLimit: "Private supplier contact fields are excluded.",
     classification: "partial",
     available: "Count or page visible Restaurant suppliers and look up an authorized supplier by name.",
     missing: "The count covers supplier records, regardless of purchase activity. Private contacts and purchase volumes are excluded.",
@@ -50,6 +56,7 @@ export const assistantCoverageReview = {
     certification: ["read_factory_equipment_count"]
   },
   "inventory_movements": {
+    sourceLimit: "The movement register records dated transactions. A movement count or quantity cannot establish current stock or accounting valuation.",
     classification: "partial",
     available: "Exact counts and paged movement records by outlet, date, item or SKU, reference and recorded movement type.",
     missing: "Grouped quantities, valuation and current stock balances are outside the movement history.",
@@ -58,6 +65,7 @@ export const assistantCoverageReview = {
     certification: ["movement_filtered_count", "inventory_movement_item_history"]
   },
   "factory_product_movements": {
+    sourceLimit: "Movement history preserves each movement’s source unit. Quantities in different units cannot form one physical total.",
     classification: "partial",
     available: "Dated movement counts and pages by product code or name, recorded batch, reference and movement type. Each row retains its quantity, unit and historical balance after posting when recorded.",
     missing: "Cross-unit totals, current stock, allocation breakdowns and movement valuation require separate evidence.",
@@ -75,13 +83,14 @@ export const assistantCoverageReview = {
   },
   "factory_finished_goods": {
     classification: "partial",
-    available: "Unfiltered grouped-product counts, packaging SKU counts, status and stock filters, multilingual name search, exact SKU detail and same-unit ranking.",
-    missing: "Filtered product-family counts, category and tag filters, per-location stock and valuation remain outside the Assistant read.",
+    available: "Grouped-product and packaging SKU counts and pages with named category and family-tag filters. Product-group rows show their names and matching packaging SKU counts. SKU reads support exact detail, stock thresholds and same-unit ranking.",
+    missing: "Per-category or tag rollups, per-location stock and valuation remain outside the Assistant read.",
     reads: ["read_factory_finished_goods"],
     evidence: ["src/features/factory/hooks/useFactoryFinishedGoodsQuery.js", "supabase/functions/_shared/factory/finishedGoodsRead.js"],
-    certification: ["fg_product_count", "fg_filtered_count", "fg_rank"]
+    certification: ["fg_product_count", "fg_filtered_product_groups", "fg_product_group_page", "fg_filtered_count", "fg_rank"]
   },
   "departments": {
+    limitBasis: "authority",
     classification: "partial",
     available: "Exact department counts and pages by recorded status or name.",
     missing: "Employee headcount by department belongs to Employees and requires separate authority.",
@@ -90,6 +99,7 @@ export const assistantCoverageReview = {
     certification: ["department_count"]
   },
   "job-positions": {
+    limitBasis: "source",
     classification: "partial",
     available: "Exact position counts and pages by department, recorded status or name.",
     missing: "Counts describe configured positions. Staffing, vacancies and employee assignments are separate records.",
@@ -98,14 +108,18 @@ export const assistantCoverageReview = {
     certification: ["position_department_count"]
   },
   "finance_overview": {
+    sourceLimit: "The operational reporting source retains missing and partial coverage for each explicit month. It does not establish statutory accounting balances.",
+    reviewedUiOnly: [{module: "finance_costs", description: "The Costs screen offers six- and twelve-month labour trends. The shared operational Reporting authority has no payroll-derived labour amounts.", ui: "src/features/finance/FinanceCostTrend.jsx", read: "supabase/functions/_shared/finance/reportRead.js"}],
     classification: "partial",
-    available: "Monthly operational reports. For one outlet with comparable periods, Finance provides cost changes, reconciled EBITDA contributions and its revenue-growth/EBITDA-margin performance zone.",
+    available: "Monthly operational reports, cost changes, reconciled EBITDA contributions and the performance zone. One authorized outlet’s six- or twelve-month Costs trend includes purchase-based COGS and recorded operating expenses.",
     missing: "No all-outlet performance ranking, accounting statements, statutory figures, cash balances or evidence of business causation.",
     reads: ["read_operational_financials"],
     evidence: ["src/services/reportingService.js", "supabase/functions/_shared/finance/reportRead.js"],
-    certification: ["finance_period_pair", "finance_partial", "finance_performance_change"]
+    certification: ["finance_period_pair", "finance_partial", "finance_performance_change", "finance_operational_cost_trend"]
   },
   "crew_leave": {
+    privacyLimit: "Private leave reasons and medical attachments are excluded from the Assistant projection.",
+    reviewedUiOnly: [{module: "crew_leave", description: "Leave Type is visible on authorized Admin requests. The Assistant returns dates, status and matching count without the leave type.", ui: "src/features/crew/pages/CrewLeaveAdminPage.jsx", read: "supabase/functions/_shared/crew/leaveRead.js"}],
     classification: "partial",
     available: "Exact overlapping leave request counts and pages by outlet, date range and approval status.",
     missing: "Entitlement balances, private reasons, leave types, medical attachments and roster context remain outside the Assistant read.",
@@ -114,6 +128,8 @@ export const assistantCoverageReview = {
     certification: ["crew_status_count"]
   },
   "marketing_planner": {
+    sourceLimit: "A saved creative task's status establishes progress in its Brand/month plan; it does not establish publication or delivery.",
+    reviewedUiOnly: [{module: "marketing_planner", description: "The planner displays each task's assignee. The Assistant task projection omits assignee identity.", ui: "src/features/marketing/PlannerTaskList.jsx", read: "supabase/functions/_shared/marketing/plannerRead.js"}],
     classification: "partial",
     available: "Exact saved creative task counts and pages by Brand, planning month and recorded status.",
     missing: "Publishing outcomes, targets, assignee information and task briefs remain outside this read.",
@@ -136,6 +152,7 @@ export const assistantCoverageReview = {
     "evidence": ["src/services/assetTrackingService.js", "supabase/functions/_shared/restaurant/assetCatalogueRead.js"]
   },
   "operating-expenses": {
+    sourceLimit: "Operating Expenses stores one entered amount per outlet, year and month. Underlying expense categories and transactions are absent from this source.",
     classification: "partial",
     available: "Recorded monthly amounts and complete totals of recorded months for one outlet and year, with missing periods identified.",
     missing: "The Operating Expenses grid has monthly inputs. Category detail, individual transactions, accounting expenses and cash movement have separate or unavailable sources.",
@@ -144,6 +161,7 @@ export const assistantCoverageReview = {
     certification: ["operating_expense_recorded_year"]
   },
   "inventory_dashboard": {
+    sourceLimit: "Only complete, verified stock-check positions that pass the module’s currentness check can establish a current balance.",
     classification: "partial",
     available: "Paginated stock evidence with an exact positive-par position count, freshness, and an exact item/SKU lookup where eligible.",
     missing: "Changed and unverified positions cannot establish a current balance. Items with no eligible position, live stock reconstruction and valuation are outside this read.",
@@ -152,6 +170,7 @@ export const assistantCoverageReview = {
     evidence: ["src/features/sales-purchase/inventory/dashboard/inventoryDashboardService.js", "supabase/functions/_shared/restaurant/inventoryStockEvidenceRead.js"]
   },
   "inventory_master": {
+    limitBasis: "source",
     classification: "partial",
     available: "Exact registered item counts by outlet and item status, stable catalogue pages and exact item or SKU detail at one outlet.",
     missing: "Catalogue data does not include live stock, transactions, supplier prices or historical counts.",
@@ -160,6 +179,8 @@ export const assistantCoverageReview = {
     certification: ["master_inventory_by_outlet_en", "master_inventory_by_outlet_ms", "master_inventory_by_outlet_zh"]
   },
   "employees": {
+    sourceLimit: "The directory counts current visible employee identities. Assignment rows and login status are separate concepts; historical headcount cannot be reconstructed from current status.",
+    reviewedUiOnly: [{module: "employees", description: "Authorized employee management can display the contact number. The Assistant deliberately excludes private contact data.", ui: "src/features/company-users/pages/UsersPage.jsx", read: "supabase/functions/_shared/people/employeeDirectoryRead.js"}],
     "classification": "partial",
     "available": "Authorized unique headcount and employment-status totals, filtered employee directory and effective-dated assignment details. Summary totals cover the requested human scope; directory pages contain at most 20 employees.",
     "missing": "Contacts, identity documents, compensation, bank details, disciplinary records and historical headcount reconstruction are not exposed. Employment status is not login access; HR raw classifications retain unspecified values.",
@@ -167,6 +188,7 @@ export const assistantCoverageReview = {
     "evidence": ["src/services/employeeService.js", "supabase/functions/_shared/people/employeeDirectory.js", "supabase/functions/_shared/people/employeeDirectoryRead.js"]
   },
   "hr_dashboard": {
+    limitBasis: "privacy",
     "classification": "partial",
     "available": "RLS-scoped complete workforce distributions and authorized payroll period/run statuses.",
     "missing": "Individual payroll amounts and unrestricted employee enumeration are intentionally excluded.",
@@ -184,6 +206,7 @@ export const assistantCoverageReview = {
     ]
   },
   "platform_organizations": {
+    limitBasis: "authority",
     "classification": "partial",
     "available": "Visible organization team roles, Brand assignments and access status.",
     "missing": "Only assignments visible through existing human organization/Brand authority; no machine grants or changes.",
@@ -197,6 +220,7 @@ export const assistantCoverageReview = {
     ]
   },
   "platform_customers": {
+    privacyLimit: "Private customer contacts and consent-history bodies are excluded.",
     "classification": "partial",
     "available": "Brand-scoped customer directory, contact eligibility and aggregate subscription states.",
     "missing": "Private contacts, consent-history bodies and POS/customer-detail drilldowns are excluded.",
@@ -211,6 +235,7 @@ export const assistantCoverageReview = {
     ]
   },
   "marketing_whatsapp_templates": {
+    limitBasis: "authority",
     "classification": "blocked",
     "available": "Existing human template-management service, distinct from campaign/FAQ reads.",
     "missing": "The actual canonical template read decrypts provider credentials, verifies current WABA/generation and is limited to explicit Staging test/configuration authority. A general persisted template read does not exist. Reusing unrelated provider credentials or implying general template access is not authorized.",
@@ -220,6 +245,7 @@ export const assistantCoverageReview = {
     ]
   },
   "marketing_ads": {
+    sourceLimit: "The canonical reader uses stored ad-reporting snapshots. Missing snapshots cannot establish provider performance.",
     "classification": "partial",
     "available": "Exact-period stored paid-ad snapshots with scope, currency and observed timestamps.",
     "missing": "No provider refresh; missing snapshots remain unavailable. Large responses fail closed; at most five reports.",
@@ -233,6 +259,7 @@ export const assistantCoverageReview = {
     ]
   },
   "finance_cash": {
+    limitBasis: "authority",
     "classification": "blocked",
     "available": "No verified Assistant cash-flow or account-balance evidence.",
     "missing": "Operational revenue and expenses do not establish liquidity, commitments or cash balances. Validated accounting evidence and its authorized AI read are required.",
@@ -243,6 +270,7 @@ export const assistantCoverageReview = {
     ]
   },
   "finance_planning": {
+    limitBasis: "authority",
     "classification": "blocked",
     "available": "No authoritative forecasts or scenario outputs exist in the current planning surface.",
     "missing": "Forecasting, scenarios and capital allocation require a validated baseline, assumptions and approved model; monthly historical figures are not forecasts.",
@@ -252,8 +280,9 @@ export const assistantCoverageReview = {
     ]
   },
   "finance_data_sources": {
+    privacyLimit: "Connection credentials and private reconciliation details are excluded from status reporting.",
     "classification": "partial",
-    "available": "Owner-visible accounting source status, retry counts and synchronization freshness.",
+    "available": "Owner-visible counts and pages of current and historical accounting connections, with book, legal entity, activity and sync-state filters. Includes recorded sync timestamps and retry counts.",
     "missing": "No authority-period decisions, reconciliation details, credentials or source changes.",
     "reads": [
       "read_accounting_source_health"
@@ -265,6 +294,7 @@ export const assistantCoverageReview = {
     ]
   },
   "finance_statements": {
+    sourceLimit: "The operational statement uses purchase-based costs. They do not establish accounting COGS or statutory accounts.",
     "classification": "partial",
     "available": "Monthly operational management P&L, with Reporting completeness flags.",
     "missing": "Yearly/YTD statement assembly, statutory accounts, balance sheets and cash-flow statements are not provided. Purchase-based costs are not accounting COGS.",
@@ -277,6 +307,7 @@ export const assistantCoverageReview = {
     ]
   },
   "guest_ai_overview": {
+    limitBasis: "authority",
     "classification": "blocked",
     "available": "Guest AI owns an isolated prototype and local device/runtime state.",
     "missing": "No approved Native Assistant cross-boundary read exists. Local serial snapshots and prototype interactions are not FeedX business evidence.",
@@ -287,6 +318,7 @@ export const assistantCoverageReview = {
     ]
   },
   "guest_ai_devices": {
+    limitBasis: "authority",
     "classification": "blocked",
     "available": "Guest AI owns an isolated prototype and local device/runtime state.",
     "missing": "No approved Native Assistant cross-boundary read exists. Local serial snapshots and prototype interactions are not FeedX business evidence.",
@@ -297,6 +329,7 @@ export const assistantCoverageReview = {
     ]
   },
   "guest_ai_interactions": {
+    limitBasis: "authority",
     "classification": "blocked",
     "available": "Guest AI owns an isolated prototype and local device/runtime state.",
     "missing": "No approved Native Assistant cross-boundary read exists. Local serial snapshots and prototype interactions are not FeedX business evidence.",
@@ -307,6 +340,7 @@ export const assistantCoverageReview = {
     ]
   },
   "guest_ai_studio": {
+    limitBasis: "authority",
     "classification": "blocked",
     "available": "Guest AI owns an isolated prototype and local device/runtime state.",
     "missing": "No approved Native Assistant cross-boundary read exists. Local serial snapshots and prototype interactions are not FeedX business evidence.",
@@ -317,6 +351,7 @@ export const assistantCoverageReview = {
     ]
   },
   "guest_ai_developer": {
+    limitBasis: "authority",
     "classification": "blocked",
     "available": "Guest AI owns an isolated prototype and local device/runtime state.",
     "missing": "No approved Native Assistant cross-boundary read exists. Local serial snapshots and prototype interactions are not FeedX business evidence.",
@@ -327,6 +362,7 @@ export const assistantCoverageReview = {
     ]
   },
   "sales-comparison": {
+    sourceLimit: "Without sales entries in an outlet/month, a business sales total cannot be verified.",
     "classification": "partial",
     "available": "Canonical monthly gross/net/deduction evidence for requested and prior years.",
     "missing": "Per-channel share/trend presentation is not returned; absent source records must not be treated as zero business activity.",
@@ -341,6 +377,7 @@ export const assistantCoverageReview = {
     ]
   },
   "purchase-comparison": {
+    sourceLimit: "Recorded monthly totals come from entered purchases, independently of sales. A month with no purchase entries has no observed amount.",
     "classification": "partial",
     "available": "Monthly and annual recorded purchase totals by outlet or supplier, months without entries, and purchase efficiency when sales are recorded.",
     "missing": "Category totals, underlying invoices, payments and accounting COGS are outside this summary. Missing monthly entries do not establish zero purchases.",
@@ -357,6 +394,7 @@ export const assistantCoverageReview = {
     "certification": ["restaurant_supplier_monthly_recorded_purchases"]
   },
   "roles": {
+    limitBasis: "authority",
     "classification": "partial",
     "available": "Role definitions, stored permission assignments and outlet assignments.",
     "missing": "Protected-role effective behavior remains canonical; stored assignments alone do not enumerate all effective rights.",
@@ -369,6 +407,7 @@ export const assistantCoverageReview = {
     ]
   },
   "recipe_intelligence": {
+    sourceLimit: "An ingredient quantity and yield record alone cannot establish a complete recipe cost or sales attribution.",
     "classification": "partial",
     "available": "Saved recipe quantities, units, wastage allowance, serving size and catalogue metadata.",
     "missing": "Authoritative full cost/yield analysis, product mapping and complete sales attribution remain unavailable; no inferred zero ingredient costs.",
@@ -405,6 +444,7 @@ export const assistantCoverageReview = {
     ]
   },
   "alerts": {
+    limitBasis: "source",
     "classification": "partial",
     "available": "Canonical alert calculations over count-checked authorized sales/purchase records.",
     "missing": "Two-year source window; no persistent special-month annotation authority exists. Not a complete all-time risk assessment.",
@@ -418,6 +458,7 @@ export const assistantCoverageReview = {
     ]
   },
   "data-health": {
+    limitBasis: "authority",
     "classification": "partial",
     "available": "Shared canonical source-check warnings, channel completeness and scores.",
     "missing": "No financial month closing authority; special-month annotations excluded. Underlying source permissions remain independently required.",
@@ -430,6 +471,7 @@ export const assistantCoverageReview = {
     ]
   },
   "audit-logs": {
+    limitBasis: "privacy",
     "classification": "partial",
     "available": "RLS-scoped event action, module, actor label and timestamp.",
     "missing": "Sensitive before/after bodies, descriptions, arbitrary metadata, IP and device data are excluded.",
@@ -491,6 +533,7 @@ export const assistantCoverageReview = {
     ]
   },
   "factory_batch_traceability": {
+    limitBasis: "source",
     "classification": "partial",
     "available": "Canonical finished-good batch source allocations, raw receiving lineage and approved stock adjustments.",
     "missing": "Downstream dispatch/customer lineage is not supplied by this source-detail contract.",
@@ -503,6 +546,7 @@ export const assistantCoverageReview = {
     ]
   },
   "factory_mesti_health_declaration": {
+    limitBasis: "privacy",
     "classification": "partial",
     "available": "Declaration workflow register with entry decision, work action and review timestamps.",
     "missing": "Medical answers, symptoms, employee/visitor identity, contacts, notes and signatures are intentionally excluded.",
@@ -516,6 +560,7 @@ export const assistantCoverageReview = {
     ]
   },
   "factory_mesti_operator_hygiene": {
+    limitBasis: "privacy",
     "classification": "partial",
     "available": "Monthly inspection entry and verification states with source timestamps.",
     "missing": "Personnel identity, detailed hygiene/health findings, notes and signatures are intentionally excluded.",
@@ -529,6 +574,7 @@ export const assistantCoverageReview = {
     ]
   },
   "factory_audit_logs": {
+    limitBasis: "privacy",
     "classification": "partial",
     "available": "Canonical event metadata, actor label, business reference, result and timestamp.",
     "missing": "Sensitive before/after bodies, descriptions, actor email, IP and device data are excluded.",
@@ -557,6 +603,7 @@ export const assistantCoverageReview = {
     ]
   },
   "crew_operations": {
+    limitBasis: "source",
     "classification": "partial",
     "available": "Canonical recorded task definitions/review queue without maintenance writes.",
     "missing": "Missing instances are not materialized; stored lifecycle states are not refreshed by a read. Missing records cannot establish no work is due.",
@@ -570,6 +617,7 @@ export const assistantCoverageReview = {
     ]
   },
   "crew_learning": {
+    privacyLimit: "Quiz answers and signed media access are excluded.",
     "classification": "partial",
     "available": "Onboarding curriculum versions and recorded progress plus published SOP text.",
     "missing": "No automatic enrollment, Crew impersonation, quiz answers or signed media access; absent assignments remain absent.",
@@ -587,6 +635,8 @@ export const assistantCoverageReview = {
     ]
   },
   "crew_performance": {
+    sourceLimit: "Only saved scores are observed. An absent score does not establish a zero score.",
+    privacyLimit: "Private performance-review notes are excluded.",
     "classification": "partial",
     "available": "Canonical recorded performance scores/status with employment/outlet revalidation.",
     "missing": "No recalculation or refresh; private review notes excluded. Unrecorded scores are unavailable, not zero.",
@@ -600,6 +650,7 @@ export const assistantCoverageReview = {
     ]
   },
   "crew_google_reviews": {
+    limitBasis: "authority",
     "classification": "blocked",
     "available": "The authorized Admin workspace reads the outlet's configured Google Reviews context and temporary provider cache.",
     "missing": "Native Assistant has no approved projection that preserves the provider cache expiry, outlet scope and reviewer-data restrictions. Customer feedback cannot substitute for Google review metrics.",

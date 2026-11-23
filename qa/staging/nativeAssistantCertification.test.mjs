@@ -1,7 +1,8 @@
 import {test} from 'node:test';
+import {existsSync} from 'node:fs';
 import assert from 'node:assert/strict';
 import {assertScenarioContracts,certifyRun,certifyScenario,generateSourceCases,certifyGeneratedRun} from './nativeAssistantCertification.mjs';
-import {moduleCoverage} from '../../scripts/assistantBusinessMatrix.mjs';
+import {describeModuleParity,moduleCoverage} from '../../scripts/assistantBusinessMatrix.mjs';
 
 test('certification scenarios stay bound to implemented READ contracts',()=>assertScenarioContracts());
 
@@ -76,10 +77,11 @@ test('source-derived cases carry independent expected scope and require the same
 
 test('operational answer certification binds independent scoped values and labels to a saved turn',()=>{
  const id='read_factory_job_summary';
+ const scope={mode:'summary',page:1,from:null,to:null,reference:null,status:null,product:null,sku:null};
  const turn={id:'turn',session_id:'session',request_id:'request',actor_ref:'fixture-owner',created_at:'2026-11-23T00:15:00Z',
   model:'fixture',state:'completed',tool_state:'completed',reply:'Draft: 2. Released: 9.',
-  evidence:{capability:id,source:'/factory',as_of:'2026-11-23T00:15:00Z',query_outcome:'SUCCESS',requested_scope:{},summary:{draft:2,released:9}}};
- const source={operation:id,scope:{},scope_label:'For the allowed Factory',capture:{environment:'staging',method:'domain_service',
+  evidence:{capability:id,source:'/factory/job-orders',as_of:'2026-11-23T00:15:00Z',query_outcome:'SUCCESS',requested_scope:scope,summary:{draft:2,released:9}}};
+ const source={operation:id,scope,scope_label:'For the allowed Factory',capture:{environment:'staging',method:'domain_service',
   module_id:'factory_job_order_records',authority:'factory_listing_summary',actor_ref:'fixture-owner',at:'2026-11-23T00:14:00Z'},
   records:[{summary:{draft:2,released:9}}]};
  const check=(t,s)=>certifyScenario(id+'_owner_answer',{turn:t,source:s}).status;
@@ -269,4 +271,63 @@ test('recorded supplier purchases require accurate month/amount pairs, annual to
  assert.equal(withScope('2026-11-01'),'PASS');assert.equal(withScope('2025-11-01'),'FAIL');
  assert.equal(withScope('2026-11-01','other','Outlet A'),'FAIL');assert.equal(withScope('2026-11-01','id-A','Different'),'FAIL');
  assert.equal(check(reply.replace('4至12月没有采购记录','4至12月采购为 RM 0')).status,'FAIL');
+});
+
+test('Factory calibration answer certification binds the selected schedule/history grain and month to independent owner identity counts',()=>{
+ for(const register of ['schedule','history']){
+  const history=register==='history',status=history?'verified':'overdue';
+  const scope={register,mode:'summary',status,page:1,from:'2026-10-01',to:'2026-10-31'};
+  const reply=history?'2 verified calibration records match those dates.':'2 overdue calibration requirements match those dates.';
+  const record=measuredTurn({id:'read_factory_calibration',module:'factory_mesti_calibration',route:'/factory/mesti/calibration',scope,
+   source:{matching_ids:['a','b']},reply,evidence:{register,date_basis:history?'calibrated_date':'next_due',evidence_rpc:'factory_mesti_calibration_'+(history?'records':'schedule'),aggregate_complete:true,total_matching:2}});
+  const check=(r)=>certifyScenario('factory_calibration_'+register+'_count',r).status;
+  assert.equal(check(record),'PASS');assert.equal(check({...record,turn:{...record.turn,reply:reply.replace('2','1')}}),'FAIL');
+  assert.equal(check({...record,turn:{...record.turn,evidence:{...record.turn.evidence,register:history?'schedule':'history'}}}),'FAIL');
+ }
+});
+
+
+test('module parity separates reviewed owner limits from demonstrable UI-only fields and unassessed dimensions',()=>{
+ const all=moduleCoverage(),rows=new Map(all.map(row=>[row.module.id,row]));
+ for(const row of all){
+  assert.deepEqual(row.parity.permissions,[...new Set([...row.direct,...row.shared].flatMap(op=>[op.permission,...op.knowledge?.additional_permissions||[]]))]);
+  if(row.coverage!=='not_applicable')assert.match(row.parity.remainder,/Undetermined/);
+  for(const gap of row.parity.uiOnly){
+   assert.equal(gap.module,row.module.id);
+   for(const reference of [gap.ui,gap.read])assert(existsSync(new URL('../../'+reference,import.meta.url)),reference);
+  }
+ }
+ assert.match(rows.get('operating-expenses').parity.sourceLimit,/amount per outlet, year and month/);
+ for(const [module,dimension] of [['finance_costs',/labour trends/i],['crew_leave',/leave type/i],
+  ['employees',/contact number/i],['marketing_planner',/assignee/i]]){
+  assert(rows.get(module).parity.uiOnly.some(gap=>dimension.test(gap.description)));
+ }
+ assert(!rows.get('finance_overview').parity.uiOnly.some(gap=>gap.module==='finance_costs'));
+ assert.equal(rows.get('crew_attendance').parity.sourceLimit,null);
+ assert.deepEqual(rows.get('crew_attendance').parity.uiOnly,[]);
+ assert.match(rows.get('space_station').parity.remainder,/Not applicable/);
+ assert.match(describeModuleParity(rows.get('hr_dashboard')).fields,/individual payroll amounts/i);
+ assert.match(describeModuleParity(rows.get('hr_dashboard')).authority,/payroll_foundation_read/);
+ assert.match(describeModuleParity(rows.get('crew_sop_library')).authority,/current published version/i);
+ assert.match(describeModuleParity(rows.get('crew_sop_library')).fields,/private media|draft/i);
+ assert.match(describeModuleParity(rows.get('marketing_knowledge')).authority,/approved revision/i);
+ assert.match(describeModuleParity(rows.get('finance_overview')).authority,/reporting_monthly_scope_financials/);
+ assert.match(describeModuleParity(rows.get('audit-logs')).fields,/before.after/i);
+ assert.match(rows.get('guest_ai_studio').parity.authorityLimit,/cross-boundary/i);
+ assert.equal(rows.get('hr_dashboard').parity.sourceLimit,null,'An intentionally hidden amount is not evidence of source absence');
+ for(const row of all)assert(describeModuleParity(row).references,'Missing source reference for '+row.module.id);
+});
+
+test('Factory register source-to-answer certification rejects a line count in place of document counts',()=>{
+ for(const [id,module,route,authority,date_basis,noun] of [
+  ['read_factory_job_summary','factory_job_order_records','/factory/job-orders','factory_list_job_order_records','planned_date','job orders'],
+  ['read_factory_dispatch_summary','factory_finished_goods_dispatch','/factory/warehouse/dispatch','factory_finished_good_dispatches','dispatch_date','dispatches'],
+  ['read_factory_raw_checks','factory_raw_stock_check','/factory/raw-materials/stock-check','factory_raw_material_stock_checks','check_date','raw material stock checks'],
+  ['read_factory_product_checks','factory_product_stock_check','/factory/warehouse/stock-check','factory_product_stock_checks','check_date','finished product stock checks'],
+ ]){
+  const scope={mode:'count',page:1,status:'draft',from:'2026-10-01',to:'2026-10-31'};
+  const r=measuredTurn({id,module,route,scope,source:{matching_ids:['a','b']},reply:'2 draft '+noun+' match the selected dates.',evidence:{header_authority:authority,date_basis,aggregate_complete:true,total_matching:2}});
+  const check=(r)=>certifyScenario(id+'_filtered_header_count',r).status;
+  assert.equal(check(r),'PASS');assert.equal(check({...r,turn:{...r.turn,reply:'2 draft lines.'}}),'FAIL');
+ }
 });

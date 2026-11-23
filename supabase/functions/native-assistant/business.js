@@ -100,9 +100,19 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
  const withGuide=(base,current)=>guideAvailable(current,access||{})?[...base,{id:systemGuidance.id,availability:'connected'}]:base;
  const indexed=withGuide(capabilities,config||{});
  const intended=prompt=>queryOperations.filter(operation=>typeof prompt==='string'&&operation.queryIntent?.(prompt));
+ const queryClauses=prompt=>prompt.split(/\s*[,，]?\s*(?:[;；?？。]|\b(?:and|also|then|separately|serta|dan)\b|另外|以及|并且|並且|同时|同時)\s*/iu).map(s=>s.trim()).filter(Boolean);
+ const measureListOwner=(prompt,matches,clauses)=>{
+  const owners=matches.filter(op=>op.ownsMeasureList?.(prompt,clauses,matches.filter(other=>other!==op).map(other=>other.id)));
+  return owners.length===1?owners[0]:null;
+ };
  const planned=prompt=>{
   const matches=intended(prompt);
+  if(matches.length>1)return measureListOwner(prompt,matches,queryClauses(prompt));
   if(matches.length!==1)return null;
+  if(matches[0].ownsMeasureList){
+   const clauses=queryClauses(prompt);
+   if(clauses.length>1&&!matches[0].ownsMeasureList(prompt,clauses,[]))return null;
+  }
   const compound=/\b(?:also|separately|then|and what|and how|and which|serta)\b|另外|以及|并且|並且|同时|同時/iu.test(prompt);
   if(compound&&discoveryRows(queryOperations,indexed,{search:prompt.slice(0,240),page:1}).operations.some(other=>other.operation!==matches[0].id))return null;
   return matches[0];
@@ -135,8 +145,9 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
   if(lastGoalPrompt===prompt)return lastGoal;
   lastGoalPrompt=prompt;
   lastGoal=null;
-  const clauses=prompt.split(/\s*[,，]?\s*(?:[;；?？。]|\b(?:and|also|then|separately|serta|dan)\b|另外|以及|并且|並且|同时|同時)\s*/iu).map(s=>s.trim()).filter(Boolean);
+  const clauses=queryClauses(prompt);
   if(clauses.length<2||clauses.length>5)return null;
+  if(measureListOwner(prompt,intended(prompt),clauses))return null;
   const steps=[];
   for(const wording of clauses){
    const matches=intended(wording);

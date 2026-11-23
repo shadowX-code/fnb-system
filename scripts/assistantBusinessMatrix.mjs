@@ -30,6 +30,13 @@ export function moduleCoverage(){
   assert(ids.has(op.module_id),`Unknown capability owner: ${op.id} → ${op.module_id}`);
   for(const id of op.related_module_ids||[])assert(ids.has(id)&&id!==op.module_id,`Invalid shared module: ${op.id} → ${id}`);
  }
+ for(const [owner,review] of Object.entries(assistantCoverageReview)){
+  for(const gap of review.reviewedUiOnly||[]){
+   assert(ids.has(gap.module)&&gap.ui&&gap.read&&gap.description,'Incomplete UI/source comparison in '+owner);
+   assert(reads.some(op=>op.module_id===owner&&(owner===gap.module||op.related_module_ids?.includes(gap.module))),
+    'UI-only finding must belong to a direct or verified shared READ: '+gap.module);
+  }
+ }
  return business.map(module=>{
   const review=assistantCoverageReview[module.id]||reviewedModules.get(module.id);
   assert(review,`Missing reviewed AI coverage declaration for ${module.id}`);
@@ -41,14 +48,43 @@ export function moduleCoverage(){
   const available=[...direct,...shared];
   const boundary=fallback&&available.length?available.map(op=>op.scope+' '+op.moduleInterface.pagination).join(' '):review.missing||review.available;
   assert(boundary,`Missing source or authority boundary for ${module.id}`);
-  return {module,direct,shared,actions,coverage,boundary,review,adminSource:adminModuleSource(module)};
+  // Source scope and an omitted field are different kinds of evidence. A UI-only
+  // claim needs an explicit owner review, including when a shared READ supplies it.
+  const ownAndShared=new Set([review,...shared.map(op=>assistantCoverageReview[op.module_id]).filter(Boolean)]);
+  const uiOnly=[...ownAndShared].flatMap(owner=>owner.reviewedUiOnly||[]).filter(gap=>gap.module===module.id);
+  const basis=review.limitBasis||(coverage==='not_applicable'?'applicability':'projection');
+  const parity={
+   permissions:[...new Set(available.flatMap(op=>[op.permission,...op.knowledge?.additional_permissions||[]]))],
+   sources:available.map(op=>({operation:op.id,authority:op.moduleInterface.authority,scope:op.scope,
+    ...(op.knowledge?.publication?{publication:op.knowledge.publication}:{})})),
+   sourceLimit:review.sourceLimit||(basis==='source'?review.missing:null),
+   authorityLimit:['authority','applicability'].includes(basis)?review.missing:null,
+   fieldLimits:[...new Set([review.privacyLimit,basis==='privacy'?review.missing:null,...available.map(op=>op.interface?.sensitive)].filter(Boolean))],
+   readOnlyLimits:[...new Set(available.flatMap(op=>op.moduleInterface.query?.unsupported||[]))],
+   uiOnly,
+   remainder:coverage==='not_applicable'?'Not applicable to independent business queries.':'Undetermined beyond reviewed dimensions.',
+  };
+  return {module,direct,shared,actions,coverage,boundary,review,parity,adminSource:adminModuleSource(module)};
  });
 }
 
+// Both the permanent matrix and the release attachment use the same attribution.
+export function describeModuleParity(row){
+ const {parity}=row;
+ const sources=parity.sources.map(o=>o.authority+' — '+o.scope+(o.publication?' Publication: '+o.publication:''));
+ const authority=[parity.permissions.length?'Required: '+parity.permissions.join(', '):'No registered READ.',
+  ...new Set(sources),parity.authorityLimit,parity.sourceLimit].filter(Boolean).join(' ');
+ const fields=[parity.fieldLimits.length?'Field restrictions: '+parity.fieldLimits.join(' '):null,
+  ...parity.readOnlyLimits].filter(Boolean).join(' ')||'Only the declared READ projection is evidenced.';
+ const uiOnly=parity.uiOnly.map(g=>g.description+' '+code(g.ui)+' / '+code(g.read)).join(' ')||'No UI-only finding verified.';
+ const references=[...new Set([row.adminSource,...row.review.evidence||[]].filter(Boolean))].map(code).join(', ');
+ return {authority,fields,uiOnly,remainder:parity.remainder,references};
+}
+
 export function semanticCatalog(){
- const modules=moduleCoverage().map(({module,direct,shared,actions,coverage,boundary,adminSource})=>({
+ const modules=moduleCoverage().map(({module,direct,shared,actions,coverage,boundary,parity,adminSource})=>({
   module:module.id,workspace:module.workspace,domain:module.section,route:modulePath(module),
-  coverage,boundary,admin_source:adminSource,reads:direct.map(op=>op.id),shared_reads:shared.map(op=>op.id),actions:actions.map(op=>op.id),
+  coverage,boundary,parity,admin_source:adminSource,reads:direct.map(op=>op.id),shared_reads:shared.map(op=>op.id),actions:actions.map(op=>op.id),
  }));
  return {version:1,modules,operations:[...operations,systemGuidance].map(businessSemanticEntry)};
 }
@@ -71,17 +107,19 @@ Coverage: ${Object.entries(counts).map(([key,rows])=>rows.length+' '+key).join('
 
 ## Module coverage
 
-| Workspace / domain / module | Module route | Coverage | Native READ owners and shared READs | Staging READ policy | ACTIONs | Canonical evidence and remaining boundary |
-|---|---|---|---|---|---|---|`);
+The source/authority column includes the human permission, actual read authority, scope and any publication/version rule. The projection column describes declared limits and protected fields. An Assistant exclusion alone does not establish that the source lacks the information. The UI-only column requires evidence in the named human UI and its Assistant projection. An omitted UI feature may be intentionally restricted. Empty findings do not establish absence or full parity. Unlisted dimensions remain undetermined until compared with the owning read model.
+
+| Workspace / domain / module | Module route | Coverage | Native READ owners and shared READs | Staging READ policy | ACTIONs | Exposed scope and evidence | Verified source / human authority | Declared projection / field restrictions | Confirmed UI-only dimensions | Remaining parity |
+|---|---|---|---|---|---|---|---|---|---|---|`);
 for(const row of modules){
  const direct=row.direct.map(op=>code(op.id));
  const shared=row.shared.map(op=>`${code(op.id)} via ${op.module_id}`);
  const available=[...row.direct,...row.shared];
  const policy=available.length===0?'No READ':run?`${available.filter(op=>enabled.has(op.id)).length}/${available.length} enabled`:'Snapshot unavailable';
- const references=[...new Set([row.adminSource,...row.review.evidence||[]])].map(code).join(', ');
+ const {authority,fields,uiOnly,remainder,references}=describeModuleParity(row);
  const coverageDescription=row.review.available||available.map(op=>row.boundary.includes(op.scope)?op.label:op.label+' — '+op.scope).join('. ');
  const evidence=[...new Set([coverageDescription,row.boundary,references].filter(Boolean))].join(' ');
- console.log('| '+[`${row.module.workspace} / ${row.module.section} / ${row.module.id}`,modulePath(row.module)||'Owner or linked module',row.coverage,[...direct,...shared].join(', ')||'None',policy,row.actions.map(op=>code(op.id)).join(', ')||'None',evidence].map(cell).join(' | ')+' |');
+ console.log('| '+[`${row.module.workspace} / ${row.module.section} / ${row.module.id}`,modulePath(row.module)||'Owner or linked module',row.coverage,[...direct,...shared].join(', ')||'None',policy,row.actions.map(op=>code(op.id)).join(', ')||'None',evidence,authority,fields,uiOnly,remainder].map(cell).join(' | ')+' |');
 }
 console.log(`
 ## READ operation questions

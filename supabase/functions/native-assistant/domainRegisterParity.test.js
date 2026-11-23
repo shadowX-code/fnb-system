@@ -168,3 +168,50 @@ test('Reporting explicit closing values match Outlet P&L and distinguish publish
  }
  await assert.rejects(report.execute(fixture({rpcs:{reporting_monthly_scope_financials:{...raw,period:{year:2026,month:9}}}}),args),{code:'business_read_unavailable'});
 });
+
+test('calibration schedule and history retain separate authorized source counts, dates, statuses and safe fields',async()=>{
+ const op=assistantQuery('read_factory_calibration'),schedule=Array.from({length:23},(_,i)=>({id:String(i).padStart(2,'0'),equipment_name:'Scale',next_due:'2026-10-01',status:'overdue'}));
+ const history=[{id:'h',equipment_snapshot:{equipment_name:'Old Scale',location_name:'Kitchen',private_serial:'SECRET'},status:'verified',scheduled_due_date:'2026-09-15',calibrated_date:'2026-10-02',result:'pass',provider_name:'SECRET',notes:'SECRET',recorded_by_name:'SECRET'}];
+ let allow=true,incomplete=false;const calls=[];
+ const caller={rpc(name,_args,options){if(name==='current_user_has_permission')return {abortSignal:async()=>({data:allow})};
+  calls.push(name);assert.deepEqual(options,{count:'exact'});const rows=name==='factory_mesti_calibration_records'?history:schedule;
+  return {range(){return this;},abortSignal:async()=>({data:rows,count:rows.length+(incomplete?1:0)})};}};
+ const dateScope={from:'2026-10-01',to:'2026-10-31'};
+ const first=await op.execute(caller,{});assert.equal(first.total_matching,23);assert.equal(first.rows.length,20);assert.equal(first.truncated,true);
+ const second=await op.execute(caller,{page:2,status:'overdue',...dateScope});assert.equal(second.rows.length,3);assert.equal(second.rows[0].id,'20');
+ assert.equal((await op.execute(caller,{register:'schedule',mode:'summary',status:'overdue',...dateScope})).total_matching,23);
+ const old=await op.execute(caller,{register:'history',status:'verified',equipment:'Old Scale',result:'pass',...dateScope});
+ assert.equal(old.total_matching,1);assert.equal(old.rows[0].location_name,'Kitchen');assert.equal(old.date_basis,'calibrated_date');assert.doesNotMatch(JSON.stringify(old),/SECRET|provider_name|private_serial|recorded_by_name/);
+ assert.equal((await op.execute(caller,{register:'history',from:'2026-09-01',to:'2026-09-30'})).total_matching,0);
+ assert.throws(()=>op.validate({result:'pass'}),{code:'tool_arguments_invalid'});assert.throws(()=>op.validate({from:'2026-10-01'}),{code:'tool_arguments_invalid'});
+ incomplete=true;await assert.rejects(op.execute(caller,{mode:'summary'}),{code:'business_result_limit'});
+ const before=calls.length;allow=false;await assert.rejects(op.execute(caller,{register:'history',mode:'summary'}),{code:'business_read_denied'});assert.equal(calls.length,before);
+});
+
+test('Factory document register reads preserve prior dashboard semantics, exact matched counts, field allowlists and stock-check view guard',async()=>{
+ for(const [id,authority,dateKey,refKey,summaryRpc,key,stock] of [
+  ['read_factory_job_summary','factory_list_job_order_records','planned_date','job_order_no','factory_listing_summary','jobs',null],
+  ['read_factory_dispatch_summary','factory_finished_good_dispatches','dispatch_date','dispatch_no','factory_listing_summary','completed_today',null],
+  ['read_factory_raw_checks','factory_raw_material_stock_checks','check_date','check_no','factory_listing_summary','critical_rows','raw'],
+  ['read_factory_product_checks','factory_product_stock_checks','check_date','check_no','factory_product_stock_check_summary','variance_rows','product'],
+ ]){
+  const op=assistantQuery(id),calls=[];let permitted=true,stockAllowed=true;
+  const rows=Array.from({length:24},(_,i)=>({id:String(i),[refKey]:'REF-'+i,[dateKey]:i===23?'2026-11-01':'2026-10-01',status:i===22?'draft':'completed',remarks:'PRIVATE',recorded_by:'PRIVATE'}));
+  function query(){let matches=rows,head=false,range=null;const q={select(columns,opts){assert(!columns.includes('*')&&!/notes|remarks|created_by|operator/i.test(columns));head=opts?.head===true;return q;},
+   order(column,options){if(column==='planned_date')assert.equal(options.nullsFirst,false);return q;},range(lo,hi){range=[lo,hi+1];return q;},limit(n){range=[0,n];return q;},ilike(k,v){matches=matches.filter(r=>r[k]?.toLowerCase()===v.toLowerCase());return q;},
+   gte(k,v){matches=matches.filter(r=>r[k]>=v);return q;},lte(k,v){matches=matches.filter(r=>r[k]<=v);return q;},
+   abortSignal:async()=>({data:head?null:range?matches.slice(...range):matches,count:matches.length})};return q;}
+  const rpc=(name,args)=>{calls.push([name,args]);if(name===authority)return query();
+   const data=name==='current_user_has_permission'?permitted:name==='factory_assert_stock_check_view'?stockAllowed:name===summaryRpc?{[key]:7,secret:'PRIVATE'}:null;
+   return {abortSignal:async()=>({data})};};
+  const caller={rpc,from(name){assert.equal(name,authority);calls.push([name]);return query();}};
+  assert.deepEqual((await op.execute(caller,{})).summary,{[key]:7});
+  const scope={status:'completed',from:'2026-10-01',to:'2026-10-31'};
+  const counted=await op.execute(caller,{mode:'count',...scope});assert.equal(counted.total_matching,22);assert.equal(counted.header_authority,authority);assert.deepEqual(counted.rows,[]);
+  const page=await op.execute(caller,{mode:'list',page:2,...scope});assert.equal(page.rows.length,2);assert.equal(page.truncated,false);assert.equal(page.rows[0][refKey],'REF-20');assert.doesNotMatch(JSON.stringify(page),/PRIVATE/);
+  assert.throws(()=>op.validate({mode:'summary',...scope}),{code:'tool_arguments_invalid'});
+  if(stock){stockAllowed=false;const before=calls.filter(([fn])=>fn===authority).length;
+   await assert.rejects(op.execute(caller,{mode:'list'}),{code:'business_read_denied'});assert(calls.some(([fn,args])=>fn==='factory_assert_stock_check_view'&&args.p_stock_type===stock));assert.equal(calls.filter(([fn])=>fn===authority).length,before);}
+  permitted=false;await assert.rejects(op.execute(caller,{mode:'list'}),{code:'business_read_denied'});
+ }
+});
