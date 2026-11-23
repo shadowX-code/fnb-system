@@ -6,6 +6,7 @@ import Badge from "../../../../components/ui/Badge.jsx";
 import InfoTooltip from "../../../../components/ui/InfoTooltip.jsx";
 import DataTable from "../../../../components/tables/DataTable.jsx";
 import SelectField from "../../../../components/forms/SelectField.jsx";
+import ChoiceList from "../../../../components/forms/ChoiceList.jsx";
 import AdminFilterToolbar from "../../../../components/layout/AdminFilterToolbar.jsx";
 import AdminSearchField from "../../../../components/forms/AdminSearchField.jsx";
 import DatePickerField from "../../../../components/forms/DatePickerField.jsx";
@@ -546,7 +547,7 @@ function SkipReasonModal({ itemName, onClose, onSave }) {
       )}
     >
       <div className="space-y-3">
-        <SelectField label="Skip Reason" placeholder="Select a reason" value={selection} options={STOCK_CHECK_SKIP_REASONS} onChange={setSelection} />
+        <ChoiceList label="Skip Reason" value={selection} options={STOCK_CHECK_SKIP_REASONS} onChange={setSelection} />
         {selection === "other" && <TextArea label="Explanation (required)" value={explanation} onChange={setExplanation} />}
       </div>
     </Modal>
