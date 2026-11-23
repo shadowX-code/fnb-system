@@ -1,6 +1,7 @@
 import {AssistantError} from '../assistantError.js';
 import {normalizedEntity,resolveOutlet} from '../assistant/entityResolution.js';
 import {invalidArgument,page,permittedOutlet,uuid} from '../assistant/readContract.js';
+import {malaysiaPeriod} from './assistantBusinessPeriod.js';
 import {getPurchaseTotal,sumAmount} from './analytics.js';
 
 const textFilter={type:'string',nullable:true,maxLength:120};
@@ -27,10 +28,38 @@ export function supplierPurchaseIntent(prompt){
  if(/\b(?:factory|warehouse|purchase orders?|invoices?|payments?|accounts payable|cogs|gross profit|kilang|pesanan belian|invois|bayaran)\b|工厂|工廠|采购订单|採購訂單|付款|发票|發票|应付账|應付帳/iu.test(prompt))return null;
  const purchase=/\b(?:purchases?|purchasing|pembelian|belian)\b|采购|採購|进货|進貨/iu.test(prompt);
  const suppliers=/\b(?:suppliers?|vendors?|pembekal)\b|供应商|供應商/iu.test(prompt);
- const series=/\b(?:monthly|each month|every month|by month|month.by.month|annual(?:ly)?|yearly|this year|last year|bulanan|setiap bulan|mengikut bulan|tahunan|tahun ini|sepanjang tahun)\b|每个?月|每個月|逐月|按月|全年|一年|年度/iu.test(prompt);
+ const series=/\b(?:monthly|each month|every month|by month|month.by.month|annual(?:ly)?|yearly|this year|last year|bulanan|setiap bulan|mengikut bulan|tahunan|tahun ini|sepanjang tahun)\b|每个?月|每個月|逐月|按月|全年|一年|年度|今年|本年|去年/iu.test(prompt);
  const total=/\b(?:how much|total|spend|spent|amounts?|jumlah|amaun|berapa)\b|金额|金額|多少|总额|總額|合计|合計/iu.test(prompt);
- if(!purchase||(!series&&!suppliers)||(!series&&!total))return null;
- return series?'supplier_year':'supplier_month';
+ const year=/\b20\d{2}\b/u.test(prompt);
+ if(!purchase||(!series&&!year&&(!suppliers||!total)))return null;
+ return series||year?'supplier_year':'supplier_month';
+}
+function recordedPurchasePeriod(prompt){
+ const years=[...new Set(prompt.match(/\b20\d{2}\b/gu)||[])];
+ if(years.length>1||/\b(?:between|compare|versus|bandingkan|from .{1,40} to )\b|对比|對比/iu.test(prompt))return null;
+ const year=years[0]||malaysiaPeriod(/\b(?:last year|previous year|tahun lepas)\b|去年|上年/iu.test(prompt)?'previous_year':'year').year;
+ const iso=prompt.match(/\b20\d{2}-(0[1-9]|1[0-2])(?:-01)?\b/u);
+ if(iso)return {mode:'supplier_month',month:year+'-'+iso[1]+'-01'};
+ const relativeMonth=/\b(?:last month|bulan lepas)\b|上个?月|上個月/iu.test(prompt)?'previous_month':/\b(?:this month|bulan ini)\b|本月|[这這][个個]?月/iu.test(prompt)?'month':null;
+ if(relativeMonth)return {mode:'supplier_month',month:malaysiaPeriod(relativeMonth).from};
+ // Leave named-month and other range selection to validated explicit arguments.
+ if(/\b(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?|januari|februari|mac|mei|jun|julai|ogos|oktober|disember|quarter|suku|weeks?)\b|\d{1,2}\s*月|季度/iu.test(prompt))return null;
+ if(!years.length&&!/\b(?:monthly|each month|every month|by month|month.by.month|annual(?:ly)?|yearly|this year|last year|tahun ini|tahun lepas|bulanan|setiap bulan|mengikut bulan|tahunan)\b|每个?月|每個月|逐月|按月|全年|今年|本年|去年|年度/iu.test(prompt))return null;
+ return {mode:'supplier_year',month:year+'-01-01'};
+}
+export function prepareRecordedPurchases(prompt){
+ if(!supplierPurchaseIntent(prompt)||/\b(?:by supplier|per supplier|each supplier|for (?:the )?supplier|supplier named|by vendor|top|rank|largest|highest|and (?:also )?(?:show|list|give)|categor\w*|efficiency|mengikut pembekal|kategori|from|daripada)\b|按供[应應]商|排名|最高|类别|類別|效率|来自|來自/iu.test(prompt))return null;
+ const period=recordedPurchasePeriod(prompt);
+ return period?{...period,supplier_name:null,page:1}:null;
+}
+export function followRecordedPurchases(prompt,evidence){
+ if(!['supplier_year','supplier_month'].includes(evidence.requested_scope?.mode)||!evidence.outlet?.id)return null;
+ const text=prompt.trim().replace(/[?？!.。]+$/u,'');
+ const detail=/^(?:(?:and |also )?(?:(?:show|give) (?:me )?(?:the )?)?(?:monthly breakdown|breakdown by month|month by month)|每月明细|每个月呢|每個月呢|逐月明細|pecahan bulanan)$/iu.test(text);
+ const periodOnly=/^(?:(?:and |what about |how about |for |dan |bagaimana dengan |那么|那) *)?(?:20\d{2}(?:-(?:0[1-9]|1[0-2]))?|this year|last year|this month|last month|tahun ini|tahun lepas|bulan ini|bulan lepas|今年|去年|本月|上月)\s*(?:呢)?$/iu.test(text);
+ if(!detail&&!periodOnly)return null;
+ const range=detail?{mode:'supplier_year',month:String(evidence.year)+'-01-01'}:recordedPurchasePeriod(text);
+ return range?{...range,outlet_id:evidence.outlet.id,outlet_name:evidence.outlet.name??null,supplier_name:evidence.requested_scope.supplier_name??null,page:1}:null;
 }
 const money=value=>Number(value.toFixed(2));
 
@@ -127,7 +156,7 @@ export function formatSupplierPurchases(e,prompt='',{medium='text'}={}){
   (scope.outlet_id&&scope.outlet_id!==e.outlet.id))return null;
  // Supplier rankings, comparisons and detail pages need their own evidence
  // synthesis; a period total alone would discard those requested dimensions.
- if(/\b(?:top|rank(?:ed|ing)?|breakdown|by supplier|each supplier|per supplier|largest|highest|list|compare|difference|why|kategori|ikut pembekal|setiap pembekal|tertinggi|bandingkan)\b|排名|排行|按供应商|按供應商|每[个個家]供[应應]商|最高|明细|明細|对比|對比|原因/iu.test(prompt)||scope.page>1)return null;
+ if(/\b(?:top|rank(?:ed|ing)?|by supplier|each supplier|per supplier|largest|highest|list|compare|difference|why|kategori|ikut pembekal|setiap pembekal|tertinggi|bandingkan)\b|排名|排行|按供应商|按供應商|每[个個家]供[应應]商|最高|明细|明細|对比|對比|原因/iu.test(prompt)||scope.page>1)return null;
  const rows=e.monthly_totals;
  if(!Array.isArray(rows)||rows.length!==(annual?12:1)||!rows.every((r,i)=>r.month===(annual?i+1:month)&&Number.isSafeInteger(r.entry_count)&&r.entry_count>=0&&
    (r.entry_count===0?r.amount===null:Number.isFinite(r.amount))))return null;
@@ -150,10 +179,14 @@ export function formatSupplierPurchases(e,prompt='',{medium='text'}={}){
  if(!annual)return main;
  const list=medium!=='voice'||/\b(?:monthly|month.by.month|by month|every month|each month|bulanan|setiap bulan)\b|每个?月|每個月|按月|逐月/iu.test(prompt);
  const parts=[main];
- if(list)parts.push(entered.map(row=>label(row.month)+' '+money(row.amount)).join(zh?'，':', ')+(zh?'。':'.'));
+ if(list||/breakdown|pecahan|明细|明細/iu.test(prompt))parts.push(entered.map(row=>label(row.month)+' '+money(row.amount)).join(zh?'，':', ')+(zh?'。':'.'));
  if(missing.length){
   const periods=monthRanges(missing,label,zh?'至':ms?' hingga ':' to ').join(zh?'、':', ');
   parts.push(zh?periods+'没有采购记录。':ms?'Tiada rekod pembelian untuk '+periods+'.':'No purchase entries for '+periods+'.');
+ }
+ if(/\b(?:analy[sz]e|trend|analisis|analisa)\b|分析|趋势|趨勢/iu.test(prompt)&&entered.length>1){
+  const peak=entered.reduce((a,b)=>b.amount>a.amount?b:a);
+  parts.push(zh?'有记录的月份中，'+label(peak.month)+'最高（'+money(peak.amount)+'）。':ms?label(peak.month)+' mencatat jumlah tertinggi ('+money(peak.amount)+').':label(peak.month)+' was the highest recorded month ('+money(peak.amount)+').');
  }
  return parts.join(medium==='voice'?' ':'\n');
 }

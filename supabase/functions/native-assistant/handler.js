@@ -8,7 +8,7 @@ import {createGrokSession,grokReady,grokVoices} from './grokVoice.js';
 import {finishedGoodsRead} from '../_shared/factory/finishedGoodsRead.js';
 import {isQueryEnvelope,queryDiscoveryTools} from '../_shared/assistant/queryDiscovery.js';
 import {createBusinessDispatcher,validateBusinessArguments,businessOperation,assistantQuery,businessToolIdentity,businessToolArgumentShape} from './business.js';
-import {asksForAnalysis,failureOutcome,outcomeFor,sourceLimitation} from './businessQuery.js';
+import {asksForAnalysis,businessFailureReply,failureOutcome,outcomeFor,sourceLimitation} from './businessQuery.js';
 import {realtimeModel,realtimeTranscriptionModel,realtimeReady,realtimeVoices,voiceInstructions} from './realtime.js';
 import {AssistantError,connection,publicRuntime,generateText,models} from './provider.js';
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -84,7 +84,7 @@ export async function dispatch(body,{voiceUsage,rpc,get,signal,transport,caller,
   tool: tool === 'run_business_query' ? tool : identity.operation,
   operation:identity.operation, arguments_shape:businessToolArgumentShape(tool,body.arguments), stage, outcome, validation,
   ...(discovery?{match_count:discovery.total_operations,matched_operations:discovery.operations.map(row=>row.operation),
-   next_step:discovery.next_step?.kind,narrower_operations:discovery.narrower_reads?.map(row=>row.operation)}:{}),
+   next_step:discovery.next_step?.kind,search_origin:discovery.search_origin,narrower_operations:discovery.narrower_reads?.map(row=>row.operation)}:{}),
  });
  try { validateBody(body); } catch (error) {
   if (!isTool || !uuid.test(body.session_id || '') || !uuid.test(body.request_id || '')) throw error;
@@ -151,14 +151,40 @@ export async function dispatch(body,{voiceUsage,rpc,get,signal,transport,caller,
     };
     if(turn&&!turn.voice_input_available&&tool!=='find_business_queries')throw new AssistantError('entity_scope_required',409);
     const transcript=turn?.voice_input_available?turn.prompt:undefined;
-    const evidence=await business.execute(tool,args.arguments,signal,{correctArguments:args.provider==='openai',
-     prompt:transcript,history:priorHistory,withOutcome:true,currentEvidence:turn?.evidence?.capability==='business_evidence'?turn.evidence.items:turn?.evidence?[turn.evidence]:[]});
+    const execution={correctArguments:args.provider==='openai',prompt:transcript,history:priorHistory,withOutcome:true,
+     currentEvidence:turn?.evidence?.capability==='business_evidence'?turn.evidence.items:turn?.evidence?[turn.evidence]:[]};
+    let evidence=await business.execute(tool,args.arguments,signal,execution);
+    let executed=identity.operation,plannedWording;
+    // A discovery call for an exactly scoped, server-prepared READ can deliver
+    // that READ in the same tool result. The SDK owns the spoken continuation.
+    if(args.provider==='openai'&&transcript&&evidence.discovery_only&&evidence.preferred_operation){
+     traceTool(stage,'discovery',evidence);
+     const plan=await business.planTurn(transcript,priorHistory,signal);
+     if(plan?.tool&&plan.operation===evidence.preferred_operation&&!plan.page&&assistantQuery(plan.operation).kind==='READ'){
+      executed=plan.operation;
+      plannedWording=plan.wording;
+      try{
+       const resolved=await business.resolvedArguments(plan,transcript,priorHistory,signal);
+       if(resolved)evidence=await business.execute(executed,resolved,signal,{...execution,turnPlan:plan});
+       else if(evidence.search_origin==='planned_owner'&&assistantQuery(executed).prepareArguments?.(plan.wording||transcript)){
+        evidence={...evidence,query_outcome:'AMBIGUOUS',next_step:{kind:'confirm_scope'},answer_hint:businessFailureReply('AMBIGUOUS',transcript),
+         instruction:'Confirm the outlet before reading. No business records were queried.'};
+       }
+      }catch(error){
+       throw voiceToolFailure(error,businessToolIdentity(executed),'dispatch');
+      }
+     }
+    }
     let saved;
-    if(args.turn_id&&!evidence.not_business_evidence){
+    if(args.turn_id&&!evidence.not_business_evidence&&!evidence.no_evidence){
      stage = 'evidence';
      saved=await voiceHistory({...args,step:'evidence',evidence});
     }
-    traceTool(stage,evidence.error || (evidence.discovery_only ? 'discovery' : 'returned'),evidence.discovery_only?evidence:undefined,evidence.validation);
+    if(executed!==identity.operation&&!evidence.discovery_only)traceVoice('voice_planned_read',{
+     session_id:args.session_id,request_id:args.request_id,turn_id:args.turn_id,operation:executed,outcome:outcomeFor(evidence),
+     evidence_saved:Boolean(saved?.evidence),stage});
+    else if(executed===identity.operation||!evidence.preferred_operation)
+     traceTool(stage,evidence.error || (evidence.discovery_only ? 'discovery' : 'returned'),evidence.discovery_only?evidence:undefined,evidence.validation);
     const goal=business.planGoal(transcript);
     const current=saved?.evidence||(evidence.not_business_evidence?turn?.evidence:null)||evidence;
     const items=current?.capability==='business_evidence'?current.items:[current];
@@ -171,11 +197,13 @@ export async function dispatch(body,{voiceUsage,rpc,get,signal,transport,caller,
      const hint=progress.every(p=>p.outcome==='SUCCESS')?business.groundedRecommendation(items,transcript,goal):null;
      return {...evidence,goal:{parts:progress,next_operations:progress.filter(p=>p.outcome==='pending').map(p=>p.operation)},...(hint?{answer_hint:hint}:{}),...(analysis?{verified_comparisons:analysis}:{})};
     }
-    const answer_hint=transcript&&identity.operation&&!evidence.not_business_evidence&&!evidence.error
-     ?sourceLimitation(evidence,transcript)||(asksForAnalysis(transcript)?business.groundedRecommendation(items,transcript):business.format(identity.operation,evidence,transcript,{medium:'voice'})):null;
+    const sourced=evidence.already_read?items.find(entry=>entry?.capability===executed):evidence;
+    const answer_hint=transcript&&executed&&sourced&&(!evidence.not_business_evidence||evidence.already_read)&&!evidence.error
+     ?sourceLimitation(sourced,transcript)||business.format(executed,sourced,plannedWording||transcript,{medium:'voice'})||
+      (asksForAnalysis(transcript)?business.groundedRecommendation(items,transcript):null):null;
     return answer_hint||analysis?{...evidence,...(answer_hint?{answer_hint}:{}),...(analysis?{verified_comparisons:analysis}:{})}:evidence;
    } catch(error) {
-    const failure = voiceToolFailure(error,identity,stage);
+    const failure = error.diagnostic?.operation?error:voiceToolFailure(error,identity,stage);
     traceTool(stage,failure.code);
     throw failure;
    }

@@ -1351,3 +1351,7 @@ The Finished Goods catalogue shares Admin grouping and filtering for counts and 
 ## 2026-11-23 — Native Assistant operational guidance
 
 Extended release guidance with scoped domain-document citations and the existing READ catalog's metric definitions and relationships. Mixed troubleshooting can request a documented rule and independent current evidence. Canonical source-section, permission, ownership, follow-up and provider-free Text/SDK regressions run during the build. Scope and exceptions are recorded in `docs/audits/native-assistant-operational-guidance.md`.
+
+## 2026-11-23 — Native Assistant Realtime business discovery
+
+The failed purchase Voice turn returned zero discovery candidates and no READ evidence despite an enabled Purchase Comparison capability. Discovery now prioritizes the finalized transcript, and Voice can execute one fully resolved canonical READ in the same tool result. An unresolved name requires confirmation. Follow-up periods and outlet corrections reuse verified query scope. SDK completion preserves the actual transcript and marks abandoned discovery unfinished. Text and Voice share bounded recovery and typed outcomes.

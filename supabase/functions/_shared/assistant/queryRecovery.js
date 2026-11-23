@@ -9,10 +9,14 @@ function invocation(tool,args){
 export function createQueryRecovery(){
  const translations=new Map();
  const denied=new Map();
+ const failedSearches=new Set();
  const key=(id,args)=>JSON.stringify([id,Object.entries(args||{}).sort(([a],[b])=>a.localeCompare(b))]);
  return {
   pending(operation){return translations.get(operation)?.remaining===true;},
   before(tool,params){
+   if(tool==='find_business_queries'&&(failedSearches.size>=2||failedSearches.has(key(tool,params))))
+    return {operation:tool,error:'discovery_unresolved',query_outcome:'UNSUPPORTED',no_evidence:true,not_business_evidence:true,
+     instruction:'The current source could not be verified. No records were checked. Ask a clarification or report the unresolved discovery.'};
    const {operation,args}=invocation(tool,params);
    if(!operation||!args)return null;
    const previous=denied.get(key(operation,args));
@@ -27,6 +31,7 @@ export function createQueryRecovery(){
     instruction:'Ask the user to clarify the item at this outlet. No further translation attempt is available in this turn.'};
   },
   after(tool,params,result){
+   if(tool==='find_business_queries'&&result?.next_step?.kind==='refine_search')failedSearches.add(key(tool,params));
    const {operation,args}=invocation(tool,params);
    if(!operation||!args||!result)return;
    if(result.query_outcome==='UNAUTHORIZED'){

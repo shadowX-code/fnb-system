@@ -252,3 +252,24 @@ test('transport loss preserves observed transcript deltas and its distinct termi
  await history.close('transport_disconnected');
  assert.deepEqual(steps.at(-1),['turn','unfinished','实际部分',{reason:'transport_disconnected'}]);
 });
+
+test('a Voice discovery miss permits only one distinct retry and does not save the unsupported conclusion as complete',async()=>{
+ const writes=[],searches=[];
+ const h=createSdkVoiceHistory({id:()=> 'turn',state(){},trace(){},
+  write:async(...args)=>writes.push(args),
+  read:async(_,args)=>{searches.push(args.search);return {discovery_only:true,not_business_evidence:true,next_step:{kind:'refine_search'},query_outcome:'UNSUPPORTED'};}});
+ h.receive({type:'input_audio_buffer.committed',item_id:'input'});
+ h.receive({type:'conversation.item.input_audio_transcription.completed',item_id:'input',transcript:'Get supplier purchases'});
+ for(const [id,search] of [['first','supplier'],['second','sales'],['third','expense']]){
+  h.receive({type:'response.created',response:{id}});
+  const {result}=await h.tool({search,page:1},id,'find_business_queries');
+  if(id==='third')assert.equal(result.error,'discovery_unresolved');
+  h.receive({type:'response.done',response:{id,status:'completed',output:[{type:'function_call'}]}});
+ }
+ h.receive({type:'response.created',response:{id:'answer'}});
+ h.receive({type:'response.done',response:{id:'answer',status:'completed',output:[{role:'assistant',content:[{type:'output_audio',transcript:'No purchases exist.'}]}]}});
+ await h.close();
+ assert.deepEqual(searches,['supplier','sales']);
+ assert.equal(writes.at(-1)[1],'unfinished');
+ assert.equal(writes.at(-1)[2],'No purchases exist.');
+});

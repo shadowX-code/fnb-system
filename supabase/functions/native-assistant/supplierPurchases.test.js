@@ -102,7 +102,7 @@ test('Text renders a source-verified period series when proposed amounts are wro
  for(const proposed of ['采购额 RM 888.88。','1月 RM32.00，6月 RM514.00。']){
   let step=0;
   const result=await generateText({kind:'turn',model:'fixture-model',prompt},'fixture-token',{
-   business:{...business,execute:async(id,received)=>{assert.equal(id,operation);assert.deepEqual(received,args);return evidence;}},
+   business:{...business,resolvedArguments:async()=>null,execute:async(id,received)=>{assert.equal(id,operation);assert.deepEqual(received,args);return evidence;}},
    onTool:async(state,source)=>{if(state==='completed')confirmed.push(source);},
    transport:async()=>Response.json({status:'completed',usage:{input_tokens:1,output_tokens:1},output:++step===1?
     [{type:'function_call',call_id:'purchase',name:operation,arguments:JSON.stringify(args)}]:
@@ -162,4 +162,52 @@ test('purchase entry and supplier-group page continuations retain their distinct
   const ambiguous=await business.planTurn('next page',async()=>({turns:[{state:'completed',tool_state:'completed',evidence:broken}]}));
   assert.equal(ambiguous.query_outcome,'AMBIGUOUS');
  }
+});
+
+test('saved Voice failure and correction replay through the authorized read, with provider-free Text parity',async()=>{
+ const {dispatch}=await import('./handler.js');
+ const id='260aeb0d-e6ab-40ed-a14a-df93bd29aa18';
+ const owner=read('read_purchase_comparison');
+ const config={enabled:true,capability_connections:{[owner.id]:true,read_purchase_records:true}};
+ const access={admin:true,permissions:{[owner.permission]:true,'purchase_input.view':true}};
+ const amounts=[5859,4859,2888,555,888,900];
+ const rows=amounts.map((amount,i)=>entry(String(i),i+1,amount));
+ const context=[];
+ let caller=scopedCaller({entries:rows}),prompt;
+ const saved=[];
+ const deps={access,get:()=>undefined,reserveRealtime:async()=>{},rpc:async action=>action==='history'?{turns:[...context,{request_id:id,voice_input_available:true,prompt}]}:{config},
+  voiceHistory:async command=>{saved.push(command.evidence);return {evidence:command.evidence};},get caller(){return caller;}};
+ const find=()=>dispatch({action:'realtime_tool',provider:'openai',request_id:id,session_id:id,turn_id:id,operation:'find_business_queries',arguments:{search:'supplier',page:1}},deps);
+ prompt='你帮我查看French Shop这间门店在今年的那个purchase，帮我分析一下。';
+ const unclear=await find();
+ assert.equal(unclear.preferred_operation,owner.id);assert(unclear.discovery_only);assert(!caller.tables.includes('purchase_records'));
+ context.push({state:'completed',prompt},{state:'completed',prompt:'你看不到门店的采购数据吗？'});
+ prompt='我是说Example Shop哦';
+ const corrected=await find();
+ assert.equal(corrected.capability,owner.id);assert.match(corrected.answer_hint,/RM 15,949\.00/);
+ assert.equal(saved.length,1);
+ context.splice(0,context.length,{state:'completed',tool_state:'completed',evidence:corrected});
+ prompt='monthly breakdown';
+ const detail=await find();
+ assert.deepEqual(detail.monthly_totals.map(m=>m.amount),[...amounts,null,null,null,null,null,null]);
+ assert.match(detail.answer_hint,/January RM 5,859\.00.*June RM 900\.00.*July to December/);
+ for(const question of ['Show Example Shop monthly supplier purchases for 2026','列出 Example Shop 2026 年每个月的 supplier 采购金额','Berapa jumlah pembelian pembekal setiap bulan di Example Shop pada 2026?']){
+  caller=scopedCaller({entries:rows});prompt=question;
+  const voice=await find();
+  const textEvidence=[];
+  const business=createBusinessDispatcher({caller,access,config});
+  const text=await generateText({kind:'turn',model:'unused',prompt},'unused',{business,transport:()=>assert.fail('No provider call'),
+   onTool:(state,e)=>{if(state==='completed')textEvidence.push(e);}});
+  assert.match(text.reply,/15,949/);
+  assert.deepEqual(voice.monthly_totals,textEvidence[0].monthly_totals);
+ }
+ config.capability_connections[owner.id]=false;
+ const disabled=await find();assert.equal(disabled.error,'capability_disconnected');
+ config.capability_connections[owner.id]=true;
+ access.permissions[owner.permission]=false;
+ assert.equal((await find()).error,'business_read_denied');
+ access.permissions[owner.permission]=true;
+ caller=scopedCaller({entries:[]});assert.equal((await find()).query_outcome,'NO_MATCH');
+ caller=scopedCaller({deny:'suppliers.view'});await assert.rejects(find(),{code:'business_read_denied'});
+ caller=scopedCaller({extra:1});await assert.rejects(find(),{code:'business_result_limit'});
 });

@@ -2,7 +2,7 @@ import {readContract,uuid,month,page,pick,permitted,rowsEvidence,invalidArgument
 import {AssistantError} from '../assistantError.js';
 import {readCompleteRows} from '../completeRows.js';
 import {buildAlerts,getSalesBreakdown,getMonthlyPurchaseEfficiency,getPurchaseTotal,getPreviousPeriod} from './analytics.js';
-import {formatSupplierPurchases,loadSupplierPurchases,purchaseAnswerAmounts,purchaseOutlet,purchaseOutletFields,purchasePageSize,supplierFilter,supplierPurchaseIntent,supplierPurchaseMetrics,validatePurchaseScope} from './supplierPurchases.js';
+import {followRecordedPurchases,formatSupplierPurchases,loadSupplierPurchases,prepareRecordedPurchases,purchaseAnswerAmounts,purchaseOutlet,purchaseOutletFields,purchasePageSize,supplierFilter,supplierPurchaseIntent,supplierPurchaseMetrics,validatePurchaseScope} from './supplierPurchases.js';
 import {buildDataHealth} from './dataHealth.js';
 // Fixed, human-RLS domain sources; no caller-selected tables, filters or columns.
 async function requireAnalyticsAccess(caller,signal){
@@ -48,6 +48,7 @@ const purchaseComparisonRead=readContract({
  scope:'One authorized Restaurant outlet and reporting year, with the original Sales Input, Purchase Input, Sales Channels, Suppliers, Tax Settings and Operating Expenses permission checks.',
  discoveryPhrases:['purchase comparison','monthly supplier purchases','annual supplier purchases','purchases by month','每月供应商采购','每個月的採購','采购对比','pembelian bulanan','belian mengikut bulan'],
  queryIntent:prompt=>supplierPurchaseIntent(prompt)==='supplier_year'?'recorded_purchases_by_month':null,
+ resolveAnalyticalQuery:true,prepareArguments:prepareRecordedPurchases,followUp:followRecordedPurchases,
  narrowerReads:{recorded_purchases_by_month:['read_purchase_records']},
  answerAmounts:purchaseAnswerAmounts,format:formatSupplierPurchases,fixedPageSize:purchasePageSize,
  description:'For monthly purchase amounts across a year, supplier spend by month, recorded annual total or months without entries use supplier_year; month in YYYY-MM-01 selects the year. Use supplier_month for only one month. Both return period and monthly totals without any sales requirement, plus largest supplier totals first; optionally filter by a recorded supplier name. Use efficiency only for net sales and purchase-efficiency analysis.',

@@ -124,6 +124,8 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
  // currently discoverable READs may be offered. Never execute it as a fallback.
  function unavailableDiscovery(plan,available,prompt){
   const requested=assistantQuery(plan.operation);
+  const permissionState=available.find(row=>row.id===plan.operation)?.availability;
+  const error=permissionState==='disabled'?'capability_disconnected':'business_read_denied';
   const language=businessReplyLanguage(prompt);
   const options=(requested.narrowerReads?.[plan.intent]||[]).flatMap(id=>{
    const entry=available.find(row=>row.id===id&&row.kind==='READ'&&row.availability==='connected');
@@ -132,7 +134,7 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
    return [{operation:id,label:entry.label,scope:entry.scope,offer:target.narrowerOffer?.[language]}];
   });
   const offer=options.length===1?options[0].offer:null;
-  return {discovery_only:true,not_business_evidence:true,requested_query_unavailable:true,total_operations:0,
+  return {discovery_only:true,not_business_evidence:true,requested_query_unavailable:true,error,total_operations:0,
    page:1,has_more:false,preferred_operation:null,operations:[],narrower_reads:options,
    next_step:{kind:options.length?'offer_narrower_scope':'report_unavailable'},
    ...(offer?{answer_hint:offer}:{}),
@@ -172,7 +174,7 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
  }
  async function planTurn(prompt,history,signal,{textPages=false}={}){
   if(!prompt)return null;
-  if(asksWorkflow(prompt)||planGoal(prompt)||asksForAnalysis(prompt))return null;
+  if(asksWorkflow(prompt)||planGoal(prompt))return null;
   const textPage=textPages?await finishedGoodsRead.planTextPage(prompt,history):null;
   if(textPage)return {...planFor(finishedGoodsRead),textPage};
   // Page-only turns reuse an exact authorized query, never a guessed or mixed one.
@@ -182,7 +184,8 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
    return {...planFor(assistantQuery(page.operation)),page};
   }
   const operation=planned(prompt);
-  if(operation)return {...planFor(operation),intent:operation.queryIntent(prompt),wording:prompt};
+  if(operation&&(!asksForAnalysis(prompt)||operation.resolveAnalyticalQuery))return {...planFor(operation),intent:operation.queryIntent(prompt),wording:prompt};
+  if(asksForAnalysis(prompt))return null;
   // Domain-owned follow-ups may constrain the most recent successful scope.
   if(history){
    const previous=previousBusinessResult(await history());
@@ -194,15 +197,23 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
   }
   // An outlet-only answer can complete the immediately preceding scoped
   // request. Carry its query shape, never its unresolved outlet or figures.
-  const candidate=correctedOutletWording(prompt);
+  const candidate=correctedOutletWording(prompt).replace(/[哦喔啊呀啦。！!]+$/u,'').trim();
   if(!history||candidate.length>120||!entityKey(candidate)||/[?？]/u.test(candidate))return null;
-  const previous=(await history())?.turns?.filter(turn=>turn.state==='completed').at(-1);
+  const explicit=correctedOutletWording(prompt)!==prompt.trim();
+  const recent=(await history())?.turns?.filter(turn=>turn.state==='completed'||turn.state==='failed').slice(explicit?-3:-1).reverse()||[];
+  // An explicit name correction can pass a brief capability clarification,
+  // but never jump over an intervening verified result or another planned read.
+  let previous,pending;
+  for(const row of recent){
+   const evidence=row.evidence?.items||[row.evidence];
+   const hasRead=evidence.some(item=>item?.requested_scope&&outcomeFor(item)==='SUCCESS');
+   const owner=planned(row.prompt);
+   if(owner?.prepareArguments?.(row.prompt)&&(!hasRead||explicit)){previous=row;pending=owner;break;}
+   if(hasRead||owner)break;
+  }
   if(!previous)return null;
-  const evidence=previous.evidence?.items||[previous.evidence];
-  if(candidate===prompt.trim()&&evidence.some(item=>item&&outcomeFor(item)==='SUCCESS'))return null;
-  const pending=planned(previous.prompt);
   const plan=planFor(pending);
-  if(!plan?.tool||!pending.prepareArguments?.(previous.prompt))return null;
+  if(!plan?.tool)return plan?{...plan,wording:previous.prompt}:null;
   await permitted(caller,pending.permission,signal);
   let outlet;
   try{outlet=await resolveOutlet(caller,{outlet_name:candidate},signal);}
@@ -277,14 +288,15 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
    return unavailableDiscovery(plan,businessCapabilities(current,access||{}),prompt);
   },
   plan(prompt){
-   if(asksWorkflow(prompt)||planGoal(prompt)||asksForAnalysis(prompt))return null;
+   if(asksWorkflow(prompt)||planGoal(prompt))return null;
    const operation=planned(prompt);
+   if(asksForAnalysis(prompt)&&!operation?.resolveAnalyticalQuery)return null;
    return operation?{...planFor(operation),intent:operation.queryIntent(prompt),wording:prompt}:null;
   },
   async resolvedArguments(plan,prompt,history,signal){
    if(!plan?.tool)return null;
    const operation=assistantQuery(plan.operation);
-   if(plan.followUp)return plan.followUp;
+   if(plan.followUp&&operation.format)return plan.followUp;
    if(plan.page&&operation.formatsListPages===true)return plan.page.args;
    if(!operation.prepareArguments?.(plan.wording||prompt))return null;
    const current=loadConfig?await loadConfig():config||{};
@@ -322,8 +334,14 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
      const plan=turnPlan??(await planTurn(prompt,history,signal));
      const available=withGuide(businessCapabilities(current,access||{}),current);
      const requestedUnavailable=plan&&!available.some(row=>row.id===plan.operation&&row.availability==='connected');
-     const result=requestedUnavailable?unavailableDiscovery(plan,available,prompt):discoveryRows(queryOperations.filter(operation=>!blocked.has(operation.id)&&(!asksForAnalysis(prompt)||operation.kind!=='ACTION')&&(!goal||goal.some(step=>step.operation===operation.id))&&(!plan||operation.id===plan.operation)),
-      available,plan?{search:plan.operation,page:1}:parsed);
+     const candidates=queryOperations.filter(operation=>!blocked.has(operation.id)&&
+      (!asksForAnalysis(prompt)||operation.kind!=='ACTION')&&(!goal||goal.some(step=>step.operation===operation.id))&&(!plan||operation.id===plan.operation));
+     const knownSearch=typeof prompt==='string'&&prompt.trim()?prompt.trim().slice(0,240):null;
+     const transcriptResult=!plan&&knownSearch&&parsed.page===1?discoveryRows(candidates,available,{search:knownSearch,page:1}):null;
+     const toolResult=discoveryRows(candidates,available,plan?{search:plan.operation,page:1}:parsed);
+     const useTranscript=transcriptResult&&(transcriptResult.preferred_operation||!toolResult.operations.length&&transcriptResult.operations.length);
+     const result=requestedUnavailable?unavailableDiscovery(plan,available,prompt):
+      useTranscript?{...transcriptResult,search_origin:'user_turn'}:{...toolResult,search_origin:plan?'planned_owner':'tool_search'};
      return withOutcome?{...result,query_outcome:outcomeFor(result)}:result;
     }
     id=parsed.operation;args=parsed.args;
@@ -366,7 +384,7 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
       const resolved=plan?turnArguments(operation,plan,prompt,named,inherited):null;
       if(resolved)args={...args,...resolved};
       else if(named.length>1)throw new AssistantError('entity_ambiguous',409);
-      else if(named[0])args.outlet_name=named[0].name;
+      else if(named[0]){args.outlet_name=named[0].name;args.outlet_id=null;}
       if(plan&&!resolved&&!named.length&&(!step||step.intent||args.outlet_name||args.outlet_id)){
        const wording=' '+entityKey(scopeText)+' ';
        const supplied=args.outlet_name||args.outlet_id;

@@ -121,6 +121,7 @@ test('Voice supplier discovery follows the saved utterance and exposes only auth
  assert.equal((await find()).next_step.kind,'report_unavailable');
  config.capability_connections[monthly]=true;
  config.capability_connections[annual]=true;
+ deps.caller={rpc:()=>({abortSignal:async()=>({data:true})}),from:()=>{const q={select:()=>q,order:()=>q,limit:()=>q,abortSignal:async()=>({data:[]})};return q;}};
  const examples=[
   [prompt,annual],
   ['Berapakah jumlah pembelian pembekal setiap bulan di French Corner?',annual],
@@ -129,7 +130,8 @@ test('Voice supplier discovery follows the saved utterance and exposes only auth
  for(const [utterance,op] of examples){
   prompt=utterance;
   const available=await find();
-  assert.deepEqual(available.next_step,{kind:'read',tool:'run_business_query',operation:op});
+  if(op===annual)assert.deepEqual(available.next_step,{kind:'confirm_scope'});
+  else assert.deepEqual(available.next_step,{kind:'read',tool:'run_business_query',operation:op});
   assert.deepEqual(available.operations.map(row=>row.operation),[op]);
   assert(available.operations[0].parameters.properties.month);
   assert.deepEqual(traces.at(-1).matched_operations,[op]);
@@ -354,4 +356,20 @@ test('directory and purchase pages count the same restricted rows, retaining aut
  const second=await op.execute(caller(),{...scope,page:2});
  assert.equal(second.total_matching,22);assert.equal(second.rows.length,2);assert.equal(second.truncated,false);
  const before=log.length;await assert.rejects(op.execute(caller(true,false),scope),{code:'business_read_denied'});assert.equal(log.length,before);
+});
+
+test('canonical transcript discovery survives unrelated search terms in other domains',async()=>{
+ const cases=[
+  ['Show the highest Raw Material stock balance in kilograms','read_factory_raw_catalogue'],
+  ['How many employees are active?','read_employee_directory'],
+  ['How many restaurant master inventory items are there?','read_inventory_items'],
+ ];
+ const config={enabled:true,capability_connections:Object.fromEntries(cases.map(([,op])=>[op,true]))};
+ const access={admin:true,factory:true,permissions:Object.fromEntries(cases.map(([,id])=>[operations.find(op=>op.id===id).permission,true]))};
+ const b=createBusinessDispatcher({config,access});
+ for(const [prompt,owner] of cases){
+  const contract=await b.execute('find_business_queries',{search:'unrelated rando',page:1},null,{prompt,withOutcome:true});
+  assert.equal(contract.preferred_operation,owner,prompt);
+  assert(contract.not_business_evidence);
+ }
 });

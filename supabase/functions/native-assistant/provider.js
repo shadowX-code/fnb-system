@@ -113,7 +113,7 @@ export async function generateText(claim,key,{transport=fetch,signal,business,hi
   await onTool?.('failed');
   for(const step of goal||[plan])onTrace(step.operation,null,'capability_disconnected');
   const unavailable=plan?.intent?await business?.unavailableRead?.(plan,claim.prompt):null;
-  const reply=[businessFailureReply('UNAUTHORIZED',claim.prompt),unavailable?.answer_hint].filter(Boolean).join(' ');
+  const reply=[businessFailureReply('UNAUTHORIZED',claim.prompt,unavailable?.error),unavailable?.answer_hint].filter(Boolean).join(' ');
   return {reply,input_tokens:0,output_tokens:0,latency_ms:0};
  }
  function boundedPayload(remaining,allowTools){
@@ -138,7 +138,7 @@ export async function generateText(claim,key,{transport=fetch,signal,business,hi
    if(controller.signal.aborted||!(error instanceof AssistantError))throw error;
    await onTool?.('failed');
    onTrace(plan.operation,null,error.code);
-   return {reply:businessFailureReply(failureOutcome(error.code),claim.prompt),input_tokens:0,output_tokens:0,latency_ms:Date.now()-started};
+   return {reply:businessFailureReply(failureOutcome(error.code),claim.prompt,error.code),input_tokens:0,output_tokens:0,latency_ms:Date.now()-started};
   }
   if(direct){
    await onTool?.('executing');
@@ -149,12 +149,12 @@ export async function generateText(claim,key,{transport=fetch,signal,business,hi
     if(controller.signal.aborted||!(error instanceof AssistantError))throw error;
     await onTool?.('failed');
     onTrace(plan.operation,direct,error.code);
-    return {reply:businessFailureReply(failureOutcome(error.code),claim.prompt),input_tokens:0,output_tokens:0,latency_ms:Date.now()-started};
+    return {reply:businessFailureReply(failureOutcome(error.code),claim.prompt,error.code),input_tokens:0,output_tokens:0,latency_ms:Date.now()-started};
    }
    if(evidence.no_evidence||evidence.not_business_evidence)await onTool?.('failed');
    else await onTool?.('completed',evidence);
    onTrace(plan.operation,direct,evidence.error||'returned');
-   return {reply:sourceLimitation(evidence,claim.prompt)||business.format(plan.operation,evidence,claim.prompt)||businessFailureReply(outcomeFor(evidence),claim.prompt),
+   return {reply:sourceLimitation(evidence,claim.prompt)||business.format(plan.operation,evidence,planned?.wording||claim.prompt)||businessFailureReply(outcomeFor(evidence),claim.prompt),
     input_tokens:0,output_tokens:0,latency_ms:Date.now()-started};
   }
   let inputTokens=0,outputTokens=0;const seenCalls=new Set();let evidenceBytes=0;
@@ -252,7 +252,7 @@ export async function generateText(claim,key,{transport=fetch,signal,business,hi
       || (plan?.tool?[plan.tool]:[]);
      reply=discoveryScopeQuestion(candidates,reply,claim.prompt)||unverifiedReadReply(claim.prompt);
     }else{
-     const reason=sourceLimitation(confirmed.at(-1),claim.prompt)||businessFailureReply(lastOutcome==='SUCCESS'?'UNSUPPORTED':lastOutcome||'UNSUPPORTED',claim.prompt);
+     const reason=sourceLimitation(confirmed.at(-1),claim.prompt)||businessFailureReply(lastOutcome==='SUCCESS'?'UNSUPPORTED':lastOutcome||'UNSUPPORTED',claim.prompt,lastDiscovery?.discovery_only&&!attemptedRead?'discovery_unresolved':undefined);
      reply=[reason,lastOutcome==='UNAUTHORIZED'&&lastDiscovery?.answer_hint].filter(Boolean).join(' ');
     }
    }

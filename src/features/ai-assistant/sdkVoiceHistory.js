@@ -111,6 +111,11 @@ export function createSdkVoiceHistory({ write, read, state, trace, activity = ()
    finish(turn, incomplete ? 'unfinished' : 'failed', text, reason, owner);
    return;
   }
+  if(turn.unresolvedDiscovery&&!/[?？]\s*$/u.test(text)){
+   trace('business_discovery_incomplete',turn.number,owner.number);
+   finish(turn,'unfinished',text,'provider_incomplete',owner);
+   return;
+  }
   finish(turn, text ? 'complete' : 'unavailable', text, text ? 'provider_completed' : 'missing_assistant_transcript', owner);
  }
 
@@ -140,6 +145,8 @@ export function createSdkVoiceHistory({ write, read, state, trace, activity = ()
     const result = turn.recovery.before(operation,args) || await read(turn.id, args, operation);
     if (!ownsTurn()) return { stale: true };
     turn.recovery.after(operation,args,result);
+    if(result.discovery_only)turn.unresolvedDiscovery=['read','refine_search','select_match','confirm_scope'].includes(result.next_step?.kind);
+    else if(result.query_outcome&&result.error!=='discovery_unresolved')turn.unresolvedDiscovery=false;
     activity({ ...tool, label: result.operation_label, phase: result.error || result.no_evidence ? 'failed' : 'complete' });
     trace('business_tool_finished', turn.number, owner.number, result.error || (result.discovery_only ? 'discovery' : 'returned'));
     return { result };
@@ -160,6 +167,7 @@ export function createSdkVoiceHistory({ write, read, state, trace, activity = ()
     const result={ error:code,operation:capability,operation_label:label,reason,
      query_outcome:error.diagnostic?.query_outcome||(denied?'UNAUTHORIZED':'EXECUTION_ERROR'),no_evidence:true,instruction };
     turn.recovery.after(operation,args,result);
+    turn.unresolvedDiscovery=false;
     return {result};
    } finally {
     turn.toolPending = false;

@@ -2,7 +2,7 @@ import {AssistantError} from '../assistantError.js';
 import {businessSemanticEntry} from './moduleInterface.js';
 // Transport envelopes over the existing dispatcher, never a second registry or authority.
 export const queryDiscoveryTools=[
- {type:'function',name:'find_business_queries',description:'Find the authorized operation for a FeedX business question. Search with the current user request or a short business resource. Distinguish Master Inventory item types, asset balances, stock movements, Factory raw materials and finished goods. Returns schemas only.',strict:true,parameters:{type:'object',properties:{search:{type:'string',maxLength:240},page:{type:'integer',minimum:1,maximum:20}},required:['search','page'],additionalProperties:false}},
+ {type:'function',name:'find_business_queries',description:'Find the authorized operation for a FeedX business question. Search with the current user request or a short business resource. Distinguish Master Inventory item types, asset balances, stock movements, Factory raw materials and finished goods. Starts authorized discovery. A fully scoped Voice request may return verified business evidence directly. When discovery_only is present, the result contains schemas, not records.',strict:true,parameters:{type:'object',properties:{search:{type:'string',maxLength:240},page:{type:'integer',minimum:1,maximum:20}},required:['search','page'],additionalProperties:false}},
  {type:'function',name:'run_business_query',description:'Invoke one previously discovered operation through the existing authorized dispatcher. arguments_json must encode the exact discovered schema. ACTION prepares a preview only; confirmation remains separate.',strict:true,parameters:{type:'object',properties:{operation:{type:'string',maxLength:100},arguments_json:{type:'string',maxLength:4000}},required:['operation','arguments_json'],additionalProperties:false}}
 ];
 export function isQueryEnvelope(id){return queryDiscoveryTools.some(t=>t.name===id);}
@@ -78,7 +78,7 @@ export function discoverQueries(operations,capabilities,args){
   preferred_operation:selected?.operation||null,operations:entries,next_step:handoff,
   instruction:handoff.kind==='read'?'Use the returned schema with run_business_query before giving business figures. If required scope is missing, ask for it. This source is available through the runner even when its name is absent from the installed tools.'
    :handoff.kind==='select_match'?'These are available operations, not business results. Use run_business_query with a matching schema. If the requested scope is ambiguous, ask one clarification.'
-   :'No operation matched this search or page. Retry discovery with just the resource or module name on its first page. No business source was queried. Do not report missing records, zero or permission denial.'};
+   :'No operation matched this search or page. Make at most one distinct retry using the resource or module name on its first page. If it still fails, say the source could not be verified. No business source was queried. Do not report missing records, zero or permission denial.'};
 }
 
 function matchesPhrase(phrase,query,search){

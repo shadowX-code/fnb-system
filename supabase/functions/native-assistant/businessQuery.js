@@ -39,7 +39,7 @@ export function previousNamedTurn(history){
  return typeof latest.prompt==='string'?latest.prompt:null;
 }
 
-export const correctedOutletWording=prompt=>String(prompt||'').split(/(?:\b(?:i meant|actually use|rather than that,? use|maksud saya|bukan itu,? tetapi)\b|我(?:的意思|说的是|說的是)|更正[：:]?|不是[^，,]{1,80}[，,]\s*(?:而)?是)/iu).at(-1).trim();
+export const correctedOutletWording=prompt=>String(prompt||'').split(/(?:\b(?:i meant|actually use|rather than that,? use|maksud saya|bukan itu,? tetapi)\b|我(?:的意思|说的是|說的是|是说|是說)|更正[：:]?|不是[^，,]{1,80}[，,]\s*(?:而)?是)/iu).at(-1).trim();
 
 // Follow-up scope comes from the most recent completed, unambiguous business read.
 export function previousBusinessResult(history){
@@ -156,9 +156,12 @@ export function discoveryScopeQuestion(candidates,reply,prompt){
  return outlet&&period?'Which outlet and period should I check?':outlet?'Which outlet should I check?':'Which period should I check?';
 }
 
-export function businessFailureReply(status,prompt=''){
+export function businessFailureReply(status,prompt='',code){
  const language=businessReplyLanguage(prompt);
  const chinese=language==='zh',malay=language==='ms';
+ if(code==='capability_disconnected')return chinese?'这项查询的 AI 访问已关闭。':malay?'Akses AI untuk pertanyaan ini dimatikan.':'AI access for this query is disabled.';
+ if(code==='entity_unresolved')return chinese?'我无法确认您指的门店或品项。请确认名称。':malay?'Sila sahkan nama cawangan atau item.':'I couldn’t confirm the outlet or item. Please confirm the name.';
+ if(code==='discovery_unresolved')return chinese?'我还无法核实应该查询哪个来源。':malay?'Saya belum dapat mengesahkan sumber yang sesuai.':'I couldn’t verify which source to query.';
  return ({
   UNAUTHORIZED:chinese?'当前无法查看这项数据。请检查您的访问权限。':malay?'Akses semasa tidak membenarkan semakan ini.':'Your current access does not allow this read.',
   AMBIGUOUS:chinese?'请确认您指的是哪家门店或哪个品项。':malay?'Cawangan atau item yang mana satu?':'Please confirm which outlet or item you mean.',
