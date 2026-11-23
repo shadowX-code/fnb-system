@@ -145,7 +145,9 @@ const cases=[
  ['read_crew_leave','How many leave requests overlapped these dates?',{outlet_id:id,from:'2026-11-01',to:'2026-11-02'},r=>{assert.equal(r.total_matching,24);assert.equal(r.rows.length,1);}],
  ['read_sales_records','Show monthly sales input for this outlet',{outlet_id:id,month:'2026-11-01',page:1},r=>{
   assert.equal(r.rows[0].amount,125);assert.equal(r.rows[0].outlet_id,id);assert.equal(r.rows[0].month,11);assert.equal(r.total_matching,1);
-  assert.equal(r.completeness.aggregate_scope,'complete_filtered_scope');assert.equal(r.rows[0].remark,undefined);
+  if(r.completeness)assert.equal(r.completeness.aggregate_scope,'complete_filtered_scope');
+  else assert.equal(r.coverage.total_verified,true);
+  assert.equal(r.rows[0].remark,undefined);
  }],
  ['read_operational_financials','What finance figures exist for this reporting period?',{outlet_id:id,year:2026,month:11},r=>assert.deepEqual(r.report,finance)],
  ['read_marketing_plan','How many tasks are in this Brand planning month?',{organization_id:id,brand_id:id,month:'2026-11-01'},r=>assert.equal(r.total_matching,1)],

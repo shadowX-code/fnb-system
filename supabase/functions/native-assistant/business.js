@@ -439,6 +439,7 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
     throw error;
    }
   },
+  formatFollowUpAnswer(id,evidence,prompt,options){return assistantQuery(id).formatFollowUpAnswer?.(evidence,prompt,options)||null;},
   format(id,evidence,prompt,options){return assistantQuery(id).format?.(evidence,prompt,options)||null;},
   completeTextPage(evidence,plan){return plan?.textPage?finishedGoodsRead.completeTextPage(evidence,plan.textPage):null;},
  };

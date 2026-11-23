@@ -33,7 +33,7 @@ function attemptedOperation(tool, args) {
 }
 
 // Observe SDK events without taking ownership of transport, playback or response creation.
-export function createSdkVoiceHistory({ write, read, state, trace, activity = () => {}, requestResponse, inputDeadlineMs = 8000, id = () => crypto.randomUUID() }) {
+export function createSdkVoiceHistory({ write, read, state, trace, activity = () => {}, requestResponse, includePrompt = false, inputDeadlineMs = 8000, id = () => crypto.randomUUID() }) {
  const inputs = new Map();
  const responses = new Map();
  let current, writes = Promise.resolve();
@@ -79,6 +79,7 @@ export function createSdkVoiceHistory({ write, read, state, trace, activity = ()
    const turn = inputs.get(item_id);
    if (turn&&!turn.inputHandled) {
     turn.inputHandled=true;
+    turn.prompt=transcript?.trim()?transcript.slice(0,2000):undefined;
     const saved=transcript?.trim()?save(turn,'input',transcript.slice(0,2000)):Promise.resolve();
     void saved.then(result=>{
      turn.settleInput();
@@ -171,7 +172,7 @@ export function createSdkVoiceHistory({ write, read, state, trace, activity = ()
     else if(result.query_outcome&&result.error!=='discovery_unresolved')turn.unresolvedDiscovery=false;
     activity({ ...tool, label: result.operation_label, phase: result.error || result.no_evidence ? 'failed' : 'complete' });
     trace('business_tool_finished', turn.number, owner.number, result.error || (result.discovery_only ? 'discovery' : 'returned'));
-    return { result };
+    return { result, ...includePrompt&&turn.prompt?{prompt:turn.prompt}:{} };
    } catch (error) {
     if (!ownsTurn()) return { stale: true };
     const code = Object.hasOwn(toolFailureReasons, error.code) ? error.code : 'assistant_unavailable';

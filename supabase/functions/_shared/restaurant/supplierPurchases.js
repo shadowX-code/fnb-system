@@ -142,12 +142,68 @@ function monthRanges(months,label,range){
  return groups.map(([start,end])=>start===end?label(start):label(start)+range+label(end));
 }
 
+const supplierRankingQuestion=prompt=>
+ /\b(?:supplier|suppliers|vendor|vendors|pembekal)\b|供[应應]商/iu.test(prompt)&&
+ /\b(?:top|rank(?:ed|ing)?|most|biggest|highest|largest|terbanyak|tertinggi|paling (?:banyak|tinggi))\b|最多|最高|排名|排行/iu.test(prompt)
+ ||/\b(?:who|which one) did we buy (?:the )?most from\b|跟谁买得最多|跟誰買得最多/iu.test(prompt);
+
+export function formatSupplierRanking(e,prompt,{medium='text'}={}){
+ if(!supplierRankingQuestion(prompt))return null;
+ const scope=e.requested_scope||{};
+ if(!['supplier_year','supplier_month','supplier_totals'].includes(scope.mode)||e.currency!=='MYR'||!e.outlet?.name||
+  !/^20\d\d-(?:0[1-9]|1[0-2])-01$/u.test(scope.month)||Number(scope.month.slice(0,4))!==e.year||
+  scope.outlet_id&&scope.outlet_id!==e.outlet.id||!Array.isArray(e.rows))return null;
+ const zh=/\p{Script=Han}/u.test(prompt),ms=!zh&&/\b(?:pembekal|paling|terbanyak|tertinggi|belian)\b/iu.test(prompt);
+ const locale=zh?'zh-MY':ms?'ms-MY':'en-MY';
+ const month=Number(scope.month.slice(5,7));
+ const period=scope.mode==='supplier_year'?String(e.year):new Intl.DateTimeFormat(locale,{year:'numeric',month:'long',timeZone:'UTC'}).format(Date.UTC(e.year,month-1,1));
+ const money=value=>'RM '+new Intl.NumberFormat(locale,{minimumFractionDigits:Number.isInteger(value)?0:2,maximumFractionDigits:2}).format(value);
+ const rows=e.rows.filter(row=>typeof row.supplier_name==='string'&&row.supplier_name.trim()&&Number.isFinite(row.amount));
+ if(scope.supplier_name||!rows.length||/\b(?:units?|kilograms?|kg|pieces?|kuantiti|bilangan pesanan)\b|公斤|件数|件數|数量|數量|下单次数|下單次數/iu.test(prompt)){
+  return zh?'现有采购金额无法确定您问的供应商排名。':ms?'Jumlah belian yang tersedia belum cukup untuk mengesahkan kedudukan yang diminta.':'The available purchase amounts don’t establish the ranking you asked for.';
+ }
+ const firstAmount=Math.max(...rows.map(row=>row.amount));
+ const leaders=rows.filter(row=>row.amount===firstAmount);
+ const firstPage=e.page===1&&scope.page===1&&Number.isSafeInteger(e.total_matching)&&e.total_matching>=e.rows.length;
+ const completeDisplay=firstPage&&e.total_matching===e.rows.length;
+ // The authority sorts the complete supplier groups before taking any rows.
+ // When the last returned supplier ties for first, others may share the lead.
+ const cutoffClear=e.rows.at(-1)?.amount<firstAmount;
+ const validSortedRows=e.rows.every((row,i)=>Number.isFinite(row.amount)&&(!i||e.rows[i-1].amount>=row.amount));
+ const hasOverallLeader=firstPage&&e.aggregate_complete===true&&e.rows[0]?.supplier_name&&!e.rows.some(row=>!row.supplier_name&&row.amount>=firstAmount)&&
+  validSortedRows&&(completeDisplay||cutoffClear);
+ const names=leaders.slice(0,3).map(row=>row.supplier_name).join(zh?'、':ms?' dan ':' and ');
+ const additional=leaders.length>3;
+ const tied=leaders.length>1;
+ const lead=zh
+  ? e.outlet.name+' '+period+(period===String(e.year)?' 年':'')+'，'+(hasOverallLeader?'按已记录的采购金额，':'就目前能核实的采购记录来看，')+
+   (additional?'包括 '+names+' 在内的几家供应商并列最高，各是 ':tied?names+' 并列最高，各是 ':'跟 '+names+' 买得最多，金额是 ')+money(firstAmount)+'。'
+  : ms?names+(additional?' dan pembekal lain':'')+(tied?' berkongsi jumlah belian tertinggi':' mencatat belian tertinggi')+
+   (hasOverallLeader?' dalam rekod':' setakat rekod yang dapat disemak')+' di '+e.outlet.name+' ('+period+'), '+money(firstAmount)+(tied?' setiap satu.':'.')
+  :names+(additional?' and others':'')+(tied?' tied for the highest recorded spend':' had the highest recorded spend')+
+   (hasOverallLeader?'':' among the records I could verify')+' at '+e.outlet.name+' in '+period+', '+money(firstAmount)+(tied?' each.':'.');
+ const missing=Array.isArray(e.missing_months)?e.missing_months.length:0;
+ const caveat=!hasOverallLeader
+  ?zh?'现有记录不足以确认整体排名。':ms?'Rekod ini belum cukup untuk mengesahkan kedudukan keseluruhan.':'The available records don’t establish the overall ranking.'
+  :missing?zh?'有 '+missing+' 个月没有采购记录。':ms?'Tiada rekod belian bagi '+missing+' bulan.':missing+' months had no recorded purchases.':'';
+ const wantsList=/\b(?:list|table|ranking|top\s+\d+|senarai)\b|列出|排名|排行|表格/iu.test(prompt);
+ if(medium!=='voice'&&wantsList&&validSortedRows){
+  const limit=Math.min(10,Number(prompt.match(/\btop\s+(\d+)/iu)?.[1]||10));
+  const headers=zh?['供应商','采购金额']:ms?['Pembekal','Jumlah belian']:['Supplier','Recorded purchases'];
+  const table=[headers,['---','---'],...rows.slice(0,limit).map(row=>[row.supplier_name.replace(/[|\r\n]/gu,' '),money(row.amount)])];
+  return [lead,caveat,table.map(row=>'| '+row.join(' | ')+' |').join('\n')].filter(Boolean).join('\n\n');
+ }
+ return [lead,caveat].filter(Boolean).join(' ');
+}
+
 // This owner can answer its period figures without trusting the order, rounding
 // or omission of a provider's proposed amounts. The separate supplier page is
 // not a purchase-entry count. Never use it to reconstruct these totals.
 export function formatSupplierPurchases(e,prompt='',{medium='text'}={}){
  const category=annualCategoryLimitation(e,prompt);
  if(category)return category;
+ const ranking=formatSupplierRanking(e,prompt,{medium});
+ if(ranking)return ranking;
  const scope=e.requested_scope||{};
  if(!['supplier_year','supplier_month','supplier_totals'].includes(scope.mode)||e.currency!=='MYR'||e.aggregate_complete!==true)return null;
  const annual=scope.mode==='supplier_year';

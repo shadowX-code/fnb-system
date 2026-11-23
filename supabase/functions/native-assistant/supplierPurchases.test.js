@@ -125,8 +125,8 @@ test('Text renders a source-verified period series when proposed amounts are wro
  assert.match(business.format(monthly.capability,monthly,'Berapa jumlah pembelian pembekal?'),/Example Shop · First.*Januari 2026.*RM 514.00/);
  for(const partial of [{aggregate_complete:false},{monthly_totals:e.monthly_totals.slice(1)},{missing_months:[]},{recorded_total:99},{entry_count:2}])
   assert.equal(owner.format({...e,...partial},prompt),null);
- for(const other of ['List the top suppliers by annual purchases','Compare purchase amounts with last year'])
-  assert.equal(owner.format(e,other),null);
+ assert.match(owner.format(e,'List the top suppliers by annual purchases'),/Supplier \| Recorded purchases/);
+ assert.equal(owner.format(e,'Compare purchase amounts with last year'),null);
 });
 
 test('purchase entry and supplier-group page continuations retain their distinct fixed sizes, complete scope and model-assisted list answers',async()=>{
@@ -269,4 +269,83 @@ test('a correction retains the Restaurant master-data scope and never borrows an
  assert.deepEqual(await business.resolvedArguments(plan,prompt,history),{outlet_id:null,outlet_name:'Example Shop',year:2026,month:null,page:1});
  turns.push({prompt:'What was Payroll this year?',state:'completed'});
  assert.equal(await business.planTurn(prompt,history),null);
+});
+
+test('supplier leaders use business coverage, handle ties and speak without result mechanics',async()=>{
+ const {businessResultForAnswer,exposesExecution}=await import('../_shared/assistant/answerComposition.js');
+ const owner=read('read_purchase_comparison');
+ const rows=[{supplier_name:'Ggg',amount:5444},{supplier_name:'Abc Supplier',amount:4221},
+  {supplier_name:'Hhh',amount:2066},{supplier_name:'Jjj',amount:1800},{supplier_name:'Kkk',amount:1418},{supplier_name:'Aroma Jati',amount:1000}];
+ const evidence={capability:owner.id,requested_scope:{mode:'supplier_year',month:'2026-01-01',page:1,supplier_name:null},
+  currency:'MYR',year:2026,outlet:{id:a,name:'Friends Corner'},rows,total_matching:6,page:1,
+  period_complete:false,aggregate_complete:true,missing_months:[7,8,9,10,11,12],
+  completeness:{has_more:false,row_scope:'bounded_projection',pagination:'Supplier groups are paged ten at a time.'},
+  count_scope:'Supplier groups are ranked before pagination. Months without purchase entries have no recorded amount.'};
+ for(const prompt of ['那你看到哪一个 supplier，我们是跟他买最多货的。','Pembekal mana yang paling banyak kita beli?','Which supplier did we spend the most with?']){
+  const hint=owner.format(evidence,prompt,{medium:'voice'});
+  assert.match(hint,/Ggg.*RM 5,444/);
+  assert.match(hint,/6/);
+  assert(!exposesExecution(hint,prompt));assert.match(hint,/^(?:[^。.!]+[。.!]){2}$/u);
+  const modelValue=businessResultForAnswer({...evidence,answer_hint:hint},prompt);
+  assert.equal(modelValue.answer_hint,hint);
+  assert.equal(modelValue.completeness,undefined);
+  assert.deepEqual(modelValue.coverage,{total_verified:true,all_periods_have_records:false,additional_matching_records:false});
+  assert.match(modelValue.interpretation_limits[0],/Months without/);
+  assert(!/pagination|bounded_projection/.test(JSON.stringify(modelValue)));
+ }
+ const question='Who was our top supplier?';
+ for(const patch of [{aggregate_complete:false},{page:2,requested_scope:{...evidence.requested_scope,page:2}},{rows:[rows[0]],total_matching:6},
+  {rows:[{supplier_name:null,amount:7000},rows[0]],total_matching:2}]){
+  assert.match(owner.format({...evidence,...patch},question,{medium:'voice'}),/among the records I could verify.*don’t establish the overall ranking/);
+ }
+ const firstOfComplete={...evidence,rows:rows.slice(0,3),total_matching:16};
+ assert.doesNotMatch(owner.format(firstOfComplete,question,{medium:'voice'}),/overall ranking/);
+ const tied={...evidence,rows:[rows[0],{...rows[1],amount:5444}],total_matching:2};
+ assert.match(owner.format(tied,question,{medium:'voice'}),/Ggg and Abc Supplier tied/);
+ assert.match(owner.format(evidence,'Which supplier provided the most kg?'),/don’t establish/);
+ assert.match(owner.format(evidence,'List the top 3 suppliers'),/\| Hhh \| RM 2,066 \|/);
+ assert.equal(evidence.completeness.row_scope,'bounded_projection');
+});
+
+test('shared answer preparation removes technical prose while preserving caveats across domains',async()=>{
+ const {businessResultForAnswer,exposesExecution,presentationText}=await import('../_shared/assistant/answerComposition.js');
+ for(const [capability,caveat] of [['read_factory_finished_goods','Some products have no minimum set.'],
+  ['read_operational_financials','November has no recorded amount.'],['read_employee_directory','Employment type is missing from two profiles.']]){
+  const original={capability,aggregate_complete:true,completeness:{pagination:'Page projection metadata'},limitations:'Results use pagination. '+caveat,answer_hint:'There are 4 records.\nScope: Factory shared catalogue · current Admin permissions. Read at 2026-11-23.\nSource: /factory/warehouse. '+caveat};
+  const value=businessResultForAnswer(original,'How many?');
+  assert.deepEqual(value.interpretation_limits,[caveat]);
+  assert.equal(value.answer_hint,'There are 4 records.\n'+caveat);
+  assert.deepEqual(businessResultForAnswer(original,'Which page is this?'),original);
+ }
+ assert(!exposesExecution('The November forecast uses the latest sales projection.','Show forecast.'));
+ for(const line of ['当前页的投影结果，它是分页的前几条。','This is a bounded projection from read_people.','Susunan menurun mengikut nilai.']){
+  assert(exposesExecution(line,'What was the result?'));assert(!exposesExecution(line,'Show page 2.'));
+ }
+ assert.equal(presentationText('The result is 12.','How many?'),'The result is 12.');
+});
+
+test('an unplanned ranking follow-up uses the shared verified answer instead of provider pagination prose',async()=>{
+ const owner=read('read_purchase_comparison');
+ const caller=scopedCaller();
+ const config={enabled:true,capability_connections:{[owner.id]:true}};
+ const business=createBusinessDispatcher({caller,config,access:{permissions:{[owner.permission]:true}}});
+ const prompt='那你看到哪一个 supplier，我们是跟他买最多货的。';
+ const saved=await owner.execute(caller,annual);
+ const committed=[];
+ let requests=0;
+ const result=await generateText({kind:'turn',model:'fixture-model',prompt},'fixture-token',{
+  business:{...business,execute:async()=>saved},onTool:(state,received)=>{if(state==='completed')committed.push(received);},
+  transport:async(_,init)=>{
+   const body=JSON.parse(init.body);
+   if(++requests===1)return Response.json({status:'completed',output:[
+    {type:'function_call',call_id:'ranking',name:owner.id,arguments:JSON.stringify(annual)}],usage:{input_tokens:2,output_tokens:1}});
+   const modelValue=JSON.parse(body.input.at(-1).output);
+   assert.equal(modelValue.completeness,undefined);
+   assert.equal(modelValue.coverage.total_verified,true);
+   return Response.json({status:'completed',output:[{type:'message',content:[{type:'output_text',text:'分页的当前页按金额排序。'}]}],usage:{input_tokens:2,output_tokens:1}});
+  }
+ });
+ assert.match(result.reply,/First.*RM 6/);
+ assert.doesNotMatch(result.reply,/分页|排序|投影/u);
+ assert.deepEqual(committed,[saved]);
 });

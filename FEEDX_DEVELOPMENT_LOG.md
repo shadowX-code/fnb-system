@@ -1359,3 +1359,7 @@ The failed purchase Voice turn returned zero discovery candidates and no READ ev
 ## 2026-11-23 — Native Assistant scoped correction and task resume
 
 The Voice incident exposed an interrupted purchase task followed by a valid outlet correction that the provider answered without a tool call. The shared planner now resolves outlet and year corrections from saved user turns, including interrupted turns and spoken spelling, then reauthorizes the canonical READ. Voice waits for saved transcript routing before requesting its first SDK response. Recognized scoped tasks force existing discovery for that response while SDK, VAD and provider tool continuation remain the runtime owners.
+
+## 2026-11-23 — Native Assistant business answer presentation
+
+A successful Purchase Comparison read contained the complete recorded supplier groups. Voice mistook display metadata for incomplete business evidence. Shared Text and Voice answer preparation now separates execution prose from business facts and caveats. Purchase ranking answers use verified grouped amounts and distinguish incomplete input records from the display of a complete ranking.

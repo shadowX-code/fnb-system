@@ -1,3 +1,4 @@
+import {businessResultForAnswer} from '../../../supabase/functions/_shared/assistant/answerComposition.js';
 import {createVoiceMetering} from '../../../supabase/functions/_shared/assistant/voiceMetering.js';
 import {createVoiceAudioMeter} from './voiceAudioMeter.js';
 import {assistantErrors} from './nativeAssistantService.js';
@@ -80,6 +81,7 @@ export function createSdkVoiceBaseline({ call, getSession, post, onChange }) {
    const authorization = await call('realtime_sdk_connect', { ...lease, voice, connection_protocol:'server_webrtc_v1', await_transcript:true }, run.controller.signal);
    if (active !== run) return;
    const history = createSdkVoiceHistory({
+    includePrompt:true,
     async write(turn_id, step, text, details) {
      const turn = await call('realtime_turn', { ...lease, turn_id, step, text, ...(details?{details}:{}) });
      if (getSession() === session_id) post('voice_turn', { session_id, turn });
@@ -110,7 +112,7 @@ export function createSdkVoiceBaseline({ call, getSession, post, onChange }) {
     async execute(args, _context, details) {
      const result = await history.tool(args, details?.toolCall?.responseId, definition.name);
      if (result.stale || active !== run) return backgroundResult('The voice turn has ended.');
-     return result.result;
+     return businessResultForAnswer(result.result,result.prompt);
     },
    }));
    const agent = new RealtimeAgent({ name: 'FeedX voice assistant', instructions: authorization.instructions, tools });

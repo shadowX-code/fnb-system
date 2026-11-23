@@ -2,7 +2,7 @@ import {readContract,uuid,month,page,pick,permitted,rowsEvidence,invalidArgument
 import {AssistantError} from '../assistantError.js';
 import {readCompleteRows} from '../completeRows.js';
 import {buildAlerts,getSalesBreakdown,getMonthlyPurchaseEfficiency,getPurchaseTotal,getPreviousPeriod} from './analytics.js';
-import {followRecordedPurchases,formatSupplierPurchases,loadSupplierPurchases,prepareRecordedPurchases,purchaseAnswerAmounts,purchaseOutlet,purchaseOutletFields,purchasePageSize,supplierFilter,supplierPurchaseIntent,supplierPurchaseMetrics,validatePurchaseScope} from './supplierPurchases.js';
+import {followRecordedPurchases,formatSupplierPurchases,formatSupplierRanking,loadSupplierPurchases,prepareRecordedPurchases,purchaseAnswerAmounts,purchaseOutlet,purchaseOutletFields,purchasePageSize,supplierFilter,supplierPurchaseIntent,supplierPurchaseMetrics,validatePurchaseScope} from './supplierPurchases.js';
 import {buildDataHealth} from './dataHealth.js';
 // Fixed, human-RLS domain sources; no caller-selected tables, filters or columns.
 async function requireAnalyticsAccess(caller,signal){
@@ -51,7 +51,7 @@ const purchaseComparisonRead=readContract({
  resolveAnalyticalQuery:true,prepareArguments:prepareRecordedPurchases,followUp:followRecordedPurchases,
  resumeYear:(wording,args,year)=>args&&['supplier_year','supplier_month'].includes(args.mode)?{...args,month:year+args.month.slice(4)}:prepareRecordedPurchases(wording+' '+year),
  narrowerReads:{recorded_purchases_by_month:['read_purchase_records']},
- answerAmounts:purchaseAnswerAmounts,format:formatSupplierPurchases,fixedPageSize:purchasePageSize,
+ answerAmounts:purchaseAnswerAmounts,format:formatSupplierPurchases,formatFollowUpAnswer:formatSupplierRanking,fixedPageSize:purchasePageSize,
  description:'For monthly purchase amounts across a year, supplier spend by month, recorded annual total or months without entries use supplier_year; month in YYYY-MM-01 selects the year. Use supplier_month for only one month. Both return period and monthly totals without any sales requirement, plus largest supplier totals first; optionally filter by a recorded supplier name. Use efficiency only for net sales and purchase-efficiency analysis.',
  properties:{...supplierFilter,...purchaseOutletFields,month,mode:{type:'string',enum:['efficiency','supplier_month','supplier_year']}},
  normalizeArguments:a=>a&&typeof a==='object'&&!Array.isArray(a)?{mode:'efficiency',page:1,supplier_name:null,outlet_id:null,outlet_name:null,...a}:a,

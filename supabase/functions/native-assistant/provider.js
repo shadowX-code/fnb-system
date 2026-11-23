@@ -1,3 +1,4 @@
+import {answerStyle,businessResultForAnswer,exposesExecution,presentationText} from '../_shared/assistant/answerComposition.js';
 import {asksWorkflow} from '../_shared/assistant/workflowGuidance.js';
 import {businessEvidenceInstructions,domainQueryInstructions,resultFirstInstructions} from '../_shared/assistant/moduleInterface.js';
 import {analysisInstructions,comparisonInstructions,formatMonetaryComparisons} from '../_shared/assistant/evidence.js';
@@ -6,7 +7,7 @@ import {memoryContext,recentContext} from './context.js';
 import {AssistantError} from '../_shared/assistantError.js';
 import {businessToolIdentity} from './business.js';
 import {createQueryRecovery} from '../_shared/assistant/queryRecovery.js';
-import {asksForAnalysis,asksForMeasure,discoveryScopeQuestion,unverifiedReadReply,businessFailureReply,failureOutcome,outcomeFor,outletContinuation,previousBusinessResult,sourceLimitation,sourcedResultSummary} from './businessQuery.js';
+import {asksForAnalysis,asksForMeasure,discoveryScopeQuestion,unverifiedReadReply,businessFailureReply,failureOutcome,outcomeFor,outletContinuation,previousBusinessResult,businessReplyLanguage,sourceLimitation,sourcedResultSummary} from './businessQuery.js';
 export {AssistantError} from '../_shared/assistantError.js';
 // Reuses FeedX's server-only Responses transport contract; no domain endpoint or SDK.
 export const models=['gpt-4o-mini','gpt-4.1-mini'];
@@ -104,7 +105,7 @@ export async function generateText(claim,key,{transport=fetch,signal,business,hi
   const needsAnalysisRead=analytical&&promptTools.length&&!attemptedRead;
   const choice=needsGuide?{type:'function',name:guide.name}:required?{type:'function',name:plan.tool.name}:pending.length===1?{type:'function',name:pending[0].operation}:pending.length||needsAnalysisRead?'required':goal?'none':'auto';
   const coverage=goal?.map((step,i)=>({part:i+1,operation:step.tool?step.operation:undefined,outcome:step.tool?steps.get(step.operation)?.outcome||'pending':'unavailable'}));
-  return {model:claim.model,instructions:claim.kind==='test'?'Reply with READY only.':instructions+businessEvidenceInstructions+domainQueryInstructions+resultFirstInstructions+(analytical?analysisInstructions:comparisonInstructions)+
+  return {model:claim.model,instructions:claim.kind==='test'?'Reply with READY only.':instructions+businessEvidenceInstructions+domainQueryInstructions+resultFirstInstructions+answerStyle+(analytical?analysisInstructions:comparisonInstructions)+
    (goal?' For each requested part use its own scoped evidence. Report unavailable or unfinished parts explicitly. No result for one part can support another. Current read progress: '+JSON.stringify(coverage):'')+
    (plan?' Use the selected canonical operation. Translate item descriptions for lookup when necessary; use the current utterance and never guess identifiers or infer an alternate outlet.':'')+
    contextInstructions(sourceTurn&&!recall?undefined:claim.assembled)+memoryContext(claim.memory),
@@ -155,7 +156,7 @@ export async function generateText(claim,key,{transport=fetch,signal,business,hi
    if(evidence.no_evidence||evidence.not_business_evidence)await onTool?.('failed');
    else await onTool?.('completed',evidence);
    onTrace(plan.operation,direct,evidence.error||'returned');
-   return {reply:sourceLimitation(evidence,claim.prompt)||business.format(plan.operation,evidence,planned?.wording||claim.prompt)||businessFailureReply(outcomeFor(evidence),claim.prompt),
+   return {reply:presentationText(sourceLimitation(evidence,claim.prompt)||business.format(plan.operation,evidence,planned?.wording||claim.prompt)||businessFailureReply(outcomeFor(evidence),claim.prompt),claim.prompt),
     input_tokens:0,output_tokens:0,latency_ms:Date.now()-started};
   }
   let inputTokens=0,outputTokens=0;const seenCalls=new Set();let evidenceBytes=0;
@@ -212,7 +213,8 @@ export async function generateText(claim,key,{transport=fetch,signal,business,hi
     }
     recovery.after(calls[0].name,args,evidence);
     const analysis=business.analyze?.(confirmed);
-    const output={type:'function_call_output',call_id:calls[0].call_id,output:JSON.stringify(analysis?{...evidence,verified_comparisons:analysis}:evidence)};
+    const businessValue=businessResultForAnswer(evidence,claim.prompt);
+    const output={type:'function_call_output',call_id:calls[0].call_id,output:JSON.stringify(analysis?{...businessValue,verified_comparisons:analysis}:businessValue)};
     onTrace(calls[0].name,args,evidence.error || (evidence.discovery_only?'discovery':'returned'),evidence.discovery_only?evidence.total_operations:undefined,evidence.validation);
     const pageReply=confirmed.length===1&&confirmed[0]===evidence&&lastOutcome==='SUCCESS'
      ?business.completeTextPage?.(evidence,plan):null;
@@ -245,7 +247,10 @@ export async function generateText(claim,key,{transport=fetch,signal,business,hi
     }).join('\n');
    }
    const result=confirmed.find(item=>item.capability===plan?.operation);
-   const formatted=result&&planned&&business.format?.(planned.operation,result,claim.prompt);
+   const single=!partialGoal&&confirmed.length===1?confirmed[0]:null;
+   const candidate=result&&planned&&business?.format?.(result.capability,result,claim.prompt)||
+    single&&business?.formatFollowUpAnswer?.(single.capability,single,claim.prompt);
+   const formatted=candidate&&!exposesExecution(candidate,claim.prompt)?candidate:null;
    if(formatted)reply=formatted;
    if(!partialGoal&&!formatted&&!confirmed.some(item=>outcomeFor(item)==='SUCCESS')&&(lastOutcome||plan||goal||analytical&&promptTools.length)){
     if(!attemptedRead&&(plan||lastDiscovery)&&(!lastOutcome||lastOutcome==='SUCCESS')){
@@ -278,6 +283,13 @@ export async function generateText(claim,key,{transport=fetch,signal,business,hi
    }else if(workflow&&measured&&!confirmed.some(e=>e.capability===measured.operation&&outcomeFor(e)==='SUCCESS')){
     const rule=confirmed.find(e=>e.capability===guide?.name)?.knowledge?.citations?.find(c=>c.source_kind==='documented_rule');
     reply=[rule?.excerpt,unverifiedReadReply(claim.prompt)].filter(Boolean).join('\n');
+   }
+   reply=presentationText(reply,claim.prompt);
+   if(confirmed.length&&exposesExecution(reply,claim.prompt)){
+    const language=businessReplyLanguage(claim.prompt);
+    reply=formatted||{zh:'结果已保存在「已授权业务证据」中。现有信息不足以核实这个结论。',
+     ms:'Hasil semakan ada dalam bukti perniagaan. Saya belum dapat mengesahkan kesimpulan ini.',
+     en:'The source result is saved with this reply. I couldn’t verify a clear answer to your question.'}[language];
    }
    if(!reply||reply.includes(key)||reply.length>3000||claim.kind==='test'&&reply!=='READY')throw new AssistantError('provider_reply_invalid',502);
    return {reply,input_tokens:inputTokens,output_tokens:outputTokens,latency_ms:Date.now()-started};
