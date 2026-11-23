@@ -1355,3 +1355,7 @@ Extended release guidance with scoped domain-document citations and the existing
 ## 2026-11-23 — Native Assistant Realtime business discovery
 
 The failed purchase Voice turn returned zero discovery candidates and no READ evidence despite an enabled Purchase Comparison capability. Discovery now prioritizes the finalized transcript, and Voice can execute one fully resolved canonical READ in the same tool result. An unresolved name requires confirmation. Follow-up periods and outlet corrections reuse verified query scope. SDK completion preserves the actual transcript and marks abandoned discovery unfinished. Text and Voice share bounded recovery and typed outcomes.
+
+## 2026-11-23 — Native Assistant scoped correction and task resume
+
+The Voice incident exposed an interrupted purchase task followed by a valid outlet correction that the provider answered without a tool call. The shared planner now resolves outlet and year corrections from saved user turns, including interrupted turns and spoken spelling, then reauthorizes the canonical READ. Voice waits for saved transcript routing before requesting its first SDK response. Recognized scoped tasks force existing discovery for that response while SDK, VAD and provider tool continuation remain the runtime owners.

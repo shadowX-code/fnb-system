@@ -77,12 +77,21 @@ export function createSdkVoiceBaseline({ call, getSession, post, onChange }) {
    const { RealtimeAgent, RealtimeSession, OpenAIRealtimeWebRTC, tool, backgroundResult } = await import('@openai/agents-realtime');
    if (active !== run) return;
    run.requested = true;
-   const authorization = await call('realtime_sdk_connect', { ...lease, voice, connection_protocol:'server_webrtc_v1' }, run.controller.signal);
+   const authorization = await call('realtime_sdk_connect', { ...lease, voice, connection_protocol:'server_webrtc_v1', await_transcript:true }, run.controller.signal);
    if (active !== run) return;
    const history = createSdkVoiceHistory({
     async write(turn_id, step, text, details) {
      const turn = await call('realtime_turn', { ...lease, turn_id, step, text, ...(details?{details}:{}) });
      if (getSession() === session_id) post('voice_turn', { session_id, turn });
+     return turn;
+    },
+    requestResponse({ turnId, forceDiscovery, inputUnavailable }) {
+     if (active !== run) return;
+     const metadata={feedx_turn:turnId};
+     if (forceDiscovery) transport.requestResponse({metadata,tool_choice:{type:'function',name:'find_business_queries'}});
+     else if (inputUnavailable) transport.requestResponse({metadata,tool_choice:'none',
+      instructions:'Briefly ask the user to repeat because their speech was not transcribed. Do not answer or make any claim about business data.'});
+     else transport.requestResponse({metadata});
     },
     async read(turn_id, args, operation) {
      await run.observations;
@@ -117,7 +126,7 @@ export function createSdkVoiceBaseline({ call, getSession, post, onChange }) {
       input: {
        transcription: { model: 'gpt-transcribe' },
        noiseReduction: { type: 'near_field' },
-       turnDetection: { type: 'server_vad', threshold: 0.67, prefixPaddingMs: 350, silenceDurationMs: 850, createResponse: true, interruptResponse: true },
+       turnDetection: { type: 'server_vad', threshold: 0.67, prefixPaddingMs: 350, silenceDurationMs: 850, createResponse: false, interruptResponse: true },
       },
       output: { voice },
      },

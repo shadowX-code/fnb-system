@@ -63,6 +63,7 @@ export async function generateText(claim,key,{transport=fetch,signal,business,hi
   ?business?.measureOwner?.(claim.prompt):null;
  const plan=planned||measured;
  const workflow=claim.kind==='turn'&&asksWorkflow(claim.prompt);
+ if(planned?.scopePending&&planned.tool)return {reply:businessFailureReply('AMBIGUOUS',claim.prompt),input_tokens:0,output_tokens:0,latency_ms:Date.now()-started};
  if(plan?.pagination_reply)return {reply:plan.pagination_reply,input_tokens:0,output_tokens:0,latency_ms:Date.now()-started};
  // A source named independently in this turn does not inherit earlier user
  // directives or extractive notes. Referenced or recalled context stays bounded.

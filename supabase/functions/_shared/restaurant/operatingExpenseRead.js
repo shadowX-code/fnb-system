@@ -45,6 +45,7 @@ export const operatingExpenseRead=readContract({
   if(!args.month&&!args.year)invalidArgument('missing_field','year');
   if(args.month&&args.year&&Number(args.month.slice(0,4))!==args.year)invalidArgument('invalid_date_range','month');
  },
+ resumeYear:(_wording,args,year)=>args?{...args,year,month:args.month?year+args.month.slice(4):null}:null,
  prepareArguments(prompt){
   if(/\b(?:categor(?:y|ies)|transactions?|compared?|versus|quarter|between|through|since|until|ytd|year.to.date)\b|分类|分類|交易|对比|對比|季度|截至|至今/iu.test(prompt))return null;
   const years=[...new Set(prompt.match(/\b20\d{2}\b/g)||[])];

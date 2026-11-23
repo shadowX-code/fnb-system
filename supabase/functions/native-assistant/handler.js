@@ -18,7 +18,7 @@ function textAdmission(error) {
  reset.setUTCHours(24,0,0,0);
  throw new AssistantError(error.code,error.status,{reset_at:reset.toISOString()});
 }
-const fields={action_list:['session_id'],action_confirm:['intent_id','fingerprint'],action_cancel:['intent_id'],action_policy:['operation','enabled','expected_revision'],voice_usage_report:['request_id','input_audio_tokens','output_audio_tokens','duration_ms','metering'],voice_usage:['period','status','page'],voice_policy_save:['revision','enabled','maximum_seconds','concurrency','daily_sessions'],voice_allowance_request:['cents','reason'],voice_allowance_review:['id','decision'],realtime_heartbeat:['session_id','request_id','provider'],realtime_sdk_observe:['session_id','request_id','provider','milestone'],realtime_sdk_connect:['session_id','request_id','provider','voice','connection_protocol'],provider_list:[],provider_put:['provider','credential','approval_reference'],provider_revoke:['provider'],provider_test:['provider','session_id','request_id','sdp'],provider_activate:['provider','voice'],realtime_connect:['session_id','request_id','voice','provider'],realtime_tool:['session_id','request_id','provider','arguments','turn_id','operation'],realtime_turn:['session_id','request_id','provider','turn_id','step','text','details'],realtime_end:['session_id','request_id','provider'],capability_connection:['operation','enabled','expected_revision'],capability_test:['operation','arguments'],configuration:[],configure:['provider','model','credential_ref','enabled','expected_revision'],status:[],test:['request_id'],history_recall:['query','exclude_session_id'],session_list:['query','before_activity','before_id'],session_new:[],session_rename:['session_id','title'],session_delete:['session_id'],memory_get:[],memory_save:['enabled',...Object.keys(preferences)],memory_delete:[],storage_usage:[],history:['session_id','before_seq'],begin:['session_id','request_id','text'],respond:['session_id','turn_id'],cancel:['session_id','turn_id'],turn_status:['session_id','turn_id']};
+const fields={action_list:['session_id'],action_confirm:['intent_id','fingerprint'],action_cancel:['intent_id'],action_policy:['operation','enabled','expected_revision'],voice_usage_report:['request_id','input_audio_tokens','output_audio_tokens','duration_ms','metering'],voice_usage:['period','status','page'],voice_policy_save:['revision','enabled','maximum_seconds','concurrency','daily_sessions'],voice_allowance_request:['cents','reason'],voice_allowance_review:['id','decision'],realtime_heartbeat:['session_id','request_id','provider'],realtime_sdk_observe:['session_id','request_id','provider','milestone'],realtime_sdk_connect:['session_id','request_id','provider','voice','connection_protocol','await_transcript'],provider_list:[],provider_put:['provider','credential','approval_reference'],provider_revoke:['provider'],provider_test:['provider','session_id','request_id','sdp'],provider_activate:['provider','voice'],realtime_connect:['session_id','request_id','voice','provider'],realtime_tool:['session_id','request_id','provider','arguments','turn_id','operation'],realtime_turn:['session_id','request_id','provider','turn_id','step','text','details'],realtime_end:['session_id','request_id','provider'],capability_connection:['operation','enabled','expected_revision'],capability_test:['operation','arguments'],configuration:[],configure:['provider','model','credential_ref','enabled','expected_revision'],status:[],test:['request_id'],history_recall:['query','exclude_session_id'],session_list:['query','before_activity','before_id'],session_new:[],session_rename:['session_id','title'],session_delete:['session_id'],memory_get:[],memory_save:['enabled',...Object.keys(preferences)],memory_delete:[],storage_usage:[],history:['session_id','before_seq'],begin:['session_id','request_id','text'],respond:['session_id','turn_id'],cancel:['session_id','turn_id'],turn_status:['session_id','turn_id']};
 export function validateBody(body){
  if(!body||typeof body!=='object'||Array.isArray(body)||!Object.hasOwn(fields,body.action))throw new AssistantError('invalid_request',400);
  const allowed=['action',...fields[body.action]];if(Object.keys(body).some(k=>!allowed.includes(k)))throw new AssistantError('invalid_request',400);
@@ -48,6 +48,7 @@ export function validateBody(body){
  if(body.action.startsWith('realtime_')&&!['openai','grok'].includes(body.provider))throw new AssistantError('invalid_request',400);
  if(body.action==='realtime_sdk_observe'&&(body.provider!=='openai'||!['connected','usage_observed'].includes(body.milestone)))throw new AssistantError('invalid_request',400);
  if(body.action==='realtime_sdk_connect'&&body.connection_protocol!=='server_webrtc_v1')throw new AssistantError('voice_client_update_required',409);
+ if(body.action==='realtime_sdk_connect'&&body.await_transcript!==undefined&&typeof body.await_transcript!=='boolean')throw new AssistantError('invalid_request',400);
  if(body.action==='realtime_sdk_connect'&&(body.provider!=='openai'||!realtimeVoices.includes(body.voice)))throw new AssistantError('invalid_request',400);
  if(body.action==='realtime_connect'&&(body.provider!=='grok'||!grokVoices.includes(body.voice)))throw new AssistantError('invalid_request',400);
  if(body.action.startsWith('provider_')&&body.action!=='provider_list'&&!['openai','grok'].includes(body.provider))throw new AssistantError('invalid_request',400);
@@ -92,7 +93,7 @@ export async function dispatch(body,{voiceUsage,rpc,get,signal,transport,caller,
   traceTool('validation', failure.code);
   throw failure;
  }
- const {action,connection_protocol,...args}=body;
+ const {action,connection_protocol,await_transcript,...args}=body;
  if(action.startsWith('action_')){const {data,error}=await caller.rpc('native_assistant_action',{p_step:action.slice(7),p_payload:args}).abortSignal(signal);if(error)throw new AssistantError('action_not_authorized',403);return data;}
  if(action==='voice_usage_report'&&args.metering!==undefined){
   const priced=priceVoiceMetering(normalizeVoiceMetering(args.metering),realtimeModel,realtimeTranscriptionModel);
@@ -132,7 +133,23 @@ export async function dispatch(body,{voiceUsage,rpc,get,signal,transport,caller,
    await reserveRealtime('sdk_'+args.milestone,args);
    return {};
   }
-  if(action==='realtime_turn')return voiceHistory(args);
+  if(action==='realtime_turn'){
+   const saved=await voiceHistory(args);
+   if(args.provider!=='openai'||args.step!=='input'||!saved?.voice_input_available)return saved;
+   const history=async()=>{
+    const snapshot=await rpc('history',{session_id:args.session_id});
+    return {...snapshot,turns:(snapshot.turns||[]).filter(row=>row.seq<saved.seq)};
+   };
+   try{
+    const plan=await business.planTurn(saved.prompt,history,signal);
+    const forceDiscovery=plan?.operation&&(plan.resumeArguments||assistantQuery(plan.operation).prepareArguments?.(plan.wording||saved.prompt));
+    return forceDiscovery?{...saved,force_business_discovery:true}:saved;
+   }catch(error){
+    if(signal?.aborted)throw error;
+    traceVoice('voice_turn_plan_failed',{session_id:args.session_id,turn_id:args.turn_id,code:error.code||'assistant_unavailable'});
+    return {...saved,force_business_discovery:true};
+   }
+  }
   if(action==='realtime_tool'){
    let stage = 'authorization';
    try {
@@ -147,7 +164,7 @@ export async function dispatch(body,{voiceUsage,rpc,get,signal,transport,caller,
     const turn=args.provider==='openai'&&args.turn_id?(await history())?.turns?.find(row=>row.request_id===args.turn_id):null;
     const priorHistory=async()=>{
      const snapshot=await history();
-     return turn?{...snapshot,turns:snapshot.turns.filter(row=>row.request_id!==args.turn_id)}:snapshot;
+     return turn?{...snapshot,turns:snapshot.turns.filter(row=>row.request_id!==args.turn_id&&(turn.seq==null||row.seq<turn.seq))}:snapshot;
     };
     if(turn&&!turn.voice_input_available&&tool!=='find_business_queries')throw new AssistantError('entity_scope_required',409);
     const transcript=turn?.voice_input_available?turn.prompt:undefined;
@@ -166,7 +183,7 @@ export async function dispatch(body,{voiceUsage,rpc,get,signal,transport,caller,
       try{
        const resolved=await business.resolvedArguments(plan,transcript,priorHistory,signal);
        if(resolved)evidence=await business.execute(executed,resolved,signal,{...execution,turnPlan:plan});
-       else if(evidence.search_origin==='planned_owner'&&assistantQuery(executed).prepareArguments?.(plan.wording||transcript)){
+       else if(evidence.search_origin==='planned_owner'&&(plan.scopePending||assistantQuery(executed).prepareArguments?.(plan.wording||transcript))){
         evidence={...evidence,query_outcome:'AMBIGUOUS',next_step:{kind:'confirm_scope'},answer_hint:businessFailureReply('AMBIGUOUS',transcript),
          instruction:'Confirm the outlet before reading. No business records were queried.'};
        }
@@ -227,7 +244,7 @@ export async function dispatch(body,{voiceUsage,rpc,get,signal,transport,caller,
   const instructions=voiceInstructions+memoryContext(memory)+contextInstructions(assembled)+priorContext;
   if(action==='realtime_sdk_connect'){
    if(signal?.aborted)throw new AssistantError('cancelled',409);
-   const secret=await issueVoiceTicket(args,{tools,instructions});
+   const secret=await issueVoiceTicket(args,{tools,instructions,...await_transcript?{awaitTranscript:true}:{}});
    await reserveRealtime('sdk_issued',args);
    traceVoice('voice_tool_snapshot',{
     session_id:args.session_id,request_id:args.request_id,revision:config.revision,
@@ -284,7 +301,11 @@ export async function dispatch(body,{voiceUsage,rpc,get,signal,transport,caller,
    if(assembled.summary&&JSON.stringify(assembled.summary)!==JSON.stringify(snapshot.summary))await rpc('context_summary',{session_id:args.session_id,...assembled.summary});
    const evidenceItems=[];
    const result=await generateText({...claim,memory,assembled},connection(config,get).key,{
-    transport,signal,business,history:async()=>rpc('history',{session_id:args.session_id}),
+    transport,signal,business,history:async()=>{
+     const history=await rpc('history',{session_id:args.session_id});
+     const current=(history.turns||[]).find(row=>row.id===args.turn_id);
+     return current?{...history,turns:history.turns.filter(row=>row.seq<current.seq)}:history;
+    },
     onTrace(tool,params,outcome,match_count,validation){
      traceVoice('text_tool',{session_id:args.session_id,turn_id:args.turn_id,tool,
       operation:businessToolIdentity(tool,params).operation,arguments_shape:businessToolArgumentShape(tool,params),outcome,match_count,validation});

@@ -49,6 +49,7 @@ const purchaseComparisonRead=readContract({
  discoveryPhrases:['purchase comparison','monthly supplier purchases','annual supplier purchases','purchases by month','每月供应商采购','每個月的採購','采购对比','pembelian bulanan','belian mengikut bulan'],
  queryIntent:prompt=>supplierPurchaseIntent(prompt)==='supplier_year'?'recorded_purchases_by_month':null,
  resolveAnalyticalQuery:true,prepareArguments:prepareRecordedPurchases,followUp:followRecordedPurchases,
+ resumeYear:(wording,args,year)=>args&&['supplier_year','supplier_month'].includes(args.mode)?{...args,month:year+args.month.slice(4)}:prepareRecordedPurchases(wording+' '+year),
  narrowerReads:{recorded_purchases_by_month:['read_purchase_records']},
  answerAmounts:purchaseAnswerAmounts,format:formatSupplierPurchases,fixedPageSize:purchasePageSize,
  description:'For monthly purchase amounts across a year, supplier spend by month, recorded annual total or months without entries use supplier_year; month in YYYY-MM-01 selects the year. Use supplier_month for only one month. Both return period and monthly totals without any sales requirement, plus largest supplier totals first; optionally filter by a recorded supplier name. Use efficiency only for net sales and purchase-efficiency analysis.',

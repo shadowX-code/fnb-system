@@ -22,7 +22,7 @@ const consumers=[...walk('src/services'),...walk('supabase/migrations')].filter(
  const source=fs.readFileSync(p,'utf8');
  return [...tokens].some(t=>source.includes(t))||p.endsWith('.sql')&&referencedPublicFunctions(source,names).length>0;
 });
-const fixed=['supabase/functions/native-assistant/business.js','supabase/functions/native-assistant/businessQuery.js','supabase/functions/native-assistant/handler.js','supabase/functions/native-assistant/provider.js','supabase/functions/native-assistant/realtime.js','supabase/functions/native-assistant/context.js','src/features/ai-assistant/sdkVoiceHistory.js','src/features/company-users/pages/UsersPage.jsx','src/features/sales-purchase/pages/AssetTrackingPage.jsx','supabase/functions/_shared/completeRows.js','supabase/functions/_shared/hrWorkforceModel.js','src/features/sales-purchase/utils/analytics.js'];
+const fixed=['supabase/functions/native-assistant/business.js','supabase/functions/native-assistant/taskResume.js','src/features/ai-assistant/sdkVoiceBaseline.js','supabase/functions/native-assistant/businessQuery.js','supabase/functions/native-assistant/handler.js','supabase/functions/native-assistant/provider.js','supabase/functions/native-assistant/realtime.js','supabase/functions/native-assistant/context.js','src/features/ai-assistant/sdkVoiceHistory.js','src/features/company-users/pages/UsersPage.jsx','src/features/sales-purchase/pages/AssetTrackingPage.jsx','supabase/functions/_shared/completeRows.js','supabase/functions/_shared/hrWorkforceModel.js','src/features/sales-purchase/utils/analytics.js'];
 for(const o of operations){
  if(!o.moduleInterface||o.moduleInterface.module_id!==o.module_id||o.moduleInterface.kind!==o.kind)throw Error(`Missing module interface: ${o.id}`);
  if(o.kind==='READ'&&(!o.moduleInterface.human_permission||!o.moduleInterface.source||!o.moduleInterface.exposure))throw Error(`Incomplete READ declaration: ${o.id}`);
@@ -82,7 +82,7 @@ const current={
   reads:direct.map(op=>op.id),shared:shared.map(op=>op.id),actions:actions.map(op=>op.id),
   scenarios:Object.entries(scenarios).filter(([,scenario])=>scenario.operations.some(id=>[...direct,...shared].some(op=>op.id===id))),
  }))])),
- operations:Object.fromEntries(operations.map(o=>[o.id,hash(serialize({interface:o.moduleInterface,tool:queryTool(o),discovery:o.discoveryPhrases,discoveryFamily:o.discoveryFamily,intent:o.queryIntent,prepare:o.prepareArguments,textScope:o.scopeTextArguments,load:o.load,query:o.query,rpc:o.rpc,arguments:o.arguments,project:o.project,check:o.check,normalize:o.normalizeArguments,policyGroup:o.policyGroup,execute:o.execute,authorize:o.authorized}))])),
+ operations:Object.fromEntries(operations.map(o=>[o.id,hash(serialize({interface:o.moduleInterface,tool:queryTool(o),discovery:o.discoveryPhrases,discoveryFamily:o.discoveryFamily,intent:o.queryIntent,prepare:o.prepareArguments,resumeYear:o.resumeYear,textScope:o.scopeTextArguments,load:o.load,query:o.query,rpc:o.rpc,arguments:o.arguments,project:o.project,check:o.check,normalize:o.normalizeArguments,policyGroup:o.policyGroup,execute:o.execute,authorize:o.authorized}))])),
  sources:Object.fromEntries([...new Set([...domainFiles,...consumers,...fixed,...paritySources,...dataOwners,
   'src/app/routeOwnership.js','src/app/routes.jsx','scripts/assistantModuleSources.mjs',
   'supabase/functions/_shared/assistant/operationalGuidance.json',...walk('docs/domains').filter(p=>p.endsWith('.md')),

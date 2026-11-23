@@ -33,7 +33,7 @@ function attemptedOperation(tool, args) {
 }
 
 // Observe SDK events without taking ownership of transport, playback or response creation.
-export function createSdkVoiceHistory({ write, read, state, trace, activity = () => {}, id = () => crypto.randomUUID() }) {
+export function createSdkVoiceHistory({ write, read, state, trace, activity = () => {}, requestResponse, inputDeadlineMs = 8000, id = () => crypto.randomUUID() }) {
  const inputs = new Map();
  const responses = new Map();
  let current, writes = Promise.resolve();
@@ -47,28 +47,50 @@ export function createSdkVoiceHistory({ write, read, state, trace, activity = ()
  function finish(turn, step, text, reason = step, owner) {
   if (!turn || turn.finished) return;
   turn.finished = true;
+  clearTimeout(turn.inputTimer);
   activity({ turn_id: turn.id, phase: step });
   trace('turn_' + step, turn.number, owner?.number, reason);
   void save(turn, step, text || '', {reason}).catch(() => {});
  }
 
+ function openResponse(turn,options) {
+  if(turn!==current||turn.finished||turn.responseRequested)return;
+  turn.responseRequested=true;
+  clearTimeout(turn.inputTimer);
+  requestResponse({turnId:turn.id,...options});
+ }
  function receive({ type, item_id, response, response_id, transcript, delta }) {
+  if (type === 'input_audio_buffer.speech_started' && requestResponse && current && !current.responseRequested)
+   finish(current, 'interrupted', '', 'provider_cancelled');
   if (type === 'input_audio_buffer.committed' && item_id && !inputs.has(item_id)) {
+   if(requestResponse && current && !current.responseRequested)finish(current, 'interrupted', '', 'provider_cancelled');
    current = { id: id(), number: inputs.size + 1, recovery:createQueryRecovery() };
    current.inputReady = new Promise(resolve => { current.settleInput = resolve; });
    inputs.set(item_id, current);
    activity({ turn_id: current.id, phase: 'processing' });
    current.started = save(current, 'start');
    void current.started.catch(() => {});
+   if(requestResponse){
+    const turn=current;
+    turn.inputTimer=setTimeout(()=>openResponse(turn,{inputUnavailable:true}),inputDeadlineMs);
+   }
   }
   if (type === 'conversation.item.input_audio_transcription.completed' || type === 'conversation.item.input_audio_transcription.failed') {
    const turn = inputs.get(item_id);
-   if (turn) {
+   if (turn&&!turn.inputHandled) {
+    turn.inputHandled=true;
     const saved=transcript?.trim()?save(turn,'input',transcript.slice(0,2000)):Promise.resolve();
-    void saved.then(turn.settleInput,turn.settleInput);
+    void saved.then(result=>{
+     turn.settleInput();
+     if(requestResponse)openResponse(turn,{forceDiscovery:result?.force_business_discovery===true,inputUnavailable:!transcript?.trim()});
+    },()=>{
+     turn.settleInput();
+     if(requestResponse)openResponse(turn,{inputUnavailable:true});
+    });
    }
   }
   if (type === 'response.created' && response?.id && current && !current.finished && !responses.has(response.id)) {
+   if(response.metadata?.feedx_turn&&response.metadata.feedx_turn!==current.id)return;
    const owner = { turn: current, number: responses.size + 1 };
    responses.set(response.id, owner);
    current.response = owner;

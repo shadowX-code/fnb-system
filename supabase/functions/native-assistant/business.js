@@ -1,3 +1,4 @@
+import {resumeScopedTask} from './taskResume.js';
 import {queryDiscoveryTools,isQueryEnvelope,queryEnvelopeArguments,discoverQueries,excludeCompetingQueries,identifyReadOwner} from '../_shared/assistant/queryDiscovery.js';
 import {employeeDirectoryRead,resolveDirectoryEmployee} from '../_shared/people/employeeDirectoryRead.js';
 import {restaurantGapReads} from '../_shared/restaurant/gapReads.js';
@@ -195,32 +196,12 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
    const intent=prior?.contextualIntent?.(prompt,previous);
    if(intent)return {...planFor(prior),intent,contextualOutlet:previous.outlet.id};
   }
-  // An outlet-only answer can complete the immediately preceding scoped
-  // request. Carry its query shape, never its unresolved outlet or figures.
-  const candidate=correctedOutletWording(prompt).replace(/[哦喔啊呀啦。！!]+$/u,'').trim();
-  if(!history||candidate.length>120||!entityKey(candidate)||/[?？]/u.test(candidate))return null;
-  const explicit=correctedOutletWording(prompt)!==prompt.trim();
-  const recent=(await history())?.turns?.filter(turn=>turn.state==='completed'||turn.state==='failed').slice(explicit?-3:-1).reverse()||[];
-  // An explicit name correction can pass a brief capability clarification,
-  // but never jump over an intervening verified result or another planned read.
-  let previous,pending;
-  for(const row of recent){
-   const evidence=row.evidence?.items||[row.evidence];
-   const hasRead=evidence.some(item=>item?.requested_scope&&outcomeFor(item)==='SUCCESS');
-   const owner=planned(row.prompt);
-   if(owner?.prepareArguments?.(row.prompt)&&(!hasRead||explicit)){previous=row;pending=owner;break;}
-   if(hasRead||owner)break;
-  }
-  if(!previous)return null;
-  const plan=planFor(pending);
-  if(!plan?.tool)return plan?{...plan,wording:previous.prompt}:null;
-  await permitted(caller,pending.permission,signal);
-  let outlet;
-  try{outlet=await resolveOutlet(caller,{outlet_name:candidate},signal);}
-  catch(error){if(['entity_ambiguous','entity_scope_required'].includes(error.code))return null;throw error;}
-  return outlet?{...plan,wording:previous.prompt,outlet}:null;
+  const resume=await resumeScopedTask({prompt,history,planned,operationFor:id=>operations.find(op=>op.id===id),caller,signal});
+  return resume?{...planFor(resume.owner),intent:resume.owner.queryIntent?.(resume.wording),wording:resume.wording,
+   outlet:resume.outlet,resumeArguments:resume.args,scopePending:!resume.outlet}:null;
  }
  async function resolveTurnScope(operation,plan,prompt,history,signal){
+  if(plan?.resumeArguments)return {named:plan.outlet?[plan.outlet]:[],inherited:null};
   const wording=correctedOutletWording(prompt);
   const directory=plan&&prompt&&!plan.outlet?await outletDirectory(caller,signal):[];
   let named=plan?.outlet?[plan.outlet]:namedOutlets(directory,wording);
@@ -240,7 +221,7 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
   return {named,inherited:confirmedOutlet(prior,operation.id,domain==='restaurant'?domain:null)};
  }
  function turnArguments(operation,plan,prompt,named,outletId){
-  const defaults=operation.prepareArguments?.(plan.wording||prompt);
+  const defaults=plan.resumeArguments||operation.prepareArguments?.(plan.wording||prompt);
   if(!defaults)return null;
   if(outletId)return {...defaults,outlet_id:outletId,outlet_name:null,...defaults.outlet_scope?{outlet_scope:'named',outlet_names:[]}:{}};
   if(named.length===1)return {...defaults,outlet_name:named[0].name,outlet_id:null,...defaults.outlet_scope?{outlet_scope:'named',outlet_names:[]}:{}};
@@ -294,11 +275,11 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
    return operation?{...planFor(operation),intent:operation.queryIntent(prompt),wording:prompt}:null;
   },
   async resolvedArguments(plan,prompt,history,signal){
-   if(!plan?.tool)return null;
+   if(!plan?.tool||plan.scopePending)return null;
    const operation=assistantQuery(plan.operation);
    if(plan.followUp&&operation.format)return plan.followUp;
    if(plan.page&&operation.formatsListPages===true)return plan.page.args;
-   if(!operation.prepareArguments?.(plan.wording||prompt))return null;
+   if(!plan.resumeArguments&&!operation.prepareArguments?.(plan.wording||prompt))return null;
    const current=loadConfig?await loadConfig():config||{};
    if(!capabilityConnected(current,operation.id)||!operation.authorized(access||{}))throw new AssistantError('business_read_denied',403);
    await permitted(caller,operation.permission,signal);
@@ -429,6 +410,7 @@ export function createBusinessDispatcher({caller,config,access,readFactory,loadC
       delete args.brand_name;
      }
     }
+    if(plan?.scopePending)throw new AssistantError('entity_scope_required',409);
     const normalized=operation.validate(args);
     signal?.throwIfAborted();
     if(operation.kind==='READ'&&!operation.knowledge){

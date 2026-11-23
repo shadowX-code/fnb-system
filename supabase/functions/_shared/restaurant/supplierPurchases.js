@@ -179,7 +179,8 @@ export function formatSupplierPurchases(e,prompt='',{medium='text'}={}){
  if(!annual)return main;
  const list=medium!=='voice'||/\b(?:monthly|month.by.month|by month|every month|each month|bulanan|setiap bulan)\b|每个?月|每個月|按月|逐月/iu.test(prompt);
  const parts=[main];
- if(list||/breakdown|pecahan|明细|明細/iu.test(prompt))parts.push(entered.map(row=>label(row.month)+' '+money(row.amount)).join(zh?'，':', ')+(zh?'。':'.'));
+ if(medium==='voice'&&/analy[sz]e|analisis|分析/iu.test(prompt))parts.push(zh?'共 '+e.entry_count+' 条采购记录。':ms?e.entry_count+' rekod pembelian.':e.entry_count+' purchase entries.');
+ if(list||/breakdown|pecahan|明细|明細|analy[sz]e|analisis|分析/iu.test(prompt))parts.push(entered.map(row=>label(row.month)+' '+money(row.amount)).join(zh?'，':', ')+(zh?'。':'.'));
  if(missing.length){
   const periods=monthRanges(missing,label,zh?'至':ms?' hingga ':' to ').join(zh?'、':', ');
   parts.push(zh?periods+'没有采购记录。':ms?'Tiada rekod pembelian untuk '+periods+'.':'No purchase entries for '+periods+'.');

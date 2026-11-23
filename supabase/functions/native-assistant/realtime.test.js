@@ -105,3 +105,22 @@ test('cancelled SDK authorization cannot leave a late ticket after the client ha
  await assert.rejects(dispatch(request,{signal:controller.signal,rpc:async()=>({config:{enabled:true}}),get:key=>approved[key],reserveRealtime:async action=>{actions.push(action);return{state:'reserved'};},issueVoiceTicket:fail,transport:fail}),{code:'cancelled'});
  assert.deepEqual(actions,['sdk_baseline','end']);
 });
+
+test('transcript-gated SDK admission turns off provider auto-response only for the negotiated connection',async()=>{
+ const {createRealtimeCall}=await import('./realtime.js');
+ for(const awaitTranscript of [false,true]){
+  let ticket;
+  await dispatch({...request,...awaitTranscript?{await_transcript:true}:{}},{
+   rpc:async()=>({config:{enabled:true}}),get:key=>approved[key],reserveRealtime:async()=>({state:'reserved'}),
+   issueVoiceTicket:async(_args,config)=>{ticket=config;return {client_secret:'fixture'};}
+  });
+  assert.equal(Boolean(ticket.awaitTranscript),awaitTranscript);
+  await createRealtimeCall({sdp:'v=0\r\n',voice:'cedar',...ticket},key=>approved[key],{transport:async(_url,req)=>{
+   const session=JSON.parse(req.body.get('session'));
+   assert.equal(session.audio.input.turn_detection.create_response,!awaitTranscript);
+   assert.equal(session.audio.input.turn_detection.interrupt_response,true);
+   assert.equal(session.audio.input.transcription.model,'gpt-transcribe');
+   return new Response('v=0\r\n',{headers:{Location:'/v1/realtime/calls/rtc_fixture'}});
+  }});
+ }
+});

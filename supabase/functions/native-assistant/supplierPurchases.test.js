@@ -11,11 +11,11 @@ const shop={id:a,name:'Example Shop',code:'EX'};
 const entry=(id,month,amount,supplier_id='first',name='First')=>({id,month,amount,supplier_id,supplier:{name},outlet_id:a,year:2026});
 const records=[entry('a',1,4),entry('b',1,2),entry('z',6,0),entry('c',6,3,'second','Second'),
  {...entry('foreign',6,999),outlet_id:b},{...entry('old',6,999),year:2025}];
-function scopedCaller({entries=records,deny=null,extra=0}={}){
+function scopedCaller({entries=records,deny=null,extra=0,outlet=shop}={}){
  const tables=[];
  return {tables,rpc(n,p){return {abortSignal:async()=>({data:n==='current_user_has_permission'?deny!==p.permission_code:deny!=='outlet'&&p.target_outlet_id===a})};},
   from(table){tables.push(table);assert(['purchase_records','outlets'].includes(table));
-   let rows=table==='outlets'?[shop]:entries;
+   let rows=table==='outlets'?[outlet]:entries;
    let start=0,end;
    const q={select:()=>q,order:()=>q,limit:()=>q,eq(k,v){rows=rows.filter(r=>r[k]===v);return q;},ilike(k,v){rows=rows.filter(r=>r[k].toLowerCase()===v.toLowerCase());return q;},
     range(first,last){start=first;end=last+1;return q;},abortSignal:async()=>({data:rows.slice(start,end),count:rows.length+extra})};return q;
@@ -210,4 +210,63 @@ test('saved Voice failure and correction replay through the authorized read, wit
  caller=scopedCaller({entries:[]});assert.equal((await find()).query_outcome,'NO_MATCH');
  caller=scopedCaller({deny:'suppliers.view'});await assert.rejects(find(),{code:'business_read_denied'});
  caller=scopedCaller({extra:1});await assert.rejects(find(),{code:'business_result_limit'});
+});
+
+test('the interrupted v104 Voice sequence retains corrections and resumes across any new lease',async()=>{
+ const {dispatch}=await import('./handler.js');
+ const actual={id:a,name:'Friends Corner',code:'FRIENDS'};
+ const amounts=[5859,4859,2888,555,888,900];
+ const rows=amounts.flatMap((amount,i)=>Array.from({length:[6,5,3,2,1,1][i]},(_,j)=>entry(i+'-'+j,i+1,j===0?amount:0)));
+ const base=scopedCaller({entries:rows,outlet:actual});
+ const owner=read('read_purchase_comparison');
+ const config={enabled:true,capability_connections:{[owner.id]:true}};
+ const access={admin:true,permissions:{[owner.permission]:true}};
+ const id='260aeb0d-e6ab-40ed-a14a-df93bd29aa18';
+ const turns=[
+  ['你帮我分析Franchise今年的采购情况。','cancelled'],
+  ['Friends Corner.','completed'],
+  ['我都讲今年呢，一定是2026年咯，你还问。','completed'],
+  ['Friends，朋友的意思啊，friends corner。','cancelled'],
+  ['F-R-I-E-N-D-S.','completed'],
+ ].map(([prompt,state],i)=>({prompt,state,seq:i+1,voice_input_available:true,reply:'Earlier model says French Corner and no source.'}));
+ for(let i=1;i<turns.length;i++){
+  const conversation=turns.slice(0,i+1).map((turn,j)=>j===i?{...turn,request_id:id}:turn);
+  const writes=[];
+  const deps={access,caller:base,get:()=>undefined,reserveRealtime:async()=>{},
+   rpc:async action=>action==='history'?{turns:conversation}:{config},
+   voiceHistory:async p=>p.step==='input'?conversation.at(-1):(writes.push(p.evidence),{evidence:p.evidence})};
+  const lease={provider:'openai',request_id:id,session_id:id,turn_id:id};
+  const saved=await dispatch({action:'realtime_turn',...lease,step:'input',text:turns[i].prompt},deps);
+  assert.equal(saved.force_business_discovery,true,turns[i].prompt);
+  const result=await dispatch({action:'realtime_tool',...lease,operation:'find_business_queries',arguments:{search:'French Corner',page:1}},deps);
+  assert.equal(result.recorded_total,15949);
+  assert.equal(result.entry_count,18);
+  assert.deepEqual(result.monthly_totals.slice(0,6).map(r=>r.amount),amounts);
+  assert.equal(result.outlet.name,actual.name);
+  assert.equal(writes.length,1);
+  assert.match(result.answer_hint,/15,949.*18.*5,859.*900/s);
+ }
+ const business=createBusinessDispatcher({caller:base,config,access});
+ const text=await generateText({kind:'turn',model:'unused',prompt:turns.at(-1).prompt},'unused',{
+  business,history:async()=>({turns:turns.slice(0,-1)}),transport:()=>assert.fail('No provider request'),
+ });
+ assert.equal(text.input_tokens,0);assert.match(text.reply,/15,949/);
+ const missing=await business.planTurn('F-R-I-E-N-D-S.',async()=>({turns:[turns[0],{prompt:'How are things with payroll?'}]}));
+ assert.equal(missing,null);
+});
+
+test('a correction retains the Restaurant master-data scope and never borrows another task’s measures',async()=>{
+ const owner=read('read_operating_expenses');
+ const caller=scopedCaller({outlet:{id:a,name:'Example Shop',code:'EX'}});
+ const business=createBusinessDispatcher({caller,config:{enabled:true,capability_connections:{[owner.id]:true}},
+  access:{permissions:{[owner.permission]:true}}});
+ const turns=[{prompt:'Show the operating expenses for Wrong Shop in 2025.',state:'cancelled'},
+  {prompt:'It is 2026, the year.',state:'completed',reply:'Wrong Shop in 2025'}];
+ const history=async()=>({turns});
+ const prompt='Maksud saya Example Shop.';
+ const plan=await business.planTurn(prompt,history);
+ assert.equal(plan.operation,owner.id);
+ assert.deepEqual(await business.resolvedArguments(plan,prompt,history),{outlet_id:null,outlet_name:'Example Shop',year:2026,month:null,page:1});
+ turns.push({prompt:'What was Payroll this year?',state:'completed'});
+ assert.equal(await business.planTurn(prompt,history),null);
 });

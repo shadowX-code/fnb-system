@@ -273,3 +273,38 @@ test('a Voice discovery miss permits only one distinct retry and does not save t
  assert.equal(writes.at(-1)[1],'unfinished');
  assert.equal(writes.at(-1)[2],'No purchases exist.');
 });
+
+test('SDK waits for the saved transcript before requesting one forced discovery response',async()=>{
+ let settle;
+ const persisted=new Promise(resolve=>{settle=resolve;});
+ const responses=[];
+ const h=createSdkVoiceHistory({id:()=> 'new-turn',state(){},trace(){},read(){},
+  requestResponse:value=>responses.push(value),write:async(_,step)=>step==='input'?persisted:undefined});
+ h.receive({type:'input_audio_buffer.committed',item_id:'input'});
+ const event={type:'conversation.item.input_audio_transcription.completed',item_id:'input',transcript:'F-R-I-E-N-D-S.'};
+ h.receive(event);h.receive(event);
+ await new Promise(resolve=>setImmediate(resolve));
+ assert.deepEqual(responses,[]);
+ settle({force_business_discovery:true});
+ await new Promise(resolve=>setImmediate(resolve));
+ assert.deepEqual(responses,[{turnId:'new-turn',forceDiscovery:true,inputUnavailable:false}]);
+ await h.close();
+});
+
+test('an interrupted pending transcript is saved for context without requesting its own stale response',async()=>{
+ let index=0,settle;
+ const rows=[],responses=[];
+ const pending=new Promise(resolve=>{settle=resolve;});
+ const h=createSdkVoiceHistory({id:()=>String(++index),state(){},trace(){},
+  requestResponse:value=>responses.push(value),write:async(id,step,text)=>{rows.push([id,step,text]);return id==='1'&&step==='input'?pending:{force_business_discovery:true};}});
+ h.receive({type:'input_audio_buffer.committed',item_id:'a'});
+ h.receive({type:'conversation.item.input_audio_transcription.completed',item_id:'a',transcript:'Friends Corner'});
+ h.receive({type:'input_audio_buffer.speech_started'});
+ h.receive({type:'input_audio_buffer.committed',item_id:'b'});
+ h.receive({type:'conversation.item.input_audio_transcription.completed',item_id:'b',transcript:'2026'});
+ settle({force_business_discovery:true});
+ await new Promise(resolve=>setImmediate(resolve));
+ assert(rows.some(row=>row[0]==='1'&&row[1]==='interrupted'));
+ assert.deepEqual(responses,[{turnId:'2',forceDiscovery:true,inputUnavailable:false}]);
+ await h.close();
+});
