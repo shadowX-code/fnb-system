@@ -300,7 +300,7 @@ export default function CrewStockCheckMobile({ token, outletId, grants, initialT
     {skipItem && <CrewBottomSheet title={t("inventory.skipItem")} description={skipItem.name} onClose={() => setSkipItem(null)}
       footer={<button className="crew-mobile-primary" type="button" disabled={!itemSkipReason} onClick={confirmItemSkip}>{t("inventory.skipItem")}</button>}>
       <div className="crew-inventory-form">
-        <CrewChoiceList label={t("inventory.skipReason")} value={skipItem.selection}
+        <CrewChoiceList compact label={t("inventory.skipReason")} value={skipItem.selection}
           options={STOCK_CHECK_SKIP_REASONS.map(option => ({ value: option.value, label: t(`inventory.itemSkipReasons.${option.value}`) }))}
           onChange={selection => setSkipItem(current => ({ ...current, selection }))} />
         {skipItem.selection === "other" && <label>{t("inventory.itemSkipReason")}<textarea required value={skipItem.explanation}

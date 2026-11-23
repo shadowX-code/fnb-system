@@ -274,14 +274,13 @@ describe("Crew Inventory mobile authority boundary", () => {
     expect(api.inventoryPurchaseOrders).not.toHaveBeenCalled();
   });
 
-  it("submits a Month-End Closing with a Closing Month and explicit zero, without a cutoff", async () => {
+  it("hands a Month-End Closing draft to Admin with a Closing Month and explicit zero, without a cutoff", async () => {
     api.inventoryStockChecks.mockResolvedValue({ ...stock, can_create_audit_stock_check: true });
     const year = new Date().getFullYear();
     const draft = { id: "closing-audit", stock_check_type: "audit", audit_type: "Month-End Closing", status: "draft",
       accounting_month: `${year}-08-01`, audit_name: `Month-End Closing · Aug ${year} · 20 Nov ${year}`,
       check_date: `${year}-11-20`, created_at: `${year}-11-20T01:00:00Z` };
-    api.saveInventoryStockCheck.mockResolvedValueOnce({ check: draft })
-      .mockResolvedValue({ check: { ...draft, status: "submitted", submitted_at: `${year}-11-20T02:00:00Z` } });
+    api.saveInventoryStockCheck.mockResolvedValue({ check: draft });
     render(<CrewStockCheckMobile token="token" outletId="outlet-1" grants={{ can_create_audit_stock_check: true }} onBack={() => {}} />);
     fireEvent.click(await screen.findByRole("tab", { name: "Audit" }));
     fireEvent.click(screen.getByRole("button", { name: "Audit" }));
@@ -308,13 +307,13 @@ describe("Crew Inventory mobile authority boundary", () => {
     fireEvent.click(screen.getByRole("button", { name: "Review (1/1)" }));
     expect(screen.getByText("Closing Month")).toBeTruthy();
     expect(screen.getByText(`August ${year}`)).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Complete Check" }));
-    await waitFor(() => expect(api.saveInventoryStockCheck).toHaveBeenCalledWith("token", "outlet-1", expect.any(String),
-      expect.objectContaining({ status: "submitted", accounting_month: `${year}-08-01`,
+    fireEvent.click(screen.getByRole("button", { name: "Save for Admin" }));
+    await waitFor(() => expect(api.saveInventoryStockCheck).toHaveBeenLastCalledWith("token", "outlet-1", expect.any(String),
+      expect.objectContaining({ status: "draft", accounting_month: `${year}-08-01`,
         audit_name: expect.stringContaining(`Month-End Closing · Aug ${year} · `) }),
       [expect.objectContaining({ item_id: "item-1", actual_count_quantity: 0 })]));
     expect(api.saveInventoryStockCheck.mock.calls[1][3]).not.toHaveProperty("physical_count_cutoff");
-    expect(await screen.findByText(`20 Nov ${year} · 10:00 AM`)).toBeTruthy();
+    expect(await screen.findByText("Closing draft saved for an authorized Admin to submit and publish.")).toBeTruthy();
   });
 
   it("saves closing skips with a reason and requires explicit counts after undo, even when filtered", async () => {
@@ -346,7 +345,10 @@ describe("Crew Inventory mobile authority boundary", () => {
     expect(sheet.getAllByRole("option").map(option => option.textContent)).toEqual([
       "Stock In Use", "Cannot Access", "Pending Verification", "Item Not Found", "Other",
     ]);
+    fireEvent.click(sheet.getByRole("option", { name: "Stock In Use" }));
+    expect(confirm.disabled).toBe(false);
     fireEvent.click(sheet.getByRole("option", { name: "Other" }));
+    expect(sheet.getAllByRole("option", { selected: true }).map(option => option.textContent)).toEqual(["Other"]);
     const reason = sheet.getByRole("textbox", { name: "Explanation (required)" });
     fireEvent.change(reason, { target: { value: "  " } });
     expect(confirm.disabled).toBe(true);
@@ -379,9 +381,9 @@ describe("Crew Inventory mobile authority boundary", () => {
     fireEvent.change(resumed, { target: { value: "0" } });
     fireEvent.click(screen.getByRole("button", { name: "Dry Goods" }));
     fireEvent.click(screen.getByRole("button", { name: "Review (2/2)" }));
-    fireEvent.click(screen.getByRole("button", { name: "Complete Check" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save for Admin" }));
     await waitFor(() => expect(api.saveInventoryStockCheck).toHaveBeenLastCalledWith("token", "outlet-1", expect.any(String),
-      expect.objectContaining({ status: "submitted" }), [
+      expect.objectContaining({ status: "draft" }), [
         expect.objectContaining({ item_id: "item-1", skipped: false, skip_reason: null, actual_count_quantity: 0 }),
         expect.objectContaining({ item_id: "item-2", actual_count_quantity: 7 }),
       ]));

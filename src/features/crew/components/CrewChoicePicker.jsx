@@ -1,19 +1,11 @@
-import { Check } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import ChoiceList from "../../../components/forms/ChoiceList.jsx";
 import CrewBottomSheet from "./CrewBottomSheet.jsx";
 import CrewPickerField from "./CrewPickerField.jsx";
 
-export function CrewChoiceList({ label, value, options, onChange }) {
-  return <div className="crew-ui-choice-list crew-ui-choice-list--mint crew-choice-picker-options" role="listbox" aria-label={label}>
-    {options.map(option => {
-      const selected = option.value === value;
-      return <button key={option.value} type="button" role="option" aria-selected={selected} className={selected ? "is-selected" : ""} onClick={() => onChange(option.value)}>
-        <span><strong>{option.label}</strong>{option.description ? <small>{option.description}</small> : null}</span>
-        {selected && <span className="crew-choice-picker-check"><Check size={16} /></span>}
-      </button>;
-    })}
-  </div>;
+export function CrewChoiceList(props) {
+  return <ChoiceList {...props} crew />;
 }
 
 /** Shared Crew single-choice field: a compact trigger backed by the canonical sheet/list vocabulary. */

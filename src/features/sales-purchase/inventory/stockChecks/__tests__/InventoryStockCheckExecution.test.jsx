@@ -164,8 +164,13 @@ describe("Stock Check execution scoped read", () => {
     const skip = within(await screen.findByRole("dialog", { name: "Skip stock check item" }));
     expect(skip.getByRole("button", { name: "Skip Item" }).disabled).toBe(true);
     expect(skip.queryByRole("textbox")).toBeNull();
-    fireEvent.click(skip.getByRole("button", { name: "Skip Reason" }));
-    fireEvent.click(screen.getByRole("option", { name: "Other" }));
+    expect(skip.getAllByRole("option").map(option => option.textContent)).toEqual([
+      "Stock In Use", "Cannot Access", "Pending Verification", "Item Not Found", "Other",
+    ]);
+    fireEvent.click(skip.getByRole("option", { name: "Stock In Use" }));
+    expect(skip.getByRole("button", { name: "Skip Item" }).disabled).toBe(false);
+    fireEvent.click(skip.getByRole("option", { name: "Other" }));
+    expect(skip.getAllByRole("option", { selected: true }).map(option => option.textContent)).toEqual(["Other"]);
     expect(skip.getByRole("button", { name: "Skip Item" }).disabled).toBe(true);
     fireEvent.change(skip.getByRole("textbox", { name: "Explanation (required)" }), { target: { value: "  Delivery in progress  " } });
     fireEvent.click(skip.getByRole("button", { name: "Skip Item" }));
@@ -247,8 +252,7 @@ describe("Stock Check execution scoped read", () => {
     const uncountedRow = within(screen.getByRole("row", { name: /QA Uncategorised/ }));
     fireEvent.click(uncountedRow.getByRole("button", { name: "Skip" }));
     const skip = within(screen.getByRole("dialog", { name: "Skip stock check item" }));
-    fireEvent.click(skip.getByRole("button", { name: "Skip Reason" }));
-    fireEvent.click(screen.getByRole("option", { name: "Cannot Access" }));
+    fireEvent.click(skip.getByRole("option", { name: "Cannot Access" }));
     expect(skip.queryByRole("textbox")).toBeNull();
     fireEvent.click(skip.getByRole("button", { name: "Skip Item" }));
     const reason = uncountedRow.getByRole("button", { name: "Skip reason: Cannot Access" });
