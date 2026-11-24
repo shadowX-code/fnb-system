@@ -17,15 +17,21 @@ const fields = {
 };
 const datasets = Object.entries(accountingDatasets).map(([value, label]) => ({ value, label: value === 'COA' || value === 'GL' ? value : label }));
 
-export function glCoverageText(coverage) {
-  if (!coverage?.acceptedDays) return 'No accepted GL days yet';
-  const span = `${coverage.firstDate} to ${coverage.throughDate}`;
-  const missing = coverage.missingDays ? ` · ${coverage.missingDays} days missing within span` : '';
-  return `${span} · ${coverage.acceptedDays} accepted days · ${coverage.emptyDays} with no postings${missing}`;
+export function glCoverageText(coverage, { includeRows = false } = {}) {
+  const accepted = coverage?.acceptedDays
+    ? `${coverage.firstDate} to ${coverage.throughDate} · ${coverage.acceptedDays} accepted days · ${coverage.emptyDays} with no postings`
+    : 'No accepted GL days yet';
+  const gap = coverage?.remainingDays > 0
+    ? `Backfill · ${coverage.remainingDays} ${coverage.remainingDays === 1 ? 'day' : 'days'} pending · Next ${coverage.nextMissingDate}`
+    : coverage?.contiguousThrough
+      ? `Complete through ${coverage.contiguousThrough}`
+      : coverage?.missingDays > 0 ? `${coverage.missingDays} days missing within accepted span` : '';
+  const rows = includeRows && coverage?.acceptedDays ? `${coverage.acceptedRows.toLocaleString('en-MY')} accepted GL rows across all dates` : '';
+  return [accepted, gap, rows].filter(Boolean).join(' · ');
 }
 
 function DatasetTable({ connection, dataset, timestamp, onReviewMapping }) {
-  const [filters, setFilters] = useState({ search: '', date: '' });
+  const [filters, setFilters] = useState(() => ({ search: '', date: dataset === 'GL' ? connection.glCoverage?.latestPostingDate ?? '' : '' }));
   const [input, setInput] = useState(filters);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
@@ -64,7 +70,7 @@ function DatasetTable({ connection, dataset, timestamp, onReviewMapping }) {
     render: (row) => typeof row[key] === 'boolean' ? (row[key] ? 'Yes' : 'No') : (row[key] ?? '—'),
   }));
   return <div className="grid min-w-0 gap-3">
-    {dataset === 'GL' && <p className="type-caption text-text-secondary">{glCoverageText(connection.glCoverage)}.</p>}
+    {dataset === 'GL' && <p className="type-caption text-text-secondary">{glCoverageText(connection.glCoverage, { includeRows: true })}.</p>}
     <form aria-label="Find accepted records" className="flex flex-wrap items-end gap-2" onSubmit={applyFilters}>
       {dataset === 'GL' && <label className="grid gap-1 type-caption">Posting date
         <input type="date" className="control" value={input.date} onChange={(event) => setInput({ ...input, date: event.target.value })} />

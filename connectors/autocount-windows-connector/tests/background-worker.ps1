@@ -18,7 +18,7 @@ function Resolve-LocalConnectorBooks($Books) { return @{books=@($Books);historic
 function Get-ConnectorFailure($Record) { return @{code=if ($Record.Exception.Message -match '^[A-Z_]{5,95}$') { $Record.Exception.Message } else { 'LOCAL_WORKER_ERROR' };line=$Record.InvocationInfo.ScriptLineNumber} }
 function Get-RunLocalPath($Path,$BaseDirectory) { Join-Path $BaseDirectory $Path }
 function Get-LocalConnectorBooks {
-    return @{bookId='fixture';key=('a'*64);authorized=$true;database='AED_TEST';instance='A2006'}
+    return @{bookId='fixture';key=('a'*64);authorized=$true;database='AED_TEST';instance='A2006';startDate='2026-01-01'}
 }
 function Invoke-DeviceAction($Credential,$Request) {
     if ($Request.p_action -ceq 'source_error') {
@@ -28,6 +28,10 @@ function Invoke-DeviceAction($Credential,$Request) {
     if (-not $Request.p_action -and ($Request.p_background_mode -ne 'unattended' -or -not $Request.p_next_poll_at)) { throw 'Schedule evidence not sent' }
     $record=Get-Content -Raw (Join-Path $deviceRoot 'cloud.json') | ConvertFrom-Json
     return @{books=@($record)+@(@{bookId='unbound-history';ready=$true;bound=$true;connectionId='historical-binding'})}
+}
+function Get-CloudGlPlan($Credential,$Book,$ConnectionId,$StartDate) {
+    if ($ConnectionId -cne 'existing-binding' -or $StartDate -cne '2026-01-01') { throw 'Wrong GL plan scope' }
+    return @{remainingDays=[int](Get-Content -LiteralPath (Join-Path $deviceRoot 'gl-missing'))}
 }
 function Write-LocalTextAtomically($Path,$Text) { [IO.File]::WriteAllText($Path,$Text) }
 '@
@@ -46,8 +50,8 @@ Add-Content (Join-Path $PSScriptRoot 'synced') 'AED_TEST'
             needsRetry=$scenario -eq 'retry';lastSyncAt=[datetimeoffset]::UtcNow.AddHours(-2).ToString('o')}
         if ($scenario -eq 'daily') { $record.lastSyncAt=[datetimeoffset]::UtcNow.AddHours(-25).ToString('o') }
         $record | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $root 'cloud.json')
-        $next=if ($scenario -eq 'catchup') { '2000-01-01' } else { '2999-01-01' }
-        @{nextDate=$next} | ConvertTo-Json | Set-Content -LiteralPath $checkpoint
+        Set-Content -LiteralPath (Join-Path $root 'gl-missing') -Value ([int]($scenario -eq 'catchup'))
+        @{nextDate='2999-01-01'} | ConvertTo-Json | Set-Content -LiteralPath $checkpoint
         if ($scenario -eq 'localQueue') { Set-Content -LiteralPath $pending -Value '{}' }
         $before=@(Get-Content -LiteralPath $synced -ErrorAction SilentlyContinue).Count
         & $worker

@@ -40,8 +40,30 @@ function Invoke-DeviceApi($Credential,[string]$Rpc,[string]$Body,$Book=$null) {
     try {
         return Invoke-RestMethod -UseBasicParsing -Uri ('https://ujkzdaaadnvcfayuldmh.supabase.co/rest/v1/rpc/'+$Rpc) -Method Post -Headers $headers -ContentType 'application/json' -Body ([Text.Encoding]::UTF8.GetBytes($Body)) -TimeoutSec 35 -MaximumRedirection 0
     } catch {
-        Stop-StagingRequest $_ -AccountingEndpoint:($Rpc -ceq 'finance_accept_accounting_snapshot')
+        Stop-StagingRequest $_ -AccountingEndpoint:($Rpc -cin @('finance_accept_accounting_snapshot','finance_accounting_gl_plan'))
     }
+}
+
+function Get-CloudGlPlan($Credential,$Book,[string]$ConnectionId,[string]$StartDate) {
+    $body = @{p_start_date=$StartDate} | ConvertTo-Json -Compress
+    $plan = Invoke-DeviceApi $Credential 'finance_accounting_gl_plan' $body $Book
+    $missing = @($plan.missingDates)
+    $refresh = @($plan.refreshDates)
+    if ($plan.connectionId -cne $ConnectionId -or $plan.startDate -cne $StartDate -or
+        $plan.today -cnotmatch '^\d{4}-\d{2}-\d{2}$' -or $plan.remainingDays -isnot [ValueType] -or
+        $plan.remainingDays -lt 0 -or $missing.Count -ne [math]::Min(7,$plan.remainingDays) -or
+        $refresh.Count -gt 14 -or ($missing.Count -and $refresh.Count)) { Stop-ReadPoc 'STAGING_GL_PLAN_INVALID' }
+    $today = [datetime]::ParseExact($plan.today,'yyyy-MM-dd',[Globalization.CultureInfo]::InvariantCulture)
+    $next = if ($missing.Count) { $missing[0] } else { $today.AddDays(1).ToString('yyyy-MM-dd',[Globalization.CultureInfo]::InvariantCulture) }
+    if ($plan.nextDate -cne $next) { Stop-ReadPoc 'STAGING_GL_PLAN_INVALID' }
+    $previous = $null
+    foreach ($day in ($missing+$refresh)) {
+        $parsed = [datetime]::MinValue
+        if (-not [datetime]::TryParseExact($day,'yyyy-MM-dd',[Globalization.CultureInfo]::InvariantCulture,[Globalization.DateTimeStyles]::None,[ref]$parsed) -or
+            $day -lt $StartDate -or $day -gt $plan.today -or ($previous -and $day -le $previous)) { Stop-ReadPoc 'STAGING_GL_PLAN_INVALID' }
+        $previous = $day
+    }
+    return $plan
 }
 
 function Invoke-DeviceAction($Credential,[hashtable]$Command) {

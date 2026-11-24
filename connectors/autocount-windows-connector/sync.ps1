@@ -225,10 +225,15 @@ try {
     }
 
     $start = Parse-SyncDate $config.startDate
-    $next = Parse-SyncDate $config.nextDate
-    if ($next -lt $start -or $next -gt $today.AddDays(1)) { Stop-ReadPoc 'SYNC_CHECKPOINT_INVALID' }
+    if ($InstalledBook) {
+        if ($config.startDate -cne $InstalledBook.startDate) { Stop-ReadPoc 'GL_FIRST_POSTING_DATE_CHANGED' }
+    } else {
+        $next = Parse-SyncDate $config.nextDate
+        if ($next -lt $start -or $next -gt $today.AddDays(1)) { Stop-ReadPoc 'SYNC_CHECKPOINT_INVALID' }
+    }
     $replay = $null
     if ($ReplayFrom) {
+        if ($InstalledBook) { Stop-ReadPoc 'USE_RECEIPT_BACKED_GL_RECOVERY' }
         $replay = Parse-SyncDate $ReplayFrom
         if ($replay -lt $start -or $replay -lt $today.AddDays(-30) -or $replay -gt $today) { Stop-ReadPoc 'REPLAY_DATE_OUTSIDE_CONFIGURED_WINDOW' }
     }
@@ -238,6 +243,29 @@ try {
     $recovered=@($status.receipts | Where-Object repairedScopeDate | ForEach-Object dataset)
     foreach ($kind in @('COA','Department','Project')) {
         if ($kind -cnotin $recovered) { Submit-Snapshot $kind $today }
+    }
+
+    if ($InstalledBook) {
+        $coverage = Get-CloudGlPlan $cloud $InstalledBook $ExpectedBinding $config.startDate
+        $config.nextDate = $coverage.nextDate
+        Write-LocalTextAtomically $configPath ($config | ConvertTo-Json)
+        $missing = @($coverage.missingDates)
+        foreach ($date in $missing) {
+            Submit-Snapshot 'GL' (Parse-SyncDate $date)
+        }
+        if ($missing.Count) {
+            $coverage = Get-CloudGlPlan $cloud $InstalledBook $ExpectedBinding $config.startDate
+            $config.nextDate = $coverage.nextDate
+            Write-LocalTextAtomically $configPath ($config | ConvertTo-Json)
+        }
+        # Replace each refreshed day's full observation. An empty read clears its current posting rows.
+        foreach ($date in @($coverage.refreshDates)) {
+            if ($date -cnotin $missing) { Submit-Snapshot 'GL' (Parse-SyncDate $date) }
+        }
+        $status.nextGlDate = $coverage.nextDate
+        $status.glRemainingDays = $coverage.remainingDays
+        Report-SyncProgress 'succeeded'
+        return
     }
 
     # Retry prior days for late edits and capture at most seven new days per run.

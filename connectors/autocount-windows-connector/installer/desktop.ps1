@@ -8,7 +8,7 @@ Add-Type -AssemblyName System.Drawing
 . (Join-Path $PSScriptRoot 'scheduler.ps1')
 
 $form = [Windows.Forms.Form]::new()
-$form.Text = 'FeedX AutoCount Connector 3.1.2'
+$form.Text = 'FeedX AutoCount Connector 3.1.3'
 $form.ClientSize = [Drawing.Size]::new(640,650)
 $form.FormBorderStyle = 'FixedDialog'
 $form.MaximizeBox = $false

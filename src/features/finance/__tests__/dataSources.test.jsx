@@ -160,11 +160,17 @@ it('browses accepted records with a pinned snapshot and opens Mapping for the sa
   const current = state.connections[1];
   current.connector = { bookId: '3037f4f7-current' };
   current.connection.externalTenantId = 'AED_TEST';
-  const read = vi.spyOn(financeSources, 'readAccountingDataset').mockImplementation(async ({ dataset, page, search }) => ({
-    snapshotId: dataset === 'COA' ? '16' : '17', snapshotAt: '2026-11-20T00:00:00Z',
-    acceptedRows: dataset === 'COA' ? 123 : 0, filteredRows: dataset === 'COA' ? (search ? 1 : 123) : 0,
-    rows: dataset === 'COA' ? [{ key: `TEST-${page}`, description: 'Fixture account' }] : [],
-  }));
+  current.glCoverage = { firstDate: '2026-01-01', throughDate: '2026-11-24', latestPostingDate: '2026-09-30',
+    acceptedDays: 327, emptyDays: 318, acceptedRows: 59, remainingDays: 1, nextMissingDate: '2026-04-23' };
+  const read = vi.spyOn(financeSources, 'readAccountingDataset').mockImplementation(async ({ dataset, page, search, scopeDate }) => {
+    const rows = dataset === 'COA' ? [{ key: `TEST-${page}`, description: 'Fixture account' }]
+      : scopeDate === '2026-09-30' ? [{ key: 'GL-TEST', debit: '10.20' }] : [];
+    return {
+      snapshotId: dataset === 'COA' ? '16' : '17', snapshotAt: '2026-11-20T00:00:00Z',
+      acceptedRows: dataset === 'COA' ? 123 : rows.length, filteredRows: dataset === 'COA' ? (search ? 1 : 123) : rows.length,
+      rows,
+    };
+  });
   render(<FinanceDataSources state={state} onAction={() => {}} />);
   fireEvent.click(screen.getByRole('button', { name: 'View Data' }));
   expect(await screen.findByText('TEST-1')).toBeTruthy();
@@ -176,7 +182,14 @@ it('browses accepted records with a pinned snapshot and opens Mapping for the sa
   expect(await screen.findByText('TEST-1')).toBeTruthy();
   expect(read).toHaveBeenLastCalledWith(expect.objectContaining({ search: 'Fixture', page: 1, snapshotId: '16' }));
   fireEvent.click(screen.getByRole('tab', { name: 'GL' }));
+  expect(await screen.findByText('GL-TEST')).toBeTruthy();
+  expect(screen.getByText(/59 accepted GL rows across all dates/)).toBeTruthy();
+  expect(screen.getAllByText(/Backfill · 1 day.*pending · Next 2026-04-23/)).toHaveLength(2);
+  expect(read).toHaveBeenLastCalledWith(expect.objectContaining({ dataset: 'GL', scopeDate: '2026-09-30' }));
+  fireEvent.change(screen.getByLabelText('Posting date'), { target: { value: '2026-11-24' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Apply' }));
   expect(await screen.findByText('The accepted extraction found no postings for this date.')).toBeTruthy();
+  expect(read).toHaveBeenLastCalledWith(expect.objectContaining({ dataset: 'GL', scopeDate: '2026-11-24', snapshotId: null }));
   fireEvent.click(screen.getByRole('tab', { name: 'COA' }));
   fireEvent.click(await screen.findByRole('button', { name: 'Review account mapping' }));
   expect(screen.getByRole('tab', { name: 'Mapping' }).getAttribute('aria-selected')).toBe('true');

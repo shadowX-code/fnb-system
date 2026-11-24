@@ -100,13 +100,13 @@ try {
             elseif ($record.lastSyncAt) { $lastSync=[datetimeoffset]::Parse([string]$record.lastSyncAt,[Globalization.CultureInfo]::InvariantCulture) }
             if (-not $TestConnection -and -not $RunNow) {
                 $bookDirectory=Get-RunLocalPath $book.key -BaseDirectory $deviceRoot
-                $checkpoint=Join-Path $bookDirectory 'config.json'
                 $pending=@(Get-ChildItem -LiteralPath (Join-Path $bookDirectory 'queue') -File -Filter '*.json' -ErrorAction SilentlyContinue).Count -gt 0
-                $today=[TimeZoneInfo]::ConvertTimeBySystemTimeZoneId([datetime]::UtcNow,'Singapore Standard Time').ToString('yyyy-MM-dd',[Globalization.CultureInfo]::InvariantCulture)
-                $caughtUp=(Test-Path -LiteralPath $checkpoint) -and (([IO.File]::ReadAllText($checkpoint) | ConvertFrom-Json).nextDate -gt $today)
-                if ($caughtUp -and -not $pending -and -not $record.requested -and -not $record.needsRetry -and $lastSync -and $lastSync -gt [datetimeoffset]::UtcNow.AddDays(-1)) {
-                    $summary.books+=@{key=$book.key;bookId=$book.bookId;state='Up to date'}
-                    continue
+                if (-not $pending -and -not $record.requested -and -not $record.needsRetry -and $lastSync -and $lastSync -gt [datetimeoffset]::UtcNow.AddDays(-1)) {
+                    $coverage=Get-CloudGlPlan $credential $book $record.connectionId $book.startDate
+                    if ($coverage.remainingDays -eq 0) {
+                        $summary.books+=@{key=$book.key;bookId=$book.bookId;state='Up to date'}
+                        continue
+                    }
                 }
             }
             $summary.attempted++

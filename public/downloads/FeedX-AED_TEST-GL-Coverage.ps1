@@ -1,5 +1,8 @@
 #requires -Version 5.1
-param([Parameter(Mandatory=$true)][guid]$BookId,[Parameter(Mandatory=$true)][string]$AcceptedThrough)
+param(
+    [Parameter(Mandatory=$true)][guid]$BookId,[Parameter(Mandatory=$true)][string]$AcceptedThrough,
+    [string]$VerifyFrom,[string]$VerifyThrough
+)
 $ErrorActionPreference='Stop'
 $result=[ordered]@{state='Blocked';bookId=$BookId.ToString();book='AED_TEST';instance='A2006'}
 $connection=$null
@@ -27,10 +30,11 @@ try {
     if ($identity.login -cne $reader.UserName -or $identity.dbUser -cne $reader.UserName) { throw 'READER_CREDENTIAL_PRINCIPAL_MISMATCH' }
     Assert-ReadPermissions $connection $identity
     if ((Read-BookCompany $connection 'AED_TEST').key -cne $book.key) { throw 'BOOK_COMPANY_IDENTITY_CHANGED' }
-    $null=Get-AccountingReadPlan (Get-ReadCatalog $connection)
+    $plan=Get-AccountingReadPlan (Get-ReadCatalog $connection)
     $result.firstPostingDate=$first.ToString('yyyy-MM-dd',$culture)
     $result.nextPostingDate=$next.ToString('yyyy-MM-dd',$culture)
     $result.acceptedThrough=$AcceptedThrough
+    $result.acceptedThroughSource='Operator supplied comparison date'
     $result.counts=Invoke-ReadQuery $connection @'
 SELECT COUNT_BIG(*) AS allRows,
        CONVERT(char(10), MIN([TransDate]), 23) AS firstSourceDate,
@@ -43,6 +47,24 @@ SELECT COUNT_BIG(*) AS allRows,
        COUNT_BIG(CASE WHEN [TransDate] >= CONVERT(datetime,@tomorrow) THEN 1 END) AS futureDated
 FROM [dbo].[GLDTL];
 '@ @{'@first'=$first;'@observedEnd'=$observedEnd;'@next'=$next;'@tomorrow'=$today.AddDays(1)}
+    if ($VerifyFrom -or $VerifyThrough) {
+        $verifyStart=[datetime]::ParseExact($VerifyFrom,'yyyy-MM-dd',$culture)
+        $verifyEnd=[datetime]::ParseExact($VerifyThrough,'yyyy-MM-dd',$culture)
+        if ($verifyStart -lt $first -or $verifyEnd -gt $today -or $verifyEnd -lt $verifyStart -or
+            ($verifyEnd-$verifyStart).Days -ge 366) { throw 'GL_PARITY_WINDOW_INVALID' }
+        $lines=[Collections.Generic.List[string]]::new()
+        for ($day=$verifyStart; $day -le $verifyEnd; $day=$day.AddDays(1)) {
+            $dayLabel=$day.ToString('yyyy-MM-dd',$culture)
+            foreach ($row in @(Read-AccountingScope $connection $plan 'GL' $day)) {
+                if ($lines.Count -ge 10000) { throw 'GL_PARITY_ROW_LIMIT_EXCEEDED' }
+                $fields=@($dayLabel,$row.key,$row.debit,$row.credit,$row.homeDebit,$row.homeCredit)
+                $line=($fields | ForEach-Object { if ($null -eq $_) { '~' } else { $_ } }) -join '|'
+                $lines.Add($line)
+            }
+        }
+        $result.parity=@{from=$VerifyFrom;through=$VerifyThrough;rows=$lines.Count
+            format='GL-key-posting-date-amounts-v1';sha256=(Get-BookDigest ($lines -join "`n"))}
+    }
     $result.state='Verified'
 } catch {
     $failure=$_.Exception.GetBaseException()
