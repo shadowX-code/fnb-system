@@ -25,7 +25,7 @@ function Report-SetupFailure($Codes,$Guidance) {
         $previous=Read-BridgeState $diagnosticsPath
         $recent=@($failure)
         if($previous){$recent+=@($previous.Failures | Select-Object -First 7)}
-        Save-BridgeState $diagnosticsPath @{Version='1.2.2';Failures=$recent}
+        Save-BridgeState $diagnosticsPath @{Version='1.2.3';Failures=$recent}
         $exportHint='Reopen Bridge Setup and choose Export Diagnostics if this continues.'
     } catch {
         $exportHint='The diagnostic report could not be saved. Note the step and code shown here.'

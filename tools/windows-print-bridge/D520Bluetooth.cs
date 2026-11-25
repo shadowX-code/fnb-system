@@ -216,7 +216,11 @@ public static class FeedXD520Bluetooth {
             phase = "submission";
             Write(handle, payload, 30000);
             int receipt = ReadReply(handle, false);
-            if (receipt != 1) throw new IOException(receipt < 0 ? "D520 rejected the submission." : "D520 did not acknowledge the submission.");
+            if (receipt != 1) {
+                var failure = new IOException(receipt < 0 ? "D520 rejected the submission." : "D520 did not acknowledge the submission.");
+                failure.Data["D520Receipt"] = receipt < 0 ? "rejected" : "missing";
+                throw failure;
+            }
         } catch (Exception error) {
             error.Data["D520Phase"] = phase;
             throw;

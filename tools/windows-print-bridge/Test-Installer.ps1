@@ -29,7 +29,7 @@ $before=@(Get-ChildItem $root | Get-FileHash | ForEach-Object Hash)
 Install-TestPackage
 $after=@(Get-ChildItem $root | Get-FileHash | ForEach-Object Hash)
 if(Compare-Object $before $after){throw 'Installer changed existing bridge recovery data.'}
-if((Get-BridgeRecovery (Read-BridgeState (Join-Path $root 'journal.xml'))) -ne 'Unknown'){throw 'Interrupted state could resend after upgrade.'}
+if((Read-BridgeState (Join-Path $root 'journal.xml')).stage -ne 'submitting'){throw 'Interrupted submission marker was lost during upgrade.'}
 if((Get-BridgeCalibration $config $root) -ne 'Needs review'){throw 'Existing calibration review was lost.'}
 $pause=Join-Path $root 'setup.pause'
 New-Item -ItemType File $pause | Out-Null

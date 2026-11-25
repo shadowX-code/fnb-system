@@ -36,9 +36,6 @@ $header=[Text.Encoding]::ASCII.GetBytes("SIZE 80 mm,90 mm`r`nGAP 2 mm,0`r`nDIREC
 if($command[$header.Length] -ne 127){throw 'TSPL polarity mismatch'}
 if(![Text.Encoding]::ASCII.GetString($command).EndsWith("`r`nPRINT 1,3`r`n")){throw 'Wrong TSPL copy count'}
 $denied=$false;try{[FeedXTransport]::Tspl([byte[]]::new(1),639,719,80,90,1,2,$true)}catch{$denied=$true};if(!$denied){throw 'Invalid raster accepted'}
-if((Get-BridgeRecovery ([pscustomobject]@{stage='submitting'})) -ne 'Unknown'){throw 'Crash would resend'}
-if((Get-BridgeRecovery ([pscustomobject]@{stage='reporting';outcome='Sent'})) -ne 'Sent'){throw 'Saved receipt lost'}
-if((Get-BridgeRecovery ([pscustomobject]@{stage='claiming'})) -ne 'ResumeClaim'){throw 'Stable claim cannot retry'}
 # Mock native submission only: exercise the real cycle and journal ordering without a printer.
 & $module {
  $script:journal=$null;$script:calls=[Collections.Generic.List[string]]::new();$script:crash=$false;$script:offline=$false;$script:serverState='Printing'
@@ -102,7 +99,7 @@ if((Get-BridgeRecovery ([pscustomobject]@{stage='claiming'})) -ne 'ResumeClaim')
 # Exercise the real probe scheduler and direct-job state sequence without a radio or spooler.
 & $module {
  $script:checks=0;$script:failProbe=$false;$script:journal=$null;$script:deviceReport=$null
- $script:mailbox=$null;$script:localWriteFails=$false;$script:submissions=0;$script:reportedOutcome=$null;$script:negativeAck=$true
+ $script:mailbox=$null;$script:localWriteFails=$false;$script:submissions=0;$script:reportedOutcome=$null;$script:receipt='missing';$script:copies=1
  function Invoke-BridgeD520Probe($Address){$script:checks++;if($script:failProbe){throw 'Probe fixture timeout'}}
  function Get-BridgePrinters {throw 'Direct Bluetooth must not require the Windows spooler'}
  function Get-BridgeCalibration {return 'Passed'}
@@ -119,7 +116,7 @@ if((Get-BridgeRecovery ([pscustomobject]@{stage='claiming'})) -ne 'ResumeClaim')
  function Invoke-BridgeRpc($Config,$Session,$Name,$Body){
     if($Name -eq 'device'){$script:deviceReport=$Body;return}
     if($Name -eq 'claim'){return [pscustomobject]@{
-        id='fixture-job';state='Printing';lease_until=[datetime]::UtcNow.AddMinutes(5).ToString('o');quantity=1
+        id='fixture-job';state='Printing';lease_until=[datetime]::UtcNow.AddMinutes(5).ToString('o');quantity=$script:copies
         raster=[pscustomobject]@{format='mono1';width=639;height=719;data=[Convert]::ToBase64String([byte[]]::new(80*719))}
         snapshot=[pscustomobject]@{width_mm=80;height_mm=90}
     }}
@@ -128,11 +125,15 @@ if((Get-BridgeRecovery ([pscustomobject]@{stage='claiming'})) -ne 'ResumeClaim')
  }
  function Send-BridgeD520Label($Address,$Payload){
     if($script:journal.stage -ne 'submitting' -or $Address -ne '001122334455' -or
-        ![Text.Encoding]::ASCII.GetString($Payload).EndsWith("`r`nPRINT 1,1`r`n")){
+        ![Text.Encoding]::ASCII.GetString($Payload).EndsWith("`r`nPRINT 1,$script:copies`r`n")){
         throw 'Direct transport did not receive the durable, single-copy submission.'
     }
     $script:submissions++
-    if($script:negativeAck){throw 'No acknowledgment fixture'}
+    if($script:receipt){
+        $failure=[IO.IOException]::new('Simulated D520 acknowledgment result')
+        $failure.Data['D520Receipt']=$script:receipt
+        throw $failure
+    }
  }
  $config=[pscustomobject]@{DeviceId='fixture';Name='QA';Printer='D520 (Bluetooth)';Transport='tspl'
      BluetoothAddress='001122334455';GapMm=2;GuidedSetup=$true;Calibrated=$true;StockWidthMm=80;StockHeightMm=90}
@@ -158,12 +159,20 @@ if((Get-BridgeRecovery ([pscustomobject]@{stage='claiming'})) -ne 'ResumeClaim')
     throw 'Direct Bluetooth hold or privacy-safe status report failed.'
  }
  $savedDetail=$script:journal.detail
+ if($savedDetail -notmatch 'write completed. No printer acknowledgment'){throw 'Missing ACK transport evidence was lost.'}
  Invoke-BridgeCycle $config $session 'fixture-root\journal.xml' $status
  if($script:submissions -ne 1 -or $script:reportedOutcome -ne 'Unknown'){throw 'Reporting an uncertain direct write must not resend it.'}
  if($script:reportedDetail -ne $savedDetail){throw 'The same running worker overwrote its saved Unknown receipt with recovery wording.'}
- $script:negativeAck=$false
+ $script:journal=[pscustomobject]@{stage='submitting';claim='interrupted-claim';job='fixture-job';outcome=$null;detail=$null}
  Invoke-BridgeCycle $config $session 'fixture-root\journal.xml' $status
- if($script:journal.outcome -ne 'Sent' -or $script:submissions -ne 2){throw 'A positive ACK must record submission only.'}
+ if($script:submissions -ne 1 -or $script:reportedOutcome -ne 'Unknown' -or
+    $script:reportedDetail -notmatch 'no recorded transport result' -or $script:reportedDetail -match 'restart|queue'){
+    throw 'Interrupted Bluetooth recovery must preserve the hold without assuming the worker restarted or using a spooler.'
+ }
+ $script:receipt=$null
+ $script:copies=3
+ Invoke-BridgeCycle $config $session 'fixture-root\journal.xml' $status
+ if($script:journal.outcome -ne 'Sent' -or $script:submissions -ne 2){throw 'One three-copy submission with a positive ACK must record Sent only.'}
  $status=New-BridgeBluetoothStatus
  $script:localWriteFails=$true
  $script:failProbe=$true
@@ -174,7 +183,7 @@ if((Get-BridgeRecovery ([pscustomobject]@{stage='claiming'})) -ne 'ResumeClaim')
  Invoke-BridgeCycle $config $session 'fixture-root\journal.xml' $status
  if($script:mailbox.Available -or $status.LocalReportAt -ne $status.Checked){throw 'The failed Bluetooth observation was not saved after the local write recovered.'}
 }
-Write-Output 'PASS: Packed Windows socket ABI, exact macOS D520 payload, ACK handling, probe backoff, privacy-safe status and Bluetooth Unknown recovery.'
+Write-Output 'PASS: Packed Windows socket ABI, exact macOS D520 payload, ACK handling, probe backoff, privacy-safe status and Bluetooth Unknown recovery with preserved receipt evidence and a simulated three-copy submission.'
 # Simulate startup/session-store, refresh, durable persistence and network recovery.
 & $module {
  $script:reads=0;$script:auths=0;$script:saves=0;$script:cycles=0;$script:checks=0

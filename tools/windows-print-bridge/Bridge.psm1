@@ -46,7 +46,7 @@ function Invoke-BridgeRpc($Config, $Session, $Name, $Body) {
     return Invoke-RestMethod -Method Post -Uri "$script:Endpoint/rest/v1/rpc/factory_label_$Name" -Headers @{apikey=$Config.PublicKey; Authorization="Bearer $($Session.access_token)"} -ContentType 'application/json' -Body ($Body | ConvertTo-Json -Depth 20 -Compress) -TimeoutSec 45 -MaximumRedirection 0
 }
 function Get-BridgeFailureCodes($ErrorRecord) {
-    $codes=[ordered]@{Exception=$null;HResult=$null;NativeCode=$null;HttpStatus=$null;NetworkStatus=$null;BluetoothPhase=$null;Resource=$null;Operation=$null}
+    $codes=[ordered]@{Exception=$null;HResult=$null;NativeCode=$null;HttpStatus=$null;NetworkStatus=$null;BluetoothPhase=$null;BluetoothReceipt=$null;Resource=$null;Operation=$null}
     for($cause=$ErrorRecord.Exception; $cause; $cause=$cause.InnerException) {
         $codes.Exception=$cause.GetType().Name
         $codes.HResult='0x{0:X8}' -f $cause.HResult
@@ -59,6 +59,9 @@ function Get-BridgeFailureCodes($ErrorRecord) {
         }
         if($cause.Data['D520Phase'] -in @('winsock-startup','socket-open','socket-configure','rfcomm-connect','bitmap-mode','submission')){
             $codes.BluetoothPhase=$cause.Data['D520Phase']
+        }
+        if($cause.Data['D520Receipt'] -in @('missing','rejected')){
+            $codes.BluetoothReceipt=$cause.Data['D520Receipt']
         }
         if($cause.Data['BridgeResource'] -in @('connection-request','connection-status')){
             $codes.Resource=$cause.Data['BridgeResource']
@@ -129,11 +132,6 @@ function Update-BridgeBluetoothProbe($Address,$Status,$Root,$Now=[datetime]::Utc
         $Status.Failures=[Math]::Min(3,$Status.Failures+1)
     }
 }
-function Get-BridgeRecovery($State) {
-    if ($State.stage -eq 'submitting') { return 'Unknown' }
-    if ($State.stage -eq 'reporting') { return $State.outcome }
-    return 'ResumeClaim'
-}
 function Set-BridgeOutcome($State, $Outcome, $Detail, $JournalPath) {
     $State.stage='reporting'; $State.outcome=$Outcome; $State.detail=$Detail
     Save-BridgeState $JournalPath $State
@@ -190,9 +188,10 @@ function Invoke-BridgeCycle($Config, $Session, $StatePath, $BluetoothStatus=$nul
     $null=Invoke-BridgeRpc $Config $Session 'device' @{p_device=$Config.DeviceId;p_name=$Config.Name;p_printer=$Config.Printer;p_transport=$Config.Transport;p_status=$status;p_printers=@($printers)}
     $state = Read-BridgeState $StatePath
     if ($state) {
-        $recovery = Get-BridgeRecovery $state
-        if($recovery -eq 'Unknown') {
-            Set-BridgeOutcome $state 'Unknown' 'Bridge restarted during submission. Inspect the printer and Windows queue.' $StatePath
+        if($state.stage -eq 'submitting') {
+            $detail=if($address){'Recovered a Bluetooth submission with no recorded transport result. Inspect the D520 and any pending printer output.'}
+                else {'Recovered a submission with no recorded transport result. Inspect the printer and Windows print queue.'}
+            Set-BridgeOutcome $state 'Unknown' $detail $StatePath
         }
         if($state.stage -eq 'reporting') {
             $null=Invoke-BridgeRpc $Config $Session 'report' @{p_device=$Config.DeviceId;p_job=$state.job;p_claim=$state.claim;p_state=$state.outcome;p_detail=$state.detail}
@@ -235,6 +234,7 @@ function Invoke-BridgeCycle($Config, $Session, $StatePath, $BluetoothStatus=$nul
     }
     # This durable marker precedes every native call that can emit paper.
     $state.stage='submitting';Save-BridgeState $StatePath $state
+    $outcome='Sent'
     try {
         $name="FeedX-$($job.id)"
         if($address) {
@@ -247,13 +247,23 @@ function Invoke-BridgeCycle($Config, $Session, $StatePath, $BluetoothStatus=$nul
             $spoolId=[FeedXTransport]::Raw($Config.Printer,$command,$name)
             $detail="RAW command accepted by Windows spooler (job $spoolId). Physical output requires confirmation."
         } else {throw 'Unsupported transport.'}
-        Set-BridgeOutcome $state 'Sent' $detail $StatePath
     } catch {
         # Native errors can occur after a partial write, so automatic resend is unsafe.
-        $detail=if($address){'D520 Bluetooth submission was interrupted or unacknowledged. Inspect physical output before recovery.'}
-            else {'Submission interrupted or rejected. Inspect printer and Windows queue before recovery.'}
-        Set-BridgeOutcome $state 'Unknown' $detail $StatePath
+        $outcome='Unknown'
+        $detail=if($address){
+            $codes=Get-BridgeFailureCodes $_
+            switch ($codes.BluetoothReceipt) {
+                'missing' {'D520 Bluetooth write completed. No printer acknowledgment was received. Inspect physical output before recovery.'}
+                'rejected' {'D520 rejected the Bluetooth submission. Inspect physical output before recovery.'}
+                default {
+                    $message='D520 Bluetooth submission was interrupted.'
+                    if($null -ne $codes.NativeCode){$message+=" Windows error $($codes.NativeCode)."}
+                    "$message Inspect physical output before recovery."
+                }
+            }
+        } else {'Submission interrupted or rejected. Inspect the printer and Windows print queue before recovery.'}
     }
+    Set-BridgeOutcome $state $outcome $detail $StatePath
 }
 function Invoke-BridgeWorker($Config, $Root) {
  $session=$null

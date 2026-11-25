@@ -16,6 +16,10 @@ Bring a Windows 10/11 computer, the D520 and its power supply, a USB data cable,
 4. Wait for separate approval before opening **Test / Review Calibration** and confirming **one TEST label**. Inspect the count, upright black text on white, complete frame, margins, clipping, and whether the stock stopped at the next gap.
 5. Choose **All Passed** only after seeing one usable label. For uncertain, missing or incorrect output, inspect the printer, clear held Windows output, then choose **Inspected / Issue**. Keep the recovery evidence and obtain renewed approval before another label. For uncertain Job Order jobs, use **Confirm Printed** or **Report Issue** in FeedX Print History.
 
+## Controlled Windows D520 Bluetooth acceptance
+
+After the single-label TEST and product checks pass, confirm that the D520 is idle, the calibrated stock is loaded, and no print awaits review. Select the accepted product and batch with at least three verified labels remaining. After separate operator approval, queue one submission for exactly three labels using the saved label preview. Count the usable output. If the job is Unknown, check the printer for pending Bluetooth output and record the physical outcome before any further printing. Use Confirm Printed for three usable labels or Report Issue with the actual usable count. Inspect the expanded History entry for the original transport result.
+
 ## Guided installer
 
 1. In FeedX Staging, open **Factory Settings → Label Management → Printers → Set Up Printer**. Run the Windows installer on the printer computer. It installs per user and uses the Windows 10/11 inbox PowerShell 5.1 and .NET Framework runtime. The Windows Driver and RAW TSPL options require an installed queue. Use the D520 Bluetooth option for the paired Classic device.
@@ -57,7 +61,7 @@ If sign-in expires or changes, run the installer again with the same Windows use
 - **Failed**: no submission occurred, or an operator inspected/cancelled/discarded remaining output and recorded the outcome.
 - **Unknown**: timeout, interruption, native transport error or expired claim. No automatic resend. An Unknown job blocks that bridge’s next claim until a supervisor records the outcome.
 
-After a crash, an in-progress submission is reported Unknown; a saved result is retried only as a status report. Claim/result HTTP retries reuse stable claim IDs. The bridge never automatically submits a bitmap twice. A network partition can leave a pending report; restore connectivity and inspect history. On lease expiry, Printing becomes Unknown on the next online claim. A supervisor may also mark an expired Printing claim Unknown through Review Outcome.
+A journal left in the submitting stage without a saved transport result is reported Unknown. The worker does not infer a process restart from this marker. A saved outcome, including a completed Bluetooth write without an acknowledgment, is reported with its original evidence. Claim/result HTTP retries reuse stable claim IDs. The bridge never automatically submits a bitmap twice. A network partition can leave a pending report; restore connectivity and inspect history. On lease expiry, Printing becomes Unknown on the next online claim. A supervisor may also mark an expired Printing claim Unknown through Review Outcome.
 
 Before reprinting Unknown/Sent work, check the printer for pending output, clear any held Windows spooler job if using a queue, and inspect or discard partial labels. FeedX cannot recall commands already accepted by a printer. Record a reason, then use **Reprint**; it copies the original immutable snapshot and pixels. A physically partial batch requires an explicit remaining quantity. Never delete `journal.xml` to force a retry.
 
