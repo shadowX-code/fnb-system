@@ -11,7 +11,9 @@ it('keeps draft Admin-authorized, entity-scoped and read-only',()=>{
  expect(draft).not.toMatch(/insert into|update public|delete from/);
  expect(draft).toContain('to authenticated');
  const branch=edge.slice(edge.indexOf('if(draft)'),edge.indexOf('const rpc='));
- expect(branch).toContain('Cache-Control');
+ expect(edge).toContain("'Cache-Control':'private, no-store'");
+ expect(branch).toContain("deliveryLinks(url,key,filename,{kind:'draft',authorization,args,manifestHash:");
+ expect(edge).toContain('manifestHash(manifest)!==ticket.manifestHash');
  expect(branch).not.toContain('.storage');
 });
 it('retains snapshots and historic artifacts, defers settlement',()=>{
