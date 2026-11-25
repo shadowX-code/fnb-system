@@ -123,8 +123,10 @@ export async function renderPayslip(manifest, { PDFDocument, StandardFonts, rgb,
     y-=20;
   };
   const earningRow=line=>{
-    const units=line.minutes != null ? `${(Number(line.minutes)/60).toFixed(2)} h${line.rate != null ? ` x ${money(line.rate)}` : ''}${Number(line.multiplier)>1 ? ` x ${line.multiplier}` : ''}` : line.units != null ? String(line.units) : '';
-    const labels=wrap(line.label,10,275), contexts=wrap(units,9,100);
+    const description=String(line.units ?? '').trim();
+    const units=line.minutes != null ? `${(Number(line.minutes)/60).toFixed(2)} h${line.rate != null ? ` x ${money(line.rate)}` : ''}${Number(line.multiplier)>1 ? ` x ${line.multiplier}` : ''}`
+      : line.label==='Basic Salary' && description==='Contractual monthly salary' ? '' : description;
+    const labels=wrap(line.label,10,275), contexts=units ? wrap(units,9,100) : [];
     if (ensure(Math.max(labels.length,contexts.length)*14+4)) earningsHeader();
     labels.forEach((label,index)=>drawText(label,{x:margin,y:y-index*14,size:10,font:regular,color:ink}));
     contexts.forEach((label,index)=>drawText(label,{x:margin+285,y:y-index*14,size:9,font:regular,color:muted}));
