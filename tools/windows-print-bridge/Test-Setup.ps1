@@ -3,7 +3,7 @@ Import-Module "$PSScriptRoot\Bridge.psm1" -Force
 
 # Exercise the actual setup functions with isolated state and no dialogs, cloud mutations or printer calls.
 $setupFunctions=@('Start-Worker','Save-Configuration','Confirm-Idle','Register-Computer',
-    'Get-PendingDeviceId','Save-RegisteredConfiguration','Read-Number','Report-SetupFailure','Show-SetupFailure','Run-Calibration')
+    'Get-PendingDeviceId','Save-RegisteredConfiguration','Read-Number','Report-SetupFailure','Show-SetupFailure','Run-Calibration','Check-D520Connection')
 $tokens=$null;$errors=$null
 $setup=[Management.Automation.Language.Parser]::ParseFile(
     (Join-Path $PSScriptRoot 'Setup-Bridge.ps1'),[ref]$tokens,[ref]$errors)
@@ -126,6 +126,40 @@ try {
     }
     Start-Worker
     if(!$script:startedTask){throw 'Background worker startup was not requested.'}
+
+    # The real manual check must consume the worker's fresh DPAPI receipt, even when the cloud status update fails.
+    $probeConfig=[pscustomobject]@{DeviceId=$deviceId;Name='Fixture';Printer='D520 (Bluetooth)';Transport='tspl'
+        BluetoothAddress='001122334455';GuidedSetup=$true;Calibrated=$false}
+    Save-BridgeState (Join-Path $root 'connection-status.xml') @{
+        Address=$probeConfig.BluetoothAddress;Checked=[datetime]::UtcNow.AddMinutes(-1).ToString('o');Available=$false;Detail='Stale fixture'
+    }
+    $script:workerCycles=0
+    $script:startedTask=$false
+    function Get-ScheduledTask {return @{State='Running'}}
+    function Start-Sleep {
+        param([int]$Milliseconds)
+        $script:workerCycles++
+        if($script:workerCycles -ne 1){throw 'Manual check missed the fresh worker probe during a cloud status failure.'}
+        & $module {
+            param($Root,$Config,$Session)
+            $script:nativeProbes=0
+            function Invoke-BridgeD520Probe($Address){$script:nativeProbes++}
+            function Invoke-BridgeRpc($Config,$Session,$Name,$Body){
+                if($Name -ne 'device'){throw 'Pending calibration must not claim a print.'}
+                if($Body.p_printers[0].WorkOffline){throw 'The successful worker probe was not published as available.'}
+                throw [Net.WebException]::new('Simulated cloud status timeout', [Net.WebExceptionStatus]::Timeout)
+            }
+            try {Invoke-BridgeCycle $Config $Session (Join-Path $Root 'journal.xml')}
+            catch [Net.WebException] {
+                if($_.Exception.Status -ne [Net.WebExceptionStatus]::Timeout){throw}
+            }
+            if($script:nativeProbes -ne 1){throw 'Expected one worker-owned probe.'}
+        } $root $probeConfig $session
+    }
+    Check-D520Connection $probeConfig.BluetoothAddress
+    if($script:workerCycles -ne 1 -or $script:startedTask -or $script:notice -notmatch 'bitmap mode verified'){
+        throw 'Manual check accepted a stale result or restarted the running worker.'
+    }
 
     $script:setupStage='Check D520 connection'
     $native=[ComponentModel.Win32Exception]::new(10060,'private Bluetooth address 001122334455')
