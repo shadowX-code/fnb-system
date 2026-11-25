@@ -319,7 +319,7 @@
     "src/features/factory/pages/FactoryFinishedGoodsPage.jsx": "04736f0e007b75e2d4f205d9a441081a284817b4c873dfb099dd2cc81828c6ba",
     "src/features/factory/pages/FactoryInternalTransferPage.jsx": "e085fe5f1c3a9a486cf29f8a20f3c39249f1f88f306e32573d396ee1ea4cbae2",
     "src/features/factory/pages/FactoryJobOrdersPage.jsx": "cb7631965c0aadf0e473d9985b2946e839e5c763dfe1720e98b825d845cf33c7",
-    "src/features/factory/pages/FactoryLabelManagementPage.jsx": "b443da0cefff752f193ae19a4e46cd5337859764d5f1edefa729392d155aa0c9",
+    "src/features/factory/pages/FactoryLabelManagementPage.jsx": "293970fedefe1c86e4a4959f50b52afd93f352a1ef65aefbd74e0b30855a1931",
     "src/features/factory/pages/FactoryMestiCalibrationPage.jsx": "4e9baa470cccdfc0ee3c6977a0107ec86645a4545267a272944352b0e9b5e7b2",
     "src/features/factory/pages/FactoryMestiCleaningPage.jsx": "41f32eb65e82d2dc4b44559cd0561283aa4277208ca1b418bea7cdcf588077de",
     "src/features/factory/pages/FactoryMestiEquipmentCleaningPage.jsx": "7f3b9e0ee5d9976933412879ef418cd60d46223e78359aab880cf35ad9222a3f",
@@ -439,7 +439,7 @@
     "src/services/employeeService.js": "c84a799ba94cfd58f5bea00584e5255a52c2547145ef7a80f537d8c8724a8429",
     "src/services/employmentDocumentService.js": "af7398562a6390cf09380edbbe74075e8eda57e0fd0588ee3135960d186e8b71",
     "src/services/externalAgentService.js": "fc502667858d40c46ed7bda56b3aec84e9b582ccd234207e0038c9e22285981d",
-    "src/services/factoryLabelService.js": "44c43fae358edff6a321310999fb3eab393044f3fdf7e6bf918571a6e21b6799",
+    "src/services/factoryLabelService.js": "196321c80801a988d99ca77fe7bedc9ffdc1d1869255713015dfac2a588aa8d6",
     "src/services/factoryRecipeDiagnostics.js": "6e5e0416a9e4fa57314426c2109f03b9f02abb8307384f52571813761bb3c5df",
     "src/services/factoryService.js": "b2f9fc7afbd836580a5072db5e1187edf0c47739ea5d65d96828d19457890512",
     "src/services/importService.js": "c5f32b7a070d9ead89de3e08eb5cd2bc8e12d91171b821bee31e7b412faba52b",
@@ -1111,6 +1111,7 @@
     "supabase/migrations/20261121181912_assistant_voice_usage_attribution.sql": "8e8ed5c66c9715930c504904c2b76788d5a9a516f3ca8f70a88864a0b8780866",
     "supabase/migrations/20261122141501_restaurant_partial_closing_publication.sql": "4272156312f2530e12bc1ef319225366ddba8db90e2f7e0d7115294a395c70a1",
     "supabase/migrations/20261122153408_restaurant_closing_submit_publication.sql": "d71d0d32f3c7a9b38affdbc7272147dbb2c603bc86439c267a20527fc1a7bfe5",
-    "supabase/migrations/20261123043604_restaurant_crew_closing_submission.sql": "457b384374b6a6293fa9f4dd54bad622f22130211edfeead519ed1389ae8e25e"
+    "supabase/migrations/20261123043604_restaurant_crew_closing_submission.sql": "457b384374b6a6293fa9f4dd54bad622f22130211edfeead519ed1389ae8e25e",
+    "supabase/migrations/20261125135557_factory_print_bridge_setup_authority.sql": "bc064ad73a8b84a3cde02c1a19aba8c986b211c16f2940d9fd5e7c69a15a8940"
   }
 }

@@ -477,6 +477,7 @@ export default function FactoryLabelManagementPage({ onConfirm, onNotify }) {
               setError("");
               try {
                 await factoryLabelService.renameDevice(selectedPrinter.id, deviceName.trim());
+                setPrinter((current) => current ? { ...current, name: deviceName.trim() } : current);
                 await load();
               } catch (failure) {
                 setError(failure.message || "The device name could not be saved.");

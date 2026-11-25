@@ -9,9 +9,11 @@ import bridge
 
 
 class SetupWindow:
-    def __init__(self, actions):
+    def __init__(self, actions, verify_only=False):
         self.actions = actions
         self.root = tk.Tk()
+        if verify_only:
+            self.root.withdraw()
         self.root.title(actions.APP)
         self.root.minsize(540, 490)
         self.root.geometry("590x525")
@@ -20,13 +22,13 @@ class SetupWindow:
         self.content.pack(fill="both", expand=True)
         ttk.Label(self.content, text="Printer Setup", font=("Helvetica", 22, "bold")).pack(anchor="w")
         ttk.Label(self.content, text=f"FeedX {actions.ENVIRONMENT} · Bridge v{actions.VERSION}").pack(anchor="w")
-        self.steps = ttk.Label(self.content, pady=12)
+        self.steps = ttk.Label(self.content, padding=(0, 12))
         self.steps.pack(anchor="w")
         self.body = ttk.Frame(self.content)
         self.body.pack(fill="both", expand=True)
         self.status = ttk.Label(self.content, wraplength=490, justify="left")
         self.status.pack(anchor="w", fill="x", pady=(10, 0))
-        self.config = bridge.load(bridge.CONFIG) or {}
+        self.config = {} if verify_only else bridge.load(bridge.CONFIG) or {}
         self.session = None
         self.report = None
         self.printers = {}
@@ -35,6 +37,11 @@ class SetupWindow:
         self.editing = not bool(self.config.get("printer"))
         self.status_text = ""
         self.draw()
+        if verify_only:
+            self.root.update_idletasks()
+            assert "▸ Authorize" in self.steps.cget("text")
+            self.root.destroy()
+            return
         self.root.after(80, self.consume)
         if self.config.get("printer"):
             self.run(self.actions.resume, self.show_connection, "Checking this printer…", self.config)

@@ -200,7 +200,7 @@ function New-SetupButton($Text,$Handler) {
     $button.Add_Click($Handler)
     $button
 }
-function Show-BridgeWindow {
+function Show-BridgeWindow([switch]$VerifyOnly) {
     [Windows.Forms.Application]::EnableVisualStyles()
     $script:windowForm=New-Object Windows.Forms.Form
     $script:windowForm.Text=$title
@@ -269,6 +269,13 @@ function Show-BridgeWindow {
     $script:windowStatus=Add-WindowLabel '' 10
     $script:windowForm.Controls.Add($content)
     Update-WindowPhase
+    if($VerifyOnly){
+        if($script:heading.Text -ne 'Authorize' -or $script:authorizeButton.Text -ne 'Authorize in browser'){
+            throw 'The clean setup window did not start at authorization.'
+        }
+        $script:windowForm.Dispose()
+        return
+    }
     $script:windowForm.Add_FormClosing({ param($sender,$eventArgs) if($script:windowBusy){$eventArgs.Cancel=$true} })
     $script:windowForm.Add_Shown({
         if($script:config -and $script:config.PSObject.Properties['Printer']){

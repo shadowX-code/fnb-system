@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
@@ -43,7 +44,8 @@ public sealed class FeedXBrowserAuthorization : IDisposable {
 
     string Handle(Stream stream) {
         var headers = new List<byte>();
-        while (headers.Count < 8192) {
+        var elapsed = Stopwatch.StartNew();
+        while (headers.Count < 8192 && elapsed.ElapsedMilliseconds < 1800) {
             int next = stream.ReadByte();
             if (next < 0) return null;
             headers.Add((byte)next);
@@ -51,6 +53,7 @@ public sealed class FeedXBrowserAuthorization : IDisposable {
             if (size >= 4 && headers[size-4] == 13 && headers[size-3] == 10 &&
                 headers[size-2] == 13 && headers[size-1] == 10) break;
         }
+        if (elapsed.ElapsedMilliseconds >= 1800 || headers.Count >= 8192) return null;
         var lines = Encoding.ASCII.GetString(headers.ToArray()).Split(new[] { "\r\n" }, StringSplitOptions.None);
         var request = lines[0].Split(' ');
         var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -71,6 +74,7 @@ public sealed class FeedXBrowserAuthorization : IDisposable {
             Int32.TryParse(lengthValue, out length) && length > 0 && length <= 32768) {
             var body = new byte[length];
             for (int offset = 0; offset < body.Length;) {
+                if (elapsed.ElapsedMilliseconds >= 2500) return null;
                 int count = stream.Read(body, offset, body.Length - offset);
                 if (count == 0) return null;
                 offset += count;

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Modal from "../../../components/feedback/Modal.jsx";
 import FactorySegmentedControl from "../components/FactorySegmentedControl.jsx";
 import FactoryStatusBadge from "../components/FactoryStatusBadge.jsx";
@@ -50,19 +50,21 @@ export function bridgeRelease(row) {
 
 function recommendedPlatform() {
   const platform = navigator.userAgentData?.platform || navigator.platform || "";
-  return /win/i.test(platform) ? "windows" : "macos";
+  return /win/i.test(platform) ? "windows" : /mac/i.test(platform) ? "macos" : null;
 }
 
 const steps = ["Install", "Authorize", "Connect Printer", "Test Print", "Ready"];
 
 export default function PrinterSetupWizard({ onClose, onRefresh, devices, selected }) {
   const [recommended] = useState(recommendedPlatform);
-  const [platform, setPlatform] = useState(bridgeRelease(selected).platform || recommended);
+  const [platform, setPlatform] = useState(bridgeRelease(selected).platform || recommended || "windows");
   const [opening, setOpening] = useState(false);
   const [deviceId, setDeviceId] = useState(selected?.id || "");
   const [checking, setChecking] = useState(false);
-  const matching = devices.filter((device) => bridgeRelease(device).platform === platform);
-  const row = devices.find((device) => device.id === deviceId) || (matching.length === 1 ? matching[0] : null);
+  const knownDeviceIds = useRef(new Set(devices.map((device) => device.id)));
+  const newDevices = opening ? devices.filter((device) =>
+    !knownDeviceIds.current.has(device.id) && bridgeRelease(device).platform === platform) : [];
+  const row = devices.find((device) => device.id === deviceId) || (newDevices.length === 1 ? newDevices[0] : null);
   const status = row && printerSetupStatus(row);
   const step = !row ? opening ? 1 : 0
     : status.connection !== "Available" ? 2 : status.calibration !== "Passed" ? 3 : 4;

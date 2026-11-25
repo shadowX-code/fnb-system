@@ -277,6 +277,10 @@ def main():
         import tkinter
         assert tkinter.TkVersion >= 8.6 and bridge.NATIVE.is_file() and len(bridge.calibration(1)[0]) == 80 * 719
         return
+    if sys.argv[1:] == ["--window-self-test"]:
+        from setup_window import SetupWindow
+        SetupWindow(sys.modules[__name__], verify_only=True)
+        return
     if sys.argv[1:] == ["background"]:
         if is_paused():
             return
@@ -304,6 +308,6 @@ if __name__ == "__main__":
     try:
         main()
     except Exception as error:
-        if sys.argv[1:] not in (["background"], ["--self-test"]):
+        if sys.argv[1:] not in (["background"], ["--self-test"], ["--window-self-test"]):
             store_setup_issue("startup", error)
         sys.exit(1)

@@ -279,6 +279,11 @@ if($SelfTest){
     Add-Type -Path "$PSScriptRoot\BrowserAuthorization.cs"
     . "$PSScriptRoot\Setup-Window.ps1"
     if(!(Test-Path (Join-Path $PSScriptRoot 'Setup-Authorization.html'))){throw 'Browser authorization page missing.'}
+    $script:config=$null
+    $script:editing=$false
+    $script:windowBusy=$false
+    $script:connectionVerified=$false
+    Show-BridgeWindow -VerifyOnly
     return
 }
 
