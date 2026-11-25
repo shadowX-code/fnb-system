@@ -36,6 +36,12 @@ Windows 10/11, Windows PowerShell 5.1 and .NET Framework (included with Windows)
 5. Open completed Job Order → **Print Labels**, select its actual completed batch and registered bridge, inspect the preview, and confirm label quantity. Print one calibration label first. Each original label consumes the recorded packaged-unit allowance, even if its outcome later fails. Subsequent recovery is an audited reprint.
 6. Configure the printer driver for the exact 80×90 mm media, 203 DPI, no scaling and appropriate gap sensing. Measure the paper output. FeedX refuses a driver printable area smaller than the label. Any vendor driver rounding, orientation, margins, gap and Bluetooth behavior require hardware calibration.
 
+## Setup diagnostics
+
+In **FeedX Print Bridge Staging**, choose **Export Diagnostics** and save the JSON report. It includes up to eight recent setup and manual connection-check failures, with the step, UTC timestamp and Windows or HTTP codes when available. Reports exclude credentials, tokens, user and device identifiers, Bluetooth addresses, and server response bodies. Export remains available with a broken saved configuration. Reports stay local until you share them with FeedX support.
+
+After a setup error, follow the step shown in the dialog. Rerun **Connect / Configure** if printer settings were not saved. If setup saved the printer but Windows could not start the background task, choose **Reconnect**. Use **Connection Check** to verify availability without printing.
+
 ## Security and local operation
 
 Only outbound HTTPS is used. The operator password is used once to sign in and is not saved. Session/refresh credentials and the interruption journal use Windows user-bound DPAPI with atomic writes under `%LOCALAPPDATA%\FeedXPrintBridge`; installer ACLs restrict the directory to the user and SYSTEM. No tokens or HTTP response bodies are logged. The non-secret public key and queue settings are in `config.json`. Use a dedicated least-privileged employee account where operationally appropriate; this is normal FeedX Auth, with permissions and active employment checked on every RPC. Disable the employee’s access through the existing identity workflow to revoke bridge authority.

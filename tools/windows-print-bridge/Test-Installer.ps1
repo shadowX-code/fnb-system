@@ -24,6 +24,7 @@ $config|ConvertTo-Json|Set-Content (Join-Path $root 'config.json')
 Save-BridgeState (Join-Path $root 'session.xml') @{refresh_token='fixture-only';expires_at=0}
 Save-BridgeState (Join-Path $root 'journal.xml') @{stage='submitting';claim='existing-claim';job='existing-job'}
 Save-BridgeState (Join-Path $root 'calibration.xml') @{stage='unknown';quantity=1}
+Save-BridgeState (Join-Path $root 'setup-diagnostics.xml') @{Version='fixture';Failures=@(@{Stage='Register Windows background task'})}
 $before=@(Get-ChildItem $root | Get-FileHash | ForEach-Object Hash)
 Install-TestPackage
 $after=@(Get-ChildItem $root | Get-FileHash | ForEach-Object Hash)

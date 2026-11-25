@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
@@ -93,8 +94,8 @@ public static class FeedXD520Bluetooth {
         return addresses;
     }
 
-    static IOException SocketError(string action) {
-        return new IOException(action + " (Windows Bluetooth error " + WSAGetLastError() + ").");
+    static Win32Exception SocketError(string action) {
+        return new Win32Exception(WSAGetLastError(), action);
     }
 
     static bool Wait(IntPtr handle, bool reading, int milliseconds) {
@@ -145,8 +146,11 @@ public static class FeedXD520Bluetooth {
         int length = 0;
         while (length < accumulated.Length && Wait(handle, true, 4000 - (int)timer.ElapsedMilliseconds)) {
             int count = recv(handle, chunk, Math.Min(chunk.Length, accumulated.Length - length), 0);
-            if (count < 0 && WSAGetLastError() == WouldBlock) continue;
-            if (count <= 0) break;
+            if (count < 0) {
+                if (WSAGetLastError() == WouldBlock) continue;
+                throw SocketError("D520 Bluetooth read failed");
+            }
+            if (count == 0) break;
             Buffer.BlockCopy(chunk, 0, accumulated, length, count);
             length += count;
             int result = modeCheck ? (Contains(accumulated, length, Mode4) ? 1 : 0) : Receipt(accumulated, length);
@@ -182,34 +186,43 @@ public static class FeedXD520Bluetooth {
 
     static void OpenAndExchange(ulong target, byte[] payload) {
         int startup = WSAStartup(0x0202, new byte[512]);
-        if (startup != 0) throw new IOException("Windows Bluetooth sockets are unavailable (" + startup + ").");
         var invalid = new IntPtr(-1);
         var handle = invalid;
+        string phase = "winsock-startup";
         try {
+            if (startup != 0) throw new Win32Exception(startup, "Windows Bluetooth sockets are unavailable");
+            phase = "socket-open";
             handle = socket(AfBluetooth, 1, Rfcomm);
             if (handle == invalid) throw SocketError("Windows Classic Bluetooth is unavailable");
+            phase = "socket-configure";
             uint nonblocking = 1;
             if (ioctlsocket(handle, 0x8004667e, ref nonblocking) != 0) throw SocketError("D520 socket setup failed");
             int authenticate = 1;
             if (setsockopt(handle, Rfcomm, unchecked((int)0x80000001), ref authenticate, 4) != 0)
                 throw SocketError("D520 paired authentication setup failed");
+            phase = "rfcomm-connect";
             var endpoint = new BluetoothAddress { Family = AfBluetooth, Address = target, Service = SerialPortService };
             if (connect(handle, ref endpoint, Marshal.SizeOf(typeof(BluetoothAddress))) != 0) {
                 if (WSAGetLastError() != WouldBlock) throw SocketError("D520 serial connection failed");
                 if (!Wait(handle, false, 8000)) throw new IOException("D520 serial connection timed out. Check power, range and other printer apps.");
                 int length = 4, error;
                 if (getsockopt(handle, 0xffff, 0x1007, out error, ref length) != 0) throw SocketError("D520 serial connection failed");
-                if (error != 0) throw new IOException("D520 serial connection failed (Windows Bluetooth error " + error + ").");
+                if (error != 0) throw new Win32Exception(error, "D520 serial connection failed");
             }
+            phase = "bitmap-mode";
             Write(handle, ModeQuery, 2000);
             if (ReadReply(handle, true) != 1) throw new IOException("D520 did not confirm Bluetooth bitmap mode 4.");
             if (payload == null) return;
+            phase = "submission";
             Write(handle, payload, 30000);
             int receipt = ReadReply(handle, false);
             if (receipt != 1) throw new IOException(receipt < 0 ? "D520 rejected the submission." : "D520 did not acknowledge the submission.");
+        } catch (Exception error) {
+            error.Data["D520Phase"] = phase;
+            throw;
         } finally {
             if (handle != invalid) closesocket(handle);
-            WSACleanup();
+            if (startup == 0) WSACleanup();
         }
     }
 }

@@ -28,6 +28,27 @@ function Invoke-BridgeAuth($Key, $Body, $Grant) {
 function Invoke-BridgeRpc($Config, $Session, $Name, $Body) {
     return Invoke-RestMethod -Method Post -Uri "$script:Endpoint/rest/v1/rpc/factory_label_$Name" -Headers @{apikey=$Config.PublicKey; Authorization="Bearer $($Session.access_token)"} -ContentType 'application/json' -Body ($Body | ConvertTo-Json -Depth 20 -Compress) -TimeoutSec 45 -MaximumRedirection 0
 }
+function Get-BridgeFailureCodes($ErrorRecord) {
+    $codes=[ordered]@{Exception=$null;HResult=$null;NativeCode=$null;HttpStatus=$null;NetworkStatus=$null;BluetoothPhase=$null}
+    for($cause=$ErrorRecord.Exception; $cause; $cause=$cause.InnerException) {
+        $codes.Exception=$cause.GetType().Name
+        $codes.HResult='0x{0:X8}' -f $cause.HResult
+        if($cause -is [ComponentModel.Win32Exception] -or $cause -is [Microsoft.Management.Infrastructure.CimException]) {
+            $codes.NativeCode=[int]$cause.NativeErrorCode
+        }
+        if($cause -is [Net.WebException]) {
+            $codes.NetworkStatus=$cause.Status.ToString()
+            if($cause.Response -is [Net.HttpWebResponse]){$codes.HttpStatus=[int]$cause.Response.StatusCode}
+        }
+        if($cause.Data['D520Phase'] -in @('winsock-startup','socket-open','socket-configure','rfcomm-connect','bitmap-mode','submission')){
+            $codes.BluetoothPhase=$cause.Data['D520Phase']
+        }
+    }
+    if($ErrorRecord.FullyQualifiedErrorId -match '^HRESULT (0x[0-9a-f]{8})(?:,|$)'){
+        $codes.HResult=$Matches[1]
+    }
+    return $codes
+}
 function Get-BridgePrinters {
     return @(Get-CimInstance Win32_Printer | Select-Object Name, WorkOffline, PrinterStatus)
 }
@@ -52,7 +73,7 @@ function Send-BridgeD520Label($Address,$Payload) {
     [FeedXD520Bluetooth]::Submit($Address,$Payload)
 }
 function New-BridgeBluetoothStatus {
-    [pscustomobject]@{Checked=$null;Published=$null;Failures=0;Available=$false;Detail=$null}
+    [pscustomobject]@{Checked=$null;Published=$null;Failures=0;Available=$false;Detail=$null;Failure=$null}
 }
 function Get-BridgeBluetoothPrinter($Config,$Status) {
     $row=[ordered]@{Name=$Config.Printer;WorkOffline=$true;PrinterStatus=2;Platform='Windows';Connection='Bluetooth Classic SPP'}
@@ -74,9 +95,11 @@ function Update-BridgeBluetoothProbe($Address,$Status,$Root,$Now=[datetime]::Utc
         Invoke-BridgeD520Probe $Address
         $Status.Available=$true
         $Status.Detail=$null
+        $Status.Failure=$null
         $Status.Failures=0
     } catch {
         $Status.Available=$false
+        $Status.Failure=Get-BridgeFailureCodes $_
         $Status.Detail='D520 did not verify its Bluetooth serial connection and bitmap mode. Check Windows pairing, printer power and range, and close other printer apps.'
         $Status.Failures=[Math]::Min(3,$Status.Failures+1)
     }
@@ -131,7 +154,7 @@ function Invoke-BridgeCycle($Config, $Session, $StatePath, $BluetoothStatus=$nul
     $null=Invoke-BridgeRpc $Config $Session 'device' @{p_device=$Config.DeviceId;p_name=$Config.Name;p_printer=$Config.Printer;p_transport=$Config.Transport;p_status=$status;p_printers=@($printers)}
     if($address -and $BluetoothStatus.Checked -ne $BluetoothStatus.Published) {
         Save-BridgeState (Join-Path $folder 'connection-status.xml') @{
-            Address=$address;Checked=$BluetoothStatus.Checked.ToString('o');Available=$ready;Detail=$BluetoothStatus.Detail
+            Address=$address;Checked=$BluetoothStatus.Checked.ToString('o');Available=$ready;Detail=$BluetoothStatus.Detail;Failure=$BluetoothStatus.Failure
         }
         $BluetoothStatus.Published=$BluetoothStatus.Checked
     }

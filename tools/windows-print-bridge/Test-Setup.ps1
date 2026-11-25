@@ -3,7 +3,7 @@ Import-Module "$PSScriptRoot\Bridge.psm1" -Force
 
 # Exercise the actual setup functions with isolated state and no dialogs, cloud mutations or printer calls.
 $setupFunctions=@('Start-Worker','Save-Configuration','Confirm-Idle','Register-Computer',
-    'Get-PendingDeviceId','Save-RegisteredConfiguration','Read-Number','Run-Calibration')
+    'Get-PendingDeviceId','Save-RegisteredConfiguration','Read-Number','Report-SetupFailure','Show-SetupFailure','Run-Calibration')
 $tokens=$null;$errors=$null
 $setup=[Management.Automation.Language.Parser]::ParseFile(
     (Join-Path $PSScriptRoot 'Setup-Bridge.ps1'),[ref]$tokens,[ref]$errors)
@@ -39,6 +39,7 @@ $configPath=Join-Path $root 'config.json'
 $sessionPath=Join-Path $root 'session.xml'
 $calibrationPath=Join-Path $root 'calibration.xml'
 $pendingDevicePath=Join-Path $root 'pending-device.xml'
+$diagnosticsPath=Join-Path $root 'setup-diagnostics.xml'
 $web='https://fnb-system-staging.vercel.app'
 $identity=[Security.Principal.WindowsIdentity]::GetCurrent().Name
 $taskName='FeedX Windows setup fixture'
@@ -48,6 +49,8 @@ $script:calibrationAnswer='Review Later'
 $script:submissions=0
 $script:registeredTask=$false
 $script:startedTask=$false
+$script:notice=$null
+$script:taskDenied=$false
 
 function Invoke-BridgeRpc($Config,$Session,$Name,$Body) {
     if($Name -eq 'setup_queue'){return 0}
@@ -69,7 +72,7 @@ function Read-Field($Message,$Initial='',[string[]]$Options=@()) {
     if($Options -notcontains 'All Passed'){throw 'The calibration review choices are missing.'}
     return $script:calibrationAnswer
 }
-function Show-Notice($Message) {}
+function Show-Notice($Message) {$script:notice=$Message}
 function Start-Process($FilePath) {
     if($FilePath -ne "$web/factory/settings/labels?section=printers"){throw 'Unexpected browser destination.'}
 }
@@ -84,6 +87,10 @@ function Submit-CalibrationLabel($Config,$Raster,$Command,$WidthDots,$HeightDots
 function Register-ScheduledTask($TaskName,$Action,$Trigger,$Principal,$Settings,[switch]$Force) {
     if(!$Force -or $Settings.MultipleInstances.ToString() -ne 'IgnoreNew' -or $Action.Arguments -notmatch 'Start-Bridge.ps1'){
         throw 'The worker launch must use the existing single-instance scheduled task.'
+    }
+    if($script:taskDenied){
+        $denial=[Management.Automation.ErrorRecord]::new([UnauthorizedAccessException]::new('private task payload'), 'HRESULT 0x80070005', 'PermissionDenied', $null)
+        throw $denial
     }
     $script:registeredTask=$true
 }
@@ -120,6 +127,35 @@ try {
     Start-Worker
     if(!$script:startedTask){throw 'Background worker startup was not requested.'}
 
+    $script:setupStage='Check D520 connection'
+    $native=[ComponentModel.Win32Exception]::new(10060,'private Bluetooth address 001122334455')
+    $native.Data['D520Phase']='rfcomm-connect'
+    $wrapped=[InvalidOperationException]::new('private sign-in fixture',$native)
+    try {throw $wrapped} catch {Show-SetupFailure $_}
+    $report=Read-BridgeState $diagnosticsPath
+    if($report.Failures[0].Stage -ne 'Check D520 connection' -or $report.Failures[0].Codes.NativeCode -ne 10060 -or
+       $report.Failures[0].Codes.BluetoothPhase -ne 'rfcomm-connect' -or $script:notice -notmatch 'Windows error 10060'){
+        throw 'Connection diagnostics lost the native Bluetooth error or phase.'
+    }
+    $script:taskDenied=$true
+    try {Start-Worker} catch {Show-SetupFailure $_}
+    $report=Read-BridgeState $diagnosticsPath
+    if($report.Failures[0].Stage -ne 'Register Windows background task' -or $report.Failures[0].Codes.HResult -ne '0x80070005' -or
+       $script:notice -notmatch 'Reconnect'){
+        throw 'Task failure diagnostics lost the Windows stage, HRESULT or recovery action.'
+    }
+    $script:setupStage='Sign in to FeedX'
+    for($i=0;$i -lt 9;$i++){
+        try {throw [Net.WebException]::new('private password-fixture access-fixture', [Net.WebExceptionStatus]::Timeout)}
+        catch {Show-SetupFailure $_}
+    }
+    $report=Read-BridgeState $diagnosticsPath
+    $serialized=$report | ConvertTo-Json -Depth 8
+    if($report.Failures.Count -ne 8 -or $report.Failures[0].Codes.NetworkStatus -ne 'Timeout' -or
+       $serialized -match 'private|password-fixture|access-fixture|001122334455|operator@example.invalid' -or $script:notice -match 'password-fixture|access-fixture'){
+        throw 'Setup diagnostics must retain bounded, sanitized evidence.'
+    }
+
     Run-Calibration $config $session
     if($script:submissions -or (Test-Path $calibrationPath)){throw 'Declining the TEST approval submitted output.'}
     $script:approveTest=$true
@@ -144,4 +180,4 @@ try {
 } finally {
     Remove-Item -LiteralPath $root -Recurse -Force
 }
-Write-Output 'PASS: Staging sign-in simulation, denied registration retry, logon task request, exactly one approved calibration, physical review and Unknown recovery.'
+Write-Output 'PASS: Stock inputs, bounded diagnostic sanitization, Windows native codes, Staging sign-in simulation, denied registration retry, logon task request, exactly one approved calibration, physical review and Unknown recovery.'
