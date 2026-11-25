@@ -19,8 +19,8 @@ Bring a Windows 10/11 computer, the D520 and its power supply, a USB data cable,
 ## Guided installer
 
 1. In FeedX Staging, open **Factory Settings → Label Management → Printers → Set Up Printer**. Run the Windows installer on the printer computer. It installs per user and uses the Windows 10/11 inbox PowerShell 5.1 and .NET Framework runtime. The Windows Driver and RAW TSPL options require an installed queue. Use the D520 Bluetooth option for the paired Classic device.
-2. Open **FeedX Print Bridge Staging** from Start. Choose **Connect / Configure**, then sign in with the authorized Staging operator, select the queue and set stock dimensions. Use portrait. Set stock and gap on the printer driver for Windows Driver printing. Choose RAW TSPL only for a verified compatible queue.
-3. Use **Connection Check** to inspect the Windows queue and optionally reconnect. With separate physical approval, select **Test / Review Calibration**, approve one TEST label and inspect the actual output. Review a pending test before attempting another. The printer appears in the Web wizard where heartbeat, printer status, calibration and unresolved jobs are shown separately.
+2. Open **FeedX Print Bridge Staging** from Start. Choose **Connect / Configure**, then sign in with the authorized Staging operator, choose the paired D520 or installed queue, and set stock dimensions. Use portrait. Set stock and gap on the printer driver for Windows Driver printing. Choose RAW TSPL only for a verified compatible queue.
+3. Use **Connection Check** to validate the selected transport, or **Reconnect** to restart the background task. With separate physical approval, select **Test / Review Calibration**, approve one TEST label and inspect the actual output. Review a pending test before attempting another. The printer appears in the Web wizard where heartbeat, printer status, calibration and unresolved jobs are shown separately.
 4. The background task starts at Windows sign-in under the current user. Reopen the app and choose **Reconnect** to reuse the saved printer and calibration, or **Reauthorize** as the original operator. Returning configuration uses its recorded media and transport. Session-store and network errors back off while preserving the pending print journal. Installing a newer copy replaces program files and preserves the device configuration, DPAPI session, calibration, and journal under `%LOCALAPPDATA%\FeedXPrintBridge`.
 
 The Staging executable is unsigned. Authenticode signing and enterprise policy validation are prerequisites for commercial distribution. The following legacy instructions apply to the old script archive.
@@ -46,20 +46,20 @@ If sign-in expires or changes, run the installer again with the same Windows use
 
 - **Queued**: saved in FeedX; offline printers do not claim new work.
 - **Printing**: exclusively claimed by one bridge (10-minute lease); the local journal is flushed before any native printer call.
-- **Sent**: the driver/RAW spooler accepted the submission. This is **not physical proof**.
+- **Sent**: the Windows spooler accepted the submission or the D520 returned a positive Bluetooth acknowledgment. Physical inspection is separate.
 - **Confirmed**: a supervisor with `factory_production.verify` inspected the physical output and recorded a reason.
 - **Failed**: no submission occurred, or an operator inspected/cancelled/discarded remaining output and recorded the outcome.
 - **Unknown**: timeout, interruption, native transport error or expired claim. No automatic resend. An Unknown job blocks that bridge’s next claim until a supervisor records the outcome.
 
 After a crash, an in-progress submission is reported Unknown; a saved result is retried only as a status report. Claim/result HTTP retries reuse stable claim IDs. The bridge never automatically submits a bitmap twice. A network partition can leave a pending report; restore connectivity and inspect history. On lease expiry, Printing becomes Unknown on the next online claim. A supervisor may also mark an expired Printing claim Unknown through Review Outcome.
 
-Before reprinting Unknown/Sent work, stop and clear any held Windows spooler job and inspect/discard partial labels. FeedX cannot recall commands already accepted by a printer. Record a reason, then use **Reprint**; it copies the original immutable snapshot and pixels. A physically partial batch requires an explicit remaining quantity. Never delete `journal.xml` to force a retry.
+Before reprinting Unknown/Sent work, check the printer for pending output, clear any held Windows spooler job if using a queue, and inspect or discard partial labels. FeedX cannot recall commands already accepted by a printer. Record a reason, then use **Reprint**; it copies the original immutable snapshot and pixels. A physically partial batch requires an explicit remaining quantity. Never delete `journal.xml` to force a retry.
 
 ## Replaceable transports
 
 Default `spooler` uses .NET `PrintDocument` and the vendor Windows driver. `tspl` sends a bounded bitmap TSPL command through `WritePrinter` RAW to the same queue: install using `-Transport tspl` only after verifying the D520 firmware and driver accept uncompressed TSPL BITMAP. All Chinese, logos, QR and barcode content is rasterized by FeedX, avoiding printer font dependencies. `TsplInvert` defaults true (TSPL zero-bit = dark); `GapMm` defaults 2 and must match actual stock. Both are local calibration values. No untrusted cloud TSPL, shell commands or remote URLs are executed. Future transports belong in `Transport.cs` with the same exclusive claim/journal protocol.
 
-**Pending physical D520 checks:** actual Bluetooth queue availability and reconnect behavior, driver support on Windows 10 and 11, exact DPI/paper orientation/hard margins, gap calibration, RAW TSPL capability and bitmap polarity, long bulk jobs, paper-out recovery, Chinese legibility, QR/barcode scanner readability and physical output count. FeedX Windows sends output through a Windows print queue. Windows Driver uses the installed printer driver and supports a vendor USB queue or another compatible installed queue. A Bluetooth printer can be selected only if its driver exposes a usable Windows print queue. The D520 vendor documents Bluetooth through Labelife, while its Windows driver instructions cover USB. The direct SPP option described above is separate from the Windows queue options. RAW TSPL also requires a queue and verified TSPL support. Software simulation does not establish physical compatibility.
+**Pending physical D520 checks:** native RFCOMM service discovery and reconnect on Windows 10/11, target firmware response, label count, orientation, polarity, 80 × 90 mm output dimensions, margins, gap feed, paper-out recovery, and QR/barcode readability. RAW TSPL still requires a compatible installed queue and verified TSPL support.
 
 ## Remove
 

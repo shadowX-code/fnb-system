@@ -12,7 +12,7 @@ if($PSVersionTable.PSEdition -eq 'Core') {
 } else {Add-Type -Path "$PSScriptRoot\Transport.cs" -ReferencedAssemblies System.Drawing}
 Add-Type -Path "$PSScriptRoot\D520Bluetooth.cs"
 $socketAddress=[FeedXD520Bluetooth].GetNestedType('BluetoothAddress','NonPublic')
-if([Runtime.InteropServices.Marshal]::SizeOf($socketAddress) -ne 30 -or
+if([Runtime.InteropServices.Marshal]::SizeOf([Activator]::CreateInstance($socketAddress)) -ne 30 -or
     [Runtime.InteropServices.Marshal]::OffsetOf($socketAddress,'Service').ToInt32() -ne 10){
     throw 'Windows Bluetooth sockaddr does not match the SDK packing.'
 }
