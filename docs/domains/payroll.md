@@ -950,10 +950,17 @@ Client roles have no direct payslip table or storage access.
 
 Review Payroll exposes View / Draft Payslip. The entity-scoped Admin-only
 `payroll_draft_payslip_read` consumes the latest non-stale calculation and
-statutory reads without mutating them. The Edge gateway returns a transient,
-no-store PDF marked DRAFT · NOT FINAL; it creates no job, artifact or audit event.
+statutory reads without mutating them. The Edge gateway serves a transient,
+no-store PDF marked DRAFT · NOT FINAL. It creates no job, artifact or audit event.
 Unresolved statutory totals remain unavailable, not zero. Correction drafts
 use the same boundary. Finalized rows expose View / Payslip.
+
+Admin and Crew use short-lived PDF links for preview and download. The gateway
+sets the UTF-8 filename from the authorized manifest's pay period and employee
+name. Draft uses `Payslip_YYYY-MM_Employee Name_DRAFT.pdf` and Final uses
+`Payslip_YYYY-MM_Employee Name.pdf`. Draft delivery rechecks the original
+Admin access and the exact draft manifest. Final delivery reads the existing
+private artifact after the normal authorization that issues the link.
 
 One Payroll-owned A4 renderer and document contract serve Draft, Final, Admin
 and Crew. Final documents use only immutable snapshots. New finalizations also

@@ -34,13 +34,10 @@ export const payrollService = {
   crewPayslips: token => command('crew_payroll_payslips', { p_token: token }),
   openPayslip: async input => {
     const { data, error } = await supabase.functions.invoke('payroll-payslips', { body: input.token
-      ? { action: 'crew_open', token: input.token, period_id: input.periodId }
-      : { action: input.draft ? 'admin_draft' : 'admin_open', run_id: input.runId, employee_id: input.employeeId } });
+      ? { action: 'crew_open', token: input.token, period_id: input.periodId, delivery: 'url' }
+      : { action: input.draft ? 'admin_draft' : 'admin_open', run_id: input.runId, employee_id: input.employeeId, delivery: 'url' } });
     if (error || data?.error) throw new Error(data?.error || 'Payslip unavailable. Please retry.');
-    if (input.draft) {
-      if (!(data instanceof Blob)) throw new Error('Draft preview unavailable. Please retry.');
-      return { document_url: URL.createObjectURL(data), transient: true };
-    }
+    if (!data?.document_url || !data?.download_url || !data?.file_name) throw new Error('Payslip unavailable. Please retry.');
     return data;
   },
   readHolidayUpdateCheck: (year, geography) => command("payroll_holiday_update_check_read", { p_year: Number(year), p_geography: geography || "national" }),

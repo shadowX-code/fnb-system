@@ -6,18 +6,15 @@ import { FileText } from 'lucide-react';
 // Both row actions share private document access and the canonical PDF layout.
 export default function PayrollPayslipAction({ runId, employeeId, draft = false }) {
   const [pdf, setPdf] = useState(null), [error, setError] = useState(''), [busy, setBusy] = useState(false), [open, setOpen] = useState(false);
-  const request = useRef(0), transient = useRef(null);
-  const release = () => { if (transient.current) URL.revokeObjectURL(transient.current); transient.current = null; };
-  useEffect(() => () => { request.current += 1; release(); }, [runId, employeeId, draft]);
-  const close = () => { request.current += 1; release(); setOpen(false); setPdf(null); setBusy(false); };
+  const request = useRef(0);
+  useEffect(() => () => { request.current += 1; }, [runId, employeeId, draft]);
+  const close = () => { request.current += 1; setOpen(false); setPdf(null); setBusy(false); };
   async function load() {
     const id = ++request.current;
-    release(); setPdf(null); setError(''); setOpen(true); setBusy(true);
+    setPdf(null); setError(''); setOpen(true); setBusy(true);
     try {
       const value = await payrollService.openPayslip({ runId, employeeId, draft });
-      if (id !== request.current) { if (value.transient) URL.revokeObjectURL(value.document_url); return; }
-      if (value.transient) transient.current = value.document_url;
-      setPdf(value);
+      if (id === request.current) setPdf(value);
     } catch (cause) { if (id === request.current) setError(cause.message); }
     finally { if (id === request.current) setBusy(false); }
   }
@@ -28,9 +25,12 @@ export default function PayrollPayslipAction({ runId, employeeId, draft = false 
       onClose={close} footer={<button type="button" className="btn-secondary" onClick={close}>Close</button>}>
       {busy && <p role="status">Opening payslip…</p>}
       {error && <div role="alert"><p>{error}</p><button className="btn-secondary mt-3" onClick={load}>Retry</button></div>}
-      {pdf && <><a className="font-semibold text-primary" href={pdf.download_url || pdf.document_url} target="_blank" rel="noreferrer">Open {title}</a>
-        <iframe title={title} className="mt-3 h-[60vh] w-full border border-border" src={pdf.document_url} />
-        {!draft && <p className="mt-2 text-xs text-text-secondary">Private access expires after one minute. Reopen Payslip to renew it.</p>}</>}
+      {pdf && <><div className="flex flex-wrap gap-x-4 gap-y-2">
+          <a className="font-semibold text-primary" href={pdf.document_url} target="_blank" rel="noreferrer">Open {title}</a>
+          <a className="font-semibold text-primary" href={pdf.download_url} download={pdf.file_name} target="_blank" rel="noreferrer">Download {title}</a>
+        </div>
+        <iframe title={title} className="mt-3 h-[60vh] w-full border border-border" src={pdf.document_url} referrerPolicy="no-referrer" />
+        <p className="mt-2 text-xs text-text-secondary">Private access expires after one minute. Reopen {title} to renew it.</p></>}
     </Modal>}
   </>;
 }

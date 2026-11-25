@@ -26,7 +26,8 @@ describe('Payroll Phase 5 authority boundaries',()=>{
  });
  it('has private immutable storage and short-lived authorized access',()=>{
   expect(sql).toContain("'payroll-payslips',false");expect(sql).toContain('enable row level security');
-  expect(edge).toContain('upsert:false');expect(edge).toContain('createSignedUrl(context.object_path,60)');
+  expect(edge).toContain('upsert:false');expect(edge).toContain('createSignedUrl(context.object_path,deliverySeconds)');
+  expect(edge).toContain("deliveryLinks(url,key,filename,{kind:'final',path:verified.object_path})");
   expect(edge).not.toContain('getPublicUrl');expect(edge).toContain('caller.auth.getUser()');
   expect(sql).toContain('payroll_payslip_finalize_service(uuid,text,text,integer) to service_role');
  });

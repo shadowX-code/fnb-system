@@ -23,8 +23,8 @@ export default function CrewPayslipsMobile({ token,onBack }) {
    <button type="button" className="crew-mobile-secondary" disabled={busy || !row.available} onClick={()=>open(row)}>{row.available?t('payslips.view'):t('payslips.unavailable')}</button></article>)}</div>
  </CrewPageSection>
  {detail && <CrewBottomSheet title={period(detail)} onClose={()=>setDetail(null)} footer={<button type="button" className="crew-mobile-secondary" onClick={()=>open(detail)}>{t('payslips.refresh')}</button>}>
-  <iframe title={t('payslips.title')} className="crew-employment-document-pdf" src={detail.document_url} />
-  <a className="crew-mobile-secondary" href={detail.download_url} target="_blank" rel="noreferrer"><Download size={18} />{t('payslips.download')}</a>
+  <iframe title={t('payslips.title')} className="crew-employment-document-pdf" src={detail.document_url} referrerPolicy="no-referrer" />
+  <a className="crew-mobile-secondary" href={detail.download_url} download={detail.file_name} target="_blank" rel="noreferrer"><Download size={18} />{t('payslips.download')}</a>
  </CrewBottomSheet>}
  </CrewMobilePage>;
 }
