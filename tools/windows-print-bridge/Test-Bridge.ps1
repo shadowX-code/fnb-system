@@ -123,7 +123,7 @@ if((Get-BridgeRecovery ([pscustomobject]@{stage='claiming'})) -ne 'ResumeClaim')
         raster=[pscustomobject]@{format='mono1';width=639;height=719;data=[Convert]::ToBase64String([byte[]]::new(80*719))}
         snapshot=[pscustomobject]@{width_mm=80;height_mm=90}
     }}
-    if($Name -eq 'report'){$script:reportedOutcome=$Body.p_state;return}
+    if($Name -eq 'report'){$script:reportedOutcome=$Body.p_state;$script:reportedDetail=$Body.p_detail;return}
     throw 'Unexpected direct Bluetooth RPC'
  }
  function Send-BridgeD520Label($Address,$Payload){
@@ -157,8 +157,10 @@ if((Get-BridgeRecovery ([pscustomobject]@{stage='claiming'})) -ne 'ResumeClaim')
     $script:deviceReport.p_printers[0].PSObject.Properties['BluetoothAddress']){
     throw 'Direct Bluetooth hold or privacy-safe status report failed.'
  }
+ $savedDetail=$script:journal.detail
  Invoke-BridgeCycle $config $session 'fixture-root\journal.xml' $status
  if($script:submissions -ne 1 -or $script:reportedOutcome -ne 'Unknown'){throw 'Reporting an uncertain direct write must not resend it.'}
+ if($script:reportedDetail -ne $savedDetail){throw 'The same running worker overwrote its saved Unknown receipt with recovery wording.'}
  $script:negativeAck=$false
  Invoke-BridgeCycle $config $session 'fixture-root\journal.xml' $status
  if($script:journal.outcome -ne 'Sent' -or $script:submissions -ne 2){throw 'A positive ACK must record submission only.'}
