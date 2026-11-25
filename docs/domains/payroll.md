@@ -1279,9 +1279,11 @@ Recalculation appends a financial calculation version only when its required tot
 
 Confirmed unpaid-absence and approved unpaid-leave evidence remain confirmed when workplace/jurisdiction evidence prevents pricing; only the deduction amount is pending. Authorized Draft reviewers can open the employee's canonical People employment section to resolve payroll-period Employment Jurisdiction evidence. Payroll does not write employment jurisdiction or workplace facts. Recurring-component summaries show the payable result with full-month/prorated calendar-day context; original pricing arithmetic and sources remain under Calculation details.
 
-## PH decision evidence compatibility
+## Payable-time and PH decision evidence compatibility
 
-Persisted PH reviews retain their original source snapshot and fingerprint. The review lifecycle verifies that binding, then compares canonical context with only absent/null `employment_jurisdiction` treated equivalently for pre-column history. A schema-only nullable-field addition does not reopen a confirmed decision. Non-null jurisdiction changes and every other context change remain fail-closed. Current confirmation/quote fingerprints remain exact for concurrency; this compatibility does not rewrite decisions, approve new treatments or alter finalized snapshots.
+Review, readiness, Evidence Sync and calculation use the same server comparison for existing payable-time decisions. A compensation revision alone leaves the decision valid when the saved and live effective compensation terms and the rest of the work evidence match. PH review also treats absent and null employment jurisdiction and machine-actor fields as equivalent for historical snapshots. Populated values and material source, pay or PH policy changes still require their existing review.
+
+The original approval snapshots, hashes and revision links remain intact. Evidence Sync skips equivalent approvals without creating a replacement. Calculation freshness and confirmation concurrency still use their own exact fingerprints, and finalized records remain pinned.
 
 ### Payroll Workflow Permissions
 
