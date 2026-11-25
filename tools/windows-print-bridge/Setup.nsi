@@ -5,10 +5,10 @@ Name "FeedX Print Bridge Staging"
 OutFile "${OUTPUT}"
 InstallDir "$LOCALAPPDATA\Programs\FeedX Print Bridge Staging"
 RequestExecutionLevel user
-VIProductVersion "1.2.1.0"
+VIProductVersion "1.2.2.0"
 VIAddVersionKey "ProductName" "FeedX Print Bridge Staging"
 VIAddVersionKey "FileDescription" "FeedX Print Bridge Staging Installer"
-VIAddVersionKey "FileVersion" "1.2.1.0"
+VIAddVersionKey "FileVersion" "1.2.2.0"
 VIAddVersionKey "LegalCopyright" "FeedX"
 SetCompressor /SOLID lzma
 Page directory

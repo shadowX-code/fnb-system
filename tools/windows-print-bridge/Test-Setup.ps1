@@ -133,6 +133,69 @@ try {
     Save-BridgeState (Join-Path $root 'connection-status.xml') @{
         Address=$probeConfig.BluetoothAddress;Checked=[datetime]::UtcNow.AddMinutes(-1).ToString('o');Available=$false;Detail='Stale fixture'
     }
+    $receiptPath=Join-Path $root 'connection-status.xml'
+    $gateReady=Join-Path $root 'fixture-worker-ready'
+    $releaseGate=Join-Path $root 'fixture-worker-release'
+    $worker=Start-Job -ArgumentList $setupRoot,$root -ScriptBlock {
+        param($BridgeFolder,$Root)
+        $ErrorActionPreference='Stop'
+        Import-Module (Join-Path $BridgeFolder 'Bridge.psm1') -Force
+        & (Get-Module Bridge) {
+            param($Root)
+            $persist=(Get-Item Function:Save-BridgeState).ScriptBlock
+            function Save-BridgeState($Path,$Value) {
+                # Hold the existing file as an exclusive Windows writer so the sharing conflict is deterministic.
+                $stream=[IO.File]::Open($Path,'Open','ReadWrite','None')
+                try {
+                    New-Item (Join-Path $Root 'fixture-worker-ready') -ItemType File | Out-Null
+                    $deadline=[datetime]::UtcNow.AddSeconds(15)
+                    while(!(Test-Path (Join-Path $Root 'fixture-worker-release'))){
+                        if([datetime]::UtcNow -ge $deadline){throw 'Fixture timed out holding the status file.'}
+                        Start-Sleep -Milliseconds 20
+                    }
+                    Start-Sleep -Milliseconds 200
+                } finally {$stream.Dispose()}
+                & $persist $Path $Value
+            }
+            Invoke-BridgeConnectionReceipt $Root 'write' @{
+                Address='001122334455';Available=$true;Checked=[datetime]::UtcNow.ToString('o');Detail='Fresh worker fixture'
+            }
+        } $Root
+    }
+    try {
+        $deadline=[datetime]::UtcNow.AddSeconds(20)
+        while(!(Test-Path $gateReady)){
+            if($worker.State -in @('Failed','Completed') -or [datetime]::UtcNow -ge $deadline){
+                Receive-Job $worker
+                throw 'Worker did not lock the status file for the fixture.'
+            }
+            Start-Sleep -Milliseconds 20
+        }
+        $legacyFailure=$null
+        try {Read-BridgeState $receiptPath | Out-Null} catch {$legacyFailure=Get-BridgeFailureCodes $_}
+        if(!$legacyFailure -or $legacyFailure.HResult -ne '0x80070020'){
+            throw 'The old unguarded reader did not reproduce the operator sharing violation.'
+        }
+        $lockedFailure=$null
+        try {Invoke-BridgeConnectionReceipt $root 'read' | Out-Null} catch {$lockedFailure=Get-BridgeFailureCodes $_}
+        if(!$lockedFailure -or $lockedFailure.Exception -ne 'TimeoutException' -or
+           $lockedFailure.Resource -ne 'connection-status' -or $lockedFailure.Operation -ne 'read'){
+            throw 'The bounded reader did not report a sanitized local status contention.'
+        }
+        New-Item $releaseGate -ItemType File | Out-Null
+        $receipt=Invoke-BridgeConnectionReceipt $root 'read'
+        if(!$receipt.Available -or $receipt.Detail -ne 'Fresh worker fixture'){
+            throw 'Setup did not wait for and read the worker replacement.'
+        }
+        Wait-Job $worker -Timeout 10 | Out-Null
+        Receive-Job $worker
+        if($worker.State -ne 'Completed'){throw 'Worker replacement did not finish.'}
+    } finally {
+        New-Item $releaseGate -ItemType File -Force | Out-Null
+        Remove-Job $worker -Force
+    }
+    Write-Output 'PASS: Reproduced 0x80070020 with the legacy reader and verified a serialized worker replacement.'
+
     $script:workerCycles=0
     $script:startedTask=$false
     function Get-ScheduledTask {return @{State='Running'}}

@@ -25,7 +25,7 @@ function Report-SetupFailure($Codes,$Guidance) {
         $previous=Read-BridgeState $diagnosticsPath
         $recent=@($failure)
         if($previous){$recent+=@($previous.Failures | Select-Object -First 7)}
-        Save-BridgeState $diagnosticsPath @{Version='1.2.1';Failures=$recent}
+        Save-BridgeState $diagnosticsPath @{Version='1.2.2';Failures=$recent}
         $exportHint='Reopen Bridge Setup and choose Export Diagnostics if this continues.'
     } catch {
         $exportHint='The diagnostic report could not be saved. Note the step and code shown here.'
@@ -58,7 +58,12 @@ function Show-SetupFailure($ErrorRecord) {
         {$_ -in @('Prepare Windows background task','Register Windows background task','Start Windows background task','Check Windows background task')} {
             'Use Reconnect from the same Windows account. If it fails again, ask your Windows administrator to check Task Scheduler access for this account.'
         }
-        'Check D520 connection' {'Check printer power and range, and close other printer apps. Then run Connection Check.'}
+        'Request D520 probe' {'Close the other Bridge Setup window if one is open, then run Connection Check again.'}
+        'Check D520 connection' {
+            if($codes.Resource -eq 'connection-status'){
+                'Windows could not read the local Bridge report. Wait for the Bridge, then run Connection Check again.'
+            } else {'Check printer power and range, and close other printer apps. Then run Connection Check.'}
+        }
         default {'Reopen Bridge Setup and retry this step.'}
     }
     Report-SetupFailure $codes $guidance
@@ -218,16 +223,29 @@ function Run-Calibration($Config,$Session) {
 function Check-D520Connection($Address) {
     $requested=[datetime]::UtcNow
     $requestPath=Join-Path $root 'connection-request'
-    Set-Content -LiteralPath $requestPath -Value $requested.ToString('o')
+    $script:setupStage='Request D520 probe'
+    try {Set-Content -LiteralPath $requestPath -Value $requested.ToString('o')} catch {
+        $_.Exception.Data['BridgeResource']='connection-request'
+        $_.Exception.Data['BridgeOperation']='write'
+        throw
+    }
     $script:setupStage='Check Windows background task'
     $task=Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
     if(!$task -or $task.State -ne 'Running'){Start-Worker}
     $script:setupStage='Check D520 connection'
     $timer=[Diagnostics.Stopwatch]::StartNew()
+    $readFailure=$null
     while($timer.Elapsed.TotalSeconds -lt 35){
-        $status=Read-BridgeState (Join-Path $root 'connection-status.xml')
+        try {
+            $status=Invoke-BridgeConnectionReceipt $root 'read'
+            $readFailure=$null
+        } catch {
+            $readFailure=Get-BridgeFailureCodes $_
+            if($readFailure.HResult -notin @('0x80070020','0x80070021') -and $readFailure.Exception -ne 'TimeoutException'){throw}
+            $status=$null
+        }
         if($status -and $status.Address -ceq $Address -and [DateTimeOffset]::Parse($status.Checked).UtcDateTime -ge $requested){
-            if($status.Available){Show-Notice 'D520 Bluetooth connection and bitmap mode verified. See Staging for calibration and readiness.'}
+            if($status.Available){Show-Notice 'D520 Bluetooth connection and bitmap mode verified on this computer. Check FeedX for Bridge status and calibration.'}
             else {
                 $codes=if($status.PSObject.Properties['Failure']){$status.Failure}
                 $guidance=if($codes -and $codes.BluetoothPhase -eq 'bitmap-mode'){
@@ -239,9 +257,13 @@ function Check-D520Connection($Address) {
         }
         Start-Sleep -Milliseconds 500
     }
+    if($readFailure){
+        Report-SetupFailure $readFailure 'Windows could not read the local Bridge report. Wait for the Bridge, then run Connection Check again.'
+        return
+    }
     $taskInfo=Get-ScheduledTaskInfo -TaskName $taskName -ErrorAction SilentlyContinue
-    $codes=@{NativeCode=$null;LastTaskResult=if($taskInfo){'0x{0:X8}' -f $taskInfo.LastTaskResult}}
-    Report-SetupFailure $codes 'No fresh report arrived. If the Bridge is busy, wait for it to finish. If it is offline, choose Reconnect or Reauthorize.'
+    $codes=@{NativeCode=$null;Resource='connection-status';Operation='wait-for-fresh';LastTaskResult=if($taskInfo){'0x{0:X8}' -f $taskInfo.LastTaskResult}}
+    Report-SetupFailure $codes 'No fresh worker probe arrived. FeedX may still show an earlier check. If the Bridge is busy, wait for it to finish. If it is offline, choose Reconnect or Reauthorize.'
 }
 
 $setupMutex=New-Object Threading.Mutex($false,'Local\FeedXPrintBridge-Staging-Setup')

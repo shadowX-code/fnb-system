@@ -102,14 +102,18 @@ if((Get-BridgeRecovery ([pscustomobject]@{stage='claiming'})) -ne 'ResumeClaim')
 # Exercise the real probe scheduler and direct-job state sequence without a radio or spooler.
 & $module {
  $script:checks=0;$script:failProbe=$false;$script:journal=$null;$script:deviceReport=$null
- $script:mailbox=$null;$script:submissions=0;$script:reportedOutcome=$null;$script:negativeAck=$true
+ $script:mailbox=$null;$script:localWriteFails=$false;$script:submissions=0;$script:reportedOutcome=$null;$script:negativeAck=$true
  function Invoke-BridgeD520Probe($Address){$script:checks++;if($script:failProbe){throw 'Probe fixture timeout'}}
  function Get-BridgePrinters {throw 'Direct Bluetooth must not require the Windows spooler'}
  function Get-BridgeCalibration {return 'Passed'}
  function Read-BridgeState($Path){return $script:journal}
  function Remove-Item {param($LiteralPath) $script:journal=$null}
  function Save-BridgeState($Path,$Value) {
-    if($Path.EndsWith('connection-status.xml')){$script:mailbox=$Value;return}
+    if($Path.EndsWith('connection-status.xml')){
+        if($script:localWriteFails){throw [IO.IOException]::new('Simulated local receipt write failure')}
+        $script:mailbox=$Value
+        return
+    }
     $script:journal=$Value|ConvertTo-Json|ConvertFrom-Json
  }
  function Invoke-BridgeRpc($Config,$Session,$Name,$Body){
@@ -158,6 +162,15 @@ if((Get-BridgeRecovery ([pscustomobject]@{stage='claiming'})) -ne 'ResumeClaim')
  $script:negativeAck=$false
  Invoke-BridgeCycle $config $session 'fixture-root\journal.xml' $status
  if($script:journal.outcome -ne 'Sent' -or $script:submissions -ne 2){throw 'A positive ACK must record submission only.'}
+ $status=New-BridgeBluetoothStatus
+ $script:localWriteFails=$true
+ $script:failProbe=$true
+ $script:deviceReport=$null
+ Invoke-BridgeCycle $config $session 'fixture-root\journal.xml' $status
+ if($script:deviceReport.p_status -ne 'Offline' -or $status.LocalReportAt){throw 'A local receipt failure blocked cloud reporting or prevented a retry.'}
+ $script:localWriteFails=$false
+ Invoke-BridgeCycle $config $session 'fixture-root\journal.xml' $status
+ if($script:mailbox.Available -or $status.LocalReportAt -ne $status.Checked){throw 'The failed Bluetooth observation was not saved after the local write recovered.'}
 }
 Write-Output 'PASS: Packed Windows socket ABI, exact macOS D520 payload, ACK handling, probe backoff, privacy-safe status and Bluetooth Unknown recovery.'
 # Simulate startup/session-store, refresh, durable persistence and network recovery.

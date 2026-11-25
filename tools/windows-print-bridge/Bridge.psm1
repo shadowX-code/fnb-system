@@ -22,6 +22,23 @@ function Read-BridgeState($Path) {
     $credential = New-Object System.Management.Automation.PSCredential('state', $value)
     return ($credential.GetNetworkCredential().Password | ConvertFrom-Json)
 }
+function Invoke-BridgeConnectionReceipt($Root,[ValidateSet('read','write')]$Operation,$Value) {
+    $path=Join-Path $Root 'connection-status.xml'
+    # Windows file replacement and Import-Clixml must not overlap across Setup and the worker.
+    $gate=New-Object Threading.Mutex($false,'Local\FeedXPrintBridge-Staging-ConnectionStatus')
+    try {
+        try {$held=$gate.WaitOne(1000)} catch [Threading.AbandonedMutexException] {$held=$true}
+        if(!$held){throw [TimeoutException]::new('The local connection report is busy.')}
+        try {
+            if($Operation -eq 'read'){Read-BridgeState $path}
+            else {Save-BridgeState $path $Value}
+        } finally {$gate.ReleaseMutex()}
+    } catch {
+        $_.Exception.Data['BridgeResource']='connection-status'
+        $_.Exception.Data['BridgeOperation']=$Operation
+        throw
+    } finally {$gate.Dispose()}
+}
 function Invoke-BridgeAuth($Key, $Body, $Grant) {
     return Invoke-RestMethod -Method Post -Uri "$script:Endpoint/auth/v1/token?grant_type=$Grant" -Headers @{apikey=$Key} -ContentType 'application/json' -Body ($Body | ConvertTo-Json -Compress) -TimeoutSec 30 -MaximumRedirection 0
 }
@@ -29,7 +46,7 @@ function Invoke-BridgeRpc($Config, $Session, $Name, $Body) {
     return Invoke-RestMethod -Method Post -Uri "$script:Endpoint/rest/v1/rpc/factory_label_$Name" -Headers @{apikey=$Config.PublicKey; Authorization="Bearer $($Session.access_token)"} -ContentType 'application/json' -Body ($Body | ConvertTo-Json -Depth 20 -Compress) -TimeoutSec 45 -MaximumRedirection 0
 }
 function Get-BridgeFailureCodes($ErrorRecord) {
-    $codes=[ordered]@{Exception=$null;HResult=$null;NativeCode=$null;HttpStatus=$null;NetworkStatus=$null;BluetoothPhase=$null}
+    $codes=[ordered]@{Exception=$null;HResult=$null;NativeCode=$null;HttpStatus=$null;NetworkStatus=$null;BluetoothPhase=$null;Resource=$null;Operation=$null}
     for($cause=$ErrorRecord.Exception; $cause; $cause=$cause.InnerException) {
         $codes.Exception=$cause.GetType().Name
         $codes.HResult='0x{0:X8}' -f $cause.HResult
@@ -42,6 +59,12 @@ function Get-BridgeFailureCodes($ErrorRecord) {
         }
         if($cause.Data['D520Phase'] -in @('winsock-startup','socket-open','socket-configure','rfcomm-connect','bitmap-mode','submission')){
             $codes.BluetoothPhase=$cause.Data['D520Phase']
+        }
+        if($cause.Data['BridgeResource'] -in @('connection-request','connection-status')){
+            $codes.Resource=$cause.Data['BridgeResource']
+        }
+        if($cause.Data['BridgeOperation'] -in @('read','write')){
+            $codes.Operation=$cause.Data['BridgeOperation']
         }
     }
     if($ErrorRecord.FullyQualifiedErrorId -match '^HRESULT (0x[0-9a-f]{8})(?:,|$)'){
@@ -73,7 +96,7 @@ function Send-BridgeD520Label($Address,$Payload) {
     [FeedXD520Bluetooth]::Submit($Address,$Payload)
 }
 function New-BridgeBluetoothStatus {
-    [pscustomobject]@{Checked=$null;Published=$null;Failures=0;Available=$false;Detail=$null;Failure=$null}
+    [pscustomobject]@{Checked=$null;LocalReportAt=$null;Failures=0;Available=$false;Detail=$null;Failure=$null}
 }
 function Get-BridgeBluetoothPrinter($Config,$Status) {
     $row=[ordered]@{Name=$Config.Printer;WorkOffline=$true;PrinterStatus=2;Platform='Windows';Connection='Bluetooth Classic SPP'}
@@ -100,6 +123,8 @@ function Update-BridgeBluetoothProbe($Address,$Status,$Root,$Now=[datetime]::Utc
     } catch {
         $Status.Available=$false
         $Status.Failure=Get-BridgeFailureCodes $_
+        $Status.Failure.Resource='bluetooth'
+        $Status.Failure.Operation='probe'
         $Status.Detail='D520 did not verify its Bluetooth serial connection and bitmap mode. Check Windows pairing, printer power and range, and close other printer apps.'
         $Status.Failures=[Math]::Min(3,$Status.Failures+1)
     }
@@ -141,6 +166,17 @@ function Invoke-BridgeCycle($Config, $Session, $StatePath, $BluetoothStatus=$nul
     }
     $printer = $printers | Where-Object { $_.Name -ceq $Config.Printer } | Select-Object -First 1
     $ready = $null -ne $printer -and !$printer.WorkOffline -and $printer.PrinterStatus -notin @(6,7)
+    if($address -and $BluetoothStatus.Checked -ne $BluetoothStatus.LocalReportAt) {
+        # Setup consumes the worker's local observation even if FeedX status reporting is delayed.
+        try {
+            Invoke-BridgeConnectionReceipt $folder 'write' @{
+                Address=$address;Checked=$BluetoothStatus.Checked.ToString('o');Available=$ready;Detail=$BluetoothStatus.Detail;Failure=$BluetoothStatus.Failure
+            }
+            $BluetoothStatus.LocalReportAt=$BluetoothStatus.Checked
+        } catch {
+            Write-Verbose 'Cannot save the local Bluetooth observation. The worker will retry.'
+        }
+    }
     $calibration = if ($folder) { Get-BridgeCalibration $Config $folder } else { 'Not reported' }
     if ($printer) {
         $printer | Add-Member -NotePropertyName Calibration -NotePropertyValue $calibration -Force
@@ -152,12 +188,6 @@ function Invoke-BridgeCycle($Config, $Session, $StatePath, $BluetoothStatus=$nul
     }
     $status = if(!$ready) {'Offline'} elseif($calibration -in @('Pending','Needs review')) {'Error'} else {'Ready'}
     $null=Invoke-BridgeRpc $Config $Session 'device' @{p_device=$Config.DeviceId;p_name=$Config.Name;p_printer=$Config.Printer;p_transport=$Config.Transport;p_status=$status;p_printers=@($printers)}
-    if($address -and $BluetoothStatus.Checked -ne $BluetoothStatus.Published) {
-        Save-BridgeState (Join-Path $folder 'connection-status.xml') @{
-            Address=$address;Checked=$BluetoothStatus.Checked.ToString('o');Available=$ready;Detail=$BluetoothStatus.Detail;Failure=$BluetoothStatus.Failure
-        }
-        $BluetoothStatus.Published=$BluetoothStatus.Checked
-    }
     $state = Read-BridgeState $StatePath
     if ($state) {
         $recovery = Get-BridgeRecovery $state
