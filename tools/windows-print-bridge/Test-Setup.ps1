@@ -3,7 +3,7 @@ Import-Module "$PSScriptRoot\Bridge.psm1" -Force
 
 # Exercise the actual setup functions with isolated state and no dialogs, cloud mutations or printer calls.
 $setupFunctions=@('Start-Worker','Save-Configuration','Confirm-Idle','Register-Computer',
-    'Get-PendingDeviceId','Save-RegisteredConfiguration','Run-Calibration')
+    'Get-PendingDeviceId','Save-RegisteredConfiguration','Read-Number','Run-Calibration')
 $tokens=$null;$errors=$null
 $setup=[Management.Automation.Language.Parser]::ParseFile(
     (Join-Path $PSScriptRoot 'Setup-Bridge.ps1'),[ref]$tokens,[ref]$errors)
@@ -65,6 +65,7 @@ function Confirm-Action($Message) {
     return $script:approveTest
 }
 function Read-Field($Message,$Initial='',[string[]]$Options=@()) {
+    if(!$Options.Count){return $Initial}
     if($Options -notcontains 'All Passed'){throw 'The calibration review choices are missing.'}
     return $script:calibrationAnswer
 }
@@ -93,6 +94,12 @@ function Start-ScheduledTask($TaskName) {
 
 New-Item -ItemType Directory -Path $root | Out-Null
 try {
+    # Stock dimensions are the first input after selecting a paired D520.
+    if((Read-Number 'Stock width in millimetres.' 80 20 120) -ne 80 -or
+       (Read-Number 'Stock length in the feed direction in millimetres.' 90 20 200) -ne 90 -or
+       (Read-Number 'Stock gap in millimetres.' 2 0 10) -ne 2){
+        throw 'Setup could not read valid stock measurements.'
+    }
     $deviceId=Get-PendingDeviceId
     $config=[pscustomobject]@{DeviceId=$deviceId;Name='Fixture';Printer='D520 USB fixture';Transport='spooler';
         StockWidthMm=80;StockHeightMm=90;GuidedSetup=$true;Calibrated=$false;Owner=$session.user.id}
