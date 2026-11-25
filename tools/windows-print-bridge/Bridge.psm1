@@ -31,6 +31,56 @@ function Invoke-BridgeRpc($Config, $Session, $Name, $Body) {
 function Get-BridgePrinters {
     return @(Get-CimInstance Win32_Printer | Select-Object Name, WorkOffline, PrinterStatus)
 }
+function Get-BridgeBluetoothAddress($Config) {
+    if($Config.PSObject.Properties['BluetoothAddress'] -and $Config.Transport -eq 'tspl'){
+        return $Config.BluetoothAddress
+    }
+}
+function Initialize-BridgeBluetooth {
+    if(!('FeedXD520Bluetooth' -as [type])){Add-Type -Path "$PSScriptRoot\D520Bluetooth.cs"}
+}
+function Get-BridgeD520Devices {
+    Initialize-BridgeBluetooth
+    [FeedXD520Bluetooth]::Discover()
+}
+function Invoke-BridgeD520Probe($Address) {
+    Initialize-BridgeBluetooth
+    [FeedXD520Bluetooth]::Probe($Address)
+}
+function Send-BridgeD520Label($Address,$Payload) {
+    Initialize-BridgeBluetooth
+    [FeedXD520Bluetooth]::Submit($Address,$Payload)
+}
+function New-BridgeBluetoothStatus {
+    [pscustomobject]@{Checked=$null;Published=$null;Failures=0;Available=$false;Detail=$null}
+}
+function Get-BridgeBluetoothPrinter($Config,$Status) {
+    $row=[ordered]@{Name=$Config.Printer;WorkOffline=$true;PrinterStatus=2;Platform='Windows';Connection='Bluetooth Classic SPP'}
+    if($Status -and $Status.Checked){
+        $row.ConnectionCheckedAt=$Status.Checked.ToString('o')
+        $row.ConnectionDetail=$Status.Detail
+        $row.WorkOffline=!$Status.Available -or ([datetime]::UtcNow-$Status.Checked).TotalSeconds -gt 90
+    }
+    [pscustomobject]$row
+}
+function Update-BridgeBluetoothProbe($Address,$Status,$Root,$Now=[datetime]::UtcNow) {
+    $request=Get-Item -LiteralPath (Join-Path $Root 'connection-request') -ErrorAction SilentlyContinue
+    $interval=@(60,15,30,60)[$Status.Failures]
+    if($request -and $Status.Checked -and $request.LastWriteTimeUtc -gt $Status.Checked){$interval=10}
+    if($Status.Checked -and ($Now-$Status.Checked).TotalSeconds -lt $interval){return}
+    # Keep the observation time at probe start so an in-flight probe cannot satisfy a later manual request.
+    $Status.Checked=$Now
+    try {
+        Invoke-BridgeD520Probe $Address
+        $Status.Available=$true
+        $Status.Detail=$null
+        $Status.Failures=0
+    } catch {
+        $Status.Available=$false
+        $Status.Detail='D520 did not verify its Bluetooth serial connection and bitmap mode. Check Windows pairing, printer power and range, and close other printer apps.'
+        $Status.Failures=[Math]::Min(3,$Status.Failures+1)
+    }
+}
 function Get-BridgeRecovery($State) {
     if ($State.stage -eq 'submitting') { return 'Unknown' }
     if ($State.stage -eq 'reporting') { return $State.outcome }
@@ -56,15 +106,22 @@ function Test-BridgePaused($Root) {
         finally { $setup.ReleaseMutex() }
     } finally { $setup.Dispose() }
 }
-function Invoke-BridgeCycle($Config, $Session, $StatePath) {
-    $printers = @(Get-BridgePrinters | Select-Object -First 75)
+function Invoke-BridgeCycle($Config, $Session, $StatePath, $BluetoothStatus=$null) {
+    $address=Get-BridgeBluetoothAddress $Config
+    $folder = Split-Path -Parent $StatePath
+    if($address){
+        if(!$BluetoothStatus){$BluetoothStatus=New-BridgeBluetoothStatus}
+        Update-BridgeBluetoothProbe $address $BluetoothStatus $folder
+        $printers=@(Get-BridgeBluetoothPrinter $Config $BluetoothStatus)
+    } else {
+        $printers=@(Get-BridgePrinters | Select-Object -First 75)
+    }
     $printer = $printers | Where-Object { $_.Name -ceq $Config.Printer } | Select-Object -First 1
     $ready = $null -ne $printer -and !$printer.WorkOffline -and $printer.PrinterStatus -notin @(6,7)
-    $folder = Split-Path -Parent $StatePath
     $calibration = if ($folder) { Get-BridgeCalibration $Config $folder } else { 'Not reported' }
     if ($printer) {
         $printer | Add-Member -NotePropertyName Calibration -NotePropertyValue $calibration -Force
-        $printer | Add-Member -NotePropertyName Connection -NotePropertyValue 'Windows spooler' -Force
+        if(!$address){$printer | Add-Member -NotePropertyName Connection -NotePropertyValue 'Windows spooler' -Force}
         if ($Config.PSObject.Properties['StockWidthMm']) {
             $printer | Add-Member -NotePropertyName StockWidthMm -NotePropertyValue $Config.StockWidthMm -Force
             $printer | Add-Member -NotePropertyName StockHeightMm -NotePropertyValue $Config.StockHeightMm -Force
@@ -72,6 +129,12 @@ function Invoke-BridgeCycle($Config, $Session, $StatePath) {
     }
     $status = if(!$ready) {'Offline'} elseif($calibration -in @('Pending','Needs review')) {'Error'} else {'Ready'}
     $null=Invoke-BridgeRpc $Config $Session 'device' @{p_device=$Config.DeviceId;p_name=$Config.Name;p_printer=$Config.Printer;p_transport=$Config.Transport;p_status=$status;p_printers=@($printers)}
+    if($address -and $BluetoothStatus.Checked -ne $BluetoothStatus.Published) {
+        Save-BridgeState (Join-Path $folder 'connection-status.xml') @{
+            Address=$address;Checked=$BluetoothStatus.Checked.ToString('o');Available=$ready;Detail=$BluetoothStatus.Detail
+        }
+        $BluetoothStatus.Published=$BluetoothStatus.Checked
+    }
     $state = Read-BridgeState $StatePath
     if ($state) {
         $recovery = Get-BridgeRecovery $state
@@ -109,7 +172,9 @@ function Invoke-BridgeCycle($Config, $Session, $StatePath) {
             return
         }
         $command=$null
-        if($Config.Transport -eq 'tspl') {
+        if($address) {
+            $command=[FeedXTransport]::D520($bytes,$job.raster.width,$job.raster.height,$snapshot.width_mm,$snapshot.height_mm,$job.quantity,$Config.GapMm)
+        } elseif($Config.Transport -eq 'tspl') {
             $command=[FeedXTransport]::Tspl($bytes,$job.raster.width,$job.raster.height,$snapshot.width_mm,$snapshot.height_mm,$job.quantity,$Config.GapMm,$Config.TsplInvert)
         }
     } catch {
@@ -119,7 +184,10 @@ function Invoke-BridgeCycle($Config, $Session, $StatePath) {
     $state.stage='submitting';Save-BridgeState $StatePath $state
     try {
         $name="FeedX-$($job.id)"
-        if($Config.Transport -eq 'spooler') {
+        if($address) {
+            Send-BridgeD520Label $address $command
+            $detail='D520 acknowledged Bluetooth submission. Physical output requires confirmation.'
+        } elseif($Config.Transport -eq 'spooler') {
             [FeedXTransport]::Spool($Config.Printer,$bytes,$job.raster.width,$job.raster.height,$snapshot.width_mm,$snapshot.height_mm,$job.quantity,$name)
             $detail='Accepted by Windows spooler. Physical output requires operator confirmation.'
         } elseif($Config.Transport -eq 'tspl') {
@@ -129,13 +197,16 @@ function Invoke-BridgeCycle($Config, $Session, $StatePath) {
         Set-BridgeOutcome $state 'Sent' $detail $StatePath
     } catch {
         # Native errors can occur after a partial write, so automatic resend is unsafe.
-        Set-BridgeOutcome $state 'Unknown' 'Submission interrupted or rejected. Inspect printer and Windows queue before recovery.' $StatePath
+        $detail=if($address){'D520 Bluetooth submission was interrupted or unacknowledged. Inspect physical output before recovery.'}
+            else {'Submission interrupted or rejected. Inspect printer and Windows queue before recovery.'}
+        Set-BridgeOutcome $state 'Unknown' $detail $StatePath
     }
 }
 function Invoke-BridgeWorker($Config, $Root) {
  $session=$null
  $pendingSession=$false
  $backoff=5
+ $bluetoothStatus=if(Get-BridgeBluetoothAddress $Config){New-BridgeBluetoothStatus}
  while(!(Test-BridgePaused $root)) {
   try {
    if(!$session) {
@@ -153,7 +224,7 @@ function Invoke-BridgeWorker($Config, $Root) {
     Save-BridgeState "$root\session.xml" $session
     $pendingSession=$false
    }
-   Invoke-BridgeCycle $config $session "$root\journal.xml"
+   Invoke-BridgeCycle $config $session "$root\journal.xml" $bluetoothStatus
    $backoff=5
   } catch {
    # Do not log HTTP responses: they can contain identity or token material.

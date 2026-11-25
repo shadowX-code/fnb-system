@@ -8,7 +8,7 @@ function Install-TestPackage {
     if($process.ExitCode){throw "Installer exited with $($process.ExitCode)"}
 }
 Install-TestPackage
-foreach($name in @('Bridge.psm1','Transport.cs','Setup-Bridge.ps1','Start-Bridge.ps1')) {
+foreach($name in @('Bridge.psm1','Transport.cs','D520Bluetooth.cs','Setup-Bridge.ps1','Start-Bridge.ps1')) {
     $installed=Join-Path $dest $name
     if(!(Test-Path $installed)){throw "Missing installed component: $name"}
     $source=(Get-Content -LiteralPath (Join-Path $PSScriptRoot $name) -Raw) -replace "`r`n","`n"

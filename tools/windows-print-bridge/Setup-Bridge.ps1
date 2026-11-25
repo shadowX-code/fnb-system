@@ -78,9 +78,11 @@ function Confirm-Idle($Config,$Session) {
     }
 }
 function Register-Computer($Config,$Session) {
+    $inventory=if(Get-BridgeBluetoothAddress $Config){Get-BridgeBluetoothPrinter $Config}
+        else {Get-BridgePrinters | Select-Object -First 75}
     $null=Invoke-BridgeRpc $Config $Session 'device' @{
         p_device=$Config.DeviceId;p_name=$Config.Name;p_printer=$Config.Printer;p_transport=$Config.Transport
-        p_status='Error';p_printers=@(Get-BridgePrinters | Select-Object -First 75)
+        p_status='Error';p_printers=@($inventory)
     }
 }
 function Get-PendingDeviceId {
@@ -98,7 +100,10 @@ function Save-RegisteredConfiguration($Config,$Session) {
     if(Test-Path -LiteralPath $pendingDevicePath){Remove-Item -LiteralPath $pendingDevicePath}
 }
 function Submit-CalibrationLabel($Config,$Raster,$Command,$WidthDots,$HeightDots,$WidthMm,$HeightMm) {
-    if($Config.Transport -eq 'tspl'){
+    $address=Get-BridgeBluetoothAddress $Config
+    if($address){
+        Send-BridgeD520Label $address $Command
+    } elseif($Config.Transport -eq 'tspl'){
         [void][FeedXTransport]::Raw($Config.Printer,[byte[]]$Command,'FeedX TEST Calibration')
     } else {
         [FeedXTransport]::Spool($Config.Printer,$Raster,$WidthDots,$HeightDots,$WidthMm,$HeightMm,1,'FeedX TEST Calibration')
@@ -108,14 +113,20 @@ function Run-Calibration($Config,$Session) {
     $record=Read-BridgeState $calibrationPath
     if(!$record) {
         Confirm-Idle $Config $Session
-        $printer=Get-BridgePrinters | Where-Object {$_.Name -ceq $Config.Printer -and !$_.WorkOffline -and $_.PrinterStatus -notin @(6,7)} | Select-Object -First 1
-        if(!$printer){Show-Notice 'The selected printer is unavailable.';return}
+        $address=Get-BridgeBluetoothAddress $Config
+        if($address){
+            try {Invoke-BridgeD520Probe $address} catch {Show-Notice 'D520 Bluetooth is unavailable. Run Connection Check before sending a test.';return}
+        } else {
+            $printer=Get-BridgePrinters | Where-Object {$_.Name -ceq $Config.Printer -and !$_.WorkOffline -and $_.PrinterStatus -notin @(6,7)} | Select-Object -First 1
+            if(!$printer){Show-Notice 'The selected printer is unavailable.';return}
+        }
         if(!(Confirm-Action 'Confirm the printer is idle and correct stock is loaded. Send exactly one TEST label?')){return}
         Add-Type -Path "$PSScriptRoot\Transport.cs" -ReferencedAssemblies System.Drawing
         $w=[decimal]$Config.StockWidthMm;$h=[decimal]$Config.StockHeightMm
         $x=[int][Math]::Round($w*203/25.4,0,'AwayFromZero');$y=[int][Math]::Round($h*203/25.4,0,'AwayFromZero')
         $raster=[FeedXTransport]::Calibration($x,$y)
-        $command=if($Config.Transport -eq 'tspl'){[FeedXTransport]::Tspl($raster,$x,$y,$w,$h,1,$Config.GapMm,$Config.TsplInvert)}
+        $command=if($address){[FeedXTransport]::D520($raster,$x,$y,$w,$h,1,$Config.GapMm)}
+            elseif($Config.Transport -eq 'tspl'){[FeedXTransport]::Tspl($raster,$x,$y,$w,$h,1,$Config.GapMm,$Config.TsplInvert)}
         Register-Computer $Config $Session
         $record=@{stage='submitting';quantity=1}
         Save-BridgeState $calibrationPath $record
@@ -125,7 +136,7 @@ function Run-Calibration($Config,$Session) {
         } catch { $record.stage='unknown' }
         Save-BridgeState $calibrationPath $record
     }
-    $result=Read-Field 'Inspect the physical output and clear any held Windows job.' -Options @('Review Later','Inspected / Issue','All Passed')
+    $result=Read-Field 'Inspect physical output and clear any pending printer or queue output.' -Options @('Review Later','Inspected / Issue','All Passed')
     if($result -eq 'Review Later'){return}
     $evidence=Join-Path $root 'recovery-evidence'
     New-Item -ItemType Directory -Force -Path $evidence | Out-Null
@@ -134,6 +145,25 @@ function Run-Calibration($Config,$Session) {
     Save-Configuration $Config
     Remove-Item -LiteralPath $calibrationPath
     if($Config.Calibrated){Show-Notice 'Calibration passed. The bridge will start in the background.';Start-Process "$web/factory/settings/labels?section=printers"}
+}
+
+function Check-D520Connection($Address) {
+    $requested=[datetime]::UtcNow
+    $requestPath=Join-Path $root 'connection-request'
+    Set-Content -LiteralPath $requestPath -Value $requested.ToString('o')
+    $task=Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
+    if(!$task -or $task.State -ne 'Running'){Start-Worker}
+    $timer=[Diagnostics.Stopwatch]::StartNew()
+    while($timer.Elapsed.TotalSeconds -lt 35){
+        $status=Read-BridgeState (Join-Path $root 'connection-status.xml')
+        if($status -and $status.Address -ceq $Address -and [DateTimeOffset]::Parse($status.Checked).UtcDateTime -ge $requested){
+            if($status.Available){Show-Notice 'D520 Bluetooth connection and bitmap mode verified. See Staging for calibration and readiness.'}
+            else {Show-Notice $status.Detail}
+            return
+        }
+        Start-Sleep -Milliseconds 500
+    }
+    Show-Notice 'No fresh D520 report yet. If the Bridge is printing, wait for it to finish. If it is offline, reconnect or reauthorize in Bridge Setup.'
 }
 
 $setupMutex=New-Object Threading.Mutex($false,'Local\FeedXPrintBridge-Staging-Setup')
@@ -151,6 +181,8 @@ try {
     if($action -eq 'Open FeedX'){Start-Process "$web/factory/settings/labels?section=printers";return}
     if($action -eq 'Connection Check'){
         if(!$config){Show-Notice 'Run Connect / Configure first.';return}
+        $address=Get-BridgeBluetoothAddress $config
+        if($address){Check-D520Connection $address;return}
         $printer=Get-BridgePrinters | Where-Object {$_.Name -ceq $config.Printer -and !$_.WorkOffline -and $_.PrinterStatus -notin @(6,7)}
         if($printer){
             if(Confirm-Action 'Windows reports the queue available. Reconnect the background bridge?'){Start-Worker}
@@ -200,25 +232,39 @@ try {
     } elseif($action -eq 'Connect / Configure'){
         if(Test-Path -LiteralPath $calibrationPath){Show-Notice 'Review the previous calibration before changing printer or media.';return}
         if($config.PSObject.Properties['Printer']){Confirm-Idle $config $session}
-        $discovered=@(Get-BridgePrinters | Select-Object -First 75)
-        if(!$discovered.Count){Show-Notice 'Install the supported printer driver and confirm the printer appears in Windows Printers & scanners. For the first D520 test, use the vendor USB driver.';return}
         $legacy=$config.PSObject.Properties['Printer']
-        $prior=if($legacy){$config.Printer}else{''}
-        $name=Read-Field 'Choose the label printer queue from Windows Printers & scanners.' $prior -Options @($discovered.Name)
-        $priorTransport=if($legacy -and $config.Transport -eq 'tspl'){'RAW TSPL'}else{'Windows Driver'}
-        $transport=Read-Field 'Choose Windows Driver for the D520. RAW TSPL requires a verified queue.' $priorTransport -Options @('Windows Driver','RAW TSPL')
-        $transport=if($transport -eq 'RAW TSPL'){'tspl'}else{'spooler'}
-        $printer=$discovered | Where-Object {$_.Name -ceq $name} | Select-Object -First 1
-        if($printer.WorkOffline -or $printer.PrinterStatus -in @(6,7)){Show-Notice 'Selected printer is offline. Check its connection and retry.';return}
+        $previousAddress=if($legacy){Get-BridgeBluetoothAddress $config}
+        $priorTransport=if($previousAddress){'D520 Bluetooth'}elseif($legacy -and $config.Transport -eq 'tspl'){'RAW TSPL'}else{'Windows Driver'}
+        $method=Read-Field 'Choose a printer connection.' $priorTransport -Options @('Windows Driver','D520 Bluetooth','RAW TSPL')
+        $address=''
+        if($method -eq 'D520 Bluetooth'){
+            $devices=@(Get-BridgeD520Devices)
+            if(!$devices.Count){Show-Notice 'Pair the D520 in Windows Bluetooth settings, then reopen Bridge Setup.';return}
+            $choices=@($devices | ForEach-Object {"D520 ($_)"} )
+            $choice=Read-Field 'Select the paired D520.' "D520 ($previousAddress)" -Options $choices
+            $address=$devices[[Array]::IndexOf($choices,$choice)]
+            $name='D520 (Bluetooth)'
+            $transport='tspl'
+        } else {
+            $discovered=@(Get-BridgePrinters | Select-Object -First 75)
+            if(!$discovered.Count){Show-Notice 'Install the printer driver and check Windows Printers & scanners for the queue.';return}
+            $prior=if($legacy){$config.Printer}else{''}
+            $name=Read-Field 'Choose the label printer queue from Windows Printers & scanners.' $prior -Options @($discovered.Name)
+            $transport=if($method -eq 'RAW TSPL'){'tspl'}else{'spooler'}
+            $printer=$discovered | Where-Object {$_.Name -ceq $name} | Select-Object -First 1
+            if($printer.WorkOffline -or $printer.PrinterStatus -in @(6,7)){Show-Notice 'Selected queue is offline. Check the printer connection.';return}
+        }
         $priorWidth=if($config.PSObject.Properties['StockWidthMm']){$config.StockWidthMm}else{80}
         $priorHeight=if($config.PSObject.Properties['StockHeightMm']){$config.StockHeightMm}else{90}
         $priorGap=if($config.PSObject.Properties['GapMm']){$config.GapMm}else{2}
         $width=Read-Number 'Stock width in millimetres.' $priorWidth 20 120
         $height=Read-Number 'Stock length in the feed direction in millimetres.' $priorHeight 20 200
         $gap=if($transport -eq 'tspl'){Read-Number 'Stock gap in millimetres.' $priorGap 0 10}else{0}
-        Show-Notice 'Load stock in portrait orientation. Windows Driver uses the configured stock and gap settings. RAW TSPL uses direction 1.'
+        if($address){Show-Notice 'Load stock in portrait orientation and run Connection Check before calibration.'}
+        else {Show-Notice 'Load stock in portrait orientation. Windows Driver uses the configured stock and gap settings. RAW TSPL uses direction 1.'}
         $invert=if($legacy){$config.TsplInvert}else{$true}
         $settings=@{Printer=$name;Transport=$transport;GapMm=$gap;TsplInvert=$invert;StockWidthMm=$width;StockHeightMm=$height;GuidedSetup=$true}
+        if($address -or $config.PSObject.Properties['BluetoothAddress']){$settings.BluetoothAddress=$address}
         $same=$config.PSObject.Properties['Calibrated'] -and $config.Calibrated
         foreach($k in $settings.Keys){if(!$config.PSObject.Properties[$k] -or $config.$k -ne $settings[$k]){$same=$false}}
         foreach($k in $settings.Keys){$config|Add-Member -NotePropertyName $k -NotePropertyValue $settings[$k] -Force}

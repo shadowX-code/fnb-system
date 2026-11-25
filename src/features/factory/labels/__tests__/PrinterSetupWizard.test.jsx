@@ -27,10 +27,10 @@ it("offers native installers and verifies readiness only after the selected devi
   const result = render(<PrinterSetupWizard {...props} />);
   fireEvent.click(screen.getByRole("tab", { name: /Windows/ }));
   expect(screen.getByRole("link", { name: /Download Bridge/ }).getAttribute("href")).toContain("Windows.exe");
-  expect(screen.getByText(/For the first D520 test, use USB/)).toBeTruthy();
+  expect(screen.getByText(/For D520 Bluetooth, pair the printer/)).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Continue" }));
   expect(screen.getByRole("link", { name: "Open Bridge Setup" }).getAttribute("href")).toBe("feedx-printer-staging://setup");
-  expect(screen.getByText(/Choose the installed Windows label printer queue/)).toBeTruthy();
+  expect(screen.getByText(/select the paired printer/)).toBeTruthy();
   expect(screen.queryByText(/pair the D520 in macOS/)).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Continue" }));
   fireEvent.change(screen.getByLabelText("Registered computer"), { target: { value: device.id } });

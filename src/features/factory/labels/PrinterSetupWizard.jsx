@@ -38,7 +38,7 @@ export function printerSetupStatus(row) {
 
 export default function PrinterSetupWizard({ onClose, onRefresh, devices, selected, initialStep = 0 }) {
   const [platform, setPlatform] = useState(() =>
-    selected?.printers?.some((printer) => printer.Connection === "Windows spooler") ||
+    selected?.printers?.some((printer) => printer.Platform === "Windows" || printer.Connection === "Windows spooler") ||
     navigator.platform.startsWith("Win") ? "windows" : "macos");
   const [step, setStep] = useState(initialStep);
   const [deviceId, setDeviceId] = useState(selected?.id || "");
@@ -88,7 +88,7 @@ export default function PrinterSetupWizard({ onClose, onRefresh, devices, select
             <p>{platform === "macos"
               ? "Install the package on the Mac connected to the printer, then open FeedX Print Bridge Staging from Applications."
               : "Run the installer on the Windows printer computer, then open FeedX Print Bridge Staging from the Start menu."}</p>
-            {platform === "windows" && <p>Install the printer driver and confirm the printer appears in <strong>Windows Printers &amp; scanners</strong>. For the first D520 test, use USB and the vendor driver. Bluetooth pairing or a printer visible only in Labelife does not provide a Windows print queue.</p>}
+            {platform === "windows" && <p>For D520 Bluetooth, pair the printer in <strong>Windows Bluetooth settings</strong> and close Labelife so it releases the connection. For USB, install the vendor driver and check that the queue appears in <strong>Windows Printers &amp; scanners</strong>.</p>}
             <a className="btn-secondary inline-flex" href={printerInstallers[platform]} download>Download Bridge installer</a>
             <button className="btn-secondary" onClick={() => setStep(1)}>Bridge already installed</button>
           </>
@@ -102,7 +102,7 @@ export default function PrinterSetupWizard({ onClose, onRefresh, devices, select
                 ? <>Choose <strong>Reconnect</strong> to resume this computer’s bridge using its saved printer and calibration. Use <strong>Connect / Configure</strong> when changing the printer or stock.</>
                 : <>Choose <strong>Connect / Configure</strong>. Sign in with your authorized FeedX Staging account, then select the local printer and enter its stock dimensions. A returning computer reuses its saved configuration.</>}</li>
               {platform === "windows" ? (
-                <li>Choose the installed Windows label printer queue and <strong>Windows Driver</strong>. For the D520, set the driver’s gap stock to 80 × 90 mm in portrait and enter 80 × 90 mm in the Bridge. Run <strong>Connection Check</strong> to verify Windows reports the queue available.</li>
+                <li>Choose <strong>D520 Bluetooth</strong> and select the paired printer. Run <strong>Connection Check</strong> to verify its serial connection and bitmap mode. For USB, choose <strong>Windows Driver</strong> and the installed queue. Set the driver’s gap stock to 80 × 90 mm in portrait and enter the matching size in the Bridge.</li>
               ) : (
                 <li>Run <strong>Connection Check</strong>. For D520 Bluetooth, power on and pair the D520 in macOS, then close Labelife so it releases the connection.</li>
               )}
@@ -131,7 +131,7 @@ export default function PrinterSetupWizard({ onClose, onRefresh, devices, select
               </dl>
             )}
             {status?.bridge === "Offline" && <p>Open Bridge Setup on the registered computer and choose <strong>Reconnect</strong>. If sign-in expired, choose <strong>Reauthorize</strong> with the original operator’s account.</p>}
-            {status?.connection === "Unavailable" && <p>The bridge is online. Check printer power and {platform === "windows" ? "the Windows print queue" : "the local queue or Bluetooth pairing"}, then run <strong>Connection Check</strong>.</p>}
+            {status?.connection === "Unavailable" && <p>The bridge is online. Check printer power and {platform === "windows" ? "Windows Bluetooth pairing or the selected print queue" : "the local queue or Bluetooth pairing"}, then run <strong>Connection Check</strong>.</p>}
             {status?.calibration === "Needs review" && <p>Open <strong>Test / Review Calibration</strong> to inspect the previous attempt before another test.</p>}
             {status?.unresolved > 0 && <p role="alert">This computer is paused for print review. In the affected Job Order, open Print Labels → History and choose Confirm Printed or Report Issue after inspecting the output and clearing any held work. Reprints require a separate reviewed request. <a className="underline" href="/factory/job-orders">Open Job Orders</a></p>}
             <p role="status">{ready

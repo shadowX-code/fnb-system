@@ -5,10 +5,10 @@ Name "FeedX Print Bridge Staging"
 OutFile "${OUTPUT}"
 InstallDir "$LOCALAPPDATA\Programs\FeedX Print Bridge Staging"
 RequestExecutionLevel user
-VIProductVersion "1.1.2.0"
+VIProductVersion "1.2.0.0"
 VIAddVersionKey "ProductName" "FeedX Print Bridge Staging"
 VIAddVersionKey "FileDescription" "FeedX Print Bridge Staging Installer"
-VIAddVersionKey "FileVersion" "1.1.2.0"
+VIAddVersionKey "FileVersion" "1.2.0.0"
 VIAddVersionKey "LegalCopyright" "FeedX"
 SetCompressor /SOLID lzma
 Page directory
@@ -28,6 +28,7 @@ Section
   File "Setup-Bridge.ps1"
   File "Start-Bridge.ps1"
   File "Transport.cs"
+  File "D520Bluetooth.cs"
   File "README.md"
   CreateShortcut "$SMPROGRAMS\FeedX Print Bridge Staging.lnk" "$WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe" '-NoProfile -ExecutionPolicy RemoteSigned -WindowStyle Hidden -STA -File "$INSTDIR\Setup-Bridge.ps1"'
   WriteRegStr HKCU "Software\Classes\feedx-printer-staging" "" "URL:FeedX Print Bridge Staging"
@@ -53,6 +54,7 @@ Section "Uninstall"
   Delete "$INSTDIR\Setup-Bridge.ps1"
   Delete "$INSTDIR\Start-Bridge.ps1"
   Delete "$INSTDIR\Transport.cs"
+  Delete "$INSTDIR\D520Bluetooth.cs"
   Delete "$INSTDIR\README.md"
   Delete "$INSTDIR\Uninstall.exe"
   RMDir "$INSTDIR"

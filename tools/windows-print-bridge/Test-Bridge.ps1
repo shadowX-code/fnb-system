@@ -10,7 +10,27 @@ Get-ChildItem $PSScriptRoot -Filter *.ps*1 | ForEach-Object {
 if($PSVersionTable.PSEdition -eq 'Core') {
  Add-Type -Path "$PSScriptRoot\Transport.cs" -ReferencedAssemblies System.Drawing.Common,System.Drawing.Primitives,System.ComponentModel.Primitives,System.Runtime
 } else {Add-Type -Path "$PSScriptRoot\Transport.cs" -ReferencedAssemblies System.Drawing}
+Add-Type -Path "$PSScriptRoot\D520Bluetooth.cs"
+$socketAddress=[FeedXD520Bluetooth].GetNestedType('BluetoothAddress','NonPublic')
+if([Runtime.InteropServices.Marshal]::SizeOf($socketAddress) -ne 30 -or
+    [Runtime.InteropServices.Marshal]::OffsetOf($socketAddress,'Service').ToInt32() -ne 10){
+    throw 'Windows Bluetooth sockaddr does not match the SDK packing.'
+}
+if([FeedXD520Bluetooth]::Receipt([byte[]]@(0x7e,1),2) -ne 0 -or
+   [FeedXD520Bluetooth]::Receipt([byte[]]@(0x7e,1,0x7e),3) -ne 1 -or
+   [FeedXD520Bluetooth]::Receipt([byte[]]@(0x7e,1,0x7e,0x7e,0,0x7e),6) -ne -1){
+    throw 'D520 accepted a partial receipt or ignored a negative acknowledgment.'
+}
 $bytes=[byte[]]::new(80*719);$bytes[0]=128
+$bytes[4095]=0x55;$bytes[-1]=0xab
+$encoded=[FeedXTransport]::D520($bytes,639,719,80,90,1,2)
+$hasher=[Security.Cryptography.SHA256]::Create()
+try {$digest=[BitConverter]::ToString($hasher.ComputeHash($encoded)).Replace('-','').ToLowerInvariant()}
+finally {$hasher.Dispose()}
+# Reference generated with the macOS adapter for the same packed pixels and media.
+if($digest -cne '0fc7e292cada3e22967abcc1a1657d7291b9da41675c7ac4efdab3d622f88d2a'){
+    throw 'D520 mode 4 byte parity with macOS failed.'
+}
 $command=[FeedXTransport]::Tspl($bytes,639,719,80,90,3,2,$true)
 $header=[Text.Encoding]::ASCII.GetBytes("SIZE 80 mm,90 mm`r`nGAP 2 mm,0`r`nDIRECTION 1`r`nCLS`r`nBITMAP 0,0,80,719,0,")
 if($command[$header.Length] -ne 127){throw 'TSPL polarity mismatch'}
@@ -79,6 +99,67 @@ if((Get-BridgeRecovery ([pscustomobject]@{stage='claiming'})) -ne 'ResumeClaim')
   throw 'The calibrated online queue did not report ready and resume claims.'
  }
 }
+# Exercise the real probe scheduler and direct-job state sequence without a radio or spooler.
+& $module {
+ $script:checks=0;$script:failProbe=$false;$script:journal=$null;$script:deviceReport=$null
+ $script:mailbox=$null;$script:submissions=0;$script:reportedOutcome=$null;$script:negativeAck=$true
+ function Invoke-BridgeD520Probe($Address){$script:checks++;if($script:failProbe){throw 'Probe fixture timeout'}}
+ function Get-BridgePrinters {throw 'Direct Bluetooth must not require the Windows spooler'}
+ function Get-BridgeCalibration {return 'Passed'}
+ function Read-BridgeState($Path){return $script:journal}
+ function Remove-Item {param($LiteralPath) $script:journal=$null}
+ function Save-BridgeState($Path,$Value) {
+    if($Path.EndsWith('connection-status.xml')){$script:mailbox=$Value;return}
+    $script:journal=$Value|ConvertTo-Json|ConvertFrom-Json
+ }
+ function Invoke-BridgeRpc($Config,$Session,$Name,$Body){
+    if($Name -eq 'device'){$script:deviceReport=$Body;return}
+    if($Name -eq 'claim'){return [pscustomobject]@{
+        id='fixture-job';state='Printing';lease_until=[datetime]::UtcNow.AddMinutes(5).ToString('o');quantity=1
+        raster=[pscustomobject]@{format='mono1';width=639;height=719;data=[Convert]::ToBase64String([byte[]]::new(80*719))}
+        snapshot=[pscustomobject]@{width_mm=80;height_mm=90}
+    }}
+    if($Name -eq 'report'){$script:reportedOutcome=$Body.p_state;return}
+    throw 'Unexpected direct Bluetooth RPC'
+ }
+ function Send-BridgeD520Label($Address,$Payload){
+    if($script:journal.stage -ne 'submitting' -or $Address -ne '001122334455' -or
+        ![Text.Encoding]::ASCII.GetString($Payload).EndsWith("`r`nPRINT 1,1`r`n")){
+        throw 'Direct transport did not receive the durable, single-copy submission.'
+    }
+    $script:submissions++
+    if($script:negativeAck){throw 'No acknowledgment fixture'}
+ }
+ $config=[pscustomobject]@{DeviceId='fixture';Name='QA';Printer='D520 (Bluetooth)';Transport='tspl'
+     BluetoothAddress='001122334455';GapMm=2;GuidedSetup=$true;Calibrated=$true;StockWidthMm=80;StockHeightMm=90}
+ $status=New-BridgeBluetoothStatus
+ $t=[datetime]::UtcNow
+ $root='fixture-root'
+ Update-BridgeBluetoothProbe $config.BluetoothAddress $status $root $t
+ Update-BridgeBluetoothProbe $config.BluetoothAddress $status $root $t.AddSeconds(59)
+ if($script:checks -ne 1){throw 'Healthy D520 probes must be spaced at least 60 seconds apart.'}
+ $script:failProbe=$true
+ Update-BridgeBluetoothProbe $config.BluetoothAddress $status $root $t.AddSeconds(60)
+ Update-BridgeBluetoothProbe $config.BluetoothAddress $status $root $t.AddSeconds(74)
+ Update-BridgeBluetoothProbe $config.BluetoothAddress $status $root $t.AddSeconds(75)
+ Update-BridgeBluetoothProbe $config.BluetoothAddress $status $root $t.AddSeconds(104)
+ if($script:checks -ne 3 -or $status.Available -or $status.Failures -ne 2){throw 'D520 probe backoff or offline state is incorrect.'}
+ $script:failProbe=$false
+ $status=New-BridgeBluetoothStatus
+ $session=[pscustomobject]@{}
+ Invoke-BridgeCycle $config $session 'fixture-root\journal.xml' $status
+ if($script:submissions -ne 1 -or $script:journal.outcome -ne 'Unknown' -or
+    $script:deviceReport.p_printers[0].Connection -ne 'Bluetooth Classic SPP' -or !$script:mailbox.Available -or
+    $script:deviceReport.p_printers[0].PSObject.Properties['BluetoothAddress']){
+    throw 'Direct Bluetooth hold or privacy-safe status report failed.'
+ }
+ Invoke-BridgeCycle $config $session 'fixture-root\journal.xml' $status
+ if($script:submissions -ne 1 -or $script:reportedOutcome -ne 'Unknown'){throw 'Reporting an uncertain direct write must not resend it.'}
+ $script:negativeAck=$false
+ Invoke-BridgeCycle $config $session 'fixture-root\journal.xml' $status
+ if($script:journal.outcome -ne 'Sent' -or $script:submissions -ne 2){throw 'A positive ACK must record submission only.'}
+}
+Write-Output 'PASS: Packed Windows socket ABI, exact macOS D520 payload, ACK handling, probe backoff, privacy-safe status and Bluetooth Unknown recovery.'
 # Simulate startup/session-store, refresh, durable persistence and network recovery.
 & $module {
  $script:reads=0;$script:auths=0;$script:saves=0;$script:cycles=0;$script:checks=0
