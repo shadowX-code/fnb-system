@@ -5,6 +5,7 @@ import base64
 import contextlib
 import fcntl
 import getpass
+import hashlib
 import json
 import math
 import os
@@ -267,9 +268,20 @@ class BluetoothStatus:
         return printers
 
 
+def claim_bluetooth(config, session):
+    address = config.get("bluetooth_address")
+    if not address:
+        return True
+    identity = address.replace("-", "").replace(":", "").upper()
+    if not re.fullmatch(r"[0-9A-F]{12}", identity):
+        raise BridgeError("Select the paired D520 again in Printer Setup.")
+    key = hashlib.sha256(identity.encode("ascii")).hexdigest()
+    return rpc(config, session, "bluetooth_lease", p_device=config["device"], p_printer_key=key)
+
+
 def device_status(config, session, printers, status):
     printers = [
-        dict(row, Calibration=calibration_status(config),
+        dict(row, BridgeVersion="1.3.0", Calibration=calibration_status(config),
              StockWidthMm=config.get("stock_width", 80), StockHeightMm=config.get("stock_height", 90))
         if row["Name"] == config["printer"] else row for row in printers
     ]
@@ -414,7 +426,20 @@ def cycle(config, session, bluetooth_status=None):
         and (not config.get("bluetooth_address") or config.get("calibrated_labels") != 3)
     ) or (config.get("require_calibration") and calibration_status(config) != "Passed")
     if bluetooth_status is not None:
-        printers = bluetooth_status.inventory(config)
+        allowed = not config.get("coordinate_bluetooth") or claim_bluetooth(config, session)
+        if allowed:
+            printers = bluetooth_status.inventory(config)
+        else:
+            detail = "This D520 is active on another FeedX Bridge. Stop that Bridge or wait for it to go offline."
+            observed = datetime.now(timezone.utc)
+            printers = inventory(config, probe_bluetooth=False)
+            printers[-1].update(WorkOffline=True, ConnectionCheckedAt=observed.isoformat(), ConnectionDetail=detail)
+            bluetooth_status.printer = None
+            bluetooth_status.checked = float("-inf")
+            bluetooth_status.observed_at = observed.timestamp()
+            device_status(config, session, printers, "Offline")
+            record_connection(config, detail=detail, reported=True, observed_at=observed.timestamp())
+            return
     else:
         printers = inventory(config, probe_bluetooth=not calibrating or config.get("guided_setup", False) or config.get("guided_worker", False))
     selected = next((p for p in printers if p["Name"] == config["printer"]), None)
@@ -455,6 +480,9 @@ def cycle(config, session, bluetooth_status=None):
         return
     if remaining() <= 60:
         outcome(state, "Unknown", "Claim has insufficient time remaining. Inspect print history.")
+        return
+    if config.get("coordinate_bluetooth") and not claim_bluetooth(config, session):
+        outcome(state, "Failed", "The D520 is active on another FeedX Bridge. No label submitted.")
         return
     state["stage"] = "submitting"
     save(JOURNAL, state)

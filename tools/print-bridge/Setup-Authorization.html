@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Authorize FeedX Print Bridge</title>
+  <style nonce="__NONCE__">
+    *{box-sizing:border-box}body{font:16px system-ui,sans-serif;background:#f4f6f8;color:#172536;margin:0;padding:28px}
+    main{max-width:428px;margin:7vh auto;background:#fff;border:1px solid #dbe1e8;border-radius:16px;padding:28px}
+    h1{font-size:24px;line-height:1.2;margin:6px 0 14px} p{color:#40516a}
+    label,input,button{display:block;width:100%;font:inherit}
+    label{margin-top:14px} input,button{border-radius:8px;padding:10px;margin-top:5px}
+    input{border:1px solid #a6b3c2} button{background:#1d4ed8;color:#fff;border:none;cursor:pointer;margin-top:16px}
+    button:disabled{opacity:.65;cursor:wait} button.secondary{background:#eef2ff;color:#24386d}
+    #error{color:#9b1c1c} [hidden]{display:none}
+  </style>
+</head>
+<body>
+  <main>
+    <strong>FeedX · __ENVIRONMENT__</strong>
+    <h1>Authorize Print Bridge</h1>
+    <p>Authorize only if you opened Printer Setup on this computer.</p>
+    <form id="form">
+      <label>Email<input type="email" id="email" autocomplete="username" required></label>
+      <label id="secret-label"><span id="prompt">Password</span><input id="secret" type="password" autocomplete="current-password" required></label>
+      <button id="submit">Authorize this computer</button>
+      <button class="secondary" id="switch" type="button">Use email code</button>
+    </form>
+    <p id="error" role="alert"></p>
+    <p id="done" role="status" hidden>Authorization received. Return to the FeedX Print Bridge window.</p>
+  </main>
+  <script nonce="__NONCE__">
+    "use strict";
+    const api = "__AUTH_ORIGIN__/auth/v1";
+    const key = "__CLIENT_KEY__";
+    const callback = "/session/__NONCE__";
+    const form = document.querySelector("#form");
+    const modeButton = document.querySelector("#switch");
+    const email = document.querySelector("#email");
+    const secret = document.querySelector("#secret");
+    const secretLabel = document.querySelector("#secret-label");
+    const submit = document.querySelector("#submit");
+    const error = document.querySelector("#error");
+    let mode = "password";
+    function setMode(next) {
+      mode = next;
+      secret.value = "";
+      secretLabel.hidden = mode === "send";
+      secret.required = mode !== "send";
+      secret.type = mode === "password" ? "password" : "text";
+      secret.autocomplete = mode === "password" ? "current-password" : "one-time-code";
+      document.querySelector("#prompt").textContent = mode === "password" ? "Password" : "Email code";
+      submit.textContent = mode === "send" ? "Send email code" : "Authorize this computer";
+      modeButton.textContent = mode === "password" ? "Use email code" : "Use password";
+      email.readOnly = mode === "verify";
+    }
+    modeButton.onclick = () => { error.textContent = ""; setMode(mode === "password" ? "send" : "password"); };
+    form.onsubmit = async (event) => {
+      event.preventDefault();
+      if (submit.disabled) return;
+      submit.disabled = modeButton.disabled = true;
+      error.textContent = "";
+      const current = mode;
+      const options = current === "password" ? {email: email.value.trim(), password: secret.value}
+        : current === "send" ? {email: email.value.trim(), create_user: false}
+        : {email: email.value.trim(), token: secret.value.trim(), type: "email"};
+      secret.value = "";
+      try {
+        const result = await fetch(api + (current === "password" ? "/token?grant_type=password" : current === "send" ? "/otp" : "/verify"), {
+          method: "POST", headers: {apikey: key, "content-type": "application/json"}, body: JSON.stringify(options),
+          credentials: "omit", redirect: "error", cache: "no-store",
+        });
+        if (!result.ok) throw Error(current === "send" ? "Email code unavailable. Use your FeedX password or retry later." : "Sign-in could not be verified. Check your details.");
+        if (current === "send") { setMode("verify"); return; }
+        const {access_token, refresh_token, expires_in, user} = await result.json();
+        if (!access_token || !refresh_token || !user?.id) throw Error("This account could not authorize the Bridge.");
+        const delivery = await fetch(callback, {
+          method: "POST", headers: {"content-type": "application/json"}, credentials: "omit",
+          redirect: "error", cache: "no-store", body: JSON.stringify({access_token, refresh_token, expires_in, user: {id: user.id}}),
+        });
+        if (!delivery.ok) throw Error("Printer Setup closed or expired. Return to the Bridge and start authorization again.");
+        form.hidden = true;
+        document.querySelector("#done").hidden = false;
+      } catch (failure) { error.textContent = failure.message || "Authorization failed."; }
+      finally { submit.disabled = modeButton.disabled = false; }
+    };
+  </script>
+</body>
+</html>

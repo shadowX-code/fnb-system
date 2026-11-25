@@ -1,4 +1,6 @@
 # FeedX macOS Print Bridge · Staging
+
+See the [cross-platform setup and release guide](../print-bridge/README.md) for v1.3.0 authorization, installer updates, and shared D520 ownership. The legacy script instructions below remain available for existing support scenarios.
 ## Guided installer
 
 1. In FeedX Staging, open **Factory Settings → Label Management → Printers → Set Up Printer** and download the Apple silicon package. Install it on the computer connected to the printer, then open **FeedX Print Bridge Staging** in Applications. The package bundles supported Python 3.13, TLS certificates, and the precompiled Bluetooth helper. The package targets macOS 12+ on Apple silicon.

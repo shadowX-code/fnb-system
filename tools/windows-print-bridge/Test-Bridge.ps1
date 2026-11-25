@@ -173,6 +173,16 @@ $denied=$false;try{[FeedXTransport]::Tspl([byte[]]::new(1),639,719,80,90,1,2,$tr
  $script:copies=3
  Invoke-BridgeCycle $config $session 'fixture-root\journal.xml' $status
  if($script:journal.outcome -ne 'Sent' -or $script:submissions -ne 2){throw 'One three-copy submission with a positive ACK must record Sent only.'}
+ $priorChecks=$script:checks
+ $config | Add-Member -NotePropertyName CoordinateBluetooth -NotePropertyValue $true
+ function Claim-BridgeBluetooth($Config,$Session,$Address){return $false}
+ $script:journal=$null
+ Invoke-BridgeCycle $config $session 'fixture-root\journal.xml' (New-BridgeBluetoothStatus)
+ if($script:checks -ne $priorChecks -or $script:submissions -ne 2 -or $script:deviceReport.p_status -ne 'Offline' -or
+    $script:deviceReport.p_printers[0].BridgeVersion -ne '1.3.0'){
+    throw 'A second Bridge probed or submitted to an occupied physical Bluetooth printer.'
+ }
+ $config.CoordinateBluetooth=$false
  $status=New-BridgeBluetoothStatus
  $script:localWriteFails=$true
  $script:failProbe=$true

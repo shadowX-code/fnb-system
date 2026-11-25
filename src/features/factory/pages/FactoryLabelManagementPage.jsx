@@ -16,7 +16,7 @@ import {
   factoryLabelService,
   factoryLabelsEnabled,
 } from "../../../services/factoryLabelService.js";
-import PrinterSetupWizard, { livePrinterReport, printerSetupStatus } from "../labels/PrinterSetupWizard.jsx";
+import PrinterSetupWizard, { bridgeRelease, livePrinterReport, printerInstallers, printerSetupStatus } from "../labels/PrinterSetupWizard.jsx";
 import { formatFactoryAuditDateTime } from "../utils/factoryDates.js";
 import FactoryLabelEditorPage from "../labels/FactoryLabelEditorPage.jsx";
 import ActiveTemplatePreview from "../labels/ActiveTemplatePreview.jsx";
@@ -53,9 +53,11 @@ export default function FactoryLabelManagementPage({ onConfirm, onNotify }) {
     [printer, setPrinter] = useState(null),
     [wizard, setWizard] = useState(null),
     [reason, setReason] = useState(""),
+    [deviceName, setDeviceName] = useState(""),
     [saving, setSaving] = useState(false);
   const selectedPrinter = data.rows.find((row) => row.id === printer?.id) || printer;
   const selectedStatus = selectedPrinter && printerSetupStatus(selectedPrinter);
+  const release = bridgeRelease(selectedPrinter);
   const selectedProbe = selectedPrinter && livePrinterReport(selectedPrinter, selectedStatus.bridge === "Online");
   const canSetup = can("factory_production.complete");
   const generation = useRef(0),
@@ -288,6 +290,7 @@ export default function FactoryLabelManagementPage({ onConfirm, onNotify }) {
                   className="btn-secondary"
                   onClick={() => {
                     setPrinter(r);
+                    setDeviceName(r.name);
                     setReason("");
                   }}
                 >
@@ -304,7 +307,7 @@ export default function FactoryLabelManagementPage({ onConfirm, onNotify }) {
         description="Manage Packaging SKU labels, reusable templates and print bridges."
         actions={
           location.section === "printers" && canSetup ? (
-            <button className="btn-primary" onClick={() => setWizard({ step: 0 })}><Printer size={15} /> Set Up Printer</button>
+            <button className="btn-primary" onClick={() => setWizard({})}><Printer size={15} /> Set Up Printer</button>
           ) : location.section === "templates" && canEdit ? (
             <button
               className="btn-primary"
@@ -412,7 +415,6 @@ export default function FactoryLabelManagementPage({ onConfirm, onNotify }) {
           onRefresh={load}
           devices={data.section === "printers" ? data.rows : []}
           selected={wizard.printer}
-          initialStep={wizard.step}
         />
       )}
       {printer && (
@@ -437,6 +439,7 @@ export default function FactoryLabelManagementPage({ onConfirm, onNotify }) {
             <dl className="grid grid-cols-2 gap-2 text-sm">
               <dt>Printer</dt><dd>{selectedPrinter.printer_name}</dd>
               <dt>Bridge</dt><dd><FactoryStatusBadge status={selectedStatus.bridge} /></dd>
+              <dt>Bridge version</dt><dd>{release.version ? `v${release.version}` : "Not reported"}{release.update && release.platform && <> · <a className="underline" href={printerInstallers[release.platform]} download>Update available</a></>}</dd>
               <dt>Printer connection</dt><dd><FactoryStatusBadge status={selectedStatus.connection} /></dd>
               {selectedProbe?.ConnectionCheckedAt && <>
                 <dt>Printer checked</dt><dd><BridgeLastSeen value={selectedProbe.ConnectionCheckedAt} /></dd>
@@ -462,10 +465,32 @@ export default function FactoryLabelManagementPage({ onConfirm, onNotify }) {
               <div className="flex flex-wrap gap-2">
                 {selectedPrinter.enabled && <a className="btn-secondary" href="feedx-printer-staging://setup">{selectedStatus.bridge === "Offline" ? "Open Setup to Reconnect" : "Open Bridge Setup"}</a>}
                 <button className="btn-secondary" onClick={() => {
-                  setWizard({ step: 1, printer: selectedPrinter }); setPrinter(null);
+                  setWizard({ printer: selectedPrinter }); setPrinter(null);
                 }}>Troubleshoot</button>
               </div>
             )}
+            {canEdit && <form className="flex flex-wrap items-end gap-2" onSubmit={async (event) => {
+              event.preventDefault();
+              if (lock.current || !deviceName.trim() || deviceName.trim() === selectedPrinter.name) return;
+              lock.current = true;
+              setSaving(true);
+              setError("");
+              try {
+                await factoryLabelService.renameDevice(selectedPrinter.id, deviceName.trim());
+                await load();
+              } catch (failure) {
+                setError(failure.message || "The device name could not be saved.");
+              } finally {
+                lock.current = false;
+                setSaving(false);
+              }
+            }}>
+              <Field label="Device name">
+                <input aria-label="Device name" className={inputClass()} value={deviceName} maxLength={100}
+                  disabled={saving} onChange={(event) => setDeviceName(event.target.value)} />
+              </Field>
+              <button className="btn-secondary" disabled={saving || !deviceName.trim() || deviceName.trim() === selectedPrinter.name}>Save name</button>
+            </form>}
             <details className="text-sm">
               <summary className="cursor-pointer font-medium">Last reported printers ({selectedPrinter.printers?.length || 0})</summary>
               <ul className="mt-2 space-y-1">

@@ -2,6 +2,28 @@ $ErrorActionPreference='Stop'
 Import-Module "$PSScriptRoot\Bridge.psm1" -Force
 
 # Exercise the actual setup functions with isolated state and no dialogs, cloud mutations or printer calls.
+# Validate the installed authorization listener without authenticating or calling a printer.
+Add-Type -Path "$PSScriptRoot\BrowserAuthorization.cs"
+$authTemplate=Get-Content -LiteralPath (Join-Path $PSScriptRoot '..\print-bridge\Setup-Authorization.html') -Raw
+$listener=[FeedXBrowserAuthorization]::new($authTemplate,'sb_publishable_fixture','https://ujkzdaaadnvcfayuldmh.supabase.co','Staging')
+try {
+    $address=[uri]$listener.LaunchUrl
+    $path=$address.AbsolutePath.Replace('/authorize/','/session/')
+    foreach($origin in @('https://foreign.invalid',$listener.Url)){
+        $client=[Net.Sockets.TcpClient]::new()
+        try {
+            $client.Connect('127.0.0.1',$address.Port)
+            $stream=$client.GetStream()
+            $body='{"fixture":"local authorization response"}'
+            $raw=[Text.Encoding]::ASCII.GetBytes("POST $path HTTP/1.1`r`nHost: $($address.Authority)`r`nOrigin: $origin`r`nContent-Type: application/json`r`nContent-Length: $($body.Length)`r`n`r`n$body")
+            $stream.Write($raw,0,$raw.Length)
+            $received=$listener.Poll()
+            if($origin -eq $listener.Url -and $received -ne $body){throw 'Native authorization did not receive the same-origin response.'}
+            if($origin -ne $listener.Url -and $null -ne $received){throw 'Native authorization accepted a foreign origin.'}
+        } finally {$client.Dispose()}
+    }
+} finally {$listener.Dispose()}
+
 $setupFunctions=@('Start-Worker','Save-Configuration','Confirm-Idle','Register-Computer',
     'Get-PendingDeviceId','Save-RegisteredConfiguration','Read-Number','Report-SetupFailure','Show-SetupFailure','Run-Calibration','Check-D520Connection')
 $tokens=$null;$errors=$null

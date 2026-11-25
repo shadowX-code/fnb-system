@@ -83,6 +83,14 @@ function Get-BridgeBluetoothAddress($Config) {
         return $Config.BluetoothAddress
     }
 }
+function Claim-BridgeBluetooth($Config,$Session,$Address) {
+    $sha=[Security.Cryptography.SHA256]::Create()
+    try {
+        $identity=$Address.ToUpperInvariant() -replace '[:-]',''
+        $key=[BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::ASCII.GetBytes($identity))).Replace('-','').ToLowerInvariant()
+    } finally {$sha.Dispose()}
+    Invoke-BridgeRpc $Config $Session 'bluetooth_lease' @{p_device=$Config.DeviceId;p_printer_key=$key}
+}
 function Initialize-BridgeBluetooth {
     if(!('FeedXD520Bluetooth' -as [type])){Add-Type -Path "$PSScriptRoot\D520Bluetooth.cs"}
 }
@@ -157,7 +165,15 @@ function Invoke-BridgeCycle($Config, $Session, $StatePath, $BluetoothStatus=$nul
     $folder = Split-Path -Parent $StatePath
     if($address){
         if(!$BluetoothStatus){$BluetoothStatus=New-BridgeBluetoothStatus}
-        Update-BridgeBluetoothProbe $address $BluetoothStatus $folder
+        if($Config.PSObject.Properties['CoordinateBluetooth'] -and $Config.CoordinateBluetooth -and !(Claim-BridgeBluetooth $Config $Session $address)){
+            $BluetoothStatus.Checked=[datetime]::UtcNow
+            $BluetoothStatus.Available=$false
+            $BluetoothStatus.Failures=1
+            $BluetoothStatus.Failure=$null
+            $BluetoothStatus.Detail='This D520 is active on another FeedX Bridge. Stop that Bridge or wait for it to go offline.'
+        } else {
+            Update-BridgeBluetoothProbe $address $BluetoothStatus $folder
+        }
         $printers=@(Get-BridgeBluetoothPrinter $Config $BluetoothStatus)
     } else {
         $printers=@(Get-BridgePrinters | Select-Object -First 75)
@@ -176,6 +192,10 @@ function Invoke-BridgeCycle($Config, $Session, $StatePath, $BluetoothStatus=$nul
         }
     }
     $calibration = if ($folder) { Get-BridgeCalibration $Config $folder } else { 'Not reported' }
+    foreach($reportedPrinter in $printers){
+        $reportedPrinter | Add-Member -NotePropertyName Platform -NotePropertyValue 'Windows' -Force
+        $reportedPrinter | Add-Member -NotePropertyName BridgeVersion -NotePropertyValue '1.3.0' -Force
+    }
     if ($printer) {
         $printer | Add-Member -NotePropertyName Calibration -NotePropertyValue $calibration -Force
         if(!$address){$printer | Add-Member -NotePropertyName Connection -NotePropertyValue 'Windows spooler' -Force}
@@ -231,6 +251,11 @@ function Invoke-BridgeCycle($Config, $Session, $StatePath, $BluetoothStatus=$nul
         }
     } catch {
         Set-BridgeOutcome $state 'Failed' 'Invalid raster; no data submitted to the printer.' $StatePath;return
+    }
+    if($address -and $Config.PSObject.Properties['CoordinateBluetooth'] -and $Config.CoordinateBluetooth -and
+       !(Claim-BridgeBluetooth $Config $Session $address)){
+        Set-BridgeOutcome $state 'Failed' 'The D520 is active on another FeedX Bridge. No label submitted.' $StatePath
+        return
     }
     # This durable marker precedes every native call that can emit paper.
     $state.stage='submitting';Save-BridgeState $StatePath $state

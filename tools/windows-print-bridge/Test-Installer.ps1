@@ -8,13 +8,17 @@ function Install-TestPackage {
     if($process.ExitCode){throw "Installer exited with $($process.ExitCode)"}
 }
 Install-TestPackage
-foreach($name in @('Bridge.psm1','Transport.cs','D520Bluetooth.cs','Setup-Bridge.ps1','Start-Bridge.ps1')) {
+foreach($name in @('Bridge.psm1','Transport.cs','D520Bluetooth.cs','Setup-Bridge.ps1','Setup-Window.ps1','BrowserAuthorization.cs','Start-Bridge.ps1')) {
     $installed=Join-Path $dest $name
     if(!(Test-Path $installed)){throw "Missing installed component: $name"}
     $source=(Get-Content -LiteralPath (Join-Path $PSScriptRoot $name) -Raw) -replace "`r`n","`n"
     $payload=(Get-Content -LiteralPath $installed -Raw) -replace "`r`n","`n"
     if($source -cne $payload){throw "Hosted installer has a stale component: $name"}
 }
+if(!(Test-Path (Join-Path $dest 'Setup-Authorization.html'))){throw 'Missing packaged browser sign-in page.'}
+$shell=Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+& $shell -NoProfile -NonInteractive -File (Join-Path $dest 'Setup-Bridge.ps1') -SelfTest
+if($LASTEXITCODE){throw 'Installed setup component self-test failed.'}
 $handler=(Get-Item 'HKCU:\Software\Classes\feedx-printer-staging\shell\open\command').GetValue('')
 if(!$handler.Contains($dest) -or $handler.Contains('%1')){throw 'Setup launcher must open the installed app without passing URI arguments.'}
 Import-Module (Join-Path $dest 'Bridge.psm1') -Force

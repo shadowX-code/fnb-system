@@ -59,6 +59,8 @@ Object.assign(factoryLabelService, {
       p_approval_note: note,
       p_content_approved: approved,
     }),
+  renameDevice: (device, name) =>
+    rpc("rename_device", { p_device: device, p_name: name }),
   setDeviceEnabled: (device, enabled, reason) =>
     rpc("set_device_enabled", {
       p_device: device,

@@ -1,10 +1,12 @@
 # FeedX Windows Print Bridge — Staging
 
+See the [cross-platform setup and release guide](../print-bridge/README.md) for v1.3.0 authorization, installer updates, and shared D520 ownership. The legacy script instructions below remain available for existing support scenarios.
+
 ## D520 Bluetooth Classic on Staging
 
 Pair a powered D520 in **Windows Bluetooth settings** and close Labelife or other printer apps. Open **FeedX Print Bridge Staging → Connect / Configure** and choose **D520 Bluetooth**, then select the paired printer, label dimensions and actual gap. **Connection Check** requests a fresh worker observation of the Serial Port service and bitmap mode 4. A paired entry alone does not prove a usable connection. This route uses Windows Winsock RFCOMM with the Serial Port service UUID. It requires neither a printer queue nor a virtual COM port. BLE-only, Labelife-only and unverified firmware modes are outside this adapter.
 
-The Windows Driver USB queue and compatible RAW TSPL queues remain available. Direct printing uses the same mode 4 literal LZO payload, polarity and feed direction as the macOS D520. An absent or negative acknowledgment leaves the attempt uncertain. Connection checks and print submissions share one channel lock. The worker checks a healthy connection at 60-second intervals and backs off failed checks at 15, 30 and 60 seconds. Connection status expires after 90 seconds and does not erase calibration. The running worker handles manual checks on the same Bluetooth channel used for scheduled probes and submissions. Setup reads its fresh local result even if FeedX status reporting is delayed. FeedX still shows the last reported observation and its freshness. Keep Windows setup and physical approval separate. Windows Bluetooth hardware acceptance is still pending.
+The Windows Driver USB queue and compatible RAW TSPL queues remain available. Direct printing uses the same mode 4 literal LZO payload, polarity and feed direction as the macOS D520. An absent or negative acknowledgment leaves the attempt uncertain. Connection checks and print submissions share one channel lock. The worker checks a healthy connection at 60-second intervals and backs off failed checks at 15, 30 and 60 seconds. Connection status expires after 90 seconds and does not erase calibration. The running worker handles manual checks on the same Bluetooth channel used for scheduled probes and submissions. Setup reads its fresh local result even if FeedX status reporting is delayed. FeedX still shows the last reported observation and its freshness. Keep Windows setup and physical approval separate. Windows D520 Bluetooth single- and three-copy hardware acceptance passed.
 
 ## First D520 hardware acceptance on Staging (USB)
 

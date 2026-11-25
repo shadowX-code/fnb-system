@@ -1,6 +1,9 @@
 """Hardware-free regression checks for native setup and startup."""
 import fcntl
 import subprocess
+import json
+import threading
+import urllib.request
 import tempfile
 import unittest
 import urllib.error
@@ -35,8 +38,9 @@ class SetupTest(unittest.TestCase):
         evidence = self.root / "recovery-evidence"
         evidence.mkdir()
         (evidence / "original.json").write_bytes(b'{"detail":"missing ACK","review":"PASSED"}')
-        with patch.object(setup, "choose", return_value=bridge.BLUETOOTH),              patch.object(setup, "field", side_effect=["80", "90", "2"]),              patch.object(setup, "dialog"), patch.object(bridge, "rpc", return_value=0),              patch.object(bridge, "bluetooth_probe", return_value="fixture"),              patch.object(bridge, "cups_printers", return_value=[]):
-            setup.configure(self.config, {})
+        selection = (bridge.BLUETOOTH, "fixture")
+        with patch.object(setup, "discover", return_value={"D520": selection}), patch.object(bridge, "rpc", return_value=0):
+            setup.configure(self.config, {}, selection, ["80", "90", "2"])
         self.assertEqual(self.config["calibrated_labels"], 3)
         self.assertEqual(self.config["device"], "existing-device")
         self.assertEqual((evidence / "original.json").read_bytes(), b'{"detail":"missing ACK","review":"PASSED"}')
@@ -52,17 +56,55 @@ class SetupTest(unittest.TestCase):
 
     def test_reconnect_reuses_existing_device_and_reports_current_status(self):
         bridge.save(bridge.CONFIG, self.config)
-        with patch.object(setup.sys, "argv", ["setup"]), \
-             patch.object(setup, "choose", return_value="Reconnect"), \
-             patch.object(setup, "wait_for_connection", return_value={"available": False, "detail": "Bluetooth busy"}) as wait, \
-             patch.object(setup, "dialog") as dialog, patch.object(setup, "setup_lock") as lock, \
-             patch.object(bridge, "bluetooth_probe") as probe:
-            setup.main()
+        bridge.save(self.root / "worker-version.json", {"version": setup.VERSION})
+        with patch.object(setup, "wait_for_connection", return_value={"available": False, "detail": "Bluetooth busy"}) as wait, \
+             patch.object(setup, "setup_lock") as lock, patch.object(bridge, "bluetooth_probe") as probe:
+            self.assertEqual(setup.resume(self.config)["detail"], "Bluetooth busy")
         self.assertEqual(bridge.load(bridge.CONFIG), self.config)
         wait.assert_called_once_with(self.config)
-        self.assertIn("Bluetooth busy", dialog.call_args.args[0])
         lock.assert_not_called()
         probe.assert_not_called()
+
+    def test_browser_authorization_rejects_wrong_owner_without_touching_state(self):
+        bridge.save(bridge.CONFIG, self.config)
+        with patch.object(setup, "public_key", return_value="fixture-public-key"), \
+             patch.object(setup.browser_authorization, "authorize", return_value={"user": "another-operator"}):
+            with self.assertRaisesRegex(bridge.BridgeError, "original operator"):
+                setup.authorize(self.config)
+        self.assertEqual(bridge.load(bridge.CONFIG), self.config)
+
+    def test_browser_handoff_rejects_foreign_origin_and_accepts_the_dedicated_session(self):
+        errors = []
+        clients = []
+        def open_browser(command, **_kwargs):
+            launch_url = command[1]
+            base, nonce = launch_url.split("/authorize/")
+            def exercise():
+                try:
+                    with urllib.request.urlopen(launch_url, timeout=3) as page:
+                        self.assertIn("frame-ancestors 'none'", page.headers["Content-Security-Policy"])
+                        self.assertIn("Authorize this computer", page.read().decode())
+                    data = json.dumps({"user": {"id": "10000000-0000-0000-0000-000000000001"},
+                        "access_token": "access-fixture", "refresh_token": "refresh-fixture", "expires_in": 120}).encode()
+                    def post(origin):
+                        return urllib.request.urlopen(urllib.request.Request(base + "/session/" + nonce,
+                            data, {"Origin": origin, "Content-Type": "application/json"}), timeout=3)
+                    with self.assertRaises(urllib.error.HTTPError) as invalid:
+                        post("https://other.invalid")
+                    self.assertEqual(invalid.exception.code, 404)
+                    with post(base) as accepted:
+                        self.assertEqual(accepted.status, 200)
+                except Exception as error:
+                    errors.append(error)
+            client = threading.Thread(target=exercise)
+            clients.append(client)
+            client.start()
+        with patch.object(setup.browser_authorization.subprocess, "run", side_effect=open_browser):
+            session = setup.browser_authorization.authorize("sb_publishable_fixture",
+                "https://ujkzdaaadnvcfayuldmh.supabase.co", "Staging")
+        clients[0].join()
+        self.assertFalse(errors)
+        self.assertEqual(session["refresh_token"], "refresh-fixture")
 
     def test_connection_check_waits_for_fresh_report_without_pausing(self):
         with patch.object(setup, "launch_agent"), patch.object(setup.time, "time", return_value=10), \
@@ -83,7 +125,7 @@ class SetupTest(unittest.TestCase):
     def test_expired_sign_in_directs_operator_to_reauthorize(self):
         expired = {"expires_at": 0, "refresh_token": "fixture"}
         with patch.object(bridge, "read_session", return_value=expired),              patch.object(bridge, "auth", side_effect=urllib.error.HTTPError("fixture", 400, "", {}, None)):
-            with self.assertRaisesRegex(bridge.BridgeError, "Choose Reauthorize"):
+            with self.assertRaisesRegex(bridge.BridgeError, "Choose Authorize again"):
                 setup.existing_session(self.config)
 
     def test_single_instance_lock_rejects_second_worker_and_releases_after_exit(self):
@@ -126,27 +168,34 @@ class SetupTest(unittest.TestCase):
         self.assertFalse(any("-k" in command for command in commands))
         self.assertEqual(sum(command[1] == "kickstart" for command in commands), 2)
 
-    def test_register_synchronizes_connected_offline_and_calibration_status(self):
-        for online, calibrated, expected in [(True, 3, "Ready"), (False, 3, "Offline"), (True, 0, "Error")]:
-            with self.subTest(expected=expected):
-                config = dict(self.config, calibrated_labels=calibrated)
-                printers = [{"Name": bridge.BLUETOOTH, "WorkOffline": not online}]
-                with patch.object(bridge, "store_session"), patch.object(bridge, "inventory", return_value=printers),                      patch.object(bridge, "rpc") as rpc:
-                    setup.register(config, {})
-                self.assertEqual(rpc.call_args.kwargs["p_status"], expected)
-                self.assertEqual(rpc.call_args.kwargs["p_device"], "existing-device")
-
-    def test_connection_check_reports_without_preparing_a_job(self):
-        with patch.object(bridge, "inventory", return_value=[{"Name": bridge.BLUETOOTH, "WorkOffline": True}]), \
-             patch.object(bridge, "rpc") as rpc, patch.object(bridge, "prepare") as prepare:
-            self.assertFalse(setup.report_connection(self.config, {}))
-        self.assertEqual(rpc.call_args.args[2], "device")
+    def test_registration_waits_for_worker_probe_before_reporting_ready(self):
+        printers = [{"Name": bridge.BLUETOOTH, "WorkOffline": True}]
+        with patch.object(bridge, "store_session"), patch.object(bridge, "inventory", return_value=printers) as inventory, \
+             patch.object(bridge, "rpc") as rpc:
+            setup.register(self.config, {})
+        inventory.assert_called_once_with(self.config, probe_bluetooth=False)
         self.assertEqual(rpc.call_args.kwargs["p_status"], "Offline")
+        self.assertEqual(rpc.call_args.kwargs["p_device"], "existing-device")
+        self.assertEqual(rpc.call_args.kwargs["p_printers"][0]["BridgeVersion"], setup.VERSION)
+
+    def test_competing_bridge_reports_offline_without_opening_bluetooth_or_claiming(self):
+        config = dict(self.config, coordinate_bluetooth=True, bluetooth_address="00-11-22-33-44-55")
+        statuses = [{"Name": bridge.BLUETOOTH, "WorkOffline": True}]
+        with patch.object(bridge, "claim_bluetooth", return_value=False), \
+             patch.object(bridge, "inventory", return_value=statuses) as inventory, \
+             patch.object(bridge, "rpc") as rpc, patch.object(bridge, "prepare") as prepare:
+            bridge.cycle(config, {}, bridge.BluetoothStatus())
+        self.assertFalse(inventory.call_args.kwargs["probe_bluetooth"])
+        self.assertEqual([call.args[2] for call in rpc.call_args_list], ["device"])
+        self.assertEqual(rpc.call_args.kwargs["p_status"], "Offline")
+        self.assertIn("another FeedX Bridge", rpc.call_args.kwargs["p_printers"][0]["ConnectionDetail"])
         prepare.assert_not_called()
 
-    def test_cancelled_calibration_never_submits_or_creates_marker(self):
-        with patch.object(bridge, "rpc", return_value=0),              patch.object(setup, "dialog", return_value="Cancel"),              patch.object(bridge, "local_test") as submit:
-            setup.calibrate(self.config, {})
+    def test_review_cannot_create_or_send_calibration(self):
+        with patch.object(setup, "existing_session", return_value={}), \
+             patch.object(setup, "launch_agent"), patch.object(bridge, "local_test") as submit:
+            with self.assertRaisesRegex(bridge.BridgeError, "No calibration"):
+                setup.calibrate(self.config, "PASSED")
         submit.assert_not_called()
         self.assertFalse(bridge.CALIBRATION.exists())
 
