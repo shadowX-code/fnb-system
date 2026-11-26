@@ -1,6 +1,6 @@
 # FeedX Print Bridge release and setup
 
-Open **Factory Settings → Label Management → Printers → Set Up Printer** on the computer connected to the printer. Download the shown installer and open the Bridge. If browser launch is unavailable, use **Applications** on macOS or the **Start menu** on Windows.
+Open **Factory Settings → Label Management → Printers → Set Up Printer** on the computer connected to the printer. Choose the platform and download the versioned installer from **Install**. If the Bridge is already installed, open it or select an existing workstation. **Troubleshooting** in the web Wizard provides **Refresh Status** and manual launch instructions for **Applications** on macOS or the **Start menu** on Windows.
 
 - Authorize in the browser on that computer. Sign in to the FeedX environment shown or use an email code when available. The Bridge stores its own session in the macOS Keychain or Windows DPAPI and reuses it. The temporary browser window talks directly to FeedX Auth over HTTPS. Its one-use, expiring callback is bound to a random loopback port and accepts only a same-origin, nonce-bound response. The local listener closes after authorization.
 - Select the discovered printer and enter stock width, length and gap. Connection Check runs after saving and the worker reports its observation to FeedX. Returning configured devices check the connection and retain their calibration.

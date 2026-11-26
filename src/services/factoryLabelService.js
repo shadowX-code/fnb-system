@@ -3,10 +3,11 @@ import { supabase } from "../lib/supabase";
 export const factoryLabelsEnabled =
   import.meta.env.VITE_SUPABASE_URL ===
   "https://ujkzdaaadnvcfayuldmh.supabase.co";
-async function rpc(name, args) {
+async function rpc(name, args, signal) {
   if (!factoryLabelsEnabled)
     throw new Error("Factory label printing is available on Staging only.");
-  const { data, error } = await supabase.rpc(`factory_label_${name}`, args);
+  const query = supabase.rpc(`factory_label_${name}`, args);
+  const { data, error } = await (signal ? query.abortSignal(signal) : query);
   if (error) throw error;
   return data;
 }
@@ -39,8 +40,8 @@ export const factoryLabelService = {
 };
 
 Object.assign(factoryLabelService, {
-  management: (section = "products", page = 1, search = "") =>
-    rpc("management", { p_section: section, p_page: page, p_search: search }),
+  management: (section = "products", page = 1, search = "", { signal } = {}) =>
+    rpc("management", { p_section: section, p_page: page, p_search: search }, signal),
   editor: (kind, key) => rpc("editor", { p_kind: kind, p_key: key }),
   saveDraft: (kind, key, payload, revision, baseVersion, requestId) =>
     rpc("save_draft", {

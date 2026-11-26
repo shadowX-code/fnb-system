@@ -22,6 +22,8 @@ vi.mock("../FactoryLabelEditorPage.jsx", () => ({
 afterEach(() => {
   cleanup();
   window.history.replaceState({}, "", "/");
+  vi.useRealTimers();
+  factoryLabelService.management.mockReset().mockResolvedValue({ rows: [], total: 0 });
   vi.restoreAllMocks();
 });
 function navigate(query) {
@@ -93,4 +95,78 @@ it("keeps multiple label configurations under one SKU and opens the selected edi
   const editor = screen.getByText("product editor opened");
   expect(editor.dataset.entityKey).toBe("sku-1:carton-1");
   expect(editor.dataset.labelKey).toBe("carton-1");
+});
+
+function printerRows({ seen = Date.now(), checked = seen, name = "Receiving Bridge" } = {}) {
+  return { total: 40, rows: [{
+    id: "bridge-1", name, enabled: true, last_seen: new Date(seen).toISOString(), printer_name: "D520",
+    status: "Ready", calibration_status: "Passed", unresolved_jobs: 0,
+    printers: [{ Name: "D520", ConnectionCheckedAt: new Date(checked).toISOString() }],
+  }] };
+}
+
+it("keeps pagination, scroll and an open dialog stable while a printer refresh stalls, fails and recovers", async () => {
+  vi.useFakeTimers();
+  const since = Date.now();
+  const management = factoryLabelService.management.mockImplementation(async () => printerRows({ checked: since - 75000 }));
+  window.history.replaceState({}, "", "/factory/settings/labels?section=printers");
+  render(<FactoryLabelManagementPage />);
+  await act(async () => {});
+  const search = screen.getByRole("searchbox");
+  await act(async () => fireEvent.change(search, { target: { value: "D520" } }));
+  await act(async () => fireEvent.click(screen.getByRole("button", { name: "2" })));
+  const pageTwo = screen.getByRole("button", { name: "2" });
+  expect(pageTwo.getAttribute("aria-current")).toBe("page");
+  const row = screen.getByRole("row", { name: /Receiving Bridge/ });
+  const scroll = row.closest(".admin-data-table-scroll");
+  scroll.scrollLeft = 130;
+  fireEvent.click(within(row).getByRole("button", { name: "Manage" }));
+  const dialog = screen.getByRole("dialog", { name: "Printer Configuration" });
+  const name = within(dialog).getByRole("textbox", { name: "Device name" });
+  fireEvent.change(name, { target: { value: "Unsaved device name" } });
+
+  let fail;
+  management.mockImplementationOnce(() => new Promise((_, reject) => { fail = reject; }));
+  management.mockClear();
+  await act(async () => vi.advanceTimersByTimeAsync(20000));
+  expect(management).toHaveBeenCalledTimes(1);
+  expect(management).toHaveBeenCalledWith("printers", 2, "D520", expect.objectContaining({ signal: expect.any(AbortSignal) }));
+  expect(pageTwo.disabled).toBe(false);
+  expect(within(row).getByText("Not reported")).toBeTruthy();
+
+  await act(async () => fail(new Error("Temporary network failure")));
+  expect(screen.getByText(/Showing last reported data/)).toBeTruthy();
+  expect(within(row).getByText("Passed")).toBeTruthy();
+  management.mockResolvedValueOnce(printerRows({ seen: since + 30000, checked: since - 61000 }));
+  await act(async () => vi.advanceTimersByTimeAsync(10000));
+  expect(within(row).getByText("Online")).toBeTruthy();
+  expect(within(row).getByText("Not reported")).toBeTruthy();
+  expect(within(row).getByText("Passed")).toBeTruthy();
+  expect(screen.queryByText(/Showing last reported data/)).toBeNull();
+
+  management.mockImplementationOnce(async () => printerRows());
+  await act(async () => vi.advanceTimersByTimeAsync(10000));
+  expect(within(row).getByText("Available")).toBeTruthy();
+  expect(screen.getByRole("row", { name: /Receiving Bridge/ })).toBe(row);
+  expect(screen.getByRole("dialog", { name: "Printer Configuration" })).toBe(dialog);
+  expect(screen.getByRole("button", { name: "2" })).toBe(pageTwo);
+  expect(name.value).toBe("Unsaved device name");
+  expect(search.value).toBe("D520");
+  expect(scroll.scrollLeft).toBe(130);
+});
+
+it("cancels obsolete list reads and ignores results that arrive after changing search", async () => {
+  let finishOld;
+  const management = factoryLabelService.management
+    .mockImplementationOnce(() => new Promise((resolve) => { finishOld = resolve; }))
+    .mockResolvedValueOnce(printerRows({ name: "Matching Bridge" }));
+  window.history.replaceState({}, "", "/factory/settings/labels?section=printers");
+  render(<FactoryLabelManagementPage />);
+  const { signal } = management.mock.lastCall[3];
+  fireEvent.change(screen.getByRole("searchbox"), { target: { value: "Matching" } });
+  expect(await screen.findByText("Matching Bridge")).toBeTruthy();
+  expect(signal.aborted).toBe(true);
+  await act(async () => finishOld(printerRows()));
+  expect(screen.queryByText("Receiving Bridge")).toBeNull();
+  expect(screen.getByText("Matching Bridge")).toBeTruthy();
 });

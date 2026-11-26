@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Eye, Pencil, Plus, Printer } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
@@ -20,15 +20,16 @@ import PrinterSetupWizard, { bridgeRelease, livePrinterReport, printerInstallers
 import { formatFactoryAuditDateTime } from "../utils/factoryDates.js";
 import FactoryLabelEditorPage from "../labels/FactoryLabelEditorPage.jsx";
 import ActiveTemplatePreview from "../labels/ActiveTemplatePreview.jsx";
+import useLabelManagementQuery from "../labels/useLabelManagementQuery.js";
 import {
   openLabelManagement,
   readLabelManagementLocation,
 } from "../labels/labelManagementNavigation.js";
 
-function BridgeLastSeen({ value }) {
+function BridgeLastSeen({ value, now }) {
   const timestamp = Date.parse(value);
   if (!Number.isFinite(timestamp)) return "Never reported";
-  const seconds = Math.max(0, (Date.now() - timestamp) / 1000);
+  const seconds = Math.max(0, (now - timestamp) / 1000);
   const [amount, unit] = seconds < 60 ? [0, "second"]
     : seconds < 3600 ? [seconds / 60, "minute"]
     : seconds < 86400 ? [seconds / 3600, "hour"]
@@ -46,22 +47,26 @@ export default function FactoryLabelManagementPage({ onConfirm, onNotify }) {
   const [location, setLocation] = useState(readLabelManagementLocation),
     [search, setSearch] = useState(""),
     [page, setPage] = useState(1),
-    [data, setData] = useState({ rows: [], total: 0 }),
-    [loading, setLoading] = useState(true),
-    [error, setError] = useState(""),
+    [actionError, setActionError] = useState(""),
     [previewTemplate, setPreviewTemplate] = useState(null),
     [printer, setPrinter] = useState(null),
     [wizard, setWizard] = useState(null),
     [reason, setReason] = useState(""),
     [deviceName, setDeviceName] = useState(""),
     [saving, setSaving] = useState(false);
+  const lock = useRef(false);
+  const { data, loading, hasData, error, refresh, now } = useLabelManagementQuery({
+    section: location.section,
+    page,
+    search,
+    enabled: factoryLabelsEnabled && !location.sku && !location.template,
+    mutationLock: lock,
+  });
   const selectedPrinter = data.rows.find((row) => row.id === printer?.id) || printer;
-  const selectedStatus = selectedPrinter && printerSetupStatus(selectedPrinter);
+  const selectedStatus = selectedPrinter && printerSetupStatus(selectedPrinter, now);
   const release = bridgeRelease(selectedPrinter);
-  const selectedProbe = selectedPrinter && livePrinterReport(selectedPrinter, selectedStatus.bridge === "Online");
+  const selectedProbe = selectedPrinter && livePrinterReport(selectedPrinter, selectedStatus.bridge === "Online", now);
   const canSetup = can("factory_production.complete");
-  const generation = useRef(0),
-    lock = useRef(false);
   useEffect(() => {
     const change = () => {
       setLocation(readLabelManagementLocation());
@@ -72,41 +77,6 @@ export default function FactoryLabelManagementPage({ onConfirm, onNotify }) {
     window.addEventListener("popstate", change);
     return () => window.removeEventListener("popstate", change);
   }, []);
-  const load = useCallback(async () => {
-    if (!factoryLabelsEnabled) return;
-    const current = ++generation.current;
-    setLoading(true);
-    try {
-      const next = await factoryLabelService.management(
-        location.section,
-        page,
-        search,
-      );
-      if (current === generation.current) {
-        setData({ ...next, section: location.section });
-        setError("");
-      }
-    } catch (e) {
-      if (current === generation.current) setError(e.message);
-    } finally {
-      if (current === generation.current) setLoading(false);
-    }
-  }, [location.section, page, search]);
-  useEffect(() => {
-    if (location.sku || location.template) return;
-    load();
-    return () => {
-      generation.current++;
-    };
-  }, [load, location.sku, location.template]);
-  useEffect(() => {
-    if (location.section !== "printers" || location.sku || location.template)
-      return;
-    const timer = setInterval(() => {
-      if (!lock.current) load();
-    }, 10000);
-    return () => clearInterval(timer);
-  }, [load, location]);
   if (!factoryLabelsEnabled)
     return (
       <div>
@@ -137,7 +107,7 @@ export default function FactoryLabelManagementPage({ onConfirm, onNotify }) {
     if (lock.current) return;
     lock.current = true;
     setSaving(true);
-    setError("");
+    setActionError("");
     try {
       await factoryLabelService.setDeviceEnabled(
         printer.id,
@@ -146,9 +116,9 @@ export default function FactoryLabelManagementPage({ onConfirm, onNotify }) {
       );
       setPrinter(null);
       setReason("");
-      await load();
+      await refresh({ replace: true });
     } catch (e) {
-      setError(e.message);
+      setActionError(e.message);
     } finally {
       lock.current = false;
       setSaving(false);
@@ -273,14 +243,14 @@ export default function FactoryLabelManagementPage({ onConfirm, onNotify }) {
               label: "Printer / bridge",
               render: (r) => <div><strong>{r.printer_name}</strong><p className="text-xs text-text-secondary">{r.name}</p></div>,
             },
-            { key: "bridge", label: "Bridge", render: (r) => <FactoryStatusBadge status={printerSetupStatus(r).bridge} /> },
-            { key: "connection", label: "Printer connection", render: (r) => <FactoryStatusBadge status={printerSetupStatus(r).connection} /> },
-            { key: "calibration", label: "Calibration", render: (r) => <FactoryStatusBadge status={printerSetupStatus(r).calibration} /> },
+            { key: "bridge", label: "Bridge", render: (r) => <FactoryStatusBadge status={printerSetupStatus(r, now).bridge} /> },
+            { key: "connection", label: "Printer connection", render: (r) => <FactoryStatusBadge status={printerSetupStatus(r, now).connection} /> },
+            { key: "calibration", label: "Calibration", render: (r) => <FactoryStatusBadge status={printerSetupStatus(r, now).calibration} /> },
             { key: "unresolved", label: "Unresolved jobs", render: (r) => r.unresolved_jobs ?? "—" },
             {
               key: "last_seen",
               label: "Last seen",
-              render: (r) => <BridgeLastSeen value={r.last_seen} />,
+              render: (r) => <BridgeLastSeen now={now} value={r.last_seen} />,
             },
             {
               key: "actions",
@@ -292,6 +262,7 @@ export default function FactoryLabelManagementPage({ onConfirm, onNotify }) {
                     setPrinter(r);
                     setDeviceName(r.name);
                     setReason("");
+                    setActionError("");
                   }}
                 >
                   <Printer size={14} />
@@ -355,39 +326,21 @@ export default function FactoryLabelManagementPage({ onConfirm, onNotify }) {
           />
         </Field>
       </FactoryFilterBar>
-      {error && (
-        <p role="alert">
-          {error}{" "}
-          <button className="btn-secondary" onClick={load}>
-            Retry
-          </button>
-        </p>
-      )}
-      {loading && (
-        <p role="status" className="text-sm text-text-secondary">
-          Loading{" "}
-          {location.section === "products"
-            ? "Product Labels"
-            : location.section === "templates"
-              ? "Templates"
-              : "Printers"}
-          …
-        </p>
-      )}
       <FactoryDataSurface>
         <FactoryTable
           columns={columns}
-          rows={data.section === location.section ? data.rows : []}
+          rows={data.rows}
           rowKey={(row) => row.template_key ?? row.id}
+          loading={loading}
           emptyTitle={
-            loading
-              ? "Loading…"
+            error && !hasData
+              ? "Could not load records"
               : location.section === "printers"
                 ? "No registered print bridges"
                 : "No matching labels"
           }
           emptyDescription={
-            location.section === "printers"
+            error && !hasData ? "" : location.section === "printers"
               ? "Set up the Windows or macOS Print Bridge to register a printer."
               : "Change the search to see other records."
           }
@@ -395,12 +348,18 @@ export default function FactoryLabelManagementPage({ onConfirm, onNotify }) {
         <FactoryPagination
           page={page}
           pageSize={20}
-          total={data.section === location.section ? data.total : 0}
+          total={data.total}
           loading={loading}
           onPageChange={setPage}
           onPageSizeChange={() => {}}
         />
       </FactoryDataSurface>
+      {error && (
+        <div className="flex flex-wrap items-center gap-2 text-sm text-text-secondary">
+          <p role="status">{hasData ? "Could not refresh printer status. Showing last reported data." : error}</p>
+          <button type="button" className="btn-secondary" onClick={() => refresh()}>Retry</button>
+        </div>
+      )}
       {previewTemplate && (
         <ActiveTemplatePreview
           key={previewTemplate.template_key}
@@ -412,9 +371,11 @@ export default function FactoryLabelManagementPage({ onConfirm, onNotify }) {
       {wizard && (
         <PrinterSetupWizard
           onClose={() => setWizard(null)}
-          onRefresh={load}
-          devices={data.section === "printers" ? data.rows : []}
+          onRefresh={refresh}
+          refreshError={error}
+          devices={data.rows}
           selected={wizard.printer}
+          now={now}
         />
       )}
       {printer && (
@@ -442,10 +403,10 @@ export default function FactoryLabelManagementPage({ onConfirm, onNotify }) {
               <dt>Bridge version</dt><dd>{release.version ? `v${release.version}` : "Not reported"}{release.update && release.platform && <> · <a className="underline" href={printerInstallers[release.platform]} download>Update available</a></>}</dd>
               <dt>Printer connection</dt><dd><FactoryStatusBadge status={selectedStatus.connection} /></dd>
               {selectedProbe?.ConnectionCheckedAt && <>
-                <dt>Printer checked</dt><dd><BridgeLastSeen value={selectedProbe.ConnectionCheckedAt} /></dd>
+                <dt>Printer checked</dt><dd><BridgeLastSeen now={now} value={selectedProbe.ConnectionCheckedAt} /></dd>
               </>}
               <dt>Readiness</dt><dd><FactoryStatusBadge status={selectedStatus.readiness} /></dd>
-              <dt>Last seen</dt><dd><BridgeLastSeen value={selectedPrinter.last_seen} /></dd>
+              <dt>Last seen</dt><dd><BridgeLastSeen now={now} value={selectedPrinter.last_seen} /></dd>
               <dt>Last reported calibration</dt><dd><FactoryStatusBadge status={selectedStatus.calibration} /></dd>
               <dt>Unresolved jobs</dt><dd>{selectedPrinter.unresolved_jobs ?? "—"}</dd>
             </dl>
@@ -474,13 +435,13 @@ export default function FactoryLabelManagementPage({ onConfirm, onNotify }) {
               if (lock.current || !deviceName.trim() || deviceName.trim() === selectedPrinter.name) return;
               lock.current = true;
               setSaving(true);
-              setError("");
+              setActionError("");
               try {
                 await factoryLabelService.renameDevice(selectedPrinter.id, deviceName.trim());
                 setPrinter((current) => current ? { ...current, name: deviceName.trim() } : current);
-                await load();
+                await refresh({ replace: true });
               } catch (failure) {
-                setError(failure.message || "The device name could not be saved.");
+                setActionError(failure.message || "The device name could not be saved.");
               } finally {
                 lock.current = false;
                 setSaving(false);
@@ -519,7 +480,7 @@ export default function FactoryLabelManagementPage({ onConfirm, onNotify }) {
                 </button>
               </details>
             )}
-            {error && <p role="alert">{error}</p>}
+            {actionError && <p role="alert">{actionError}</p>}
           </div>
         </Modal>
       )}
