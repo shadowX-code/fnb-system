@@ -6,14 +6,14 @@ import SelectField from '../../components/forms/SelectField.jsx';
 import AdminPagination from '../../components/tables/AdminPagination.jsx';
 import DataTable from '../../components/tables/DataTable.jsx';
 import StatusBadge from '../../components/ui/StatusBadge.jsx';
-import { readAccountMapping, confirmAccountMapping } from './dataSources.js';
+import { analyzeMappingExceptions, readMappingAssistance, readAccountMapping, confirmAccountMapping } from './dataSources.js';
 
 const statuses = {
   suggested: 'Suggested', manual_review: 'Needs classification', new: 'New account', changed: 'Source changed',
   confirmed: 'Confirmed', group: 'Group only', ambiguous: 'Hierarchy review',
 };
 const filters = [
-  ['all', 'All accounts'], ['unresolved', 'Needs review'], ['suggested', 'With suggestions'],
+  ['all', 'All accounts'], ['exceptions', 'Exceptions'], ['unresolved', 'Needs review'], ['suggested', 'With suggestions'],
   ['confirmed', 'Confirmed'], ['changed', 'Changed or new'], ['group', 'Group accounts'], ['posted', 'Used in accepted GL'],
 ];
 const issues = {
@@ -25,6 +25,22 @@ const industries = [
   { value: 'core', label: 'Core only' }, { value: 'restaurant', label: 'Restaurant' },
   { value: 'manufacturing', label: 'Manufacturing' }, { value: 'retail', label: 'Retail' },
 ];
+const assistanceReasons = {
+  source_support: 'Source type and description support this category.',
+  keep_rule: 'The source evidence supports the existing rule.',
+  ambiguous: 'The description could fit more than one purpose.',
+  tax_treatment: 'Verify the source tax treatment.',
+  source_conflict: 'Resolve conflicting source or approval evidence.',
+  insufficient: 'More source evidence is needed.',
+};
+const analysisNotices = {
+  cached: 'This chart already has a review for these exceptions. No new AI tokens used.',
+  running: 'An analysis is already running for this Account Book.',
+  limited: 'This Account Book has reached its daily analysis limit.',
+  provider_unconfigured: 'The FeedX AI connection is unavailable. Rule suggestions and manual review are still available.',
+  provider_rate_limited: 'The AI provider is busy. Try again later.',
+  chart_changed: 'The accepted chart changed. Reload the latest review.',
+};
 
 function ancestors(entry, classes) {
   const path = [entry];
@@ -60,12 +76,36 @@ function MappingReviewTable({ review, timestamp, onSaved, onReload }) {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [stale, setStale] = useState(false);
+  const [assistance, setAssistance] = useState(null);
+  const [analysisNotice, setAnalysisNotice] = useState('');
+  const [analyzing, setAnalyzing] = useState(false);
+  const [remember, setRemember] = useState(false);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    readMappingAssistance(review.connectionId, industry, { signal: controller.signal })
+      .then((result) => { if (!controller.signal.aborted) setAssistance({ industry, result }); })
+      .catch(() => { if (!controller.signal.aborted) setAssistance({ industry, result: null }); });
+    return () => controller.abort();
+  }, [review.connectionId, review.snapshotId, review.summary.confirmed, industry]);
+
+  const assist = assistance?.industry === industry && assistance.result?.snapshotId === review.snapshotId ? assistance.result : null;
+  const assistanceFor = (row) => assist?.rows[row.account_key];
 
   const classes = new Map(review.classifications.map((entry) => [entry.id, entry]));
   const label = (id) => classes.has(id) ? classes.get(id).label : '—';
-  const suggestionFor = (row) => {
+  const ruleFor = (row) => {
     const candidate = classes.get(row.suggestion);
     return candidate?.industry && candidate.industry !== industry ? row.core_suggestion : row.suggestion;
+  };
+  const suggestionFor = (row) => {
+    const support = assistanceFor(row);
+    return support?.conflict ? null : support?.memory ?? support?.proposal ?? ruleFor(row);
+  };
+  const isException = (row) => {
+    const support = assistanceFor(row);
+    return row.status === 'changed' || row.role === 'ambiguous' || (row.role === 'posting' && row.status !== 'confirmed'
+      && (support?.conflict || (!support?.memory && (support?.targeted ? !support.proposal : !row.suggestion))));
   };
   const choicesByScope = new Map();
   const paths = new Map(review.classifications.map((entry) => [entry.id, ancestors(entry, classes)]));
@@ -92,11 +132,13 @@ function MappingReviewTable({ review, timestamp, onSaved, onReload }) {
     return registered;
   }
   const needle = search.trim().toLowerCase();
-  const filtered = review.rows.filter((row) => matches(row, filter) &&
+  const filtered = review.rows.filter((row) => (filter === 'exceptions' ? isException(row) : filter === 'suggested'
+    ? row.status !== 'confirmed' && suggestionFor(row) : matches(row, filter)) &&
     [row.account_key, row.description, row.parent_key, row.parent_description, row.source_type, label(suggestionFor(row)), label(row.classification)]
       .some((value) => value?.toLowerCase().includes(needle)));
   const visible = filtered.slice((page - 1) * pageSize, page * pageSize);
-  const suggestions = visible.filter((row) => row.status !== 'confirmed' && suggestionFor(row) && !staged.has(row.account_key));
+  const suggestions = review.rows.filter((row) => row.role === 'posting' && row.version == null
+    && row.status !== 'confirmed' && !isException(row) && suggestionFor(row) && !staged.has(row.account_key));
   const entries = review.rows.filter((row) => staged.has(row.account_key));
   const blocked = stale || saving;
 
@@ -112,10 +154,37 @@ function MappingReviewTable({ review, timestamp, onSaved, onReload }) {
   function selectVisible() {
     setStaged((prev) => {
       const next = new Map(prev);
-      for (const row of suggestions.slice(0, maxSelected - next.size)) next.set(row.account_key, suggestionFor(row));
+      const visibleKeys = new Set(visible.map((row) => row.account_key));
+      for (const row of suggestions.filter((item) => visibleKeys.has(item.account_key)).slice(0, maxSelected - next.size)) {
+        next.set(row.account_key, suggestionFor(row));
+      }
       return next;
     });
     setNotice('');
+  }
+  function openSuggestionReview() {
+    const next = new Map(staged);
+    for (const row of suggestions.slice(0, maxSelected - next.size)) next.set(row.account_key, suggestionFor(row));
+    setStaged(next);
+    setRemember(false);
+    setError('');
+    setConfirming(true);
+  }
+  async function analyze() {
+    setAnalyzing(true);
+    setAnalysisNotice('');
+    try {
+      const outcome = await analyzeMappingExceptions(review.connectionId, industry);
+      if (outcome.review) setAssistance({ industry, result: outcome.review });
+      const usage = outcome.usage;
+      setAnalysisNotice(outcome.state === 'completed' ? `${outcome.review.lastRun.accounts} accounts analyzed. ${usage?.input ?? 'Unknown'} input and ${usage?.output ?? 'unknown'} output tokens.`
+        : analysisNotices[outcome.state] ?? 'Analysis could not be completed. Rule suggestions and manual review are still available.');
+      if (outcome.state === 'completed') { setFilter('exceptions'); setPage(1); }
+    } catch {
+      setAnalysisNotice('Analysis could not be completed. Rule suggestions and manual review are still available.');
+    } finally {
+      setAnalyzing(false);
+    }
   }
   async function save() {
     setSaving(true);
@@ -123,6 +192,7 @@ function MappingReviewTable({ review, timestamp, onSaved, onReload }) {
     try {
       const next = await confirmAccountMapping(review.connectionId, review.snapshotId, entries.map((row) => ({
         accountKey: row.account_key, classificationId: staged.get(row.account_key), expectedVersion: row.version,
+        ...(remember ? { remember: true } : {}),
       })));
       setStaged(new Map());
       setConfirming(false);
@@ -159,7 +229,15 @@ function MappingReviewTable({ review, timestamp, onSaved, onReload }) {
       <StatusBadge status={row.status === 'confirmed' ? 'success' : ['changed', 'ambiguous', 'manual_review', 'new'].includes(row.status) ? 'warning' : 'neutral'}>{statuses[row.status]}</StatusBadge>
       {row.issue && <p className="type-caption text-text-secondary">{issues[row.issue]}</p>}
     </div> },
-    { key: 'suggestion', header: 'Suggested', width: 145, render: (row) => label(suggestionFor(row)) },
+    { key: 'suggestion', header: 'Suggested', width: 170, render: (row) => {
+      const support = assistanceFor(row);
+      return <div className="grid gap-1">
+        {label(suggestionFor(row))}
+        {support?.conflict ? <span className="type-caption text-text-secondary">Approved rules conflict. Review individually.</span>
+          : support?.memory ? <span className="type-caption text-text-secondary">Approved mapping memory</span>
+          : support?.checked && <span className="type-caption text-text-secondary">AI review · {assistanceReasons[support.basis]}</span>}
+      </div>;
+    } },
     { key: 'classification', header: 'Analytical classification', width: 240, render: (row) => {
       const selected = staged.get(row.account_key) ?? (row.status === 'confirmed' ? row.classification : '');
       return <div>
@@ -195,12 +273,25 @@ function MappingReviewTable({ review, timestamp, onSaved, onReload }) {
           {filters.map(([value, text]) => <option key={value} value={value}>{text}</option>)}
         </select>
       </label>
-      <SelectField label="Industry categories" value={industry} options={industries} onChange={setIndustry} />
+      <SelectField label="Industry categories" value={industry} options={industries} disabled={analyzing}
+        onChange={(value) => { setIndustry(value); setAnalysisNotice(''); setPage(1); }} />
     </div>
+    {assist && <div className="grid gap-2 rounded-lg border border-border bg-surface-muted p-3 type-body-sm">
+      <p>{assist.pending} queued for AI review · {assist.reviewed} reviewed · {review.rows.filter(isException).length} exceptions</p>
+      <div className="flex flex-wrap gap-2">
+        <button className="btn-secondary" type="button" disabled={blocked || analyzing || !assist.pending} onClick={analyze}>
+          {analyzing ? 'Analyzing exceptions…' : 'Analyze exceptions with AI'}
+        </button>
+        <button className="btn-secondary" type="button" disabled={blocked || !suggestions.length || staged.size >= maxSelected}
+          onClick={openSuggestionReview}>Review all suggestions ({suggestions.length})</button>
+      </div>
+      {assist.lastRun?.finishedAt && <p className="text-text-secondary">Last batch · {assist.lastRun.accounts} accounts · {assist.lastRun.input ?? '—'} input / {assist.lastRun.output ?? '—'} output tokens</p>}
+    </div>}
+    {analysisNotice && <p role="status" className="type-body-sm text-text-secondary">{analysisNotice}</p>}
     <div className="flex flex-wrap items-center gap-2">
-      <button className="btn-secondary" type="button" disabled={blocked || !suggestions.length || staged.size >= maxSelected} onClick={selectVisible}>Select suggestions on this page</button>
+      <button className="btn-secondary" type="button" disabled={blocked || !suggestions.some((row) => visible.includes(row)) || staged.size >= maxSelected} onClick={selectVisible}>Select suggestions on this page</button>
       {staged.size > 0 && <button className="btn-secondary" type="button" disabled={saving} onClick={() => setStaged(new Map())}>Clear selection</button>}
-      <button className="btn-primary" type="button" disabled={blocked || !entries.length} onClick={() => { setError(''); setConfirming(true); }}>Review selected ({entries.length})</button>
+      <button className="btn-primary" type="button" disabled={blocked || !entries.length} onClick={() => { setError(''); setRemember(false); setConfirming(true); }}>Review selected ({entries.length})</button>
     </div>
     {notice && <p role="status" className="type-body-sm">{notice}</p>}
     {error && !confirming && <p role="alert" className="type-body-sm text-text-secondary">{error}</p>}
@@ -217,6 +308,10 @@ function MappingReviewTable({ review, timestamp, onSaved, onReload }) {
         </li>)}
       </ul>
       {error && <p role="alert" className="my-2 type-body-sm">{error}</p>}
+      <label className="mt-3 flex items-start gap-2 type-body-sm">
+        <input type="checkbox" checked={remember} disabled={saving} onChange={(event) => setRemember(event.target.checked)} />
+        Remember approved choices for exact source matches within this Legal Entity and provider
+      </label>
       <div className="mt-3 flex flex-wrap justify-end gap-2">
         <button className="btn-secondary" type="button" disabled={saving} onClick={() => setConfirming(false)}>Back</button>
         <button className="btn-primary" type="button" disabled={saving} onClick={save}>{saving ? 'Confirming…' : `Confirm ${entries.length} ${entries.length === 1 ? 'classification' : 'classifications'}`}</button>

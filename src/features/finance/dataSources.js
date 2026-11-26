@@ -58,6 +58,24 @@ export function confirmAccountMapping(connectionId, snapshotId, decisions) {
   });
 }
 
+export async function readMappingAssistance(connectionId, industry, { signal } = {}) {
+  if (!stagingAccounting()) throw new Error('Mapping assistance is available on Staging.');
+  return import('../../lib/supabase').then(async ({ supabase }) => {
+    const request = supabase.rpc('finance_account_mapping_assistance', { p_connection_id: connectionId, p_industry: industry });
+    const { data, error } = await (signal ? request.abortSignal(signal) : request);
+    if (error) throw error;
+    return data;
+  });
+}
+
+export async function analyzeMappingExceptions(connectionId, industry) {
+  if (!stagingAccounting()) throw new Error('Mapping assistance is available on Staging.');
+  const { supabase } = await import('../../lib/supabase');
+  const { data, error } = await supabase.functions.invoke('finance-smart-mapping', { body: { connectionId, industry } });
+  if (error) throw error;
+  return data;
+}
+
 const sourceResources = { COA: 'chart_of_accounts', GL: 'journal_lines', Department: 'financial_dimensions', Project: 'financial_dimensions' };
 
 function accountingProviderCapabilities(sources) {
