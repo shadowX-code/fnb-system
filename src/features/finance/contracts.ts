@@ -39,6 +39,7 @@ export type FinancialConnectionView = {
   connector?: { bookId?: string | null; verifiedAt: string | null; entityActive: boolean; lastSyncAt: string | null;
     syncState: 'running' | 'succeeded' | 'failed' | 'interrupted' | null; syncError: string | null;
     pendingRetries: number | null; sourceRows: number | null; retryRequestedAt: string | null;
+    bookAuthorized?: boolean | null; lastDataUpdateAt?: string | null;
     lastAttemptAt?: string | null; lastSyncReportAt?: string | null; deviceLastSeenAt?: string | null; nextPollAt?: string | null;
     backgroundMode?: 'unattended' | 'signed_in' | 'missing' | 'disabled' | null };
   accountMapping?: AccountMappingSummary;

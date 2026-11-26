@@ -109,23 +109,28 @@ it('distinguishes same-name book identities and binds only the explicitly select
   expect(old.connectionId).toBe('existing');
 });
 
-it('keeps paired/online, failed sync and overdue evidence independent', async () => {
+it('keeps book authorization, device polling and accepted evidence independent', async () => {
   const { AutoCountStatus } = await import('../AutoCountConnector.jsx');
   const entry = { state: 'connected', connection: { externalTenantId: 'AED_TEST' }, connector: {
-    deviceLastSeenAt: new Date(Date.now() - 20 * 60 * 1000).toISOString(), syncState: 'failed', syncError: 'network',
-    backgroundMode: 'signed_in', lastAttemptAt: '2026-11-19T14:45:00Z', lastSyncAt: '2026-11-16T17:59:52Z',
+    bookAuthorized: true, deviceLastSeenAt: new Date(Date.now() - 20 * 60 * 1000).toISOString(),
+    syncState: 'failed', syncError: 'network', backgroundMode: 'signed_in',
+    lastAttemptAt: '2026-11-19T14:45:00Z', lastSyncAt: '2026-11-16T17:59:52Z', lastDataUpdateAt: '2026-11-16T16:00:00Z',
   } };
   render(<AutoCountStatus entry={entry} timestamp={(value) => value || 'Not reported'} />);
-  expect(screen.getByText('Connected')).toBeTruthy();
-  expect(screen.queryByText('Online')).toBeNull();
-  expect(screen.getByText('Offline · check-in overdue')).toBeTruthy();
-  expect(screen.getByText('Sync failed')).toBeTruthy();
-  expect(screen.getByText(/Requires a signed-in Windows user/)).toBeTruthy();
-  expect(screen.getByText(/retries on its next background run/)).toBeTruthy();
-  expect(screen.getByText('2026-11-19T14:45:00Z')).toBeTruthy();
-  expect(screen.getByText(/2026-11-16T17:59:52Z/)).toBeTruthy();
+  expect(screen.getByText('Book authorized')).toBeTruthy();
+  expect(screen.getByText('Device offline')).toBeTruthy();
+  expect(screen.getByText('Last sync failed')).toBeTruthy();
+  expect(screen.getByText('Every 5 min while signed in')).toBeTruthy();
+  expect(screen.getByText(/Sync resumes when the office PC is online/)).toBeTruthy();
+  expect(screen.getByText('Accepted data updated').nextElementSibling.textContent).toBe(entry.connector.lastDataUpdateAt);
+  expect(screen.getByText('Last device check-in').nextElementSibling.textContent).toBe(entry.connector.deviceLastSeenAt);
+  expect(screen.getByText('Last successful sync').nextElementSibling.textContent).toBe(entry.connector.lastSyncAt);
+  const diagnostics = screen.getByText('Diagnostics', { selector: 'summary' }).closest('details');
+  expect(diagnostics.open).toBe(false);
+  fireEvent.click(diagnostics.querySelector('summary'));
+  expect(within(diagnostics).getByText(/retries on its next background run/)).toBeTruthy();
+  expect(within(diagnostics).getByText(entry.connector.lastAttemptAt)).toBeTruthy();
 });
-
 
 it('keeps superseded AutoCount evidence in collapsed history with no live status or sync action', () => {
   const state = historicalState();
@@ -149,9 +154,8 @@ it('keeps superseded AutoCount evidence in collapsed history with no live status
   expect(within(history).getByText(/137 accepted rows/)).toBeTruthy();
   expect(within(history).queryByText(/Online|Sync failed|Sync requested/)).toBeNull();
   expect(within(history).queryByRole('button', { name: /request sync|retry sync|reconnect/i })).toBeNull();
-  fireEvent.click(screen.getByText('Connection details', { selector: 'summary' }));
-  fireEvent.click(screen.getByRole('button', { name: 'Request sync', hidden: true }));
-  expect(actions).toEqual([['retry', current]]);
+  fireEvent.click(screen.getByRole('button', { name: 'Sync Now' }));
+  expect(actions).toEqual([['retry', current, { queued: false }]]);
 });
 
 
@@ -184,7 +188,7 @@ it('browses accepted records with a pinned snapshot and opens Mapping for the sa
   fireEvent.click(screen.getByRole('tab', { name: 'GL' }));
   expect(await screen.findByText('GL-TEST')).toBeTruthy();
   expect(screen.getByText(/59 accepted GL rows across all dates/)).toBeTruthy();
-  expect(screen.getAllByText(/Backfill · 1 day.*pending · Next 2026-04-23/)).toHaveLength(2);
+  expect(screen.getByText(/Backfill · 1 day.*pending · Next 2026-04-23/)).toBeTruthy();
   expect(read).toHaveBeenLastCalledWith(expect.objectContaining({ dataset: 'GL', scopeDate: '2026-09-30' }));
   fireEvent.change(screen.getByLabelText('Posting date'), { target: { value: '2026-11-24' } });
   fireEvent.click(screen.getByRole('button', { name: 'Apply' }));
@@ -241,4 +245,31 @@ it('reviews suggestions and manual selections on the bound chart before saving',
     { accountKey: '210', classificationId: 'assets', expectedVersion: null },
   ]);
   expect(saved).toHaveBeenCalledWith('new', { ...summary, confirmed: 2, unresolved: 0 });
+});
+
+
+it('queues offline sync and distinguishes accepted empty datasets from pending evidence', () => {
+  const state = historicalState();
+  const current = state.connections[1];
+  current.connector = { lastSyncAt: '2026-11-18T16:00:00Z', backgroundMode: 'signed_in', pendingRetries: 0 };
+  current.datasets = [{ dataset: 'COA', acceptedRows: 123 }, { dataset: 'GL', acceptedRows: 0 }, { dataset: 'Department', acceptedRows: 0 }];
+  current.glCoverage = {
+    configuredStartDate: '2026-11-01', expectedThrough: '2026-11-05',
+    acceptedDays: 3, acceptedRows: 59, missingDays: 0, remainingDays: 2,
+  };
+  const onAction = vi.fn();
+  render(<FinanceDataSources state={state} onAction={onAction} />);
+  const acceptance = screen.getByLabelText('Book dataset acceptance');
+  expect(within(acceptance).getByText('123')).toBeTruthy();
+  expect(within(acceptance).getByText('59')).toBeTruthy();
+  expect(within(acceptance).getByText('0 (empty)')).toBeTruthy();
+  expect(within(acceptance).getByText('Awaiting data')).toBeTruthy();
+  expect(screen.getByText('3/5 days accepted')).toBeTruthy();
+  expect(screen.getByText('2 missing')).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Queue Sync' }));
+  expect(onAction).toHaveBeenCalledWith('retry', current, { queued: true });
+  expect(screen.queryByRole('menuitem', { name: 'Revoke Access' })).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'More Actions' }));
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Revoke Access' }));
+  expect(onAction).toHaveBeenCalledWith('revoke', current);
 });

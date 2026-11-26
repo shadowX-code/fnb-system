@@ -5,12 +5,6 @@ import StatusBadge from '../../components/ui/StatusBadge.jsx';
 import { FinanceDisclosure } from './FinanceVisualSystem.jsx';
 import { manageAccountingConnector, manageAutoCountDevice } from './dataSources.js';
 
-const connectionLabels = {
-  pending: ['pending', 'Pending verification'],
-  connected: ['success', 'Connected'],
-  revoked: ['neutral', 'Revoked'],
-  error: ['error', 'Legal entity inactive'],
-};
 const syncErrors = {
   source_read: 'The office connector could not read the Account Book. Check Windows connector diagnostics for the SQL error.',
   source_login: 'SQL Server rejected the saved reader login or could not open the Account Book. Check the reader on the office PC.',
@@ -36,49 +30,67 @@ const commandErrors = {
   PT422: 'Check that the Legal Entity is active and the book is ready.',
 };
 
-function connectionHeartbeat(lastSeenAt, now = Date.now()) {
-  const seen = Date.parse(lastSeenAt);
-  if (!Number.isFinite(seen)) return null;
-  return now - seen > 15 * 60 * 1000 ? 'overdue' : 'online';
-}
-
-const backgroundLabels = {
-  unattended: 'Runs when signed out',
-  signed_in: 'Requires a signed-in Windows user',
-  missing: 'Windows task missing',
-  disabled: 'Windows task disabled',
+// The Windows task polls every five minutes. Three missed intervals mark the device offline.
+const pollMinutes = 5;
+const offlineAfter = 3 * pollMinutes * 60 * 1000;
+const scheduling = {
+  signed_in: { policy: `Every ${pollMinutes} min while signed in`, resume: 'Sync resumes when the office PC is online and its Windows user signs in.' },
+  unattended: { policy: `Every ${pollMinutes} min · unattended`, resume: 'Sync resumes when the office PC is running and back online.' },
+  missing: { policy: 'Windows task missing', resume: 'Set up the Windows task or start sync on the office PC.' },
+  disabled: { policy: 'Windows task disabled', resume: 'Enable the Windows task or start sync on the office PC.' },
 };
 
+export function autoCountOnline(entry, now = Date.now()) {
+  const checkIn = Date.parse(entry.connector?.deviceLastSeenAt);
+  return Number.isFinite(checkIn) && now - checkIn <= offlineAfter;
+}
+
 export function AutoCountStatus({ entry, timestamp, children }) {
-  const [tone, label] = connectionLabels[entry.state];
   const { connector } = entry;
-  const live = ['connected', 'pending'].includes(entry.state);
-  const heartbeat = live ? connectionHeartbeat(connector.deviceLastSeenAt) : null;
-  const missedPoll = Date.parse(connector.nextPollAt) < Date.now() && heartbeat === 'overdue';
-  const nextRun = connector.nextPollAt ? `${timestamp(connector.nextPollAt)}${missedPoll ? ' · overdue' : ''}`
-    : ['disabled', 'missing'].includes(connector.backgroundMode) ? 'Not scheduled' : 'Awaiting schedule report';
+  const online = autoCountOnline(entry);
+  const hasCheckIn = Number.isFinite(Date.parse(connector.deviceLastSeenAt));
+  const deviceLabel = online ? 'Device online' : hasCheckIn ? 'Device offline' : 'Awaiting device check-in';
+  const schedule = scheduling[connector.backgroundMode];
+  const activeSchedule = ['signed_in', 'unattended'].includes(connector.backgroundMode);
   const failed = ['failed', 'interrupted'].includes(connector.syncState);
-  const outcome = failed ? 'Sync failed' : connector.retryRequestedAt ? 'Sync requested'
-    : connector.syncState === 'running' ? (heartbeat === 'overdue' ? 'Sync outcome pending' : 'Syncing') : null;
+
+  const authorization = entry.state === 'error' ? ['warning', 'Legal entity inactive']
+    : connector.bookAuthorized === false ? ['warning', 'Book authorization required']
+    : connector.bookAuthorized || entry.state === 'connected' ? ['success', 'Book authorized']
+    : ['pending', 'Book verification pending'];
+  const status = connector.syncState === 'failed' ? 'Last sync failed'
+    : connector.syncState === 'interrupted' || (connector.syncState === 'running' && !online) ? 'Sync outcome pending'
+    : connector.syncState === 'running' ? 'Syncing' : null;
+  const nextRun = activeSchedule && !online ? 'When the device returns'
+    : connector.nextPollAt ? timestamp(connector.nextPollAt)
+    : activeSchedule ? 'Awaiting schedule report' : 'Not scheduled';
   return <>
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 type-caption text-text-secondary" aria-live="polite">
-      <StatusBadge status={tone}>{label}</StatusBadge>
-      {heartbeat && <span>{heartbeat === 'online' ? 'Online' : 'Offline · check-in overdue'}</span>}
-      {outcome && <span className="font-semibold">{outcome}</span>}
-      {connector.lastSyncAt && <span>Last successful sync · {timestamp(connector.lastSyncAt)}</span>}
+    <div className="flex flex-wrap items-center gap-1.5" aria-live="polite">
+      <StatusBadge status={authorization[0]}>{authorization[1]}</StatusBadge>
+      <StatusBadge status={online ? 'success' : 'neutral'}>{deviceLabel}</StatusBadge>
+      {status && <StatusBadge status={failed ? 'warning' : 'info'}>{status}</StatusBadge>}
     </div>
-    {failed && <p className="type-caption text-text-secondary">{connector.syncState === 'interrupted' ? 'Sync did not report an outcome. The next eligible run will retry.' : syncErrors[connector.syncError] ?? syncErrors.local}</p>}
-    {!failed && heartbeat === 'overdue' && <p className="type-caption text-text-secondary">Check that the office PC is awake and connected.</p>}
-    <FinanceDisclosure label="Connection details">
-      <dl className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-        <div><dt>Last check-in</dt><dd>{timestamp(connector.deviceLastSeenAt)}</dd></div>
-        <div><dt>Last attempt</dt><dd>{timestamp(connector.lastAttemptAt ?? connector.lastSyncReportAt)}</dd></div>
-        <div><dt>Next scheduled run</dt><dd>{nextRun}</dd></div>
-        {connector.backgroundMode && <div><dt>Windows task</dt><dd>{backgroundLabels[connector.backgroundMode]}</dd></div>}
-        <div><dt>Pending uploads</dt><dd>{connector.pendingRetries ?? 'Not reported'}</dd></div>
-      </dl>
+    <dl className="grid grid-cols-2 gap-x-4 gap-y-2 type-caption sm:grid-cols-3 xl:grid-cols-5">
+      <div><dt className="text-text-secondary">Accepted data updated</dt><dd>{timestamp(connector.lastDataUpdateAt)}</dd></div>
+      <div><dt className="text-text-secondary">Last successful sync</dt><dd>{timestamp(connector.lastSyncAt)}</dd></div>
+      <div><dt className="text-text-secondary">Last device check-in</dt><dd>{timestamp(connector.deviceLastSeenAt)}</dd></div>
+      <div><dt className="text-text-secondary">Automatic check-in</dt><dd>{schedule?.policy ?? 'Schedule not reported'}</dd></div>
+      <div><dt className="text-text-secondary" title="Last count reported by the Windows Connector">Pending uploads</dt><dd>{connector.pendingRetries ?? 'Not reported'}</dd></div>
+    </dl>
+    {!online && schedule && <p className="type-caption text-text-secondary">{schedule.resume}</p>}
+    <div className="grid gap-1">
+      <FinanceDisclosure label="Diagnostics">
+        <dl className="grid grid-cols-2 gap-2 type-caption">
+          <div><dt>Last sync attempt</dt><dd>{timestamp(connector.lastAttemptAt)}</dd></div>
+          <div><dt>Next check-in</dt><dd>{nextRun}</dd></div>
+        </dl>
+        {failed && <p className="type-caption text-text-secondary">
+          {connector.syncState === 'interrupted' ? 'Sync did not report an outcome. The next eligible run will retry.' : syncErrors[connector.syncError] ?? syncErrors.local}
+        </p>}
+        <p className="type-caption text-text-secondary">Check-ins pick up queued work. Once GL coverage is current, the connector refreshes daily. Accepted data updates when FeedX stores a new snapshot, including an empty GL day.</p>
+      </FinanceDisclosure>
       {children}
-    </FinanceDisclosure>
+    </div>
   </>;
 }
 
@@ -115,7 +127,7 @@ export function AutoCountDevices({ state, onAction }) {
   </article>);
 }
 
-export function AutoCountActionModal({ action, entry, book, device, entities, onClose, onSaved }) {
+export function AutoCountActionModal({ action, entry, book, device, queued, entities, onClose, onSaved }) {
   const [provider, setProvider] = useState('');
   const [entity, setEntity] = useState(entry?.connection.legalEntityId ?? '');
   const [code, setCode] = useState('');
@@ -123,8 +135,8 @@ export function AutoCountActionModal({ action, entry, book, device, entities, on
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const pairingMode = action === 'pair';
-  const title = { pair: device ? 'Replace computer' : 'Connect provider', bind: 'Connect Account Book', retry: 'Request connector sync', revoke: 'Revoke book access', revoke_device: 'Revoke computer' }[action];
-  const verb = { pair: pairing ? 'Confirm device' : 'Review device', bind: 'Connect', retry: 'Request sync', revoke: 'Revoke access', revoke_device: 'Revoke computer' }[action];
+  const title = { pair: device ? 'Replace computer' : 'Connect provider', bind: 'Connect Account Book', retry: queued ? 'Queue Sync' : 'Sync Now', revoke: 'Revoke book access', revoke_device: 'Revoke computer' }[action];
+  const verb = { pair: pairing ? 'Confirm device' : 'Review device', bind: 'Connect', retry: queued ? 'Queue Sync' : 'Sync Now', revoke: 'Revoke access', revoke_device: 'Revoke computer' }[action];
   const normalizedCode = code.replace(/[-\s]/g, '').toUpperCase();
   const disabled = busy || (pairingMode && ((!device && !provider) || !/^[A-F0-9]{16}$/.test(normalizedCode))) || (action === 'bind' && !entity);
   async function submit(event) {
@@ -185,7 +197,7 @@ export function AutoCountActionModal({ action, entry, book, device, entities, on
         <p className="type-body-sm text-text-secondary">Account Book reference: {book?.id?.slice(0, 8)}. Connecting this identity retains other books’ bindings and accepted history.</p>
         <p className="type-body-sm text-text-secondary">The Windows Connector starts the first sync after you connect this book.</p>
       </>}
-      {action === 'retry' && <p>FeedX will queue a request for this book. Start Sync Now on the office PC to run it immediately, or wait for the next background check.</p>}
+      {action === 'retry' && <p>The Windows Connector will pick up this request on its next eligible check-in.</p>}
       {action === 'revoke' && <p>This immediately blocks uploads from this book. Accepted snapshots and receipts stay in Finance history.</p>}
       {action === 'revoke_device' && <p>This immediately blocks this computer and all of its books from uploading. Accepted snapshots and receipts stay in Finance history.</p>}
       {error && <p role="alert" className="type-body-sm text-red-700">{error}</p>}

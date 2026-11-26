@@ -257,7 +257,7 @@
     "docs/domains/factory-product-feedback.md": "60f3a22efdb4087b8fc788e6609fdd73079a9536d40642a72f558882d330fcff",
     "docs/domains/factory-production.md": "4bdc1c7d9ca855dd2599b77a02669f745f4c64a0ce4b5992b3a840d3e5087ccc",
     "docs/domains/factory-warehouse.md": "32e0c77e75015b11413ef7204e5d2203520660b33994b91f6599b7f89124bddc",
-    "docs/domains/finance.md": "81f32aaf7fa6728125aff0df08981886ac216c7f56f534519aa2dd57c1cd606e",
+    "docs/domains/finance.md": "438e8c0aaa799cda44c50ca95d6ea849250af503e45bd137d6bb95fffc23a352",
     "docs/domains/guest-ai.md": "d436aafcf4b6be0da888e3652ef548e6cd871e02108997b2515c8bc0ba48b717",
     "docs/domains/inventory-and-assets.md": "42c9f1c0944ff484c14eef0055a0376618ba0aa565e23688a7c4e89e53335185",
     "docs/domains/marketing.md": "c1e2efef13e498115931fa2b36bc5851adcdeeb88f2d9d9267a790f0ff09dc15",
@@ -1113,6 +1113,7 @@
     "supabase/migrations/20261122141501_restaurant_partial_closing_publication.sql": "4272156312f2530e12bc1ef319225366ddba8db90e2f7e0d7115294a395c70a1",
     "supabase/migrations/20261122153408_restaurant_closing_submit_publication.sql": "d71d0d32f3c7a9b38affdbc7272147dbb2c603bc86439c267a20527fc1a7bfe5",
     "supabase/migrations/20261123043604_restaurant_crew_closing_submission.sql": "457b384374b6a6293fa9f4dd54bad622f22130211edfeead519ed1389ae8e25e",
-    "supabase/migrations/20261125135557_factory_print_bridge_setup_authority.sql": "bc064ad73a8b84a3cde02c1a19aba8c986b211c16f2940d9fd5e7c69a15a8940"
+    "supabase/migrations/20261125135557_factory_print_bridge_setup_authority.sql": "bc064ad73a8b84a3cde02c1a19aba8c986b211c16f2940d9fd5e7c69a15a8940",
+    "supabase/migrations/20261126131712_finance_connection_evidence_timestamps.sql": "13f232032fc24f48b6dc73b3965deda8f25ac9b1481b42368d3bdc7df3dd1608"
   }
 }

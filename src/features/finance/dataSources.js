@@ -1,4 +1,4 @@
-import { authorityPlan, validateAuthorityPeriods, validatePeriod } from './foundation.js';
+import { authorityPlan, capabilities, validateAuthorityPeriods, validatePeriod } from './foundation.js';
 import { operationalProvider } from './providers/operationalProvider.js';
 
 export const mappingLabels = Object.freeze({
@@ -60,22 +60,25 @@ export function confirmAccountMapping(connectionId, snapshotId, decisions) {
 
 const sourceResources = { COA: 'chart_of_accounts', GL: 'journal_lines', Department: 'financial_dimensions', Project: 'financial_dimensions' };
 
-function accountingConnection(source) {
+function accountingProviderCapabilities(sources) {
+  const observed = new Set(sources.flatMap((source) => (source.datasets ?? []).map(({ dataset }) => sourceResources[dataset])));
+  return capabilities(Object.fromEntries([...new Set(Object.values(sourceResources)), 'incremental_sync'].map((resource) => [
+    resource, observed.has(resource) || (resource === 'incremental_sync' && observed.size > 0) ? 'partial' : 'unverified',
+  ])));
+}
+
+function accountingConnection(source, providerCapabilities) {
   const datasets = source.datasets ?? [];
-  const observed = (resource) => datasets.some((item) => sourceResources[item.dataset] === resource) ? 'partial' : 'unverified';
   return {
     connection: {
       id: source.id, providerId: 'autocount', legalEntityId: source.legalEntityId, externalTenantId: source.sourceBook ?? 'AED_TEST', currency: null,
-      capabilities: {
-        chart_of_accounts: observed('chart_of_accounts'), journal_lines: observed('journal_lines'),
-        financial_dimensions: observed('financial_dimensions'), incremental_sync: datasets.length ? 'partial' : 'unverified',
-        profit_loss_report: 'unverified', balance_sheet_report: 'unverified',
-      },
+      capabilities: providerCapabilities,
     },
     providerLabel: source.companyName ? `AutoCount · ${source.companyName}` : 'AutoCount · AED_TEST',
     legalEntityLabel: source.legalEntityLabel,
     state: source.supersededByConnectionId ? 'superseded' : !source.active ? 'revoked' : !source.entityActive ? 'error' : source.verifiedAt ? 'connected' : 'pending',
-    connector: { bookId: source.bookId, verifiedAt: source.verifiedAt, entityActive: source.entityActive, lastSyncAt: source.lastSyncAt,
+    connector: { bookId: source.bookId, bookAuthorized: source.bookAuthorized, verifiedAt: source.verifiedAt,
+      entityActive: source.entityActive, lastSyncAt: source.lastSyncAt, lastDataUpdateAt: source.lastDataUpdateAt,
       syncState: source.syncState, syncError: source.syncError, pendingRetries: source.pendingRetries,
       sourceRows: source.sourceRows, retryRequestedAt: source.retryRequestedAt,
       lastAttemptAt: source.lastAttemptAt, lastSyncReportAt: source.lastSyncReportAt, deviceLastSeenAt: source.deviceLastSeenAt,
@@ -100,7 +103,8 @@ export async function readFinanceDataSources() {
     const [sources, entities] = await Promise.all([
       accountingRpc('finance_accounting_source_status'), accountingRpc('finance_accounting_connector_options'),
     ]);
-    connections = sources.map(accountingConnection);
+    const providerCapabilities = accountingProviderCapabilities(sources);
+    connections = sources.map((source) => accountingConnection(source, providerCapabilities));
     connectorEntities = entities;
     if (entities !== null) {
       const active = connections.filter((entry) => entry.status === 'active' && entry.state === 'connected' && entry.datasets.some(({ dataset }) => dataset === 'COA'));

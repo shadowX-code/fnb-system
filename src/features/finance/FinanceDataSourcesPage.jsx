@@ -1,4 +1,5 @@
 import FinanceAnalysisSurface from './FinanceAnalysisSurface.jsx';
+import ActionMenu from '../../components/ui/ActionMenu.jsx';
 import StatusBadge from '../../components/ui/StatusBadge.jsx';
 import { FinanceDisclosure } from './FinanceVisualSystem.jsx';
 import { useEffect, useState } from 'react';
@@ -9,9 +10,9 @@ import AsyncDataSurface from '../../components/feedback/AsyncDataSurface.jsx';
 import { money } from '../reports/components/reportingFormatters.js';
 import { metricRegistry } from './metrics.js';
 import { dataSourceReadiness, mappingLabels, partitionAccountingConnections, readFinanceDataSources } from './dataSources.js';
-import { AutoCountActionModal, AutoCountDevices, AutoCountStatus } from './AutoCountConnector.jsx';
+import { AutoCountActionModal, AutoCountDevices, AutoCountStatus, autoCountOnline } from './AutoCountConnector.jsx';
 import FinanceAccountMapping from './FinanceAccountMapping.jsx';
-import AccountingDatasetBrowser, { glCoverageText } from './AccountingDatasetBrowser.jsx';
+import AccountingDatasetBrowser from './AccountingDatasetBrowser.jsx';
 import './finance.css';
 
 const sections = ['Connection', 'Authority', 'Mapping', 'Reconciliation'];
@@ -31,32 +32,88 @@ function difference(entry) {
   return new Intl.NumberFormat('en-MY', { style: 'currency', currency: entry.currency }).format(entry.difference);
 }
 function periodLabel(period) { return `${period.start} → ${period.end}`; }
+const capabilityStateLabels = { supported: 'Supported', partial: 'Observed in FeedX', unverified: 'Unverified', unsupported: 'Unsupported' };
+const datasetNames = ['COA', 'GL', 'Department', 'Project'];
+const dayMs = 24 * 60 * 60 * 1000;
+
 function Capabilities({ values }) {
-  return <dl className="finance-source-facts">{Object.entries(values).map(([id, state]) => <div key={id}><dt>{capabilityLabels[id] ?? id}</dt><dd>{state}</dd></div>)}</dl>;
+  return <dl className="finance-source-facts">{Object.entries(values).map(([id, state]) => <div key={id}>
+    <dt>{capabilityLabels[id] ?? id}</dt><dd>{capabilityStateLabels[state] ?? state}</dd>
+  </div>)}</dl>;
 }
-function ConnectionCard({ entry, onAction, onBrowse }) {
+
+function BookDatasetCounts({ entry }) {
+  return <dl aria-label="Book dataset acceptance" className="flex flex-wrap gap-x-4 gap-y-1 type-caption">
+    {datasetNames.map((dataset) => {
+      const snapshot = entry.datasets?.find((item) => item.dataset === dataset);
+      const count = dataset === 'GL' && entry.glCoverage?.acceptedDays ? entry.glCoverage.acceptedRows : snapshot?.acceptedRows;
+      return <div className="flex items-baseline gap-1" key={dataset}>
+        <dt className="text-text-secondary">{dataset}</dt>
+        <dd className="font-semibold">{count == null ? 'Awaiting data' : count === 0 ? '0 (empty)' : count.toLocaleString('en-MY')}</dd>
+      </div>;
+    })}
+  </dl>;
+}
+
+function ConnectionGlCoverage({ coverage }) {
+  const bounds = coverage?.configuredStartDate && coverage.expectedThrough && Number.isInteger(coverage.remainingDays);
+  if (!bounds && !coverage?.acceptedDays) return <p className="type-caption text-text-secondary">GL coverage awaiting accepted data</p>;
+  const start = bounds ? coverage.configuredStartDate : coverage.firstDate;
+  const end = bounds ? coverage.expectedThrough : coverage.throughDate;
+  const expected = (Date.parse(end) - Date.parse(start)) / dayMs + 1;
+  const accepted = bounds ? expected - coverage.remainingDays : coverage.acceptedDays;
+  const missing = expected - accepted;
+  return <p className="flex flex-wrap gap-x-2 type-caption text-text-secondary">
+    <strong className="text-text-primary">GL coverage</strong>
+    <span>{start} → {end}</span><span>{accepted}/{expected} days accepted</span><span>{missing} missing</span>
+  </p>;
+}
+
+function ConnectionCard({ entry, onAction, onBrowse, comparisons = [] }) {
+  const [moreOpen, setMoreOpen] = useState(false);
   const historical = entry.status === 'historical';
   const connector = entry.connector;
+  const online = autoCountOnline(entry);
   const reference = connector?.bookId?.slice(0, 8);
   const label = [entry.legalEntityLabel, connector && entry.connection.externalTenantId, reference && `Book ${reference}`].filter(Boolean).join(' · ');
-  return <article className="grid min-w-0 gap-2 rounded-lg border border-border px-4 py-3">
+  return <article className="grid min-w-0 gap-2 rounded-lg border border-border px-3 py-2.5 sm:px-4">
     <div className="flex flex-wrap items-start justify-between gap-2">
       <div className="min-w-0"><h3 className="type-body-sm font-semibold">{entry.providerLabel}</h3><p className="type-caption text-text-secondary">{label}</p></div>
       {historical ? <StatusBadge status="neutral">{entry.supersededByConnectionId ? 'Superseded' : 'Historical'}</StatusBadge>
-        : onBrowse && <button type="button" className="btn-secondary" onClick={() => onBrowse(entry)}>View Data</button>}
+        : <div className="flex flex-wrap items-center gap-1.5" aria-label="Account Book actions">
+          {onAction && connector && entry.state === 'connected' && <button type="button" className="btn-primary"
+            disabled={Boolean(connector.retryRequestedAt)} onClick={() => onAction('retry', entry, { queued: !online })}>
+            {connector.retryRequestedAt ? 'Sync Queued' : online ? 'Sync Now' : 'Queue Sync'}
+          </button>}
+          {onBrowse && <button type="button" className="btn-secondary" onClick={() => onBrowse(entry)}>View Data</button>}
+          {onAction && connector && <ActionMenu open={moreOpen} onOpenChange={setMoreOpen} ariaLabel="More Actions"
+            trigger={({ toggle, open, ariaLabel }) => <button type="button" className="btn-secondary" aria-haspopup="menu"
+              aria-expanded={open} aria-label={ariaLabel} onClick={toggle}>More Actions</button>}>
+            <div role="menu" aria-label="More Actions">
+              <button type="button" role="menuitem" className="is-danger"
+                onClick={() => { setMoreOpen(false); onAction('revoke', entry); }}>Revoke Access</button>
+            </div>
+          </ActionMenu>}
+        </div>}
     </div>
     {historical && connector && <p className="type-caption text-text-secondary">Last successful sync · {timestamp(connector.lastSyncAt)}</p>}
-    {entry.datasets?.length > 0 && <ul aria-label="Accepted accounting evidence" className="flex flex-wrap gap-x-4 gap-y-1 type-caption text-text-secondary">
-      {entry.datasets.map((item) => <li key={item.dataset}>{item.dataset} · {item.dataset === 'GL' && entry.glCoverage ? entry.glCoverage.acceptedRows : item.acceptedRows} accepted rows</li>)}
+    {historical && entry.datasets?.length > 0 && <ul aria-label="Accepted accounting evidence" className="flex flex-wrap gap-x-4 gap-y-1 type-caption text-text-secondary">
+      {entry.datasets.map((item) => <li key={item.dataset}>{item.dataset} · {item.acceptedRows} accepted rows</li>)}
     </ul>}
-    {!historical && connector && <p className="type-caption text-text-secondary">{glCoverageText(entry.glCoverage)}.</p>}
-    {!historical && connector && <AutoCountStatus entry={entry} timestamp={timestamp}>
-      <FinanceDisclosure label="Provider capabilities"><Capabilities values={entry.connection.capabilities} /></FinanceDisclosure>
-      {onAction && <div className="flex flex-wrap gap-2" aria-label="AutoCount connector actions">
-        {entry.state === 'connected' && <button type="button" className="btn-secondary" disabled={Boolean(connector.retryRequestedAt)} onClick={() => onAction('retry', entry)}>{['failed', 'interrupted'].includes(connector.syncState) ? 'Retry sync' : 'Request sync'}</button>}
-        <button type="button" className="btn-secondary" onClick={() => onAction('revoke', entry)}>Revoke access</button>
-      </div>}
-    </AutoCountStatus>}
+    {!historical && connector && <>
+      <BookDatasetCounts entry={entry} />
+      <ConnectionGlCoverage coverage={entry.glCoverage} />
+      <AutoCountStatus entry={entry} timestamp={timestamp}>
+        <FinanceDisclosure label="Provider capabilities">
+          <p className="type-caption text-text-secondary">Observed across AutoCount connections. This book’s counts show accepted snapshots.</p>
+          <Capabilities values={entry.connection.capabilities} />
+          <p className="type-caption text-text-secondary">
+            Independent dataset parity is recorded separately from upload acceptance.
+            {' '}{comparisons.length ? `${comparisons.filter((item) => item.reconciliation.status === 'reconciled').length} of ${comparisons.length} financial comparisons reconciled.` : 'Financial report evidence pending.'}
+          </p>
+        </FinanceDisclosure>
+      </AutoCountStatus>
+    </>}
     {!historical && !connector && <FinanceDisclosure label="Provider capabilities"><Capabilities values={entry.connection.capabilities} /></FinanceDisclosure>}
   </article>;
 }
@@ -69,6 +126,7 @@ function ConnectionSection({ state, onAction, onBrowse }) {
     <h2 className="type-body-sm font-semibold">Accounting connections</h2>
     {!operational.length && <p className="type-body-sm text-text-secondary">No accounting provider connected</p>}
     {operational.map((entry) => <ConnectionCard key={entry.connection.id} entry={entry} onAction={onAction}
+      comparisons={state.reconciliations.filter((item) => item.connectionId === entry.connection.id)}
       onBrowse={onBrowse && canBrowseAccounting(entry) ? onBrowse : undefined} />)}
     {onAction && state.connectorDevices?.length > 0 && <FinanceDisclosure label="Windows devices">
       <AutoCountDevices state={state} onAction={onAction} />
@@ -178,7 +236,7 @@ function LiveFinanceDataSourcesPage() {
   }, [canManage]);
   function onSaved(action) {
     setModal(null);
-    setNotice({ pair: 'Computer paired. Use Test Connection in Windows to send its authorized books now, or wait for the next background check.', bind: 'Account Book connected. Waiting for the Windows Connector to verify the book.', retry: 'Sync requested.', revoke: 'Book access revoked.', revoke_device: 'Computer access revoked.' }[action]);
+    setNotice({ pair: 'Computer paired. Use Test Connection in Windows to send its authorized books now, or wait for the next background check.', bind: 'Account Book connected. Waiting for the Windows Connector to verify the book.', retry: 'Sync queued for the next eligible check-in.', revoke: 'Book access revoked.', revoke_device: 'Computer access revoked.' }[action]);
     setAttempt((value) => value + 1);
   }
   useEffect(() => {
