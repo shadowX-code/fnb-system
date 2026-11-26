@@ -30,7 +30,9 @@ it('keeps the current management read honest with no connected accounting eviden
   expect(readiness.summary.map((item) => item.value)).toEqual(['Not connected', 'Not assigned', 'Not assessed', 'Not assessed', 'Assessment incomplete']);
   render(<FinanceDataSources state={state} />);
   expect(screen.getByText('No accounting provider connected')).toBeTruthy();
-  fireEvent.click(screen.getByRole('tab', { name: 'Mapping' }));
+  expect(screen.queryByRole('heading', { name: /source management|accounting connections/i })).toBeNull();
+  fireEvent.click(within(screen.getByRole('region', { name: 'Data readiness' })).getByRole('button', { name: /review mappings/i }));
+  expect(screen.getByRole('tab', { name: 'Mapping' }).getAttribute('aria-selected')).toBe('true');
   expect(within(screen.getByRole('region', { name: 'Mapping readiness' })).getAllByText('Not assessed')).toHaveLength(4);
   expect(screen.queryByText(/0 mapped/)).toBeNull();
   fireEvent.click(screen.getByRole('tab', { name: 'Reconciliation' }));
@@ -50,7 +52,7 @@ it('retains historical connections and their original effective periods', () => 
   state.authorityPeriods[1].start = '2026-08-01';
   expect(dataSourceReadiness(state, request).coverage.gaps).toEqual([{ start: '2026-07-01', end: '2026-07-31' }]);
   render(<FinanceDataSources state={state} />);
-  const history = screen.getByText('Connection History', { selector: 'summary' }).closest('details');
+  const history = screen.getByText('Historical Connections', { selector: 'summary' }).closest('details');
   expect(history.open).toBe(false);
   expect(within(history).getByRole('heading', { name: 'Prior accounting source' })).toBeTruthy();
   expect(within(history).getByText('Historical')).toBeTruthy();
@@ -109,27 +111,31 @@ it('distinguishes same-name book identities and binds only the explicitly select
   expect(old.connectionId).toBe('existing');
 });
 
-it('keeps book authorization, device polling and accepted evidence independent', async () => {
-  const { AutoCountStatus } = await import('../AutoCountConnector.jsx');
-  const entry = { state: 'connected', connection: { externalTenantId: 'AED_TEST' }, connector: {
+it('places detailed event times and diagnostics in the connection drawer', () => {
+  const state = historicalState();
+  const current = state.connections[1];
+  current.connector = {
     bookAuthorized: true, deviceLastSeenAt: new Date(Date.now() - 20 * 60 * 1000).toISOString(),
     syncState: 'failed', syncError: 'network', backgroundMode: 'signed_in',
     lastAttemptAt: '2026-11-19T14:45:00Z', lastSyncAt: '2026-11-16T17:59:52Z', lastDataUpdateAt: '2026-11-16T16:00:00Z',
-  } };
-  render(<AutoCountStatus entry={entry} timestamp={(value) => value || 'Not reported'} />);
+  };
+  render(<FinanceDataSources state={state} />);
   expect(screen.getByText('Book authorized')).toBeTruthy();
   expect(screen.getByText('Device offline')).toBeTruthy();
   expect(screen.getByText('Last sync failed')).toBeTruthy();
-  expect(screen.getByText('Every 5 min while signed in')).toBeTruthy();
   expect(screen.getByText(/Sync resumes when the office PC is online/)).toBeTruthy();
-  expect(screen.getByText('Accepted data updated').nextElementSibling.textContent).toBe(entry.connector.lastDataUpdateAt);
-  expect(screen.getByText('Last device check-in').nextElementSibling.textContent).toBe(entry.connector.deviceLastSeenAt);
-  expect(screen.getByText('Last successful sync').nextElementSibling.textContent).toBe(entry.connector.lastSyncAt);
-  const diagnostics = screen.getByText('Diagnostics', { selector: 'summary' }).closest('details');
-  expect(diagnostics.open).toBe(false);
-  fireEvent.click(diagnostics.querySelector('summary'));
-  expect(within(diagnostics).getByText(/retries on its next background run/)).toBeTruthy();
-  expect(within(diagnostics).getByText(entry.connector.lastAttemptAt)).toBeTruthy();
+  expect(screen.queryByText('Last device check-in')).toBeNull();
+  expect(screen.queryByText('Provider capabilities')).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Connection Details' }));
+  const drawer = within(screen.getByRole('dialog', { name: 'Connection Details' }));
+  expect(drawer.getByText('Accepted data updated').nextElementSibling.textContent).toContain('17 Nov 2026');
+  expect(drawer.getByText('Last sync attempt')).toBeTruthy();
+  expect(drawer.getByText('Last device check-in')).toBeTruthy();
+  expect(drawer.getByText('Every 5 min while signed in')).toBeTruthy();
+  expect(drawer.getByText(/retries on its next background run/)).toBeTruthy();
+  expect(drawer.getByText('Provider capabilities')).toBeTruthy();
+  fireEvent.click(drawer.getByRole('button', { name: 'Close drawer', exact: true }));
+  expect(screen.queryByRole('dialog')).toBeNull();
 });
 
 it('keeps superseded AutoCount evidence in collapsed history with no live status or sync action', () => {
@@ -147,7 +153,7 @@ it('keeps superseded AutoCount evidence in collapsed history with no live status
   expect(screen.getByText('1 active')).toBeTruthy();
   expect(dataSourceReadiness(state).summary[0].detail).toContain('1 historical');
   expect(dataSourceReadiness(state).issues.every((issue) => !issue.includes('Prior accounting source'))).toBe(true);
-  const history = screen.getByText('Connection History', { selector: 'summary' }).closest('details');
+  const history = screen.getByText('Historical Connections', { selector: 'summary' }).closest('details');
   expect(history.open).toBe(false);
   expect(within(history).getByText(/18b35aac/)).toBeTruthy();
   expect(within(history).getByText(/Last successful sync/)).toBeTruthy();
@@ -262,13 +268,15 @@ it('queues offline sync and distinguishes accepted empty datasets from pending e
   const acceptance = screen.getByLabelText('Book dataset acceptance');
   expect(within(acceptance).getByText('123')).toBeTruthy();
   expect(within(acceptance).getByText('59')).toBeTruthy();
-  expect(within(acceptance).getByText('0 (empty)')).toBeTruthy();
+  expect(within(acceptance).getByText('0')).toBeTruthy();
+  expect(within(acceptance).getByText('Empty')).toBeTruthy();
   expect(within(acceptance).getByText('Awaiting data')).toBeTruthy();
   expect(screen.getByText('3/5 days accepted')).toBeTruthy();
   expect(screen.getByText('2 missing')).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Queue Sync' }));
   expect(onAction).toHaveBeenCalledWith('retry', current, { queued: true });
-  expect(screen.queryByRole('menuitem', { name: 'Revoke Access' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'More Actions' })).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Connection Details' }));
   fireEvent.click(screen.getByRole('button', { name: 'More Actions' }));
   fireEvent.click(screen.getByRole('menuitem', { name: 'Revoke Access' }));
   expect(onAction).toHaveBeenCalledWith('revoke', current);

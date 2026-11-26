@@ -1,16 +1,17 @@
-import FinanceAnalysisSurface from './FinanceAnalysisSurface.jsx';
+import AdminSegmentedControl from '../../components/forms/AdminSegmentedControl.jsx';
+import Drawer from '../../components/ui/Drawer.jsx';
 import ActionMenu from '../../components/ui/ActionMenu.jsx';
 import StatusBadge from '../../components/ui/StatusBadge.jsx';
 import { FinanceDisclosure } from './FinanceVisualSystem.jsx';
-import { useEffect, useState } from 'react';
-import { Link2 } from 'lucide-react';
+import { useEffect, useId, useState } from 'react';
+import { ArrowRight, Link2 } from 'lucide-react';
 import WorkspacePage from '../../components/layout/WorkspacePage.jsx';
 import FinancePreviewBoundary from './FinancePreviewBoundary.jsx';
 import AsyncDataSurface from '../../components/feedback/AsyncDataSurface.jsx';
 import { money } from '../reports/components/reportingFormatters.js';
 import { metricRegistry } from './metrics.js';
 import { dataSourceReadiness, mappingLabels, partitionAccountingConnections, readFinanceDataSources } from './dataSources.js';
-import { AutoCountActionModal, AutoCountDevices, AutoCountStatus, autoCountOnline } from './AutoCountConnector.jsx';
+import { AutoCountActionModal, AutoCountDevices, AutoCountDiagnostics, AutoCountStatus, autoCountOnline } from './AutoCountConnector.jsx';
 import FinanceAccountMapping from './FinanceAccountMapping.jsx';
 import AccountingDatasetBrowser from './AccountingDatasetBrowser.jsx';
 import './finance.css';
@@ -37,19 +38,22 @@ const datasetNames = ['COA', 'GL', 'Department', 'Project'];
 const dayMs = 24 * 60 * 60 * 1000;
 
 function Capabilities({ values }) {
-  return <dl className="finance-source-facts">{Object.entries(values).map(([id, state]) => <div key={id}>
-    <dt>{capabilityLabels[id] ?? id}</dt><dd>{capabilityStateLabels[state] ?? state}</dd>
+  return <dl className="grid gap-2 type-body-sm">{Object.entries(values).map(([id, state]) => <div className="flex flex-wrap justify-between gap-x-3" key={id}>
+    <dt>{capabilityLabels[id] ?? id}</dt><dd className="text-text-secondary">{capabilityStateLabels[state] ?? state}</dd>
   </div>)}</dl>;
 }
 
 function BookDatasetCounts({ entry }) {
-  return <dl aria-label="Book dataset acceptance" className="flex flex-wrap gap-x-4 gap-y-1 type-caption">
+  return <dl aria-label="Book dataset acceptance" className="grid grid-cols-2 gap-2 rounded-lg bg-surface-muted px-3 py-2.5 sm:grid-cols-4">
     {datasetNames.map((dataset) => {
       const snapshot = entry.datasets?.find((item) => item.dataset === dataset);
       const count = dataset === 'GL' && entry.glCoverage?.acceptedDays ? entry.glCoverage.acceptedRows : snapshot?.acceptedRows;
-      return <div className="flex items-baseline gap-1" key={dataset}>
-        <dt className="text-text-secondary">{dataset}</dt>
-        <dd className="font-semibold">{count == null ? 'Awaiting data' : count === 0 ? '0 (empty)' : count.toLocaleString('en-MY')}</dd>
+      return <div className="min-w-0" key={dataset}>
+        <dt className="type-body-sm text-text-secondary">{dataset}</dt>
+        <dd className="mt-0.5 flex flex-wrap items-baseline gap-x-1.5">
+          <strong className="text-xl font-semibold tabular-nums">{count == null ? '—' : count.toLocaleString('en-MY')}</strong>
+          {(count == null || count === 0) && <span className="type-caption text-text-secondary">{count == null ? 'Awaiting data' : 'Empty'}</span>}
+        </dd>
       </div>;
     })}
   </dl>;
@@ -63,84 +67,132 @@ function ConnectionGlCoverage({ coverage }) {
   const expected = (Date.parse(end) - Date.parse(start)) / dayMs + 1;
   const accepted = bounds ? expected - coverage.remainingDays : coverage.acceptedDays;
   const missing = expected - accepted;
-  return <p className="flex flex-wrap gap-x-2 type-caption text-text-secondary">
+  return <p className="flex flex-wrap gap-x-2 gap-y-0.5 type-body-sm text-text-secondary">
     <strong className="text-text-primary">GL coverage</strong>
     <span>{start} → {end}</span><span>{accepted}/{expected} days accepted</span><span>{missing} missing</span>
   </p>;
 }
 
-function ConnectionCard({ entry, onAction, onBrowse, comparisons = [] }) {
-  const [moreOpen, setMoreOpen] = useState(false);
-  const historical = entry.status === 'historical';
-  const connector = entry.connector;
+function bookIdentity(entry) {
+  const reference = entry.connector?.bookId?.slice(0, 8);
+  return [entry.legalEntityLabel, entry.connector && entry.connection.externalTenantId, reference && `Book ${reference}`].filter(Boolean).join(' · ');
+}
+
+function ConnectionCard({ entry, onAction, onBrowse, onDetails }) {
+  const { connector } = entry;
   const online = autoCountOnline(entry);
-  const reference = connector?.bookId?.slice(0, 8);
-  const label = [entry.legalEntityLabel, connector && entry.connection.externalTenantId, reference && `Book ${reference}`].filter(Boolean).join(' · ');
-  return <article className="grid min-w-0 gap-2 rounded-lg border border-border px-3 py-2.5 sm:px-4">
-    <div className="flex flex-wrap items-start justify-between gap-2">
-      <div className="min-w-0"><h3 className="type-body-sm font-semibold">{entry.providerLabel}</h3><p className="type-caption text-text-secondary">{label}</p></div>
-      {historical ? <StatusBadge status="neutral">{entry.supersededByConnectionId ? 'Superseded' : 'Historical'}</StatusBadge>
-        : <div className="flex flex-wrap items-center gap-1.5" aria-label="Account Book actions">
-          {onAction && connector && entry.state === 'connected' && <button type="button" className="btn-primary"
-            disabled={Boolean(connector.retryRequestedAt)} onClick={() => onAction('retry', entry, { queued: !online })}>
-            {connector.retryRequestedAt ? 'Sync Queued' : online ? 'Sync Now' : 'Queue Sync'}
-          </button>}
-          {onBrowse && <button type="button" className="btn-secondary" onClick={() => onBrowse(entry)}>View Data</button>}
-          {onAction && connector && <ActionMenu open={moreOpen} onOpenChange={setMoreOpen} ariaLabel="More Actions"
-            trigger={({ toggle, open, ariaLabel }) => <button type="button" className="btn-secondary" aria-haspopup="menu"
-              aria-expanded={open} aria-label={ariaLabel} onClick={toggle}>More Actions</button>}>
-            <div role="menu" aria-label="More Actions">
-              <button type="button" role="menuitem" className="is-danger"
-                onClick={() => { setMoreOpen(false); onAction('revoke', entry); }}>Revoke Access</button>
-            </div>
-          </ActionMenu>}
-        </div>}
+  return <article className="grid min-w-0 gap-3 rounded-xl border border-border bg-surface p-3 sm:p-4" aria-label={entry.providerLabel}>
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="min-w-0">
+        <h2 className="text-base font-semibold">{entry.providerLabel}</h2>
+        <p className="type-body-sm text-text-secondary">{bookIdentity(entry)}</p>
+      </div>
+      <div className="flex flex-wrap items-center gap-2" aria-label="Account Book actions">
+        {onBrowse && <button type="button" className="btn-primary" onClick={() => onBrowse(entry)}>View Data</button>}
+        {onAction && connector && entry.state === 'connected' && <button type="button" className="btn-secondary"
+          disabled={Boolean(connector.retryRequestedAt)} onClick={() => onAction('retry', entry, { queued: !online })}>
+          {connector.retryRequestedAt ? 'Sync Queued' : online ? 'Sync Now' : 'Queue Sync'}
+        </button>}
+        <button type="button" className="btn-secondary" aria-haspopup="dialog" onClick={() => onDetails(entry.connection.id)}>Connection Details</button>
+      </div>
     </div>
-    {historical && connector && <p className="type-caption text-text-secondary">Last successful sync · {timestamp(connector.lastSyncAt)}</p>}
-    {historical && entry.datasets?.length > 0 && <ul aria-label="Accepted accounting evidence" className="flex flex-wrap gap-x-4 gap-y-1 type-caption text-text-secondary">
-      {entry.datasets.map((item) => <li key={item.dataset}>{item.dataset} · {item.acceptedRows} accepted rows</li>)}
-    </ul>}
-    {!historical && connector && <>
+    {connector && <>
+      <AutoCountStatus entry={entry} timestamp={timestamp} />
       <BookDatasetCounts entry={entry} />
       <ConnectionGlCoverage coverage={entry.glCoverage} />
-      <AutoCountStatus entry={entry} timestamp={timestamp}>
-        <FinanceDisclosure label="Provider capabilities">
-          <p className="type-caption text-text-secondary">Observed across AutoCount connections. This book’s counts show accepted snapshots.</p>
-          <Capabilities values={entry.connection.capabilities} />
-          <p className="type-caption text-text-secondary">
-            Independent dataset parity is recorded separately from upload acceptance.
-            {' '}{comparisons.length ? `${comparisons.filter((item) => item.reconciliation.status === 'reconciled').length} of ${comparisons.length} financial comparisons reconciled.` : 'Financial report evidence pending.'}
-          </p>
-        </FinanceDisclosure>
-      </AutoCountStatus>
     </>}
-    {!historical && !connector && <FinanceDisclosure label="Provider capabilities"><Capabilities values={entry.connection.capabilities} /></FinanceDisclosure>}
   </article>;
 }
+
+function ConnectionDetails({ entry, device, comparisons, onAction, onClose }) {
+  const [moreOpen, setMoreOpen] = useState(false);
+  const metadata = [
+    ['Legal entity', entry.legalEntityLabel],
+    ['Account Book', entry.connection.externalTenantId],
+    ['Book reference', entry.connector?.bookId?.slice(0, 8)],
+    ['Windows device', device?.label],
+    ['Verified', entry.connector?.verifiedAt && timestamp(entry.connector.verifiedAt)],
+    ['Last source connection', entry.lastConnectedAt && timestamp(entry.lastConnectedAt)],
+  ].filter(([, value]) => value);
+  return <Drawer width="md" title="Connection Details" description={entry.providerLabel} onClose={onClose}
+    bodyClassName="grid content-start gap-5 sm:p-5"
+    footer={onAction && entry.connector ? <ActionMenu open={moreOpen} onOpenChange={setMoreOpen} ariaLabel="More Actions"
+      trigger={({ toggle, open, ariaLabel }) => <button type="button" className="btn-secondary" aria-haspopup="menu"
+        aria-expanded={open} aria-label={ariaLabel} onClick={toggle}>More Actions</button>}>
+      <div role="menu" aria-label="More Actions">
+        <button type="button" role="menuitem" className="is-danger" onClick={() => { onClose(); onAction('revoke', entry); }}>Revoke Access</button>
+      </div>
+    </ActionMenu> : null}>
+    {entry.connector && <section className="grid gap-2.5" aria-label="Sync diagnostics">
+      <h3 className="type-section-title font-semibold">Sync diagnostics</h3>
+      <AutoCountDiagnostics entry={entry} timestamp={timestamp} />
+    </section>}
+    <section className="grid gap-2.5 border-t border-border pt-4" aria-label="Book identity">
+      <h3 className="type-section-title font-semibold">Book identity</h3>
+      <dl className="grid grid-cols-2 gap-3 type-body-sm">
+        {metadata.map(([label, value]) => <div key={label}><dt className="text-text-secondary">{label}</dt><dd className="mt-0.5 font-medium">{value}</dd></div>)}
+      </dl>
+    </section>
+    <section className="grid gap-2.5 border-t border-border pt-4" aria-label="Provider capabilities">
+      <h3 className="type-section-title font-semibold">Provider capabilities</h3>
+      <p className="type-body-sm text-text-secondary">Observed across AutoCount connections.</p>
+      <Capabilities values={entry.connection.capabilities} />
+    </section>
+    <section className="grid gap-2 border-t border-border pt-4" aria-label="Financial evidence">
+      <h3 className="type-section-title font-semibold">Financial evidence</h3>
+      <p className="type-body-sm text-text-secondary">Accepted snapshots and independent dataset parity are separate checks.</p>
+      <p className="type-body-sm text-text-secondary">{comparisons.length
+        ? `${comparisons.filter((item) => item.reconciliation.status === 'reconciled').length} of ${comparisons.length} financial comparisons reconciled.`
+        : 'Financial report evidence pending.'}</p>
+    </section>
+  </Drawer>;
+}
+
+function HistoricalConnection({ entry }) {
+  return <li className="grid gap-1 py-2 type-body-sm">
+    <div className="flex flex-wrap items-center gap-2">
+      <h3 className="font-semibold text-text-primary">{entry.providerLabel}</h3>
+      <StatusBadge status="neutral">{entry.supersededByConnectionId ? 'Superseded' : 'Historical'}</StatusBadge>
+    </div>
+    <p>{bookIdentity(entry)}</p>
+    {entry.connector && <p>Last successful sync · {timestamp(entry.connector.lastSyncAt)}</p>}
+    {entry.datasets?.length > 0 && <p>{entry.datasets.map((item) => `${item.dataset} · ${item.acceptedRows} accepted rows`).join(' · ')}</p>}
+  </li>;
+}
+
 function canBrowseAccounting(entry) {
   return entry.status === 'active' && entry.state === 'connected' && Boolean(entry.connector);
 }
-function ConnectionSection({ state, onAction, onBrowse }) {
+function ConnectionSection({ state, onAction, onBrowse, onDetails }) {
   const { operational, historical } = partitionAccountingConnections(state.connections);
-  return <section aria-label="Accounting connections" className="grid gap-2">
-    <h2 className="type-body-sm font-semibold">Accounting connections</h2>
+  const showDevices = onAction && state.connectorDevices?.length > 0;
+  return <div className="grid min-w-0 gap-2">
     {!operational.length && <p className="type-body-sm text-text-secondary">No accounting provider connected</p>}
-    {operational.map((entry) => <ConnectionCard key={entry.connection.id} entry={entry} onAction={onAction}
-      comparisons={state.reconciliations.filter((item) => item.connectionId === entry.connection.id)}
+    {operational.map((entry) => <ConnectionCard key={entry.connection.id} entry={entry} onAction={onAction} onDetails={onDetails}
       onBrowse={onBrowse && canBrowseAccounting(entry) ? onBrowse : undefined} />)}
-    {onAction && state.connectorDevices?.length > 0 && <FinanceDisclosure label="Windows devices">
-      <AutoCountDevices state={state} onAction={onAction} />
-    </FinanceDisclosure>}
-    {historical.length > 0 && <FinanceDisclosure label="Connection History">
-      {historical.map((entry) => <ConnectionCard key={entry.connection.id} entry={entry} />)}
-    </FinanceDisclosure>}
-  </section>;
+    {(showDevices || historical.length > 0) && <div className="divide-y divide-border [&>details]:my-0">
+      {showDevices && <FinanceDisclosure label="Windows Devices">
+        <AutoCountDevices state={state} onAction={onAction} />
+      </FinanceDisclosure>}
+      {historical.length > 0 && <FinanceDisclosure label="Historical Connections">
+        <ul className="divide-y divide-border">{historical.map((entry) => <HistoricalConnection key={entry.connection.id} entry={entry} />)}</ul>
+      </FinanceDisclosure>}
+    </div>}
+  </div>;
+}
+
+function SourceSectionHeading({ title, action, children }) {
+  return <header className="flex flex-wrap items-start justify-between gap-2">
+    <div className="min-w-0"><h2 className="text-base font-semibold">{title}</h2>{children}</div>
+    {action}
+  </header>;
 }
 function AuthoritySection({ state, onViewConnections }) {
-  return <section aria-label="Source authority" className="grid gap-2">
-    <div className="flex flex-wrap items-start justify-between gap-2"><h2 className="type-body-sm font-semibold">Accounting authority periods</h2><button type="button" className="btn-secondary" onClick={onViewConnections}>Review source connections</button></div>
-    <p className="type-caption text-text-secondary">{state.operationalSource.label} owns the operational P&L. Accounting authority is assigned per legal entity, resource and period.</p>
-    {!state.authorityPeriods.length ? <p className="type-body-sm text-text-secondary">No accounting authority periods</p> : <div className="finance-source-table-wrap"><table className="finance-source-table"><caption className="sr-only">Historical and active accounting authority periods</caption><thead><tr><th>Source</th><th>Legal entity</th><th>Evidence</th><th>Effective period</th><th>Provider status</th></tr></thead><tbody>{state.authorityPeriods.map((period) => {
+  return <section aria-label="Source authority" className="grid gap-3">
+    <SourceSectionHeading title="Accounting authority periods" action={<button type="button" className="btn-secondary" onClick={onViewConnections}>Review source connections</button>}>
+      <p className="mt-0.5 type-body-sm text-text-secondary">{state.operationalSource.label} owns the operational P&L. Authority is assigned by legal entity, resource and period.</p>
+    </SourceSectionHeading>
+    {!state.authorityPeriods.length ? <p className="type-body-sm text-text-secondary">No accounting authority periods</p> : <div className="overflow-x-auto"><table className="finance-source-table"><caption className="sr-only">Historical and active accounting authority periods</caption><thead><tr><th>Source</th><th>Legal entity</th><th>Evidence</th><th>Effective period</th><th>Provider status</th></tr></thead><tbody>{state.authorityPeriods.map((period) => {
       const entry = state.connections.find((connection) => connection.connection.id === period.connectionId);
       return <tr key={`${period.connectionId}:${period.resource}:${period.start}`}><td>{entry?.providerLabel ?? 'Source unavailable'}</td><td>{entry?.legalEntityLabel ?? 'Binding unavailable'}</td><td>{period.resource}</td><td>{periodLabel(period)}</td><td>{entry?.status === 'historical' ? 'Historical' : entry?.status === 'active' ? 'Active' : 'Unknown'}</td></tr>;
     })}</tbody></table></div>}
@@ -149,21 +201,17 @@ function AuthoritySection({ state, onViewConnections }) {
 function MappingSection({ state, onBrowse, mappingConnectionId, onSelectMappingSource, onMappingSaved }) {
   const sources = state.connections.filter(canBrowseAccounting);
   const selected = sources.find((entry) => entry.connection.id === mappingConnectionId) ?? sources[0];
-  return <section aria-label="Mapping readiness" className="grid gap-2">
-    <h2 className="type-body-sm font-semibold">Classification and dimension mapping</h2>
-    {sources.length > 1 && <label className="grid w-fit gap-1 type-caption">Account Book
+  return <section aria-label="Mapping readiness" className="grid gap-3">
+    <SourceSectionHeading title="Account mapping" action={onBrowse && selected && <button type="button" className="btn-secondary" onClick={() => onBrowse(selected, 'COA')}>Browse source accounts</button>}>
+      {selected && <p className="mt-0.5 type-body-sm text-text-secondary">Selected source · {bookIdentity(selected)}</p>}
+    </SourceSectionHeading>
+    {sources.length > 1 && <label className="grid w-fit gap-1 type-body-sm">Account Book
       <select className="control" value={selected.connection.id} onChange={(event) => onSelectMappingSource(event.target.value)}>
         {sources.map((entry) => <option key={entry.connection.id} value={entry.connection.id}>
           {entry.legalEntityLabel} · {entry.connection.externalTenantId} · {entry.connector.bookId?.slice(0, 8)}
         </option>)}
       </select>
     </label>}
-    {selected && <p className="type-caption text-text-secondary">Selected source · {selected.connection.externalTenantId} · Book {selected.connector.bookId?.slice(0, 8)}</p>}
-    {onBrowse && sources.length > 0 && <div className="flex flex-wrap gap-2">
-      {(selected ? [selected] : sources).map((entry) => <button key={entry.connection.id} type="button" className="btn-secondary" onClick={() => onBrowse(entry, 'COA')}>
-        Browse source accounts{sources.length > 1 ? ` · ${entry.legalEntityLabel}` : ''}
-      </button>)}
-    </div>}
     {selected && onBrowse && <FinanceAccountMapping key={selected.connection.id} connectionId={selected.connection.id} timestamp={timestamp} onChange={onMappingSaved} />}
     {selected && <ul className="flex flex-wrap gap-x-4 gap-y-1 type-caption text-text-secondary" aria-label="Dimension evidence">
       {['Department', 'Project'].map((dataset) => {
@@ -188,33 +236,61 @@ function MappingSection({ state, onBrowse, mappingConnectionId, onSelectMappingS
 function ReconciliationSection({ state, onViewConnections }) {
   const hasAedTest = state.connections.some((entry) =>
     entry.connector?.bookId === '3037f4f7-94e6-4050-a6c0-a790559fb056' && canBrowseAccounting(entry));
-  return <section aria-label="Financial reconciliation" className="grid gap-2"><div className="flex flex-wrap items-start justify-between gap-2"><h2 className="type-body-sm font-semibold">Validated comparisons</h2><button type="button" className="btn-secondary" onClick={onViewConnections}>Review accepted evidence</button></div>
-    {!state.reconciliations.length ? <p className="type-body-sm text-text-secondary">No validated reconciliation evidence. Accounting reports need matching AutoCount Desktop evidence for this source, period and scope.</p> : <div className="finance-source-table-wrap"><table className="finance-source-table"><caption className="sr-only">Validated financial comparisons</caption><thead><tr><th>Period</th><th>Source</th><th>Metric / balance</th><th>Difference</th><th>State</th></tr></thead><tbody>{state.reconciliations.map((entry, index) => <tr key={`${entry.connectionId}:${entry.metricId}:${index}`}><td>{periodLabel(entry.period)}</td><td>{entry.sourceLabel}</td><td>{metricRegistry[entry.metricId]?.label ?? entry.metricId}</td><td>{difference(entry)}</td><td>{entry.reconciliation.status}</td></tr>)}</tbody></table></div>}
+  return <section aria-label="Financial reconciliation" className="grid gap-3">
+    <SourceSectionHeading title="Validated comparisons" action={<button type="button" className="btn-secondary" onClick={onViewConnections}>Review accepted evidence</button>} />
+    {!state.reconciliations.length ? <p className="type-body-sm text-text-secondary">No validated reconciliation evidence. Compare accounting reports for the same book, period and scope.</p> : <div className="overflow-x-auto"><table className="finance-source-table"><caption className="sr-only">Validated financial comparisons</caption><thead><tr><th>Period</th><th>Source</th><th>Metric / balance</th><th>Difference</th><th>State</th></tr></thead><tbody>{state.reconciliations.map((entry, index) => <tr key={`${entry.connectionId}:${entry.metricId}:${index}`}><td>{periodLabel(entry.period)}</td><td>{entry.sourceLabel}</td><td>{metricRegistry[entry.metricId]?.label ?? entry.metricId}</td><td>{difference(entry)}</td><td>{entry.reconciliation.status}</td></tr>)}</tbody></table></div>}
     {hasAedTest && <FinanceDisclosure label="AED_TEST accounting evidence">
       <div className="grid justify-items-start gap-2">
-        <p className="type-caption text-text-secondary">The office assessment checks which AutoCount SQL objects the local book exposes. Compare those findings with Desktop exports for Trial Balance, Profit &amp; Loss, Balance Sheet, account balances, aging and inventory valuation.</p>
+        <p className="type-caption text-text-secondary">Capture the office SQL catalog and compare it with matching AutoCount Desktop exports.</p>
         <a className="btn-secondary" href="/downloads/FeedX-AED_TEST-Accounting-Evidence.ps1" download>Download read-only evidence capture</a>
       </div>
     </FinanceDisclosure>}
   </section>;
 }
+const readinessActions = ['Review account books', 'Review authority periods', 'Review mappings', 'Review report evidence'];
+const panels = { Connection: ConnectionSection, Authority: AuthoritySection, Mapping: MappingSection, Reconciliation: ReconciliationSection };
+
 export function FinanceDataSources({ state, onAction, onMappingSaved }) {
   const [section, setSection] = useState('Connection');
   const [browse, setBrowse] = useState(null);
+  const [detailsId, setDetailsId] = useState(null);
   const [mappingConnectionId, setMappingConnectionId] = useState(null);
-  const ready = dataSourceReadiness(state);
-  const panels = { Connection: ConnectionSection, Authority: AuthoritySection, Mapping: MappingSection, Reconciliation: ReconciliationSection };
+  const panelId = useId();
+  const summary = dataSourceReadiness(state).summary.slice(0, 4);
   const Panel = panels[section];
   const activeBrowse = browse && state.connections.find((entry) => entry.connection.id === browse.connectionId && canBrowseAccounting(entry));
+  const detailEntry = detailsId && state.connections.find((entry) => entry.connection.id === detailsId && entry.status === 'active');
+  const detailDevice = detailEntry?.connector?.bookId && state.connectorDevices?.find((device) =>
+    device.books.some((book) => book.id === detailEntry.connector.bookId));
   const openBrowser = onAction ? (entry, dataset) => setBrowse({ connectionId: entry.connection.id, dataset }) : undefined;
-  return <div className="grid min-w-0 gap-3">
-    <dl aria-label="Data health" className="grid grid-cols-2 gap-x-3 gap-y-2 rounded-lg border border-border bg-surface px-4 py-2 sm:grid-cols-4">
-      {ready.summary.slice(0, 4).map((item) => <div key={item.label}><dt className="type-caption text-text-secondary">{item.label}</dt><dd className="type-body-sm font-semibold">{item.value}</dd>
-        {item.label === 'Mapping readiness' && state.connections.some((entry) => entry.accountMapping) && <dd className="type-caption text-text-secondary">{item.detail}</dd>}</div>)}
-    </dl>
-    <FinanceAnalysisSurface label="Data source concerns" title="Source management" modes={sections} value={section} onChange={(value) => { setMappingConnectionId(null); setSection(value); }}>
-      <Panel state={state} onAction={onAction} onBrowse={openBrowser} mappingConnectionId={mappingConnectionId} onSelectMappingSource={setMappingConnectionId} onMappingSaved={onMappingSaved} onViewConnections={() => setSection('Connection')} />
-    </FinanceAnalysisSurface>
+  function changeSection(value) {
+    setMappingConnectionId(null);
+    setSection(value);
+  }
+  return <div className="grid min-w-0 gap-4">
+    <section aria-label="Data readiness" className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-4">
+      {summary.map((item, index) => <button key={item.label} type="button" onClick={() => changeSection(sections[index])}
+        className="group grid min-w-0 content-start gap-1 bg-surface p-3 text-left hover:bg-surface-muted focus-visible:z-10 focus-visible:outline-primary sm:p-4">
+        <span className="type-body-sm font-medium text-text-secondary">{item.label}</span>
+        <strong className="text-lg font-semibold leading-tight">{item.value}</strong>
+        {index === 2 && state.connections.some((entry) => entry.accountMapping) && <span className="type-body-sm text-text-secondary">{item.detail}</span>}
+        <span className="mt-0.5 flex items-center gap-1 type-caption font-medium text-primary-ink">
+          {readinessActions[index]}<ArrowRight size={13} aria-hidden="true" />
+        </span>
+      </button>)}
+    </section>
+    <div className="min-w-0 border-b border-border pb-3">
+      <AdminSegmentedControl label="Data source concerns" value={section} onChange={changeSection}
+        options={sections.map((label) => ({ label, value: label, panelId }))} />
+    </div>
+    <div id={panelId} role="tabpanel" aria-label={section} className="min-w-0">
+      <Panel state={state} onAction={onAction} onBrowse={openBrowser} onDetails={setDetailsId}
+        mappingConnectionId={mappingConnectionId} onSelectMappingSource={setMappingConnectionId} onMappingSaved={onMappingSaved}
+        onViewConnections={() => changeSection('Connection')} />
+    </div>
+    {detailEntry && <ConnectionDetails entry={detailEntry} device={detailDevice}
+      comparisons={state.reconciliations.filter((item) => item.connectionId === detailEntry.connection.id)}
+      onAction={onAction} onClose={() => setDetailsId(null)} />}
     {activeBrowse && <AccountingDatasetBrowser key={activeBrowse.connection.id} connection={activeBrowse} initialDataset={browse.dataset} timestamp={timestamp}
       onClose={() => setBrowse(null)} onReviewMapping={() => { setMappingConnectionId(activeBrowse.connection.id); setBrowse(null); setSection('Mapping'); }} />}
   </div>;
@@ -245,13 +321,13 @@ function LiveFinanceDataSourcesPage() {
     readFinanceDataSources().then((next) => { if (active) setState(next); }).catch(() => { if (active) setError('Financial source status could not be loaded.'); });
     return () => { active = false; };
   }, [attempt]);
-  return <WorkspacePage className="finance-workspace" section="Finance · Manage" title="Data Sources" description="Manage where financial evidence comes from and whether it is usable." actions={<button type="button" className="btn-secondary" disabled={!canManage || !state.connectorEntities.length} onClick={() => setModal({ action: 'pair' })}><Link2 size={15} />Connect provider</button>}>
+  return <div className="max-w-6xl"><WorkspacePage className="finance-workspace" section="Finance · Manage" title="Data Sources" density="compact" description="Manage accounting sources, mappings and reconciliation." actions={<button type="button" className="btn-secondary" disabled={!canManage || !state.connectorEntities.length} onClick={() => setModal({ action: 'pair' })}><Link2 size={15} />Connect provider</button>}>
     {notice && <p role="status" className="type-body-sm text-text-secondary">{notice}</p>}
     <AsyncDataSurface loading={!state && !error} error={error} hasData={Boolean(state)} onRetry={() => setAttempt((value) => value + 1)}>{state ? <FinanceDataSources state={state} onMappingSaved={(connectionId, accountMapping) => setState((current) => ({
       ...current, connections: current.connections.map((entry) => entry.connection.id === connectionId ? { ...entry, accountMapping } : entry),
     }))} onAction={canManage ? (action, entry, details) => setModal({ action, entry, ...details }) : undefined} /> : null}</AsyncDataSurface>
     {modal && <AutoCountActionModal {...modal} entities={state.connectorEntities} onClose={() => { setModal(null); setAttempt((value) => value + 1); }} onSaved={onSaved} />}
-  </WorkspacePage>;
+  </WorkspacePage></div>;
 }
 
 export default function FinanceDataSourcesPage(props) { return <FinancePreviewBoundary auth={props.auth} section="data_sources"><LiveFinanceDataSourcesPage /></FinancePreviewBoundary>; }

@@ -132,8 +132,7 @@ function MappingReviewTable({ review, timestamp, onSaved, onReload }) {
   const { total, confirmed, unresolved, groups, ambiguous, changed, removed } = review.summary;
   return <div className="grid min-w-0 gap-3">
     <div className="flex flex-wrap items-start justify-between gap-2">
-      <div><h3 className="type-body-sm font-semibold">Account classification review</h3>
-        <p className="type-caption text-text-secondary">Accepted chart · {timestamp(review.snapshotAt)}</p></div>
+      <p className="type-body-sm text-text-secondary">Accepted chart · {timestamp(review.snapshotAt)}</p>
       <button className="btn-secondary" type="button" disabled={saving || (staged.size > 0 && !stale)} onClick={onReload}>Reload latest review</button>
     </div>
     <p className="type-body-sm" aria-live="polite">{total} source accounts · {confirmed} confirmed · {unresolved} need review · {groups} group accounts

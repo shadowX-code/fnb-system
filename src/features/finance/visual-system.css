@@ -231,4 +231,3 @@
 .finance-workspace .finance-cost-flow-path li:last-child .finance-cost-flow-label { padding-left: 64px; }
 .finance-workspace .finance-consumption-track.is-negative > span { background: transparent; border-bottom: 2px dashed var(--finance-ink); margin-left: 0; }
 @media (max-width: 640px) { .finance-workspace .finance-cost-flow-path li:nth-child(n) .finance-cost-flow-label { padding-left: 0; } }
-.finance-workspace .finance-source-tabs button[aria-selected=true] { color: var(--finance-focus); }

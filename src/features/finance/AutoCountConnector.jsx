@@ -2,7 +2,6 @@ import { useState } from 'react';
 import SelectField from '../../components/forms/SelectField.jsx';
 import Modal from '../../components/feedback/Modal.jsx';
 import StatusBadge from '../../components/ui/StatusBadge.jsx';
-import { FinanceDisclosure } from './FinanceVisualSystem.jsx';
 import { manageAccountingConnector, manageAutoCountDevice } from './dataSources.js';
 
 const syncErrors = {
@@ -45,61 +44,65 @@ export function autoCountOnline(entry, now = Date.now()) {
   return Number.isFinite(checkIn) && now - checkIn <= offlineAfter;
 }
 
-export function AutoCountStatus({ entry, timestamp, children }) {
+export function AutoCountStatus({ entry, timestamp }) {
   const { connector } = entry;
   const online = autoCountOnline(entry);
   const hasCheckIn = Number.isFinite(Date.parse(connector.deviceLastSeenAt));
   const deviceLabel = online ? 'Device online' : hasCheckIn ? 'Device offline' : 'Awaiting device check-in';
   const schedule = scheduling[connector.backgroundMode];
-  const activeSchedule = ['signed_in', 'unattended'].includes(connector.backgroundMode);
-  const failed = ['failed', 'interrupted'].includes(connector.syncState);
-
   const authorization = entry.state === 'error' ? ['warning', 'Legal entity inactive']
     : connector.bookAuthorized === false ? ['warning', 'Book authorization required']
     : connector.bookAuthorized || entry.state === 'connected' ? ['success', 'Book authorized']
     : ['pending', 'Book verification pending'];
-  const status = connector.syncState === 'failed' ? 'Last sync failed'
-    : connector.syncState === 'interrupted' || (connector.syncState === 'running' && !online) ? 'Sync outcome pending'
-    : connector.syncState === 'running' ? 'Syncing' : null;
-  const nextRun = activeSchedule && !online ? 'When the device returns'
-    : connector.nextPollAt ? timestamp(connector.nextPollAt)
-    : activeSchedule ? 'Awaiting schedule report' : 'Not scheduled';
+  const status = connector.syncState === 'failed' ? ['warning', 'Last sync failed']
+    : connector.syncState === 'interrupted' || (connector.syncState === 'running' && !online) ? ['info', 'Sync outcome pending']
+    : connector.syncState === 'running' ? ['info', 'Syncing'] : null;
   return <>
     <div className="flex flex-wrap items-center gap-1.5" aria-live="polite">
       <StatusBadge status={authorization[0]}>{authorization[1]}</StatusBadge>
       <StatusBadge status={online ? 'success' : 'neutral'}>{deviceLabel}</StatusBadge>
-      {status && <StatusBadge status={failed ? 'warning' : 'info'}>{status}</StatusBadge>}
+      {status && <StatusBadge status={status[0]}>{status[1]}</StatusBadge>}
     </div>
-    <dl className="grid grid-cols-2 gap-x-4 gap-y-2 type-caption sm:grid-cols-3 xl:grid-cols-5">
-      <div><dt className="text-text-secondary">Accepted data updated</dt><dd>{timestamp(connector.lastDataUpdateAt)}</dd></div>
-      <div><dt className="text-text-secondary">Last successful sync</dt><dd>{timestamp(connector.lastSyncAt)}</dd></div>
-      <div><dt className="text-text-secondary">Last device check-in</dt><dd>{timestamp(connector.deviceLastSeenAt)}</dd></div>
-      <div><dt className="text-text-secondary">Automatic check-in</dt><dd>{schedule?.policy ?? 'Schedule not reported'}</dd></div>
-      <div><dt className="text-text-secondary" title="Last count reported by the Windows Connector">Pending uploads</dt><dd>{connector.pendingRetries ?? 'Not reported'}</dd></div>
+    <dl className="flex flex-wrap gap-x-5 gap-y-1 type-body-sm">
+      <div className="flex flex-wrap gap-x-1.5"><dt className="text-text-secondary">Last successful sync</dt><dd className="font-medium">{timestamp(connector.lastSyncAt)}</dd></div>
+      <div className="flex gap-1.5"><dt className="text-text-secondary" title="Last count reported by the Windows Connector">Pending uploads</dt><dd className="font-medium">{connector.pendingRetries ?? 'Not reported'}</dd></div>
     </dl>
-    {!online && schedule && <p className="type-caption text-text-secondary">{schedule.resume}</p>}
-    <div className="grid gap-1">
-      <FinanceDisclosure label="Diagnostics">
-        <dl className="grid grid-cols-2 gap-2 type-caption">
-          <div><dt>Last sync attempt</dt><dd>{timestamp(connector.lastAttemptAt)}</dd></div>
-          <div><dt>Next check-in</dt><dd>{nextRun}</dd></div>
-        </dl>
-        {failed && <p className="type-caption text-text-secondary">
-          {connector.syncState === 'interrupted' ? 'Sync did not report an outcome. The next eligible run will retry.' : syncErrors[connector.syncError] ?? syncErrors.local}
-        </p>}
-        <p className="type-caption text-text-secondary">Check-ins pick up queued work. Once GL coverage is current, the connector refreshes daily. Accepted data updates when FeedX stores a new snapshot, including an empty GL day.</p>
-      </FinanceDisclosure>
-      {children}
-    </div>
+    {!online && schedule && <p className="type-body-sm text-text-secondary">{schedule.resume}</p>}
+  </>;
+}
+
+export function AutoCountDiagnostics({ entry, timestamp }) {
+  const { connector } = entry;
+  const online = autoCountOnline(entry);
+  const activeSchedule = ['signed_in', 'unattended'].includes(connector.backgroundMode);
+  const nextRun = activeSchedule && !online ? 'When the device returns'
+    : connector.nextPollAt ? timestamp(connector.nextPollAt)
+    : activeSchedule ? 'Awaiting schedule report' : 'Not scheduled';
+  const facts = [
+    ['Accepted data updated', timestamp(connector.lastDataUpdateAt)],
+    ['Last successful sync', timestamp(connector.lastSyncAt)],
+    ['Last device check-in', timestamp(connector.deviceLastSeenAt)],
+    ['Last sync attempt', timestamp(connector.lastAttemptAt)],
+    ['Automatic check-in', scheduling[connector.backgroundMode]?.policy ?? 'Schedule not reported'],
+    ['Next check-in', nextRun],
+  ];
+  const error = connector.syncState === 'interrupted' ? 'Sync did not report an outcome. The next eligible run will retry.'
+    : connector.syncState === 'failed' ? syncErrors[connector.syncError] ?? syncErrors.local : null;
+  return <>
+    <dl className="grid grid-cols-2 gap-x-4 gap-y-3 type-body-sm">
+      {facts.map(([label, value]) => <div key={label}><dt className="text-text-secondary">{label}</dt><dd className="mt-0.5 font-medium">{value}</dd></div>)}
+    </dl>
+    {error && <p className="type-body-sm text-text-secondary">{error}</p>}
+    <p className="type-body-sm text-text-secondary">Check-ins pick up queued work. Once GL coverage is current, the connector refreshes daily. Accepted data updates when FeedX stores a new snapshot, including an empty GL day.</p>
   </>;
 }
 
 const windowsInstaller = '/downloads/FeedX-AutoCount-Connector-Setup.exe';
 
 export function AutoCountDevices({ state, onAction }) {
-  return state.connectorDevices?.map((device) => <article key={device.id} className="finance-source-connection">
+  return state.connectorDevices?.map((device) => <article key={device.id} className="grid gap-2 py-2">
     <div className="flex flex-wrap items-center justify-between gap-2">
-      <h3>{device.label || 'AutoCount Desktop Connector'}</h3>
+      <h3 className="type-body-sm font-semibold">{device.label || 'AutoCount Desktop Connector'}</h3>
       <div className="flex flex-wrap gap-2">
         <StatusBadge status={device.active ? 'info' : 'neutral'}>{device.active ? 'Paired' : 'Revoked'}</StatusBadge>
       </div>
@@ -110,7 +113,7 @@ export function AutoCountDevices({ state, onAction }) {
         const entry = state.connections.find((item) => item.connection.id === book.connectionId);
         const duplicateName = device.books.filter((item) => item.name === book.name).length > 1;
         const canBind = device.active && book.ready && (!entry || entry.state === 'revoked');
-        return <li key={book.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+        return <li key={book.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
           <div>
             <p className="type-body-sm font-semibold">{book.company}</p>
             <p className="type-caption text-text-secondary">{book.name} · {book.ready ? entry ? entry.legalEntityLabel : 'Ready to connect' : 'Authorization Required'}</p>
@@ -120,7 +123,7 @@ export function AutoCountDevices({ state, onAction }) {
         </li>;
       })}
     </ul>}
-    <div className="finance-source-actions">
+    <div className="flex flex-wrap gap-2">
       <button className="btn-secondary" type="button" onClick={() => onAction('pair', null, { device })}>Replace computer</button>
       {device.active && <button className="btn-secondary" type="button" onClick={() => onAction('revoke_device', null, { device })}>Revoke computer</button>}
     </div>
