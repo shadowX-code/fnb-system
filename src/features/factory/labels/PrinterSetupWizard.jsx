@@ -1,15 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowDownToLine, Monitor, Replace } from "lucide-react";
+import { Monitor, Replace } from "lucide-react";
 import WorkflowStepper from "../../../components/feedback/WorkflowStepper.jsx";
 import SelectField from "../../../components/forms/SelectField.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
 import FactorySegmentedControl from "../components/FactorySegmentedControl.jsx";
 import FactoryStatusBadge from "../components/FactoryStatusBadge.jsx";
 
-export const printerInstallers = {
-  macos: "/downloads/FeedX-Print-Bridge-Production-macOS-arm64.pkg",
-  windows: "/downloads/FeedX-Print-Bridge-Production-Windows.exe",
-};
+import { bridgeInstallerVersion } from "../../../services/factoryLabelService.js";
+import BridgeInstallerDownload from "./BridgeInstallerDownload.jsx";
 
 export function livePrinterReport(row, online, now = Date.now()) {
   if (!online) return null;
@@ -39,7 +37,6 @@ export function printerSetupStatus(row, now = Date.now()) {
   };
 }
 
-export const bridgeInstallerVersion = "1.3.0";
 export const bridgeLaunchUrl = "feedx-printer-production://setup";
 
 export function bridgeRelease(row) {
@@ -94,9 +91,7 @@ export default function PrinterSetupWizard({ onClose, onRefresh, devices, select
   );
   let action;
   if (held) action = <a href="/factory/job-orders" className="btn-primary">Review Print History</a>;
-  else if (installing) action = <a className="btn-primary" href={printerInstallers[platform]} download>
-    <ArrowDownToLine size={15} aria-hidden="true" /> Download Installer
-  </a>;
+  else if (installing) action = <BridgeInstallerDownload key={platform} platform={platform} primary />;
   else if (ready) action = <button type="button" className="btn-primary" onClick={onClose}>Done</button>;
   else action = launch(step === 2 && status.bridge === "Offline" ? "Reconnect in Bridge" : "Open Bridge");
 

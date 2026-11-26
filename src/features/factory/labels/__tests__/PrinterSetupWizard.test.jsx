@@ -1,7 +1,12 @@
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
+import { factoryLabelService } from "../../../../services/factoryLabelService.js";
 import PrinterSetupWizard, { bridgeRelease, printerSetupStatus } from "../PrinterSetupWizard.jsx";
 
+vi.mock("../../../../services/factoryLabelService.js", () => ({
+  bridgeInstallerVersion: "1.3.0",
+  factoryLabelService: { downloadInstaller: vi.fn().mockRejectedValue(new Error("Installer unavailable.")) },
+}));
 afterEach(cleanup);
 
 const device = {
@@ -27,11 +32,14 @@ it("shows platform, architecture and version only during install, and keeps refr
   const props = { onClose: vi.fn(), onRefresh };
   const result = render(<PrinterSetupWizard devices={[]} {...props} />);
   fireEvent.click(screen.getByRole("tab", { name: /Windows/ }));
-  const download = screen.getByRole("link", { name: "Download Installer" });
-  expect(download.getAttribute("href")).toContain("Windows.exe");
+  const download = screen.getByRole("button", { name: "Download Installer" });
+  await act(async () => fireEvent.click(download));
+  expect(factoryLabelService.downloadInstaller).toHaveBeenLastCalledWith("windows");
+  expect(screen.getByRole("alert").textContent).toContain("Installer unavailable.");
   expect(within(screen.getByRole("region", { name: "Installer" })).getByText(/x86 installer · v1.3.0/)).toBeTruthy();
   fireEvent.click(screen.getByRole("tab", { name: /macOS/ }));
-  expect(download.getAttribute("href")).toContain("macOS-arm64.pkg");
+  await act(async () => fireEvent.click(screen.getByRole("button", { name: "Download Installer" })));
+  expect(factoryLabelService.downloadInstaller).toHaveBeenLastCalledWith("macos");
   expect(screen.getByText(/Apple silicon \(arm64\) · v1.3.0/)).toBeTruthy();
   const nativeLaunch = screen.getByRole("link", { name: "Already installed? Open Bridge" });
   expect(nativeLaunch.getAttribute("href")).toBe("feedx-printer-production://setup");
@@ -39,7 +47,7 @@ it("shows platform, architecture and version only during install, and keeps refr
   fireEvent.click(nativeLaunch);
   expect(screen.getByText("Authorize").closest("li").getAttribute("aria-current")).toBe("step");
   expect(screen.queryByRole("tab", { name: /macOS/ })).toBeNull();
-  expect(screen.queryByRole("link", { name: "Download Installer" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Download Installer" })).toBeNull();
   const troubleshooting = screen.getByText("Troubleshooting");
   expect(troubleshooting.parentElement.open).toBe(false);
   fireEvent.click(troubleshooting);
@@ -54,7 +62,7 @@ it("shows the registered workstation in the header and lets operators switch wit
   const alternate = { ...device, id: "windows", name: "Registered PC", last_seen: "invalid", unresolved_jobs: 0 };
   render(<PrinterSetupWizard devices={[device, alternate]} selected={device} onClose={vi.fn()} onRefresh={vi.fn()} />);
   expect(screen.getByText("Registered Mac")).toBeTruthy();
-  expect(screen.queryByRole("link", { name: "Download Installer" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Download Installer" })).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Change workstation" }));
   fireEvent.click(screen.getByRole("button", { name: "Registered workstation" }));
   fireEvent.click(screen.getByRole("option", { name: /Registered PC/ }));

@@ -16,10 +16,11 @@ import {
   factoryLabelService,
   factoryLabelsEnabled,
 } from "../../../services/factoryLabelService.js";
-import PrinterSetupWizard, { bridgeLaunchUrl, bridgeRelease, livePrinterReport, printerInstallers, printerSetupStatus } from "../labels/PrinterSetupWizard.jsx";
+import PrinterSetupWizard, { bridgeLaunchUrl, bridgeRelease, livePrinterReport, printerSetupStatus } from "../labels/PrinterSetupWizard.jsx";
 import { formatFactoryAuditDateTime } from "../utils/factoryDates.js";
 import FactoryLabelEditorPage from "../labels/FactoryLabelEditorPage.jsx";
 import ActiveTemplatePreview from "../labels/ActiveTemplatePreview.jsx";
+import BridgeInstallerDownload from "../labels/BridgeInstallerDownload.jsx";
 import useLabelManagementQuery from "../labels/useLabelManagementQuery.js";
 import {
   openLabelManagement,
@@ -400,7 +401,9 @@ export default function FactoryLabelManagementPage({ onConfirm, onNotify }) {
             <dl className="grid grid-cols-2 gap-2 text-sm">
               <dt>Printer</dt><dd>{selectedPrinter.printer_name}</dd>
               <dt>Bridge</dt><dd><FactoryStatusBadge status={selectedStatus.bridge} /></dd>
-              <dt>Bridge version</dt><dd>{release.version ? `v${release.version}` : "Not reported"}{release.update && release.platform && <> · <a className="underline" href={printerInstallers[release.platform]} download>Update available</a></>}</dd>
+              <dt>Bridge version</dt><dd>{release.version ? `v${release.version}` : "Not reported"}{canSetup && release.update && release.platform && (
+                <div className="mt-2"><BridgeInstallerDownload platform={release.platform} /></div>
+              )}</dd>
               <dt>Printer connection</dt><dd><FactoryStatusBadge status={selectedStatus.connection} /></dd>
               {selectedProbe?.ConnectionCheckedAt && <>
                 <dt>Printer checked</dt><dd><BridgeLastSeen now={now} value={selectedProbe.ConnectionCheckedAt} /></dd>

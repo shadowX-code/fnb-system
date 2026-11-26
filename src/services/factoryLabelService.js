@@ -4,6 +4,18 @@ export const factoryLabelsEnabled =
   import.meta.env.VITE_FACTORY_LABEL_PRINTING_ENABLED === "true" &&
   import.meta.env.VITE_SUPABASE_URL ===
   "https://oyfobxdoyfuzsodogpgs.supabase.co";
+export const bridgeInstallerVersion = "1.3.0";
+const bridgeInstallers = new Map([
+  ["windows", {
+    fileName: "FeedX-Print-Bridge-Production-Windows.exe",
+    sha256: "891145ec85652ccacec16bb58eecb1353cd17b2342dc46a76985ecdf4199263c",
+  }],
+  ["macos", {
+    fileName: "FeedX-Print-Bridge-Production-macOS-arm64.pkg",
+    sha256: "a17b847e21d193988cbed2f88786bc7f85e4f67dd433f3929e958eed67d48836",
+  }],
+]);
+
 async function rpc(name, args, signal) {
   if (!factoryLabelsEnabled)
     throw new Error("Factory label printing is currently unavailable.");
@@ -13,6 +25,20 @@ async function rpc(name, args, signal) {
   return data;
 }
 export const factoryLabelService = {
+  async downloadInstaller(platform) {
+    if (!factoryLabelsEnabled) throw new Error("Factory label printing is currently unavailable.");
+    const installer = bridgeInstallers.get(platform);
+    if (!installer) throw new Error("Select a supported operating system.");
+    const { fileName, sha256 } = installer;
+    const { data, error } = await supabase.storage.from("factory-print-bridge-installers")
+      .download(`${bridgeInstallerVersion}/${fileName}`, {}, { cache: "no-store" });
+    if (error || !data) throw new Error("Installer unavailable. Sign in with an account authorized to set up Factory printers.");
+    const digest = await crypto.subtle.digest("SHA-256", await data.arrayBuffer());
+    const checksum = [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+    if (checksum !== sha256) throw new Error("Installer integrity check failed. Contact FeedX support.");
+    return { fileName, file: data };
+  },
+
   settings: (sku) => rpc("settings", { p_sku: sku }),
   saveConfig: (sku, config, version, requestId) =>
     rpc("save_config", {

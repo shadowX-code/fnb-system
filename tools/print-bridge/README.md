@@ -10,6 +10,12 @@ The background worker reports heartbeat and printer observations separately. A c
 
 The native Bridges coordinate D520 access in the same FeedX environment using a renewable 120-second reservation. Use the guided v1.3.0 setup on each workstation using the printer. Reservations are scoped to one Supabase project. Stop the Staging Bridge before connecting the same D520 to Production. If a previous Production-bound private build was installed, open setup and connect or reconnect before relying on reservation support.
 
+### Controlled internal installation
+
+Open Printer Setup while signed in to Production with Factory setup permission. Use **Download Installer** for the approved v1.3.0 package. FeedX authenticates the download and verifies its SHA-256 before saving the file. Use only your company-managed workstation and the matching OS package. Keep Gatekeeper, SmartScreen, endpoint controls and PowerShell execution policy active. If your managed policy blocks installation or first launch, stop and contact internal IT. Unsigned internal approval does not authorize changes to workstation security.
+
+Before adding a shared D520 in Production, check for pending and uncertain prints in Staging and resolve or complete them through the existing workflow. Quit the Staging setup app and stop every Staging Bridge worker targeting that physical printer. Verify it stays stopped. Reservations cannot coordinate workers across environments. In Production, authorize the workstation, select the existing paired D520, and check connection and heartbeat. A Production device has its own calibration. Where an authorized test is still required for that registration, confirm the observed result before enabling operational printing on that workstation.
+
 ### Commercial distribution and activation
 
 Build the unsigned Windows EXE with NSIS from `tools/windows-print-bridge/Setup.nsi`. Build the ad-hoc review PKG with `tools/macos-print-bridge/package.sh` and the pinned Python requirements. Write both outputs to a private location outside source and hosted downloads.
