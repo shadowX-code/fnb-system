@@ -121,9 +121,33 @@ export default function PrinterSetupWizard({ onClose, onRefresh, devices, select
       </>}>
       <div className="space-y-4 text-sm">
         <WorkflowStepper steps={steps} current={step} complete={ready} label="Printer setup steps" />
-        {!row && choices.length > 0 && (
-          <button type="button" className="btn-secondary" aria-expanded={choosing} aria-controls="printer-setup-workstation"
-            onClick={() => setChoosing(!choosing)}>Use a Registered Workstation</button>
+        {installing && (
+          <>
+            <div>
+              <FactorySegmentedControl label="Bridge operating system" value={platform}
+                onChange={setPlatform} options={Object.entries(installerDetails).map(([value, { name }]) => ({
+                  value,
+                  label: recommended === value ? `${name} · Recommended` : name,
+                }))} />
+            </div>
+            <section aria-label="Installer" className="flex items-start gap-3 rounded-xl border border-border bg-[var(--theme-surface-nested)] p-3">
+              <Monitor size={19} aria-hidden="true" className="mt-0.5 shrink-0 text-text-secondary" />
+              <div className="min-w-0 space-y-1">
+                <h3 className="font-semibold text-text-primary">FeedX Print Bridge for {installer.name}</h3>
+                <p className="text-xs text-text-secondary">{installer.arch} · v{bridgeInstallerVersion}</p>
+                <p className="text-text-secondary">Install on the workstation connected to the printer.</p>
+              </div>
+            </section>
+          </>
+        )}
+        {!row && (installing || choices.length > 0) && (
+          <div className="flex flex-wrap items-center gap-2">
+            {installing && launch("Already installed? Open Bridge", "btn-secondary")}
+            {choices.length > 0 && (
+              <button type="button" className="btn-secondary" aria-expanded={choosing} aria-controls="printer-setup-workstation"
+                onClick={() => setChoosing(!choosing)}>Use a Registered Workstation</button>
+            )}
+          </div>
         )}
         <div id="printer-setup-workstation" hidden={!choosing}>
           {choosing && <SearchableSelect ariaLabel="Registered workstation" value={row?.id || ""}
@@ -138,24 +162,6 @@ export default function PrinterSetupWizard({ onClose, onRefresh, devices, select
             }} />}
         </div>
 
-        {installing && (
-          <>
-            <FactorySegmentedControl label="Bridge operating system" value={platform}
-              onChange={setPlatform} options={Object.entries(installerDetails).map(([value, { name }]) => ({
-                value,
-                label: recommended === value ? `${name} · Recommended` : name,
-              }))} />
-            <section aria-label="Installer" className="flex items-start gap-3 rounded-xl border border-border bg-[var(--theme-surface-nested)] p-3">
-              <Monitor size={19} aria-hidden="true" className="mt-0.5 shrink-0 text-text-secondary" />
-              <div className="min-w-0 space-y-1">
-                <h3 className="font-semibold text-text-primary">FeedX Print Bridge for {installer.name}</h3>
-                <p className="text-xs text-text-secondary">{installer.arch} · v{bridgeInstallerVersion}</p>
-                <p className="text-text-secondary">Install on the workstation connected to the printer.</p>
-              </div>
-            </section>
-            {launch("Already installed? Open Bridge", "btn-secondary")}
-          </>
-        )}
         {step === 1 && <p role="status" className="text-text-secondary">
           Follow the authorization prompt in your browser. FeedX will advance when the Bridge registers this workstation.
         </p>}
