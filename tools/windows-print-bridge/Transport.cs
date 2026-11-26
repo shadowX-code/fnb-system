@@ -28,6 +28,31 @@ public static class FeedXTransport {
    data=Encoding.ASCII.GetBytes("\r\nPRINT 1,"+copies+"\r\n");stream.Write(data,0,data.Length);return stream.ToArray();
   }
  }
+ public static byte[] D520(byte[] blackBits,int width,int height,decimal wm,decimal hm,int copies,decimal gap) {
+  Validate(blackBits,width,height,wm,hm,copies);
+  if(gap<0 || gap>10)throw new ArgumentException("Gap must be 0–10 mm.");
+  const string format="0.############################";
+  var culture=System.Globalization.CultureInfo.InvariantCulture;
+  string header=String.Format(culture,
+   "\r\nREFERENCE 0,0\r\nOFFSET 0 mm\r\nSIZE {0} mm,{1} mm\r\nGAP {2} mm,0\r\nDIRECTION 1,0\r\nCLS\r\nBITMAP 0,0,{3},{4},4,",
+   wm.ToString(format,culture),hm.ToString(format,culture),gap.ToString(format,culture),(width+7)/8,height);
+  using(var stream=new MemoryStream()) using(var writer=new BinaryWriter(stream)) {
+   writer.Write(Encoding.ASCII.GetBytes(header));
+   // Keep literal LZO1X blocks, white/black polarity and feed direction identical to the macOS D520 adapter.
+   for(int offset=0;offset<blackBits.Length;offset+=4096) {
+    int count=Math.Min(4096,blackBits.Length-offset);
+    int zeros=count<=238?0:1+(count-19)/255;
+    writer.Write(count+zeros+4);
+    for(int i=0;i<zeros;i++)writer.Write((byte)0);
+    writer.Write((byte)(count<=238?17+count:1+(count-19)%255));
+    for(int i=0;i<count;i++)writer.Write((byte)~blackBits[offset+i]);
+    writer.Write(new byte[]{0x11,0,0});
+   }
+   writer.Write(0);
+   writer.Write(Encoding.ASCII.GetBytes("\r\nPRINT 1,"+copies.ToString(culture)+"\r\n"));
+   return stream.ToArray();
+  }
+ }
  static void Validate(byte[] data,int width,int height,decimal wm,decimal hm,int copies) {
   if(wm<20 || wm>120 || hm<20 || hm>200 || width!=(int)Math.Round(wm*203m/25.4m,MidpointRounding.AwayFromZero) || height!=(int)Math.Round(hm*203m/25.4m,MidpointRounding.AwayFromZero) || copies<1 || copies>10000 || data==null || data.Length!=((width+7)/8)*height) throw new ArgumentException("Invalid label bitmap or dimensions.");
  }

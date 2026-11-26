@@ -11,7 +11,8 @@ export function inspectPrint(job) {
 
 export function PrintJobDetails({ job, printer, audit = false }) {
   const { events, inspection, submission } = inspectPrint(job);
-  const hasSubmission = submission || ["Sent", "Unknown"].includes(job.state);
+  const hasSubmission = (audit || !["Confirmed", "Failed"].includes(job.state)) &&
+    (submission || ["Sent", "Unknown"].includes(job.state));
   const submissionDetail = submission?.detail || (!inspection && hasSubmission ? job.detail : "");
   return (
     <div className="space-y-2 break-words text-sm">
@@ -29,7 +30,7 @@ export function PrintJobDetails({ job, printer, audit = false }) {
           {inspection.state === "Confirmed" ? "Physically confirmed." : inspection.detail}
         </p>
       ) : null}
-      {job.detail && job.detail !== submissionDetail && job.detail !== inspection?.detail && <p>{job.detail}</p>}
+      {job.detail && (audit || !inspection) && job.detail !== submissionDetail && job.detail !== inspection?.detail && <p>{job.detail}</p>}
       {job.reprint_reason && <p>Reprint reason · {job.reprint_reason}</p>}
       {audit && events.length > 0 && (
         <ol className="space-y-1 border-t border-border pt-2 text-xs text-text-secondary" aria-label="Audit events">
@@ -60,7 +61,19 @@ export function PrintJobActions({ job, busy, allowReprint, onResolve, onReprint 
   );
 }
 
-export function PrintOutcomeForm({ resolve, setResolve, issue, busy, canRecordOutcome, resolvePrint }) {
+function issueGuidance(job, device) {
+  const printerName = job.printer_name || device?.printer_name;
+  const connection = device?.printers?.find((printer) => printer.Name === printerName)?.Connection;
+  if (connection === "Bluetooth Classic SPP" || (!connection && printerName === "D520 (Bluetooth)"))
+    return "Count the usable labels. Check the D520 for pending Bluetooth output and make sure it has stopped before recording the issue.";
+  if (connection === "CUPS")
+    return "Count the usable labels and clear any held job in the macOS print queue before recording the issue.";
+  if (connection === "Windows spooler" || device?.transport === "spooler")
+    return "Count the usable labels and clear any held job in the Windows print queue before recording the issue.";
+  return "Count the usable labels and clear any held output before recording the issue.";
+}
+
+export function PrintOutcomeForm({ resolve, setResolve, issue, busy, canRecordOutcome, resolvePrint, device }) {
   const h = resolve.job;
   return (
     <div className="space-y-3 rounded-lg border border-border p-3">
@@ -68,7 +81,7 @@ export function PrintOutcomeForm({ resolve, setResolve, issue, busy, canRecordOu
         {resolve.state === "Confirmed"
           ? `Have you checked that all ${h.quantity} labels printed and are usable?`
           : issue
-            ? "Count the usable labels and clear any held output before recording the issue."
+            ? issueGuidance(h, device)
             : h.state === "Queued"
               ? "Cancel this queued print request."
               : "Inspect the printer before continuing. An active submission cannot be cancelled."}

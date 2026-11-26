@@ -1,4 +1,4 @@
-"""Native dialogs and launchd integration for the existing Production bridge."""
+"""Printer setup and launchd integration for the FeedX bridge."""
 import contextlib
 import fcntl
 import json
@@ -16,39 +16,15 @@ from pathlib import Path
 
 import certifi
 import bridge
+import browser_authorization
 
 WEB = "https://os.feedx.my"
 PRINTERS = WEB + "/factory/settings/labels?section=printers"
 SERVICE = "my.feedx.production.print-bridge"
 APP = "FeedX Print Bridge Production"
+ENVIRONMENT = "Production"
+VERSION = "1.3.0"
 PAUSE = bridge.ROOT / "setup.pause"
-
-
-def script(source, *args):
-    return subprocess.check_output(["/usr/bin/osascript", "-e", "use scripting additions\n" + source, "--", *args],
-                                   stderr=subprocess.DEVNULL, text=True).removesuffix("\n")
-
-
-def dialog(text, buttons=("OK",)):
-    options = ", ".join(json.dumps(b) for b in buttons)
-    return script('on run argv\nreturn button returned of (display dialog (item 1 of argv) '
-                  f'with title "{APP}" buttons {{{options}}} default button 1)\nend run', text)
-
-
-def field(text, default="", hidden=False):
-    return script('on run argv\nreturn text returned of (display dialog (item 1 of argv) '
-                  f'with title "{APP}" default answer (item 2 of argv)'
-                  + (' with hidden answer' if hidden else '') + ')\nend run', text, default)
-
-
-def choose(text, choices, default=""):
-    result = script('on run argv\nset selected to choose from list (items 3 thru -1 of argv) '
-                    f'with title "{APP}" with prompt (item 1 of argv) default items {{item 2 of argv}}\n'
-                    'if selected is false then return ""\nreturn item 1 of selected\nend run',
-                    text, default, *choices)
-    if not result:
-        raise KeyboardInterrupt
-    return result
 
 
 def public_key():
@@ -64,41 +40,48 @@ def check_idle(config, session):
 
 
 def authorize(config):
-    config = dict(config or {})
-    config.setdefault("device", str(uuid.uuid4()))
+    config = dict(config)
+    pending = bridge.ROOT / "pending-device.json"
+    saved = bridge.load(pending) or {}
+    config.setdefault("device", saved.get("device") or str(uuid.uuid4()))
     config.setdefault("name", f"{bridge.socket.gethostname()[:85]} (macOS)")
+    bridge.save(pending, {"device": config["device"]})
     config["key"] = public_key()
-    email = field("Sign in as the authorized FeedX Production operator. Enter your email.").strip()
-    password = field("Enter your FeedX Production password.", hidden=True)
-    session = bridge.auth(config, "password", email=email, password=password)
+    session = browser_authorization.authorize(config["key"], bridge.ENDPOINT, ENVIRONMENT)
+    if config.get("owner") and config["owner"] != session["user"]:
+        raise bridge.BridgeError("Authorize with the original operator to preserve this device.")
     config["owner"] = session["user"]
     return config, session
 
 
-def configure(config, session):
+def discover():
+    printers = {p["Name"]: (p["Name"], None) for p in bridge.cups_printers()}
+    try:
+        addresses = bridge.native_command(["discover"]).decode().splitlines()
+    except (OSError, subprocess.SubprocessError):
+        addresses = []
+    for address in addresses:
+        if bridge.re.fullmatch(r"[0-9a-fA-F]{2}([-:][0-9a-fA-F]{2}){5}", address):
+            printers[f"D520 Bluetooth · {address[-5:]}"] = (bridge.BLUETOOTH, address)
+    return printers
+
+
+def configure(config, session, selection, media):
     if bridge.CALIBRATION.exists():
-        raise bridge.BridgeError("Review the previous calibration before changing printer or media.")
+        raise bridge.BridgeError("Review the previous calibration first.")
     if config.get("printer"):
         check_idle(config, session)
-    queues = {p["Name"]: p for p in bridge.cups_printers()}
-    selected = choose("Select an installed CUPS printer or a Bluetooth-paired D520.",
-                      [*queues, bridge.BLUETOOTH], config.get("printer", ""))
+    if selection not in discover().values():
+        raise bridge.BridgeError("Printer changed. Rescan and select it again.")
     try:
-        address = bridge.bluetooth_probe(config.get("bluetooth_address")) if selected == bridge.BLUETOOTH else None
-    except (OSError, subprocess.SubprocessError):
-        raise bridge.BridgeError("D520 unavailable. Check power and pairing, and close Labelife before retrying.") from None
-    if selected in queues and queues[selected]["WorkOffline"]:
-        raise bridge.BridgeError("The selected CUPS queue is offline or not accepting jobs.")
-    width = float(field("Stock width in millimetres (20–120).", str(config.get("stock_width", 80))))
-    height = float(field("Stock length in the feed direction (20–200 mm).", str(config.get("stock_height", 90))))
-    if not all(map(math.isfinite, [width, height])) or not 20 <= width <= 120 or not 20 <= height <= 200:
-        raise bridge.BridgeError("Enter a valid stock width and length in millimetres.")
-    gap = 0 if not address else float(field("Enter the stock gap in millimetres (0–10).", str(config.get("gap", 2))))
-    if not 0 <= gap <= 10:
-        raise bridge.BridgeError("Enter a gap between 0 and 10 mm.")
-    dialog("Load the label in portrait orientation. The D520 uses the calibrated feed direction. For CUPS, use portrait, actual size, and set the gap and stock in the printer driver.")
+        width, height, gap = map(float, media)
+    except (ValueError, TypeError):
+        raise bridge.BridgeError("Enter valid stock dimensions and gap in millimetres.") from None
+    if not 20 <= width <= 120 or not 20 <= height <= 200 or not 0 <= gap <= 10:
+        raise bridge.BridgeError("Enter width 20–120, length 20–200 and gap 0–10 mm.")
+    selected, address = selection
     settings = dict(printer=selected, bluetooth_address=address,
-                    transport="tspl" if address else "spooler", gap=gap,
+                    transport="tspl" if address else "spooler", gap=gap if address else 0,
                     stock_width=width, stock_height=height, invert=config.get("invert", True))
     previous = dict(config, stock_width=config.get("stock_width", 80), stock_height=config.get("stock_height", 90))
     if any(previous.get(name) != value for name, value in settings.items()):
@@ -106,39 +89,87 @@ def configure(config, session):
     config.update(settings, guided_setup=True, require_calibration=True)
 
 
-def report_connection(config, session):
-    printers = bridge.inventory(config)
-    available = any(p["Name"] == config["printer"] and not p["WorkOffline"] for p in printers)
-    status = "Offline" if not available else "Ready" if bridge.calibration_status(config) == "Passed" else "Error"
-    bridge.device_status(config, session, printers, status)
-    return available
-
-
 def register(config, session):
+    bridge.device_status(config, session, bridge.inventory(config, probe_bluetooth=False), "Offline")
     bridge.store_session(config, session)
     bridge.save(bridge.CONFIG, config)
-    report_connection(config, session)
+    (bridge.ROOT / "pending-device.json").unlink(missing_ok=True)
 
 
-def calibrate(config, session):
-    pending = bridge.load(bridge.CALIBRATION)
-    if not pending:
-        check_idle(config, session)
-        copies = 3 if config["transport"] == "tspl" and config.get("calibrated_labels") == 1 else 1
-        if dialog(f"Confirm the printer is idle with {config.get('stock_width', 80):g} × {config.get('stock_height', 90):g} mm stock. Send {copies} calibration label(s)?",
-                  ("Cancel", "Send Test")) != "Send Test":
-            return
-        bridge.device_status(config, session, bridge.inventory(config), "Error")
-        bridge.local_test(config, copies)
+def configure_and_check(config, session, selection, media):
+    config = dict(config)
+    with setup_lock():
+        session = session or existing_session(config)
+        configure(config, session, selection, media)
+        register(config, session)
+    return config, connection_result(config)
+
+
+def save_authorization(config, session):
+    with setup_lock():
+        register(config, session)
+    return config, connection_result(config)
+
+
+def calibrate(config, review=None):
+    config = dict(config)
+    with setup_lock():
+        session = existing_session(config)
         pending = bridge.load(bridge.CALIBRATION)
-    if pending:
-        result = dialog(f"Inspect the printer and clear any held output. Did all {pending['quantity']} calibration label(s) print correctly, with the corner mark at the upper left and the complete frame visible?",
-                        ("Review Later", "Inspected / Issue", "All Passed"))
-        if result != "Review Later":
-            bridge.acknowledge_calibration(config, pending, "PASSED" if result == "All Passed" else "INSPECTED")
-    if bridge.calibration_status(config) == "Passed":
-        dialog("Calibration passed. The bridge starts in the background and appears in FeedX → Label Management → Printers.")
-        subprocess.run(["/usr/bin/open", PRINTERS], check=False)
+        if review is not None:
+            if not pending:
+                raise bridge.BridgeError("No calibration is waiting for review.")
+            bridge.acknowledge_calibration(config, pending, review)
+        else:
+            if pending:
+                raise bridge.BridgeError("Review the pending test before sending another.")
+            check_idle(config, session)
+            if not bridge.claim_bluetooth(config, session):
+                raise bridge.BridgeError("This D520 is active on another FeedX Bridge.")
+            copies = 3 if config["transport"] == "tspl" and config.get("calibrated_labels") == 1 else 1
+            bridge.local_test(config, copies)
+    return config
+
+
+def open_feedx():
+    subprocess.run(["/usr/bin/open", PRINTERS], check=False)
+
+
+def safe_issue(error):
+    if isinstance(error, (bridge.BridgeError, browser_authorization.AuthorizationError)):
+        return str(error)
+    if isinstance(error, urllib.error.HTTPError) and error.code in (400, 401, 403):
+        return "FeedX could not authorize this Bridge. Use Authorize again with the original operator."
+    return "The Bridge could not finish this step. Check the network, printer and FeedX sign-in."
+
+
+def store_setup_issue(operation, error):
+    with contextlib.suppress(OSError):
+        bridge.save(bridge.ROOT / "setup-diagnostics.json", {
+            "time": int(time.time()), "version": VERSION, "operation": operation,
+            "type": type(error).__name__, "httpStatus": error.code if isinstance(error, urllib.error.HTTPError) else None,
+            "nativeCode": error.returncode if isinstance(error, subprocess.CalledProcessError) else None,
+        })
+
+
+def export_setup_issue(destination):
+    value = bridge.load(bridge.ROOT / "setup-diagnostics.json") or {"version": VERSION, "status": "No setup failure recorded."}
+    destination.write_text(json.dumps(value, indent=2))
+
+
+def connection_result(config):
+    try:
+        return wait_for_connection(config)
+    except bridge.BridgeError as error:
+        return {"available": False, "reported": False, "detail": str(error)}
+
+
+def resume(config):
+    # Restart only an older worker. The setup lock waits for active submissions to finish.
+    if (bridge.load(bridge.ROOT / "worker-version.json") or {}).get("version") != VERSION:
+        with setup_lock():
+            pass
+    return wait_for_connection(config)
 
 
 def launch_agent():
@@ -214,10 +245,10 @@ def existing_session(config):
         return session
     except urllib.error.HTTPError as error:
         if error.code in (400, 401):
-            raise bridge.BridgeError("FeedX sign-in expired. Choose Reauthorize and sign in as the original bridge operator.") from None
+            raise bridge.BridgeError("FeedX sign-in expired. Choose Authorize again and sign in as the original bridge operator.") from None
         raise
     except subprocess.CalledProcessError:
-        raise bridge.BridgeError("FeedX sign-in is unavailable in Keychain. Choose Reauthorize to restore it.") from None
+        raise bridge.BridgeError("FeedX sign-in is unavailable in Keychain. Choose Authorize again to restore it.") from None
 
 
 def wait_for_connection(config):
@@ -243,7 +274,12 @@ def main():
     bridge.HTTP = urllib.request.build_opener(bridge.NoRedirect(),
         urllib.request.HTTPSHandler(context=ssl.create_default_context(cafile=certifi.where())))
     if sys.argv[1:] == ["--self-test"]:
-        assert bridge.NATIVE.is_file() and len(bridge.calibration(1)[0]) == 80 * 719
+        import tkinter
+        assert tkinter.TkVersion >= 8.6 and bridge.NATIVE.is_file() and len(bridge.calibration(1)[0]) == 80 * 719
+        return
+    if sys.argv[1:] == ["--window-self-test"]:
+        from setup_window import SetupWindow
+        SetupWindow(sys.modules[__name__], verify_only=True)
         return
     if sys.argv[1:] == ["background"]:
         if is_paused():
@@ -251,53 +287,27 @@ def main():
         with bridge.lock():
             config = bridge.load(bridge.CONFIG)
             if config:
-                bridge.run(dict(config, guided_worker=True), paused=is_paused)
+                bridge.save(bridge.ROOT / "worker-version.json", {"version": VERSION})
+                bridge.run(dict(config, guided_worker=True, coordinate_bluetooth=True), paused=is_paused)
         return
-    config = bridge.load(bridge.CONFIG)
-    actions = (("Reconnect", "Connection Check") if config else ()) + (
-        "Connect / Configure", "Test / Review Calibration", "Reauthorize", "Open FeedX")
-    action = choose("Manage this computer’s FeedX Production printer.", actions)
-    if action == "Open FeedX":
-        subprocess.run(["/usr/bin/open", PRINTERS], check=False)
-        return
-    if action in ("Reconnect", "Connection Check") and config:
-        report = wait_for_connection(config)
-        dialog("Connection check passed and FeedX status was refreshed." if report["available"] else
-               f"FeedX status was refreshed. {report['detail']}")
-        return
-    with setup_lock():
-        config = bridge.load(bridge.CONFIG)
-        if action == "Reauthorize":
-            if not config:
-                raise bridge.BridgeError("Run Connect / Configure first.")
-            config, session = authorize(config)
-            config["guided_setup"] = True
-            register(config, session)
-            dialog("Computer reauthorized. Its printer, device identity and recovery evidence were preserved.")
-        elif action == "Connect / Configure":
-            if config:
-                session = existing_session(config)
-            else:
-                config, session = authorize(config)
-            configure(config, session)
-            register(config, session)
-            dialog("Printer registered. Open Test / Review Calibration when you are ready to send a test.")
-        elif not config:
-            raise bridge.BridgeError("Run Connect / Configure first.")
-        elif action == "Test / Review Calibration":
-            calibrate(config, existing_session(config))
-
+    from setup_window import SetupWindow
+    os.umask(0o077)
+    bridge.ROOT.mkdir(mode=0o700, parents=True, exist_ok=True)
+    info = bridge.ROOT.lstat()
+    if not bridge.stat.S_ISDIR(info.st_mode) or info.st_mode & 0o077 or info.st_uid != os.getuid():
+        raise bridge.BridgeError("Bridge data directory must be private and owned by this Mac user.")
+    with (bridge.ROOT / "window.lock").open("a") as window:
+        try:
+            fcntl.flock(window, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return
+        SetupWindow(sys.modules[__name__])
 
 
 if __name__ == "__main__":
     try:
         main()
-    except (KeyboardInterrupt, subprocess.CalledProcessError):
-        sys.exit(1)
     except Exception as error:
-        if sys.argv[1:] in (["background"], ["--self-test"]):
-            sys.exit(1)
-        with contextlib.suppress(Exception):
-            dialog(str(error) if isinstance(error, bridge.BridgeError) else
-                   "Setup could not finish. Check the printer, network and FeedX sign-in. Open the setup app to retry.")
+        if sys.argv[1:] not in (["background"], ["--self-test"], ["--window-self-test"]):
+            store_setup_issue("startup", error)
         sys.exit(1)

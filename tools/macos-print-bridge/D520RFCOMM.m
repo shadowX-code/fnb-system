@@ -62,6 +62,13 @@ static int received(D520Reply *reply, NSData *expected, NSData *rejected) {
 
 int main(int argc, const char *argv[]) {
     @autoreleasepool {
+        if (argc == 2 && !strcmp(argv[1], "discover")) {
+            for (IOBluetoothDevice *candidate in IOBluetoothDevice.pairedDevices) {
+                if ([candidate.name isEqualToString:@"D520"] && candidate.addressString)
+                    printf("%s\n", candidate.addressString.UTF8String);
+            }
+            return 0;
+        }
         BOOL probe = argc >= 2 && !strcmp(argv[1], "probe");
         BOOL print = argc == 3 && !strcmp(argv[1], "print");
         if ((!probe && !print) || argc > 3) return 1;

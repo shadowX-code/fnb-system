@@ -1,4 +1,7 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { ArrowDownToLine, Monitor, Replace } from "lucide-react";
+import WorkflowStepper from "../../../components/feedback/WorkflowStepper.jsx";
+import SelectField from "../../../components/forms/SelectField.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
 import FactorySegmentedControl from "../components/FactorySegmentedControl.jsx";
 import FactoryStatusBadge from "../components/FactoryStatusBadge.jsx";
@@ -8,22 +11,22 @@ export const printerInstallers = {
   windows: "/downloads/FeedX-Print-Bridge-Production-Windows.exe",
 };
 
-export function livePrinterReport(row, online) {
+export function livePrinterReport(row, online, now = Date.now()) {
   if (!online) return null;
   const printer = row.printers?.find((entry) => entry.Name === row.printer_name);
   if (!printer) return null;
   if ("ConnectionCheckedAt" in printer) {
-    const age = Date.now() - Date.parse(printer.ConnectionCheckedAt);
+    const age = now - Date.parse(printer.ConnectionCheckedAt);
     if (!Number.isFinite(age) || age < -10000 || age > 90000) return null;
   }
   return printer;
 }
 
-export function printerSetupStatus(row) {
+export function printerSetupStatus(row, now = Date.now()) {
   const latest = Date.parse(row.last_seen);
-  const online = row.enabled && Number.isFinite(latest) && Date.now() - latest <= 90000;
+  const online = row.enabled && Number.isFinite(latest) && now - latest <= 90000;
   const printer = row.printers?.find((entry) => entry.Name === row.printer_name);
-  const report = livePrinterReport(row, online);
+  const report = livePrinterReport(row, online, now);
   const available = report && !report.WorkOffline && ![6, 7].includes(report.PrinterStatus);
   return {
     bridge: !row.enabled ? "Disabled" : online ? "Online" : "Offline",
@@ -36,102 +39,175 @@ export function printerSetupStatus(row) {
   };
 }
 
-export default function PrinterSetupWizard({ onClose, onRefresh, devices, selected, initialStep = 0 }) {
-  const [platform, setPlatform] = useState(() => navigator.platform.startsWith("Win") ? "windows" : "macos");
-  const [step, setStep] = useState(initialStep);
-  const [deviceId, setDeviceId] = useState(selected?.id || "");
+export const bridgeInstallerVersion = "1.3.0";
+export const bridgeLaunchUrl = "feedx-printer-production://setup";
+
+export function bridgeRelease(row) {
+  const printer = row?.printers?.find((entry) => entry.Name === row.printer_name);
+  const platform = printer?.Platform === "Windows" || printer?.Connection === "Windows spooler"
+    ? "windows" : printer?.Platform === "macOS" ? "macos" : null;
+  const version = /^\d+\.\d+\.\d+$/.test(printer?.BridgeVersion) ? printer.BridgeVersion : null;
+  const update = version && bridgeInstallerVersion.localeCompare(version, undefined, { numeric: true }) > 0;
+  return { platform, version, update };
+}
+
+function recommendedPlatform() {
+  const platform = navigator.userAgentData?.platform || navigator.platform || "";
+  return /win/i.test(platform) ? "windows" : /mac/i.test(platform) ? "macos" : null;
+}
+
+const steps = ["Install", "Authorize", "Connect Printer", "Test Print", "Ready"];
+const installerDetails = {
+  macos: { name: "macOS", arch: "Apple silicon (arm64)", fallback: "Applications" },
+  windows: { name: "Windows", arch: "Windows 10/11 · x86 installer", fallback: "the Start menu" },
+};
+
+export default function PrinterSetupWizard({ onClose, onRefresh, devices, selected, now, refreshError }) {
+  const [recommended] = useState(recommendedPlatform);
+  const [platform, setPlatform] = useState(bridgeRelease(selected).platform || recommended || "windows");
+  const [opening, setOpening] = useState(false);
+  const [selection, setSelection] = useState(selected ?? null);
+  const [choosing, setChoosing] = useState(false);
   const [checking, setChecking] = useState(false);
-  const row = devices.find((device) => device.id === deviceId);
-  const status = row && printerSetupStatus(row);
-  const ready = status?.bridge === "Online" && status.connection === "Available" &&
-    status.calibration === "Passed" && status.unresolved === 0;
+  const knownDeviceIds = useRef(new Set(devices.map((device) => device.id)));
+  const newDevices = opening ? devices.filter((device) =>
+    !knownDeviceIds.current.has(device.id) && bridgeRelease(device).platform === platform) : [];
+  const row = devices.find((device) => device.id === selection?.id) || selection
+    || (newDevices.length === 1 ? newDevices[0] : null);
+
+  useEffect(() => {
+    if (row) setSelection(row);
+  }, [row]);
+
+  const status = row && printerSetupStatus(row, now);
+  const step = !row ? opening ? 1 : 0
+    : status.connection !== "Available" ? 2 : status.calibration !== "Passed" ? 3 : 4;
+  const held = status?.unresolved > 0;
+  const ready = step === 4 && status.readiness === "Ready" && status.unresolved === 0;
+  const installing = step === 0;
+  const installer = installerDetails[platform];
+  const localApp = installerDetails[bridgeRelease(row).platform || platform];
+  const choices = row && !devices.some((device) => device.id === row.id) ? [row, ...devices] : devices;
+  const probe = row && livePrinterReport(row, status.bridge === "Online", now);
+  const launch = (label, className = "btn-primary") => (
+    <a href={bridgeLaunchUrl} className={className} onClick={() => setOpening(true)}>{label}</a>
+  );
+  let action;
+  if (held) action = <a href="/factory/job-orders" className="btn-primary">Review Print History</a>;
+  else if (installing) action = <a className="btn-primary" href={printerInstallers[platform]} download>
+    <ArrowDownToLine size={15} aria-hidden="true" /> Download Installer
+  </a>;
+  else if (ready) action = <button type="button" className="btn-primary" onClick={onClose}>Done</button>;
+  else action = launch(step === 2 && status.bridge === "Offline" ? "Reconnect in Bridge" : "Open Bridge");
+
   async function refresh() {
     setChecking(true);
-    try {
-      await onRefresh();
-    } finally {
-      setChecking(false);
-    }
+    try { await onRefresh(); } finally { setChecking(false); }
   }
+
   return (
-    <Modal
-      title={selected ? "Printer Setup and Recovery" : "Printer Setup"}
-      description={selected?.name || "Set up the bridge on the computer connected to your printer."}
-      size="lg"
-      onClose={onClose}
-      footer={
-        <>
-          {step > 0 && <button className="btn-secondary" onClick={() => setStep(step - 1)}>Back</button>}
-          <button className="btn-primary" onClick={step === 2 ? onClose : () => setStep(step + 1)}>
-            {step === 2 ? (ready ? "Done" : "Close") : "Continue"}
-          </button>
-        </>
-      }
-    >
-      <ol className="mb-4 flex flex-wrap gap-x-5 gap-y-1 text-sm text-text-secondary" aria-label="Setup steps">
-        {["Install", "Connect and calibrate", "Verify"].map((title, i) => (
-          <li aria-current={step === i ? "step" : undefined} className={step === i ? "font-semibold text-text-primary" : ""} key={title}>
-            {i + 1}. {title}
-          </li>
-        ))}
-      </ol>
+    <Modal title="Printer Setup" description={row ? <span className="break-words">{row.name}</span> : undefined}
+      headerActions={row && (
+        <button type="button" className="btn-secondary" aria-label="Change workstation"
+          aria-expanded={choosing} aria-controls="printer-setup-workstation" onClick={() => setChoosing(!choosing)}>
+          <Replace size={14} aria-hidden="true" />
+          <span>Change<span className="hidden sm:inline"> workstation</span></span>
+        </button>
+      )}
+      size="md" onClose={onClose} footerClassName="flex-wrap"
+      footer={<>
+        {!ready && <button type="button" className="btn-secondary" onClick={onClose}>Set Up Later</button>}
+        {action}
+      </>}>
       <div className="space-y-4 text-sm">
-        {step === 0 && (
+        <WorkflowStepper steps={steps} current={step} complete={ready} label="Printer setup steps" />
+        {installing && (
           <>
-            <FactorySegmentedControl
-              label="Bridge operating system"
-              value={platform}
-              onChange={setPlatform}
-              options={[{ value: "macos", label: "macOS (Apple silicon)" }, { value: "windows", label: "Windows 10/11" }]}
-            />
-            <p>{platform === "macos"
-              ? "Install the package on the Mac connected to the printer, then open FeedX Print Bridge Production from Applications."
-              : "Run the installer on the Windows printer computer, then open FeedX Print Bridge Production from the Start menu."}</p>
-            <a className="btn-secondary inline-flex" href={printerInstallers[platform]} download>Download Bridge installer</a>
-            <button className="btn-secondary" onClick={() => setStep(1)}>Bridge already installed</button>
+            <div>
+              <FactorySegmentedControl label="Bridge operating system" value={platform}
+                onChange={setPlatform} options={Object.entries(installerDetails).map(([value, { name }]) => ({
+                  value,
+                  label: recommended === value ? `${name} · Recommended` : name,
+                }))} />
+            </div>
+            <section aria-label="Installer" className="flex items-start gap-3 rounded-xl border border-border bg-[var(--theme-surface-nested)] p-3">
+              <Monitor size={19} aria-hidden="true" className="mt-0.5 shrink-0 text-text-secondary" />
+              <div className="min-w-0 space-y-1">
+                <h3 className="font-semibold text-text-primary">FeedX Print Bridge for {installer.name}</h3>
+                <p className="text-xs text-text-secondary">{installer.arch} · v{bridgeInstallerVersion}</p>
+                <p className="text-text-secondary">Install on the workstation connected to the printer.</p>
+              </div>
+            </section>
           </>
         )}
-        {step === 1 && (
-          <>
-            <a className="btn-secondary inline-flex" href="feedx-printer-production://setup">Open Bridge Setup</a>
-            <p>If it does not open, launch FeedX Print Bridge Production from Applications or the Windows Start menu.</p>
-            <ol className="list-decimal space-y-2 pl-5">
-              <li>{selected
-                ? <>Choose <strong>Reconnect</strong> to resume this computer’s bridge using its saved printer and calibration. Use <strong>Connect / Configure</strong> when changing the printer or stock.</>
-                : <>Choose <strong>Connect / Configure</strong>. Sign in with your authorized FeedX Production account, then select the local printer and enter its stock dimensions. A returning computer reuses its saved configuration.</>}</li>
-              <li>Run <strong>Connection Check</strong>. For D520 Bluetooth, power on and pair the D520 in macOS, then close Labelife so it releases the connection.</li>
-              <li>When approved to print, open <strong>Test / Review Calibration</strong> and explicitly approve the copy count. Check the output before recording the result. macOS D520 Bluetooth requires the one-label test followed by a separate three-label test.</li>
-            </ol>
-            <p>To restore a signed-out bridge, choose <strong>Reauthorize</strong> and sign in with its original FeedX operator. Report uncertain Job Order output in that order’s Print History.</p>
-          </>
-        )}
-        {step === 2 && (
-          <>
-            <label className="block">
-              <span className="mb-1 block font-medium">Registered computer</span>
-              <select className="w-full rounded-lg border border-border bg-[var(--theme-surface-raised)] p-2" value={deviceId} onChange={(e) => setDeviceId(e.target.value)}>
-                <option value="">Select your computer</option>
-                {devices.map((d) => <option key={d.id} value={d.id}>{d.name} · {d.printer_name}</option>)}
-              </select>
-            </label>
-            <button className="btn-secondary" disabled={checking} onClick={refresh}>{checking ? "Checking…" : "Refresh status"}</button>
-            {status && (
-              <dl className="grid grid-cols-[1fr_auto] gap-2">
-                <dt>Bridge</dt><dd><FactoryStatusBadge status={status.bridge} /></dd>
-                <dt>Printer connection</dt><dd><FactoryStatusBadge status={status.connection} /></dd>
-                <dt>Calibration</dt><dd><FactoryStatusBadge status={status.calibration} /></dd>
-                <dt>Unresolved print jobs</dt><dd>{status.unresolved ?? "Not reported"}</dd>
-              </dl>
+        {!row && (installing || choices.length > 0) && (
+          <div className="flex flex-wrap items-center gap-2">
+            {installing && launch("Already installed? Open Bridge", "btn-secondary")}
+            {choices.length > 0 && (
+              <button type="button" className="btn-secondary" aria-expanded={choosing} aria-controls="printer-setup-workstation"
+                onClick={() => setChoosing(!choosing)}>Use a Registered Workstation</button>
             )}
-            {status?.bridge === "Offline" && <p>Open Bridge Setup on the registered computer and choose <strong>Reconnect</strong>. If sign-in expired, choose <strong>Reauthorize</strong> with the original operator’s account.</p>}
-            {status?.connection === "Unavailable" && <p>The bridge is online. Check printer power and its local queue or Bluetooth pairing, then run <strong>Connection Check</strong>.</p>}
-            {status?.calibration === "Needs review" && <p>Open <strong>Test / Review Calibration</strong> to inspect the previous attempt before another test.</p>}
-            {status?.unresolved > 0 && <p role="alert">This computer is paused for print review. In the affected Job Order, open Print Labels → History and choose Confirm Printed or Report Issue after inspecting the output and clearing any held work. Reprints require a separate reviewed request. <a className="underline" href="/factory/job-orders">Open Job Orders</a></p>}
-            <p role="status">{ready
-              ? "Setup complete. This printer is ready for Job Order labels."
-              : "Setup is verified when the bridge is online, the printer is available, calibration has passed, and no job awaits review."}</p>
-          </>
+          </div>
         )}
+        <div id="printer-setup-workstation" hidden={!choosing}>
+          {choosing && <SelectField ariaLabel="Registered workstation" value={row?.id || ""}
+            placeholder="Select a workstation" options={choices.map((device) => ({
+              value: device.id,
+              label: device.name,
+              description: device.printer_name,
+            }))}
+            onChange={(id) => {
+              setSelection(choices.find((device) => device.id === id));
+              setChoosing(false);
+            }} />}
+        </div>
+
+        {step === 1 && <p role="status" className="text-text-secondary">
+          Follow the authorization prompt in your browser. FeedX will advance when the Bridge registers this workstation.
+        </p>}
+        {step === 2 && (
+          <div className="space-y-2">
+            <dl className="grid grid-cols-[1fr_auto] items-center gap-2 rounded-xl border border-border p-3">
+              <dt>Bridge</dt><dd><FactoryStatusBadge status={status.bridge} tone={status.bridge === "Online" ? "success" : undefined} /></dd>
+              <dt>Printer connection</dt><dd><FactoryStatusBadge status={status.connection} /></dd>
+            </dl>
+            {!held && <p role="status" className="text-text-secondary">
+              {probe?.ConnectionDetail || (status.bridge === "Offline"
+                ? "Choose Reconnect in the Bridge. Authorize again if prompted."
+                : "Select your printer in the Bridge and run Connection Check. The result appears here automatically.")}
+            </p>}
+          </div>
+        )}
+        {step === 3 && !held && (
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border p-3">
+              <span>{row.printer_name}</span><FactoryStatusBadge status={status.calibration} />
+            </div>
+            <p className="text-text-secondary">Approve one test in the Bridge, then inspect the label and confirm the physical result.</p>
+          </div>
+        )}
+        {held ? (
+          <div role="status" className="badge-warning rounded-xl border p-3">
+            <p className="font-semibold">Print output needs review</p>
+            <p>Review pending output in Job Orders before printing.</p>
+          </div>
+        ) : ready ? (
+          <div role="status" className="badge-success rounded-xl border p-3">
+            <p className="font-semibold">Ready for Job Order labels.</p>
+            <p>{row.printer_name}</p>
+          </div>
+        ) : step === 4 && <p role="status" className="text-text-secondary">Check printer readiness in the Bridge.</p>}
+
+        <details className="border-t border-border pt-3">
+          <summary className="cursor-pointer font-medium text-text-primary">Troubleshooting</summary>
+          <div className="mt-2 space-y-2 text-text-secondary">
+            <p>If the browser cannot open the Bridge, open FeedX Print Bridge Production from {localApp.fallback} on the printer workstation.</p>
+            <button type="button" className="btn-secondary" disabled={checking} onClick={refresh}>
+              {checking ? "Checking…" : "Refresh Status"}
+            </button>
+            {refreshError && <p role="status">Could not refresh status. Try again when you’re connected to FeedX.</p>}
+          </div>
+        </details>
       </div>
     </Modal>
   );

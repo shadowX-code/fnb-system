@@ -80,6 +80,8 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
   const reviewJob = blocking || submitted;
   const showStatus = Boolean(submittedId || selectedHold);
   const reviewUnknown = reviewJob?.state === "Unknown" || Boolean(selectedHold);
+  const reviewConfirmed = reviewJob?.state === "Confirmed";
+  const reviewInspection = reviewConfirmed ? inspectPrint(reviewJob).inspection : null;
   const issue = resolve?.state === "Failed" && resolve.job.state !== "Queued";
   const usableCount = resolve?.state === "Confirmed"
     ? resolve.job.quantity
@@ -259,7 +261,11 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
         usableCount,
       );
       setResolve(null);
-      setNotice("Print outcome recorded.");
+      if (resolve.state === "Confirmed") {
+        if (resolve.job.id !== submittedId) setNotice(`Confirmed · ${usableCount} of ${resolve.job.quantity} usable.`);
+      } else {
+        setNotice("Print outcome recorded.");
+      }
       setStatusVersion((version) => version + 1);
       await load();
     } catch (e) {
@@ -284,7 +290,8 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
     quantityRef.current?.focus();
   }
   const outcomeForm = resolve && (
-    <PrintOutcomeForm {...{ resolve, setResolve, issue, busy, canRecordOutcome, resolvePrint }} />
+    <PrintOutcomeForm {...{ resolve, setResolve, issue, busy, canRecordOutcome, resolvePrint }}
+      device={data?.devices?.find((entry) => entry.id === resolve.job.device_id)} />
   );
   const labelLimit = candidate?.quantity_limit ?? (candidate?.quantity_basis ? null : candidate?.packaged_units);
   const remainingQuantity = labelLimit == null ? null : Math.max(0, Number(labelLimit) - (data?.allocated || 0));
@@ -382,12 +389,16 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
             className="space-y-2 rounded-xl border border-border bg-surface-muted p-3 focus-visible:outline focus-visible:outline-2 md:p-4">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
               <h3 id="print-result-title" className="font-semibold text-text-primary">
-                {reviewUnknown ? "Needs Review" : "Print Submission"}
+                {reviewUnknown ? "Needs Review" : reviewConfirmed ? "Print Result" : "Print Submission"}
               </h3>
               {reviewJob && <FactoryStatusBadge status={reviewJob.state} tone={statusTone[reviewJob.state]} />}
             </div>
             <div className="space-y-1 text-sm" aria-live="polite">
-              {reviewJob ? (
+              {reviewConfirmed ? (
+                <p className="font-medium">{reviewInspection
+                  ? `${reviewInspection.usable_quantity} of ${reviewJob.quantity} usable`
+                  : lifecycleMessage.Confirmed}</p>
+              ) : reviewJob ? (
                 <>
                   <p className="font-medium">
                     {reviewJob.quantity} requested · Job Order {reviewJob.job_order_no || job.job_order_no}
@@ -404,7 +415,7 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
                   {` · Batch No. ${formatFactoryBatchNo(selectedHold.batch_no)}`}. Loading the blocking print details…</p>
               ) : <p>Checking the submitted print status…</p>}
             </div>
-            {reviewJob && <PrintJobDetails job={reviewJob} printer={selectedPrinter?.printer_name} />}
+            {reviewJob && !reviewConfirmed && <PrintJobDetails job={reviewJob} printer={selectedPrinter?.printer_name} />}
             {reviewUnknown && !canRecover && <p className="text-sm text-text-secondary">Ask an authorized verifier to review the physical output.</p>}
             {reviewJob && canRecover && (
               <>
@@ -674,13 +685,16 @@ export default function LabelPrintModal({ job, can, actorId, onClose }) {
           )}
           {(data?.history || []).map((h) => {
             const shownInPanel = reviewJob?.id === h.id;
+            const { inspection } = inspectPrint(h);
             return (
-              <details key={h.id} className="rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+              <details key={`${h.id}:${h.state}`} className="rounded-lg border border-border bg-surface px-3 py-2 text-sm">
                 <summary className="cursor-pointer">
                   <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
                     <span className="text-text-secondary">{formatFactoryDate(h.created_at)}</span>
                     <span>{h.label_name || "Product Label"}{h.reprint_of ? " · Reprint" : ""}</span>
-                    <span className="font-semibold">{h.quantity} requested</span>
+                    <span className="font-semibold">{inspection
+                      ? `${inspection.usable_quantity} of ${h.quantity} usable`
+                      : `${h.quantity} requested`}</span>
                     <FactoryStatusBadge status={h.state} tone={statusTone[h.state]} />
                   </span>
                 </summary>

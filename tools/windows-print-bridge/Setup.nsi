@@ -5,13 +5,14 @@ Name "FeedX Print Bridge Production"
 OutFile "${OUTPUT}"
 InstallDir "$LOCALAPPDATA\Programs\FeedX Print Bridge Production"
 RequestExecutionLevel user
-VIProductVersion "1.1.1.0"
+VIProductVersion "1.3.0.0"
 VIAddVersionKey "ProductName" "FeedX Print Bridge Production"
 VIAddVersionKey "FileDescription" "FeedX Print Bridge Production Installer"
-VIAddVersionKey "FileVersion" "1.1.1.0"
+VIAddVersionKey "FileVersion" "1.3.0.0"
 VIAddVersionKey "LegalCopyright" "FeedX"
 SetCompressor /SOLID lzma
 Page directory
+ShowInstDetails nevershow
 Page instfiles
 
 Function .onInit
@@ -23,11 +24,16 @@ FunctionEnd
 
 Section
   SetShellVarContext current
+  SetDetailsPrint none
   SetOutPath "$INSTDIR"
   File "Bridge.psm1"
   File "Setup-Bridge.ps1"
+  File "Setup-Window.ps1"
+  File "BrowserAuthorization.cs"
+  File "..\print-bridge\Setup-Authorization.html"
   File "Start-Bridge.ps1"
   File "Transport.cs"
+  File "D520Bluetooth.cs"
   File "README.md"
   CreateShortcut "$SMPROGRAMS\FeedX Print Bridge Production.lnk" "$WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe" '-NoProfile -ExecutionPolicy RemoteSigned -WindowStyle Hidden -STA -File "$INSTDIR\Setup-Bridge.ps1"'
   WriteRegStr HKCU "Software\Classes\feedx-printer-production" "" "URL:FeedX Print Bridge Production"
@@ -51,8 +57,12 @@ Section "Uninstall"
   DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\FeedX Print Bridge Production"
   Delete "$INSTDIR\Bridge.psm1"
   Delete "$INSTDIR\Setup-Bridge.ps1"
+  Delete "$INSTDIR\Setup-Window.ps1"
+  Delete "$INSTDIR\BrowserAuthorization.cs"
+  Delete "$INSTDIR\Setup-Authorization.html"
   Delete "$INSTDIR\Start-Bridge.ps1"
   Delete "$INSTDIR\Transport.cs"
+  Delete "$INSTDIR\D520Bluetooth.cs"
   Delete "$INSTDIR\README.md"
   Delete "$INSTDIR\Uninstall.exe"
   RMDir "$INSTDIR"

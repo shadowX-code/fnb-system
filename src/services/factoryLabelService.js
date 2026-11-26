@@ -4,10 +4,11 @@ export const factoryLabelsEnabled =
   import.meta.env.VITE_FACTORY_LABEL_PRINTING_ENABLED === "true" &&
   import.meta.env.VITE_SUPABASE_URL ===
   "https://oyfobxdoyfuzsodogpgs.supabase.co";
-async function rpc(name, args) {
+async function rpc(name, args, signal) {
   if (!factoryLabelsEnabled)
     throw new Error("Factory label printing is currently unavailable.");
-  const { data, error } = await supabase.rpc(`factory_label_${name}`, args);
+  const query = supabase.rpc(`factory_label_${name}`, args);
+  const { data, error } = await (signal ? query.abortSignal(signal) : query);
   if (error) throw error;
   return data;
 }
@@ -40,8 +41,8 @@ export const factoryLabelService = {
 };
 
 Object.assign(factoryLabelService, {
-  management: (section = "products", page = 1, search = "") =>
-    rpc("management", { p_section: section, p_page: page, p_search: search }),
+  management: (section = "products", page = 1, search = "", { signal } = {}) =>
+    rpc("management", { p_section: section, p_page: page, p_search: search }, signal),
   editor: (kind, key) => rpc("editor", { p_kind: kind, p_key: key }),
   saveDraft: (kind, key, payload, revision, baseVersion, requestId) =>
     rpc("save_draft", {
@@ -60,6 +61,8 @@ Object.assign(factoryLabelService, {
       p_approval_note: note,
       p_content_approved: approved,
     }),
+  renameDevice: (device, name) =>
+    rpc("rename_device", { p_device: device, p_name: name }),
   setDeviceEnabled: (device, enabled, reason) =>
     rpc("set_device_enabled", {
       p_device: device,

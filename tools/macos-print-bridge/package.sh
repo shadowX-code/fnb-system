@@ -7,10 +7,14 @@ root="$(cd "$(dirname "$0")/../.." && pwd)"
 out="${1:?Provide a private artifact output directory}"
 mkdir -p "$out"
 out="$(cd "$out" && pwd)"
+case "$out/" in
+  "$root/"*) echo "Build Production review artifacts outside the repository." >&2; exit 1 ;;
+esac
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 name='FeedX Print Bridge Production'
 mkdir "$work/payload"
+"${FEEDX_BRIDGE_BUILD_PYTHON:-python3}" -c 'import tkinter; assert tkinter.TkVersion >= 8.6'
 # PyInstaller bundles Python, OpenSSL and certifi for the operator.
 export PYINSTALLER_CONFIG_DIR="$work/cache"
 "${FEEDX_BRIDGE_BUILD_PYTHON:-python3}" -m PyInstaller --noconfirm --windowed --onedir \
@@ -18,11 +22,12 @@ export PYINSTALLER_CONFIG_DIR="$work/cache"
   --distpath "$work/payload" --workpath "$work/build" --specpath "$work" \
   "$root/tools/macos-print-bridge/setup_app.py"
 app="$work/payload/$name.app"
+cp "$root/tools/print-bridge/Setup-Authorization.html" "$app/Contents/Resources/"
 # A separate executable lets LaunchServices open the GUI while launchd runs the worker.
 cp "$app/Contents/MacOS/$name" "$app/Contents/MacOS/feedx-worker"
 xcrun clang -mmacosx-version-min=12.0 -fobjc-arc -framework Foundation -framework IOBluetooth \
   "$root/tools/macos-print-bridge/D520RFCOMM.m" -o "$app/Contents/Resources/d520-rfcomm"
-/usr/libexec/PlistBuddy -c 'Add :LSUIElement bool true' -c 'Add :LSMinimumSystemVersion string 12.0' \
+/usr/libexec/PlistBuddy -c 'Set :CFBundleShortVersionString 1.3.0' -c 'Add :LSMinimumSystemVersion string 12.0' \
   -c 'Add :NSBluetoothAlwaysUsageDescription string Connect to the selected FeedX label printer.' \
   -c 'Add :CFBundleURLTypes array' -c 'Add :CFBundleURLTypes:0 dict' \
   -c 'Add :CFBundleURLTypes:0:CFBundleURLName string my.feedx.production.print-bridge' \
@@ -35,4 +40,4 @@ codesign --verify --deep --strict "$app"
 # The PyInstaller onedir sibling is build output. Only the Finder app is installed.
 rm -rf "$work/payload/$name"
 pkgbuild --root "$work/payload" --install-location /Applications --identifier my.feedx.production.print-bridge \
-  --version 1.1.4 "$out/FeedX-Print-Bridge-Production-macOS-arm64.pkg"
+  --version 1.3.0 "$out/FeedX-Print-Bridge-Production-macOS-arm64.pkg"

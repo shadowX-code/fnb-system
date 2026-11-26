@@ -104,7 +104,7 @@ describe("Factory label workflow", () => {
     expect(screen.queryByRole("button", { name: "Reprint" })).toBeNull();
     expect(factoryLabelService.resolve).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Confirm 3 usable labels" }));
-    await screen.findByText("Print outcome recorded.");
+    await screen.findByText("Confirmed · 3 of 3 usable.");
     expect(factoryLabelService.resolve).toHaveBeenCalledExactlyOnceWith(
       "unknown-job", "Confirmed", expect.stringMatching(/inspected the full count/), 3,
     );
@@ -137,7 +137,10 @@ describe("Factory label workflow", () => {
     expect(record.disabled).toBe(true);
     fireEvent.change(count, { target: { value: "1" } });
     fireEvent.click(record);
-    await screen.findByText("Usable labels 1 of 3.");
+    const partialSummary = (await screen.findByText("1 of 3 usable")).closest("summary");
+    expect(partialSummary.closest("details").open).toBe(false);
+    fireEvent.click(partialSummary);
+    expect(screen.getByText("Usable labels 1 of 3.")).toBeTruthy();
     expect(screen.getByText("Submission uncertain.")).toBeTruthy();
     expect(factoryLabelService.resolve).toHaveBeenCalledExactlyOnceWith(
       "unknown-job", "Failed", "Two missing", 1,
@@ -228,6 +231,57 @@ describe("Factory label workflow", () => {
     expect(factoryLabelService.printStatus).toHaveBeenCalledWith("job", "print-id", "device");
     expect(factoryLabelService.enqueue).toHaveBeenCalledTimes(1);
   });
+  it("shows a concise confirmed count and keeps previous transport evidence in History", async () => {
+    const original = {
+      ...uncertain.history[0], id: "print-id", device_id: "device", printer_name: "D520",
+    };
+    const confirmed = {
+      ...original, state: "Confirmed", detail: "Physical inspection recorded",
+      events: [...original.events, {
+        id: 2, state: "Confirmed", usable_quantity: 3, created_at: "2026-11-17T13:00:10Z",
+      }],
+    };
+    let status = original;
+    factoryLabelService.context.mockResolvedValue({ ...context });
+    factoryLabelService.printStatus.mockImplementation(async (_order, print) => ({
+      submitted: print ? status : null, blocking: null,
+    }));
+    factoryLabelService.resolve.mockImplementation(async () => {
+      status = confirmed;
+      factoryLabelService.context.mockResolvedValue({ ...context, history: [confirmed] });
+      return { state: "Confirmed" };
+    });
+    render(<LabelPrintModal {...props} />);
+    await selectPrinter();
+    fireEvent.click(screen.getByRole("button", { name: "Queue Labels" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Confirm Printed" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm 3 usable labels" }));
+    const result = (await screen.findByRole("heading", { name: "Print Result" })).closest("section");
+    expect(result.textContent).toContain("Confirmed");
+    expect(result.textContent).toContain("3 of 3 usable");
+    expect(result.textContent).not.toMatch(/uncertain|ACK missing/);
+    const history = screen.getByRole("heading", { name: "Print History" }).closest("section");
+    const summary = [...history.querySelectorAll("summary")].find((item) => item.textContent.includes("3 of 3 usable"));
+    expect(summary.closest("details").open).toBe(false);
+    fireEvent.click(summary);
+    expect(screen.getByRole("list", { name: "Audit events" }).textContent).toContain("ACK missing");
+    expect(factoryLabelService.enqueue).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses Bluetooth recovery guidance for the job's printer", async () => {
+    const bluetooth = { ...context.devices[0], printer_name: "D520 (Bluetooth)", transport: "tspl",
+      printers: [{ Name: "D520 (Bluetooth)", Connection: "Bluetooth Classic SPP" }] };
+    factoryLabelService.context.mockResolvedValue({
+      ...uncertain, devices: [bluetooth],
+      history: [{ ...uncertain.history[0], device_id: bluetooth.id }],
+    });
+    render(<LabelPrintModal {...props} />);
+    await expandHistory();
+    fireEvent.click(await screen.findByRole("button", { name: "Report Issue" }));
+    expect(screen.getByText(/pending Bluetooth output/)).toBeTruthy();
+    expect(screen.queryByText(/Windows print queue/)).toBeNull();
+  });
+
   it("retries an uncertain request with the same identity after closing and reopening", async () => {
     factoryLabelService.enqueue.mockRejectedValueOnce(
       new TypeError("Connection interrupted"),

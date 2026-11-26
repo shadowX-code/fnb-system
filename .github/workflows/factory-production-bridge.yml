@@ -1,10 +1,11 @@
 name: Factory Production Bridge acceptance
 on:
   push:
-    branches: [codex/factory-only-production-candidate]
+    branches: [codex/factory-label-printing-v1.3.0-production-rc]
     paths:
       - tools/windows-print-bridge/**
       - tools/macos-print-bridge/**
+      - tools/print-bridge/**
       - .github/workflows/factory-production-bridge.yml
   workflow_dispatch:
 permissions:
@@ -18,6 +19,9 @@ jobs:
       - name: Verify Windows PowerShell 5.1, DPAPI, transport and recovery
         shell: powershell
         run: ./tools/windows-print-bridge/Test-Bridge.ps1
+      - name: Simulate guided sign-in, calibration and status without printing
+        shell: powershell
+        run: ./tools/windows-print-bridge/Test-Setup.ps1
       - name: Build and verify private test installer
         shell: powershell
         run: |
