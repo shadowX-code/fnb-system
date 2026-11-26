@@ -5,17 +5,18 @@ Date: 2026-11-26
 ## Changes
 
 - Release the isolated Factory candidate `693e5de746a93426a36ac55b5a021deb0ca1270e` from baseline `4ca36224f3908580f3a2a12eb71640b2570e2511`, including the reviewed Staging Printer Setup Wizard and silent polling.
-- Deliver the approved Production installer files from a private Supabase bucket. Only active employees with the existing Factory Production Complete permission can download either allowlisted object. The policy only authorizes authenticated object downloads. Browser SHA-256 verification pins the approved artifact bytes before save.
+- Deliver the approved Production installer files from a private Supabase bucket. Only active employees with the existing Factory Production Complete permission can download either allowlisted object. The policy only authorizes authenticated object downloads and their CDN metadata checks. Browser SHA-256 verification pins the approved artifact bytes before save.
 - The owner accepted the unsigned Windows EXE and unsigned Mac PKG with ad-hoc app signature for controlled internal use. Commercial signing and notarization remain separate work. Keep installer bytes out of the public web root and preserve managed workstation security controls.
 
 ## Migration Impact
 
-Apply these two source migrations in order against the canonical Production Supabase project. Record their actual Production ledger entries. Earlier Label Printing migrations are already applied under their Production release versions.
+Apply these source migrations in order against the canonical Production Supabase project. Record their actual Production ledger entries. Earlier Label Printing migrations are already applied under their Production release versions.
 
 1. `20261125135557_factory_print_bridge_setup_authority.sql`
 2. `20261126033707_factory_label_internal_installer_storage.sql`
+3. `20261126050618_factory_label_internal_installer_download_metadata.sql`
 
-The update adds device rename and reservation authority, then installer-only Storage access. It leaves existing jobs, snapshots, business data, and permissions assignments intact. No Edge Function or external Gateway changes are required.
+The update adds device rename and reservation authority, then installer-only Storage access. The forward policy change permits the metadata lookup observed during hosted CDN authorization. That lookup uses the same operator and file restrictions as the download. It leaves existing jobs, snapshots, business data, and permissions assignments intact. No Edge Function or external Gateway changes are required.
 
 ## Deployment Notes
 
