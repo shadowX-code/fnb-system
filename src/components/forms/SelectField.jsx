@@ -41,6 +41,14 @@ export default function SelectField({
       ),
     [options, query],
   );
+  const optionGroups = [];
+  filteredOptions.forEach((option, index) => {
+    const previousGroup = optionGroups.at(-1);
+    if (!previousGroup || previousGroup.label !== option.group) {
+      optionGroups.push({ label: option.group, options: [] });
+    }
+    optionGroups.at(-1).options.push({ option, index });
+  });
   useEffect(() => {
     if (!isOpen) setQuery("");
   }, [isOpen]);
@@ -89,6 +97,26 @@ export default function SelectField({
       closeSelect();
     }
     if (event.key === "Tab") setIsOpen(false);
+  }
+  function renderOption({ option, index }) {
+    return <button
+      key={option.value}
+      ref={(node) => { optionRefs.current[index] = node; }}
+      role="option"
+      aria-label={option.searchText}
+      aria-selected={String(option.value) === String(value)}
+      className="admin-select-option"
+      type="button"
+      disabled={option.disabled}
+      onKeyDown={(event) => optionKey(event, index)}
+      onClick={() => selectOption(option)}
+    >
+      <span>
+        <strong>{option.label}</strong>
+        {option.description && <small>{option.description}</small>}
+      </span>
+      {String(option.value) === String(value) && <Check size={15} aria-hidden="true" />}
+    </button>;
   }
   const footerContent =
     typeof footerAction === "function"
@@ -201,30 +229,12 @@ export default function SelectField({
           aria-label={ariaLabel || label || placeholder}
           className="admin-select-options"
         >
-          {filteredOptions.map((option, index) => (
-            <button
-              key={option.value}
-              ref={(node) => {
-                optionRefs.current[index] = node;
-              }}
-              role="option"
-              aria-label={option.searchText}
-              aria-selected={String(option.value) === String(value)}
-              className="admin-select-option"
-              type="button"
-              disabled={option.disabled}
-              onKeyDown={(event) => optionKey(event, index)}
-              onClick={() => selectOption(option)}
-            >
-              <span>
-                <strong>{option.label}</strong>
-                {option.description && <small>{option.description}</small>}
-              </span>
-              {String(option.value) === String(value) && (
-                <Check size={15} aria-hidden="true" />
-              )}
-            </button>
-          ))}
+          {optionGroups.map((group) => group.label ? (
+            <div role="group" aria-label={group.label} key={group.options[0].option.value}>
+              <div className="px-3 pb-1 pt-2 type-caption font-semibold text-text-secondary" aria-hidden="true">{group.label}</div>
+              {group.options.map(renderOption)}
+            </div>
+          ) : group.options.map(renderOption))}
           {!filteredOptions.length && (
             <p className="p-3 text-sm text-text-secondary">{emptyText}</p>
           )}

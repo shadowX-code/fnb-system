@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import AsyncDataSurface from '../../components/feedback/AsyncDataSurface.jsx';
 import Modal from '../../components/feedback/Modal.jsx';
 import AdminSearchField from '../../components/forms/AdminSearchField.jsx';
+import SelectField from '../../components/forms/SelectField.jsx';
 import AdminPagination from '../../components/tables/AdminPagination.jsx';
 import DataTable from '../../components/tables/DataTable.jsx';
 import StatusBadge from '../../components/ui/StatusBadge.jsx';
@@ -20,6 +21,20 @@ const issues = {
   group_postings: 'This group also has direct GL postings. Review it in the source.',
 };
 const maxSelected = 500;
+const industries = [
+  { value: 'core', label: 'Core only' }, { value: 'restaurant', label: 'Restaurant' },
+  { value: 'manufacturing', label: 'Manufacturing' }, { value: 'retail', label: 'Retail' },
+];
+
+function ancestors(entry, classes) {
+  const path = [entry];
+  let parent = classes.get(entry.parent_id);
+  while (parent && path.length < 12) {
+    path.unshift(parent);
+    parent = classes.get(parent.parent_id);
+  }
+  return path;
+}
 
 function matches(row, status) {
   switch (status) {
@@ -36,6 +51,7 @@ function matches(row, status) {
 function MappingReviewTable({ review, timestamp, onSaved, onReload }) {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
+  const [industry, setIndustry] = useState('core');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [staged, setStaged] = useState(() => new Map());
@@ -47,13 +63,40 @@ function MappingReviewTable({ review, timestamp, onSaved, onReload }) {
 
   const classes = new Map(review.classifications.map((entry) => [entry.id, entry]));
   const label = (id) => classes.has(id) ? classes.get(id).label : '—';
-  const optionLabel = (entry) => entry.parent_id ? `${label(entry.parent_id)} / ${entry.label}` : entry.label;
+  const suggestionFor = (row) => {
+    const candidate = classes.get(row.suggestion);
+    return candidate?.industry && candidate.industry !== industry ? row.core_suggestion : row.suggestion;
+  };
+  const choicesByScope = new Map();
+  const paths = new Map(review.classifications.map((entry) => [entry.id, ancestors(entry, classes)]));
+  for (const entry of review.classifications) {
+    if (!entry.selectable || (entry.industry && entry.industry !== industry)) continue;
+    const path = paths.get(entry.id);
+    const group = (path[1]?.selectable === false ? path[1] : path[0]).label;
+    const fullPath = path.map((node) => node.label);
+    const option = { value: entry.id, label: entry.label, group,
+      description: fullPath.slice(1, -1).join(' / '), searchText: fullPath.join(' / ') };
+    for (const scope of entry.source_scopes) {
+      if (!choicesByScope.has(scope)) choicesByScope.set(scope, new Map());
+      const groups = choicesByScope.get(scope);
+      if (!groups.has(group)) groups.set(group, []);
+      groups.get(group).push(option);
+    }
+  }
+  function choices(row, selected) {
+    const groups = choicesByScope.get(row.source_scope);
+    const registered = groups ? [...groups.values()].flat() : [];
+    if (selected && !registered.some((option) => option.value === selected)) {
+      return [{ value: selected, label: label(selected), group: 'Current selection', disabled: true }, ...registered];
+    }
+    return registered;
+  }
   const needle = search.trim().toLowerCase();
   const filtered = review.rows.filter((row) => matches(row, filter) &&
-    [row.account_key, row.description, row.parent_key, row.parent_description, row.source_type, label(row.suggestion), label(row.classification)]
+    [row.account_key, row.description, row.parent_key, row.parent_description, row.source_type, label(suggestionFor(row)), label(row.classification)]
       .some((value) => value?.toLowerCase().includes(needle)));
   const visible = filtered.slice((page - 1) * pageSize, page * pageSize);
-  const suggestions = visible.filter((row) => row.status !== 'confirmed' && row.suggestion && !staged.has(row.account_key));
+  const suggestions = visible.filter((row) => row.status !== 'confirmed' && suggestionFor(row) && !staged.has(row.account_key));
   const entries = review.rows.filter((row) => staged.has(row.account_key));
   const blocked = stale || saving;
 
@@ -69,7 +112,7 @@ function MappingReviewTable({ review, timestamp, onSaved, onReload }) {
   function selectVisible() {
     setStaged((prev) => {
       const next = new Map(prev);
-      for (const row of suggestions.slice(0, maxSelected - next.size)) next.set(row.account_key, row.suggestion);
+      for (const row of suggestions.slice(0, maxSelected - next.size)) next.set(row.account_key, suggestionFor(row));
       return next;
     });
     setNotice('');
@@ -90,6 +133,8 @@ function MappingReviewTable({ review, timestamp, onSaved, onReload }) {
         setStale(true);
         setConfirming(false);
         setError('The chart or a mapping changed during review. Reload the latest review before confirming.');
+      } else if (failure.code === 'PT422') {
+        setError('One or more selections are incompatible with the accepted source type. Review the selected classifications.');
       } else {
         setError('Classifications could not be confirmed. Your selections are still available.');
       }
@@ -100,39 +145,45 @@ function MappingReviewTable({ review, timestamp, onSaved, onReload }) {
 
   const columns = [
     { key: 'select', header: <span className="sr-only">Select</span>, width: 38, render: (row) => {
-      if (row.role !== 'posting' || (!row.suggestion && !staged.has(row.account_key)) || row.status === 'confirmed' && !staged.has(row.account_key)) return null;
+      const suggestion = suggestionFor(row);
+      if (row.role !== 'posting' || (!suggestion && !staged.has(row.account_key)) || row.status === 'confirmed' && !staged.has(row.account_key)) return null;
       return <input type="checkbox" aria-label={`Select ${row.account_key}`} checked={staged.has(row.account_key)}
         disabled={blocked || (staged.size >= maxSelected && !staged.has(row.account_key))}
-        onChange={(event) => stage(row, event.target.checked ? row.suggestion : '')} />;
+        onChange={(event) => stage(row, event.target.checked ? suggestion : '')} />;
     }},
     { key: 'account', header: 'Source account', width: 230, render: (row) => <div>
       <strong>{row.account_key}</strong> <span>{row.description || 'No description'}</span>
-      <p className="type-caption text-text-secondary">{[row.source_type, row.parent_key && `Parent ${row.parent_key}`, row.posted && 'Accepted GL'].filter(Boolean).join(' · ') || 'No source type'}</p>
+      <p className="type-caption text-text-secondary">{[row.source_type && `Source type ${row.source_type}`, row.parent_key && `Parent ${row.parent_key}`, row.posted && 'Observed in accepted GL'].filter(Boolean).join(' · ') || 'No source type'}</p>
     </div> },
     { key: 'state', header: 'Review status', width: 155, render: (row) => <div className="grid justify-items-start gap-1">
       <StatusBadge status={row.status === 'confirmed' ? 'success' : ['changed', 'ambiguous', 'manual_review', 'new'].includes(row.status) ? 'warning' : 'neutral'}>{statuses[row.status]}</StatusBadge>
       {row.issue && <p className="type-caption text-text-secondary">{issues[row.issue]}</p>}
     </div> },
-    { key: 'suggestion', header: 'Suggested', width: 145, render: (row) => label(row.suggestion) },
-    { key: 'classification', header: 'Classification', width: 235, render: (row) => <div>
-      {row.role === 'posting' && <select className="control w-full min-w-0" aria-label={`Classification for ${row.account_key}`}
-        value={staged.get(row.account_key) ?? (row.status === 'confirmed' ? row.classification : '')}
-        disabled={blocked || (staged.size >= maxSelected && !staged.has(row.account_key))}
-        onChange={(event) => stage(row, event.target.value)}>
-        <option value="">{row.status === 'confirmed' ? 'Keep current classification' : 'Choose classification'}</option>
-        {[['profit_loss', 'Profit & Loss'], ['balance_sheet', 'Balance Sheet']].map(([key, title]) => <optgroup key={key} label={title}>
-          {review.classifications.filter((item) => item.statement === key).map((item) => <option key={item.id} value={item.id}>{optionLabel(item)}</option>)}
-        </optgroup>)}
-      </select>}
-      {row.status === 'changed' && <p className="type-caption text-text-secondary">Previous confirmation · {label(row.classification)}</p>}
-      {row.role !== 'posting' && row.status !== 'changed' && <span className="type-caption text-text-secondary">Excluded from confirmation</span>}
-    </div> },
+    { key: 'suggestion', header: 'Suggested', width: 145, render: (row) => label(suggestionFor(row)) },
+    { key: 'classification', header: 'Analytical classification', width: 240, render: (row) => {
+      const selected = staged.get(row.account_key) ?? (row.status === 'confirmed' ? row.classification : '');
+      return <div>
+        {row.role === 'posting' && row.source_scope && <SelectField
+          ariaLabel={`Classification for ${row.account_key}`} searchable placeholder="Choose classification"
+          value={selected} options={choices(row, selected)}
+          disabled={blocked || (staged.size >= maxSelected && !staged.has(row.account_key))}
+          onChange={(value) => stage(row, value)} />}
+        {row.role === 'posting' && !row.source_scope && <span className="type-caption text-text-secondary">
+          {selected ? `${label(selected)} · ` : ''}Source type needs verification
+        </span>}
+        {row.status === 'changed' && <p className="type-caption text-text-secondary">Previous confirmation · {label(row.classification)}</p>}
+        {row.role !== 'posting' && row.status !== 'changed' && <span className="type-caption text-text-secondary">Excluded from confirmation</span>}
+      </div>;
+    }},
   ];
 
   const { total, confirmed, unresolved, groups, ambiguous, changed, removed } = review.summary;
   return <div className="grid min-w-0 gap-3">
     <div className="flex flex-wrap items-start justify-between gap-2">
-      <p className="type-body-sm text-text-secondary">Accepted chart · {timestamp(review.snapshotAt)}</p>
+      <div>
+        <h3 className="type-section-title font-semibold">Smart Mapping</h3>
+        <p className="type-body-sm text-text-secondary">Accepted chart · {timestamp(review.snapshotAt)}</p>
+      </div>
       <button className="btn-secondary" type="button" disabled={saving || (staged.size > 0 && !stale)} onClick={onReload}>Reload latest review</button>
     </div>
     <p className="type-body-sm" aria-live="polite">{total} source accounts · {confirmed} confirmed · {unresolved} need review · {groups} group accounts
@@ -144,6 +195,7 @@ function MappingReviewTable({ review, timestamp, onSaved, onReload }) {
           {filters.map(([value, text]) => <option key={value} value={value}>{text}</option>)}
         </select>
       </label>
+      <SelectField label="Industry categories" value={industry} options={industries} onChange={setIndustry} />
     </div>
     <div className="flex flex-wrap items-center gap-2">
       <button className="btn-secondary" type="button" disabled={blocked || !suggestions.length || staged.size >= maxSelected} onClick={selectVisible}>Select suggestions on this page</button>
@@ -156,7 +208,7 @@ function MappingReviewTable({ review, timestamp, onSaved, onReload }) {
       : <p className="type-body-sm text-text-secondary">No accounts match this filter.</p>}
     <AdminPagination compact page={page} total={filtered.length} pageSize={pageSize} onPageChange={setPage}
       onPageSizeChange={(value) => { setPage(1); setPageSize(value); }} />
-    {confirming && <Modal title="Confirm account classifications" description="These decisions save to this account book. Accounting authority and FeedX Operational P&L are managed separately."
+    {confirming && <Modal title="Confirm account classifications" description="Save analytical classifications to this Account Book. Source accounting treatment and official statement amounts stay as supplied."
       size="md" onClose={() => { if (!saving) setConfirming(false); }}>
       <ul className="max-h-64 divide-y divide-border overflow-y-auto type-body-sm" aria-label="Selected classifications">
         {entries.map((row) => <li key={row.account_key} className="grid gap-1 py-2 sm:grid-cols-2">

@@ -222,20 +222,21 @@ it('reviews suggestions and manual selections on the bound chart before saving',
   current.datasets = [{ dataset: 'Department', acceptedRows: 0 }];
   current.connection.capabilities = { financial_dimensions: 'partial' };
   const classifications = [
-    { id: 'revenue', parent_id: null, statement: 'profit_loss', label: 'Revenue' },
-    { id: 'assets', parent_id: null, statement: 'balance_sheet', label: 'Assets' },
+    { id: 'revenue', parent_id: null, statement: 'profit_loss', label: 'Revenue', source_scopes: ['revenue'], selectable: true },
+    { id: 'revenue.delivery', parent_id: 'revenue', statement: 'profit_loss', label: 'Delivery platform sales', source_scopes: ['revenue'], selectable: true, industry: 'restaurant' },
+    { id: 'assets', parent_id: null, statement: 'balance_sheet', label: 'Assets', source_scopes: ['current_asset'], selectable: true },
   ];
   const rows = [
-    { account_key: '100', source_type: 'SL', description: 'Sales', role: 'posting', status: 'suggested', suggestion: 'revenue', version: null, posted: true },
+    { account_key: '100', source_type: 'SL', source_scope: 'revenue', description: 'Sales', role: 'posting', status: 'suggested', suggestion: 'revenue.delivery', core_suggestion: 'revenue', version: null, posted: true },
     { account_key: '200', source_type: 'CA', description: 'Assets group', role: 'group', status: 'group', suggestion: null, version: null },
-    { account_key: '210', source_type: 'CA', description: 'Check source', role: 'posting', status: 'manual_review', suggestion: null, version: null },
+    { account_key: '210', source_type: 'CA', source_scope: 'current_asset', description: 'Check source', role: 'posting', status: 'manual_review', suggestion: null, version: null },
   ];
   const summary = { total: 3, confirmed: 0, unresolved: 2, groups: 1 };
   const review = { connectionId: 'new', snapshotId: '16', snapshotAt: '2026-11-19T15:20:03Z', rows, classifications, summary };
   const read = vi.spyOn(financeSources, 'readAccountMapping').mockResolvedValue(review);
   const save = vi.spyOn(financeSources, 'confirmAccountMapping').mockResolvedValue({
     ...review, summary: { ...summary, confirmed: 2, unresolved: 0 },
-    rows: rows.map((row) => row.role === 'posting' ? { ...row, status: 'confirmed', classification: row.suggestion ?? 'assets' } : row),
+    rows: rows.map((row) => row.role === 'posting' ? { ...row, status: 'confirmed', classification: row.core_suggestion ?? 'assets' } : row),
   });
   const saved = vi.fn();
   render(<FinanceDataSources state={state} onAction={() => {}} onMappingSaved={saved} />);
@@ -243,10 +244,23 @@ it('reviews suggestions and manual selections on the bound chart before saving',
   expect(await screen.findByText('3 source accounts · 0 confirmed · 2 need review · 1 group accounts')).toBeTruthy();
   expect(read).toHaveBeenCalledWith('new');
   expect(screen.getByText('Department · Accepted dataset is empty')).toBeTruthy();
-  expect(screen.queryByRole('combobox', { name: 'Classification for 200' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Classification for 200' })).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Industry categories' }));
+  fireEvent.click(screen.getByRole('option', { name: 'Restaurant' }));
+  expect(screen.getByText('Delivery platform sales')).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Classification for 100' }));
+  const revenueOptions = screen.getByRole('listbox', { name: 'Classification for 100' });
+  expect(within(revenueOptions).getByRole('group', { name: 'Revenue' })).toBeTruthy();
+  expect(within(revenueOptions).queryByRole('option', { name: 'Assets' })).toBeNull();
+  fireEvent.change(screen.getByRole('textbox', { name: 'Search Classification for 100' }), { target: { value: 'delivery' } });
+  expect(within(revenueOptions).getAllByRole('option')).toHaveLength(1);
+  fireEvent.keyDown(within(revenueOptions).getByRole('option'), { key: 'Escape' });
+  fireEvent.click(screen.getByRole('button', { name: 'Industry categories' }));
+  fireEvent.click(screen.getByRole('option', { name: 'Core only' }));
   fireEvent.click(screen.getByRole('button', { name: 'Select suggestions on this page' }));
   fireEvent.change(screen.getByRole('searchbox', { name: 'Find accounts' }), { target: { value: 'check source' } });
-  fireEvent.change(screen.getByRole('combobox', { name: 'Classification for 210' }), { target: { value: 'assets' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Classification for 210' }));
+  fireEvent.click(within(screen.getByRole('listbox', { name: 'Classification for 210' })).getByRole('option', { name: 'Assets' }));
   fireEvent.click(screen.getByRole('button', { name: 'Review selected (2)' }));
   expect(save).not.toHaveBeenCalled();
   const dialog = screen.getByRole('dialog', { name: 'Confirm account classifications' });
