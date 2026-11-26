@@ -268,6 +268,8 @@ Admin workspaces use the standard `AppShell` for sidebar, top application bar, p
 
 Shared `WorkspacePage` composes those existing owners and keeps feature controls outside the header and domain-content CSS scope. `WorkspacePageActionsProvider` supplies presentation actions and notices from enclosing boundaries without owning domain state, reads or callbacks. The analytical shell presentation remains dormant; Finance does not opt into it. Other workspace layouts and workflows are unchanged.
 
+`AdminEvidenceDisclosure` provides an accordion presentation for compact, full-width sections that reveal secondary information. It retains the native disclosure's focus and expanded state. Finance Data Sources uses it for Windows Devices and Historical Connections.
+
 ### Shared analytical chart inspection
 
 `AdminChart` owns measured SVG canvases and compact, measured viewport-clamped floating evidence tooltips, dismissed on scroll. Hit-area outlines appear for keyboard focus only; mouse inspection subtly emphasizes geometry, while selection remains persistent. `AdminChartMark` shares pointer/focus inspection, Enter/Space selection, arrow/Home/End traversal and Escape dismissal. `AdminChartCrosshair` and `adminChartScale` provide reusable inspection guides and zero-inclusive readable tick intervals. Hidden canvases retain their last measured width. Coordinate interpolation runs for 220ms only when numerical geometry changes, cancels superseded frames and respects reduced motion.

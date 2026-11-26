@@ -1,4 +1,5 @@
 import { useId, useState } from 'react';
+import { ChevronDown } from 'lucide-react';
 import './AdminAnalyticalSurface.css';
 import DashboardSection from './DashboardSection.jsx';
 import AdminSegmentedControl from '../forms/AdminSegmentedControl.jsx';
@@ -18,7 +19,13 @@ export function AdminAnalyticalContext({ label, preamble, action, onAction, acti
     <div id={panelId} role="tabpanel" aria-label={action} className="min-w-0 space-y-2 type-body-sm leading-relaxed text-text-secondary">{children}</div>{evidence}
   </section>;
 }
-export function AdminEvidenceDisclosure({ label, children, open }) {
+export function AdminEvidenceDisclosure({ label, children, open, variant }) {
+  if (variant === 'accordion') return <details open={open} className="group min-w-0 rounded-lg border border-border bg-surface">
+    <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-lg px-3 py-2 type-body-sm font-semibold text-text-primary hover:bg-surface-muted focus-visible:outline-primary [&::-webkit-details-marker]:hidden">
+      {label}<ChevronDown size={16} className="shrink-0 text-text-secondary group-open:rotate-180" aria-hidden="true" />
+    </summary>
+    <div className="min-w-0 border-t border-border px-3 py-2">{children}</div>
+  </details>;
   return <details data-admin-evidence="true" open={open} className="my-3 min-w-0 type-caption leading-relaxed text-text-secondary"><summary className="w-fit cursor-pointer py-2 font-medium focus-visible:outline-primary">{label}</summary><div className="min-w-0 space-y-2 py-2">{children}</div></details>;
 }
 export function AdminAnalyticalReadiness({ title = 'Evidence not ready', children, action }) {

@@ -44,12 +44,11 @@ export function autoCountOnline(entry, now = Date.now()) {
   return Number.isFinite(checkIn) && now - checkIn <= offlineAfter;
 }
 
-export function AutoCountStatus({ entry, timestamp }) {
+export function AutoCountStatus({ entry }) {
   const { connector } = entry;
   const online = autoCountOnline(entry);
   const hasCheckIn = Number.isFinite(Date.parse(connector.deviceLastSeenAt));
   const deviceLabel = online ? 'Device online' : hasCheckIn ? 'Device offline' : 'Awaiting device check-in';
-  const schedule = scheduling[connector.backgroundMode];
   const authorization = entry.state === 'error' ? ['warning', 'Legal entity inactive']
     : connector.bookAuthorized === false ? ['warning', 'Book authorization required']
     : connector.bookAuthorized || entry.state === 'connected' ? ['success', 'Book authorized']
@@ -57,18 +56,23 @@ export function AutoCountStatus({ entry, timestamp }) {
   const status = connector.syncState === 'failed' ? ['warning', 'Last sync failed']
     : connector.syncState === 'interrupted' || (connector.syncState === 'running' && !online) ? ['info', 'Sync outcome pending']
     : connector.syncState === 'running' ? ['info', 'Syncing'] : null;
-  return <>
-    <div className="flex flex-wrap items-center gap-1.5" aria-live="polite">
-      <StatusBadge status={authorization[0]}>{authorization[1]}</StatusBadge>
-      <StatusBadge status={online ? 'success' : 'neutral'}>{deviceLabel}</StatusBadge>
-      {status && <StatusBadge status={status[0]}>{status[1]}</StatusBadge>}
-    </div>
-    <dl className="flex flex-wrap gap-x-5 gap-y-1 type-body-sm">
-      <div className="flex flex-wrap gap-x-1.5"><dt className="text-text-secondary">Last successful sync</dt><dd className="font-medium">{timestamp(connector.lastSyncAt)}</dd></div>
-      <div className="flex gap-1.5"><dt className="text-text-secondary" title="Last count reported by the Windows Connector">Pending uploads</dt><dd className="font-medium">{connector.pendingRetries ?? 'Not reported'}</dd></div>
+  return <div className="flex flex-wrap items-center gap-1.5" aria-live="polite">
+    <StatusBadge status={authorization[0]}>{authorization[1]}</StatusBadge>
+    <StatusBadge status={online ? 'success' : 'neutral'}>{deviceLabel}</StatusBadge>
+    {status && <StatusBadge status={status[0]}>{status[1]}</StatusBadge>}
+  </div>;
+}
+
+export function AutoCountSyncSummary({ entry, timestamp }) {
+  const { connector } = entry;
+  const schedule = scheduling[connector.backgroundMode];
+  return <div className="flex flex-wrap items-start justify-between gap-x-5 gap-y-2 type-body-sm">
+    <dl className="flex flex-wrap gap-x-6 gap-y-2">
+      <div><dt className="text-text-secondary">Last successful sync</dt><dd className="font-medium tabular-nums">{timestamp(connector.lastSyncAt)}</dd></div>
+      <div><dt className="text-text-secondary" title="Last count reported by the Windows Connector">Pending uploads</dt><dd className="font-medium tabular-nums">{connector.pendingRetries ?? 'Not reported'}</dd></div>
     </dl>
-    {!online && schedule && <p className="type-body-sm text-text-secondary">{schedule.resume}</p>}
-  </>;
+    {!autoCountOnline(entry) && schedule && <p className="text-text-secondary">{schedule.resume}</p>}
+  </div>;
 }
 
 export function AutoCountDiagnostics({ entry, timestamp }) {
@@ -83,8 +87,9 @@ export function AutoCountDiagnostics({ entry, timestamp }) {
     ['Last successful sync', timestamp(connector.lastSyncAt)],
     ['Last device check-in', timestamp(connector.deviceLastSeenAt)],
     ['Last sync attempt', timestamp(connector.lastAttemptAt)],
-    ['Automatic check-in', scheduling[connector.backgroundMode]?.policy ?? 'Schedule not reported'],
+    ['Device check-in schedule', scheduling[connector.backgroundMode]?.policy ?? 'Schedule not reported'],
     ['Next check-in', nextRun],
+    ['Routine data refresh', 'Daily once GL coverage is current'],
   ];
   const error = connector.syncState === 'interrupted' ? 'Sync did not report an outcome. The next eligible run will retry.'
     : connector.syncState === 'failed' ? syncErrors[connector.syncError] ?? syncErrors.local : null;
@@ -93,7 +98,7 @@ export function AutoCountDiagnostics({ entry, timestamp }) {
       {facts.map(([label, value]) => <div key={label}><dt className="text-text-secondary">{label}</dt><dd className="mt-0.5 font-medium">{value}</dd></div>)}
     </dl>
     {error && <p className="type-body-sm text-text-secondary">{error}</p>}
-    <p className="type-body-sm text-text-secondary">Check-ins pick up queued work. Once GL coverage is current, the connector refreshes daily. Accepted data updates when FeedX stores a new snapshot, including an empty GL day.</p>
+    <p className="type-body-sm text-text-secondary">Check-ins pick up queued work and GL backfill. The accepted-data timestamp changes when FeedX stores a new snapshot, including an empty GL day.</p>
   </>;
 }
 

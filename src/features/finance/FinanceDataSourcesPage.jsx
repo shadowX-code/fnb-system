@@ -2,6 +2,7 @@ import AdminSegmentedControl from '../../components/forms/AdminSegmentedControl.
 import Drawer from '../../components/ui/Drawer.jsx';
 import ActionMenu from '../../components/ui/ActionMenu.jsx';
 import StatusBadge from '../../components/ui/StatusBadge.jsx';
+import { AdminEvidenceDisclosure } from '../../components/layout/AdminAnalyticalSurface.jsx';
 import { FinanceDisclosure } from './FinanceVisualSystem.jsx';
 import { useEffect, useId, useState } from 'react';
 import { ArrowRight, Link2 } from 'lucide-react';
@@ -11,12 +12,13 @@ import AsyncDataSurface from '../../components/feedback/AsyncDataSurface.jsx';
 import { money } from '../reports/components/reportingFormatters.js';
 import { metricRegistry } from './metrics.js';
 import { dataSourceReadiness, mappingLabels, partitionAccountingConnections, readFinanceDataSources } from './dataSources.js';
-import { AutoCountActionModal, AutoCountDevices, AutoCountDiagnostics, AutoCountStatus, autoCountOnline } from './AutoCountConnector.jsx';
+import { AutoCountActionModal, AutoCountDevices, AutoCountDiagnostics, AutoCountStatus, AutoCountSyncSummary, autoCountOnline } from './AutoCountConnector.jsx';
 import FinanceAccountMapping from './FinanceAccountMapping.jsx';
 import AccountingDatasetBrowser from './AccountingDatasetBrowser.jsx';
 import './finance.css';
 
 const sections = ['Connection', 'Authority', 'Mapping', 'Reconciliation'];
+const detailTabs = ['Overview', 'Capabilities', 'Diagnostics'];
 const capabilityLabels = {
   chart_of_accounts: 'Chart of accounts', transactions: 'Transactions', journal_lines: 'Journal lines',
   account_balances: 'Account balances', financial_dimensions: 'Financial dimensions',
@@ -34,7 +36,7 @@ function difference(entry) {
 }
 function periodLabel(period) { return `${period.start} → ${period.end}`; }
 const capabilityStateLabels = { supported: 'Supported', partial: 'Observed in FeedX', unverified: 'Unverified', unsupported: 'Unsupported' };
-const datasetNames = ['COA', 'GL', 'Department', 'Project'];
+const datasetLabels = { COA: 'Chart of accounts', GL: 'General ledger', Department: 'Departments', Project: 'Projects' };
 const dayMs = 24 * 60 * 60 * 1000;
 
 function Capabilities({ values }) {
@@ -44,15 +46,15 @@ function Capabilities({ values }) {
 }
 
 function BookDatasetCounts({ entry }) {
-  return <dl aria-label="Book dataset acceptance" className="grid grid-cols-2 gap-2 rounded-lg bg-surface-muted px-3 py-2.5 sm:grid-cols-4">
-    {datasetNames.map((dataset) => {
+  return <dl aria-label="Book dataset acceptance" className="grid grid-cols-2 gap-x-3 gap-y-3 sm:grid-cols-4">
+    {Object.entries(datasetLabels).map(([dataset, label]) => {
       const snapshot = entry.datasets?.find((item) => item.dataset === dataset);
       const count = dataset === 'GL' && entry.glCoverage?.acceptedDays ? entry.glCoverage.acceptedRows : snapshot?.acceptedRows;
       return <div className="min-w-0" key={dataset}>
-        <dt className="type-body-sm text-text-secondary">{dataset}</dt>
-        <dd className="mt-0.5 flex flex-wrap items-baseline gap-x-1.5">
-          <strong className="text-xl font-semibold tabular-nums">{count == null ? '—' : count.toLocaleString('en-MY')}</strong>
-          {(count == null || count === 0) && <span className="type-caption text-text-secondary">{count == null ? 'Awaiting data' : 'Empty'}</span>}
+        <dt className="type-body-sm text-text-secondary">{label}</dt>
+        <dd className="mt-0.5 flex flex-wrap items-baseline gap-x-2">
+          <strong className="type-kpi-value tabular-nums">{count == null ? '—' : count.toLocaleString('en-MY')}</strong>
+          {(count == null || count === 0) && <span className="type-body-sm text-text-secondary">{count == null ? 'Awaiting data' : 'Accepted empty'}</span>}
         </dd>
       </div>;
     })}
@@ -61,16 +63,19 @@ function BookDatasetCounts({ entry }) {
 
 function ConnectionGlCoverage({ coverage }) {
   const bounds = coverage?.configuredStartDate && coverage.expectedThrough && Number.isInteger(coverage.remainingDays);
-  if (!bounds && !coverage?.acceptedDays) return <p className="type-caption text-text-secondary">GL coverage awaiting accepted data</p>;
+  if (!bounds && !coverage?.acceptedDays) return <p className="type-body-sm text-text-secondary">GL coverage awaiting accepted data</p>;
   const start = bounds ? coverage.configuredStartDate : coverage.firstDate;
   const end = bounds ? coverage.expectedThrough : coverage.throughDate;
   const expected = (Date.parse(end) - Date.parse(start)) / dayMs + 1;
   const accepted = bounds ? expected - coverage.remainingDays : coverage.acceptedDays;
   const missing = expected - accepted;
-  return <p className="flex flex-wrap gap-x-2 gap-y-0.5 type-body-sm text-text-secondary">
-    <strong className="text-text-primary">GL coverage</strong>
-    <span>{start} → {end}</span><span>{accepted}/{expected} days accepted</span><span>{missing} missing</span>
-  </p>;
+  return <div className="grid gap-1.5 type-body-sm text-text-secondary">
+    <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5">
+      <div className="flex flex-wrap gap-x-2"><strong className="text-text-primary">GL coverage</strong><span>{start} → {end}</span></div>
+      <div className="flex flex-wrap gap-x-2 tabular-nums"><strong className="text-text-primary">{accepted}/{expected} days accepted</strong><span>{missing} missing</span></div>
+    </div>
+    {expected > 0 && <progress className="h-1.5 w-full overflow-hidden rounded-full accent-primary" aria-label="GL coverage" value={accepted} max={expected} />}
+  </div>;
 }
 
 function bookIdentity(entry) {
@@ -83,9 +88,10 @@ function ConnectionCard({ entry, onAction, onBrowse, onDetails }) {
   const online = autoCountOnline(entry);
   return <article className="grid min-w-0 gap-3 rounded-xl border border-border bg-surface p-3 sm:p-4" aria-label={entry.providerLabel}>
     <div className="flex flex-wrap items-start justify-between gap-3">
-      <div className="min-w-0">
-        <h2 className="text-base font-semibold">{entry.providerLabel}</h2>
+      <div className="grid min-w-0 gap-1">
+        <h2 className="type-section-title font-semibold">{entry.providerLabel}</h2>
         <p className="type-body-sm text-text-secondary">{bookIdentity(entry)}</p>
+        {connector && <AutoCountStatus entry={entry} />}
       </div>
       <div className="flex flex-wrap items-center gap-2" aria-label="Account Book actions">
         {onBrowse && <button type="button" className="btn-primary" onClick={() => onBrowse(entry)}>View Data</button>}
@@ -97,25 +103,31 @@ function ConnectionCard({ entry, onAction, onBrowse, onDetails }) {
       </div>
     </div>
     {connector && <>
-      <AutoCountStatus entry={entry} timestamp={timestamp} />
-      <BookDatasetCounts entry={entry} />
-      <ConnectionGlCoverage coverage={entry.glCoverage} />
+      <div className="grid min-w-0 gap-3 rounded-lg bg-surface-muted px-3 py-2.5 sm:px-4">
+        <BookDatasetCounts entry={entry} />
+        <ConnectionGlCoverage coverage={entry.glCoverage} />
+      </div>
+      <AutoCountSyncSummary entry={entry} timestamp={timestamp} />
     </>}
   </article>;
 }
 
 function ConnectionDetails({ entry, device, comparisons, onAction, onClose }) {
   const [moreOpen, setMoreOpen] = useState(false);
-  const metadata = [
+  const [tab, setTab] = useState('Overview');
+  const panelId = useId();
+  const identity = [
     ['Legal entity', entry.legalEntityLabel],
     ['Account Book', entry.connection.externalTenantId],
+  ].filter(([, value]) => value);
+  const metadata = [
     ['Book reference', entry.connector?.bookId?.slice(0, 8)],
     ['Windows device', device?.label],
-    ['Verified', entry.connector?.verifiedAt && timestamp(entry.connector.verifiedAt)],
+    ['Book verified', entry.connector?.verifiedAt && timestamp(entry.connector.verifiedAt)],
     ['Last source connection', entry.lastConnectedAt && timestamp(entry.lastConnectedAt)],
   ].filter(([, value]) => value);
   return <Drawer width="md" title="Connection Details" description={entry.providerLabel} onClose={onClose}
-    bodyClassName="grid content-start gap-5 sm:p-5"
+    bodyClassName="grid content-start gap-4 sm:p-5"
     footer={onAction && entry.connector ? <ActionMenu open={moreOpen} onOpenChange={setMoreOpen} ariaLabel="More Actions"
       trigger={({ toggle, open, ariaLabel }) => <button type="button" className="btn-secondary" aria-haspopup="menu"
         aria-expanded={open} aria-label={ariaLabel} onClick={toggle}>More Actions</button>}>
@@ -123,29 +135,46 @@ function ConnectionDetails({ entry, device, comparisons, onAction, onClose }) {
         <button type="button" role="menuitem" className="is-danger" onClick={() => { onClose(); onAction('revoke', entry); }}>Revoke Access</button>
       </div>
     </ActionMenu> : null}>
-    {entry.connector && <section className="grid gap-2.5" aria-label="Sync diagnostics">
-      <h3 className="type-section-title font-semibold">Sync diagnostics</h3>
-      <AutoCountDiagnostics entry={entry} timestamp={timestamp} />
-    </section>}
-    <section className="grid gap-2.5 border-t border-border pt-4" aria-label="Book identity">
-      <h3 className="type-section-title font-semibold">Book identity</h3>
-      <dl className="grid grid-cols-2 gap-3 type-body-sm">
-        {metadata.map(([label, value]) => <div key={label}><dt className="text-text-secondary">{label}</dt><dd className="mt-0.5 font-medium">{value}</dd></div>)}
-      </dl>
-    </section>
-    <section className="grid gap-2.5 border-t border-border pt-4" aria-label="Provider capabilities">
-      <h3 className="type-section-title font-semibold">Provider capabilities</h3>
-      <p className="type-body-sm text-text-secondary">Observed across AutoCount connections.</p>
-      <Capabilities values={entry.connection.capabilities} />
-    </section>
-    <section className="grid gap-2 border-t border-border pt-4" aria-label="Financial evidence">
-      <h3 className="type-section-title font-semibold">Financial evidence</h3>
-      <p className="type-body-sm text-text-secondary">Accepted snapshots and independent dataset parity are separate checks.</p>
-      <p className="type-body-sm text-text-secondary">{comparisons.length
-        ? `${comparisons.filter((item) => item.reconciliation.status === 'reconciled').length} of ${comparisons.length} financial comparisons reconciled.`
-        : 'Financial report evidence pending.'}</p>
-    </section>
+    <AdminSegmentedControl label="Connection detail views" value={tab} onChange={setTab}
+      options={detailTabs.map((label) => ({ label, value: label, panelId }))} />
+    <div id={panelId} role="tabpanel" aria-label={tab} className="grid min-w-0 gap-5">
+      {tab === 'Overview' && <>
+        <section className="grid gap-2" aria-label="Book identity">
+          <h3 className="type-section-title font-semibold">Book identity</h3>
+          <ConnectionFacts facts={identity} />
+          {entry.connector && <AutoCountStatus entry={entry} />}
+        </section>
+        <section className="grid gap-2" aria-label="Financial evidence">
+          <h3 className="type-section-title font-semibold">Financial evidence</h3>
+          <p className="type-body-sm text-text-secondary">{comparisons.length
+            ? `${comparisons.filter((item) => item.reconciliation.status === 'reconciled').length} of ${comparisons.length} financial comparisons reconciled.`
+            : 'Financial report evidence pending.'}</p>
+          <p className="type-body-sm text-text-secondary">Accepted snapshots and independent dataset parity are separate checks.</p>
+        </section>
+      </>}
+      {tab === 'Capabilities' && <section className="grid gap-2.5" aria-label="Provider capabilities">
+        <h3 className="type-section-title font-semibold">Provider capabilities</h3>
+        <p className="type-body-sm text-text-secondary">Observed across AutoCount connections.</p>
+        <Capabilities values={entry.connection.capabilities} />
+      </section>}
+      {tab === 'Diagnostics' && <>
+        {entry.connector && <section className="grid gap-2.5" aria-label="Sync diagnostics">
+          <h3 className="type-section-title font-semibold">Sync diagnostics</h3>
+          <AutoCountDiagnostics entry={entry} timestamp={timestamp} />
+        </section>}
+        {metadata.length > 0 && <section className="grid gap-2" aria-label="Connection metadata">
+          <h3 className="type-section-title font-semibold">Connection metadata</h3>
+          <ConnectionFacts facts={metadata} />
+        </section>}
+      </>}
+    </div>
   </Drawer>;
+}
+
+function ConnectionFacts({ facts }) {
+  return <dl className="grid grid-cols-2 gap-3 type-body-sm">
+    {facts.map(([label, value]) => <div className="min-w-0" key={label}><dt className="text-text-secondary">{label}</dt><dd className="mt-0.5 break-words font-medium">{value}</dd></div>)}
+  </dl>;
 }
 
 function HistoricalConnection({ entry }) {
@@ -166,18 +195,16 @@ function canBrowseAccounting(entry) {
 function ConnectionSection({ state, onAction, onBrowse, onDetails }) {
   const { operational, historical } = partitionAccountingConnections(state.connections);
   const showDevices = onAction && state.connectorDevices?.length > 0;
-  return <div className="grid min-w-0 gap-2">
+  return <div className="grid min-w-0 gap-3">
     {!operational.length && <p className="type-body-sm text-text-secondary">No accounting provider connected</p>}
     {operational.map((entry) => <ConnectionCard key={entry.connection.id} entry={entry} onAction={onAction} onDetails={onDetails}
       onBrowse={onBrowse && canBrowseAccounting(entry) ? onBrowse : undefined} />)}
-    {(showDevices || historical.length > 0) && <div className="divide-y divide-border [&>details]:my-0">
-      {showDevices && <FinanceDisclosure label="Windows Devices">
-        <AutoCountDevices state={state} onAction={onAction} />
-      </FinanceDisclosure>}
-      {historical.length > 0 && <FinanceDisclosure label="Historical Connections">
-        <ul className="divide-y divide-border">{historical.map((entry) => <HistoricalConnection key={entry.connection.id} entry={entry} />)}</ul>
-      </FinanceDisclosure>}
-    </div>}
+    {showDevices && <AdminEvidenceDisclosure label="Windows Devices" variant="accordion">
+      <AutoCountDevices state={state} onAction={onAction} />
+    </AdminEvidenceDisclosure>}
+    {historical.length > 0 && <AdminEvidenceDisclosure label="Historical Connections" variant="accordion">
+      <ul className="divide-y divide-border">{historical.map((entry) => <HistoricalConnection key={entry.connection.id} entry={entry} />)}</ul>
+    </AdminEvidenceDisclosure>}
   </div>;
 }
 
@@ -247,7 +274,6 @@ function ReconciliationSection({ state, onViewConnections }) {
     </FinanceDisclosure>}
   </section>;
 }
-const readinessActions = ['Review account books', 'Review authority periods', 'Review mappings', 'Review report evidence'];
 const panels = { Connection: ConnectionSection, Authority: AuthoritySection, Mapping: MappingSection, Reconciliation: ReconciliationSection };
 
 export function FinanceDataSources({ state, onAction, onMappingSaved }) {
@@ -268,21 +294,16 @@ export function FinanceDataSources({ state, onAction, onMappingSaved }) {
     setSection(value);
   }
   return <div className="grid min-w-0 gap-4">
-    <section aria-label="Data readiness" className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-4">
+    <section aria-label="Data readiness" className="grid grid-cols-2 gap-1 rounded-xl border border-border bg-surface p-1 sm:grid-cols-4 sm:gap-2 sm:p-2">
       {summary.map((item, index) => <button key={item.label} type="button" onClick={() => changeSection(sections[index])}
-        className="group grid min-w-0 content-start gap-1 bg-surface p-3 text-left hover:bg-surface-muted focus-visible:z-10 focus-visible:outline-primary sm:p-4">
-        <span className="type-body-sm font-medium text-text-secondary">{item.label}</span>
-        <strong className="text-lg font-semibold leading-tight">{item.value}</strong>
+        className="group grid min-w-0 content-start gap-1 rounded-lg p-2.5 text-left hover:bg-surface-muted focus-visible:outline-primary sm:px-3">
+        <span className="flex items-center justify-between gap-1 type-body-sm font-medium text-text-secondary">{item.label}<ArrowRight size={14} className="shrink-0 group-hover:text-primary-ink" aria-hidden="true" /></span>
+        <strong className="type-section-title font-semibold">{item.value}</strong>
         {index === 2 && state.connections.some((entry) => entry.accountMapping) && <span className="type-body-sm text-text-secondary">{item.detail}</span>}
-        <span className="mt-0.5 flex items-center gap-1 type-caption font-medium text-primary-ink">
-          {readinessActions[index]}<ArrowRight size={13} aria-hidden="true" />
-        </span>
       </button>)}
     </section>
-    <div className="min-w-0 border-b border-border pb-3">
-      <AdminSegmentedControl label="Data source concerns" value={section} onChange={changeSection}
-        options={sections.map((label) => ({ label, value: label, panelId }))} />
-    </div>
+    <AdminSegmentedControl label="Data source concerns" value={section} onChange={changeSection}
+      options={sections.map((label) => ({ label, value: label, panelId }))} />
     <div id={panelId} role="tabpanel" aria-label={section} className="min-w-0">
       <Panel state={state} onAction={onAction} onBrowse={openBrowser} onDetails={setDetailsId}
         mappingConnectionId={mappingConnectionId} onSelectMappingSource={setMappingConnectionId} onMappingSaved={onMappingSaved}
@@ -321,13 +342,13 @@ function LiveFinanceDataSourcesPage() {
     readFinanceDataSources().then((next) => { if (active) setState(next); }).catch(() => { if (active) setError('Financial source status could not be loaded.'); });
     return () => { active = false; };
   }, [attempt]);
-  return <div className="max-w-6xl"><WorkspacePage className="finance-workspace" section="Finance · Manage" title="Data Sources" density="compact" description="Manage accounting sources, mappings and reconciliation." actions={<button type="button" className="btn-secondary" disabled={!canManage || !state.connectorEntities.length} onClick={() => setModal({ action: 'pair' })}><Link2 size={15} />Connect provider</button>}>
+  return <WorkspacePage className="finance-workspace" section="Finance · Manage" title="Data Sources" density="compact" description="Manage accounting sources, mappings and reconciliation." actions={<button type="button" className="btn-secondary" disabled={!canManage || !state.connectorEntities.length} onClick={() => setModal({ action: 'pair' })}><Link2 size={15} />Connect provider</button>}>
     {notice && <p role="status" className="type-body-sm text-text-secondary">{notice}</p>}
     <AsyncDataSurface loading={!state && !error} error={error} hasData={Boolean(state)} onRetry={() => setAttempt((value) => value + 1)}>{state ? <FinanceDataSources state={state} onMappingSaved={(connectionId, accountMapping) => setState((current) => ({
       ...current, connections: current.connections.map((entry) => entry.connection.id === connectionId ? { ...entry, accountMapping } : entry),
     }))} onAction={canManage ? (action, entry, details) => setModal({ action, entry, ...details }) : undefined} /> : null}</AsyncDataSurface>
     {modal && <AutoCountActionModal {...modal} entities={state.connectorEntities} onClose={() => { setModal(null); setAttempt((value) => value + 1); }} onSaved={onSaved} />}
-  </WorkspacePage></div>;
+  </WorkspacePage>;
 }
 
 export default function FinanceDataSourcesPage(props) { return <FinancePreviewBoundary auth={props.auth} section="data_sources"><LiveFinanceDataSourcesPage /></FinancePreviewBoundary>; }
