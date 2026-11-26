@@ -128,8 +128,16 @@ function MappingSection({ state, onBrowse, mappingConnectionId, onSelectMappingS
   </section>;
 }
 function ReconciliationSection({ state, onViewConnections }) {
+  const hasAedTest = state.connections.some((entry) =>
+    entry.connector?.bookId === '3037f4f7-94e6-4050-a6c0-a790559fb056' && canBrowseAccounting(entry));
   return <section aria-label="Financial reconciliation" className="grid gap-2"><div className="flex flex-wrap items-start justify-between gap-2"><h2 className="type-body-sm font-semibold">Validated comparisons</h2><button type="button" className="btn-secondary" onClick={onViewConnections}>Review accepted evidence</button></div>
-    {!state.reconciliations.length ? <p className="type-body-sm text-text-secondary">No validated reconciliation evidence. Native report comparisons are pending.</p> : <div className="finance-source-table-wrap"><table className="finance-source-table"><caption className="sr-only">Validated financial comparisons</caption><thead><tr><th>Period</th><th>Source</th><th>Metric / balance</th><th>Difference</th><th>State</th></tr></thead><tbody>{state.reconciliations.map((entry, index) => <tr key={`${entry.connectionId}:${entry.metricId}:${index}`}><td>{periodLabel(entry.period)}</td><td>{entry.sourceLabel}</td><td>{metricRegistry[entry.metricId]?.label ?? entry.metricId}</td><td>{difference(entry)}</td><td>{entry.reconciliation.status}</td></tr>)}</tbody></table></div>}
+    {!state.reconciliations.length ? <p className="type-body-sm text-text-secondary">No validated reconciliation evidence. Accounting reports need matching AutoCount Desktop evidence for this source, period and scope.</p> : <div className="finance-source-table-wrap"><table className="finance-source-table"><caption className="sr-only">Validated financial comparisons</caption><thead><tr><th>Period</th><th>Source</th><th>Metric / balance</th><th>Difference</th><th>State</th></tr></thead><tbody>{state.reconciliations.map((entry, index) => <tr key={`${entry.connectionId}:${entry.metricId}:${index}`}><td>{periodLabel(entry.period)}</td><td>{entry.sourceLabel}</td><td>{metricRegistry[entry.metricId]?.label ?? entry.metricId}</td><td>{difference(entry)}</td><td>{entry.reconciliation.status}</td></tr>)}</tbody></table></div>}
+    {hasAedTest && <FinanceDisclosure label="AED_TEST accounting evidence">
+      <div className="grid justify-items-start gap-2">
+        <p className="type-caption text-text-secondary">The office assessment checks which AutoCount SQL objects the local book exposes. Compare those findings with Desktop exports for Trial Balance, Profit &amp; Loss, Balance Sheet, account balances, aging and inventory valuation.</p>
+        <a className="btn-secondary" href="/downloads/FeedX-AED_TEST-Accounting-Evidence.ps1" download>Download read-only evidence capture</a>
+      </div>
+    </FinanceDisclosure>}
   </section>;
 }
 export function FinanceDataSources({ state, onAction, onMappingSaved }) {

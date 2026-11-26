@@ -177,7 +177,7 @@ An independently verified replacement can supersede an earlier AutoCount binding
 
 Background checks run through the installing Windows account and report task mode/next run separately from source attempts, completed sync and accepted uploads. Signed-out operation uses Windows Task Scheduler credential storage with the same Windows identity; device check-in is not proof of successful accounting extraction.
 
-Finance Data Sources shows the owner the connector check-in and accepted row counts. Acceptance records structural validation and receipt. Accounting authority, classification mapping, native reconciliation and eligibility for financial metrics require separately validated evidence. Native Trial Balance, P&L and Balance Sheet are gated on SDK compatibility, licensing and structured-report contracts.
+Finance Data Sources shows the owner the connector check-in and accepted row counts. Acceptance records structural validation and receipt. Accounting authority, classification mapping, native reconciliation and eligibility for financial metrics require separately validated evidence. Accounting report extraction uses verified AutoCount SQL results or Desktop export evidence for the exact book, period and settings.
 
 Data Sources separates connection operations, effective authority, mapping, and reconciliation. Connection details hold sync diagnostics and technical capabilities. Accepted COA, GL, Department and Project records can be browsed without changing evidence. COA retains the source account type and links to Mapping for classification review.
 
@@ -194,3 +194,28 @@ AutoCount suggestions use deterministic type and description rules, comparable p
 Owner confirmations append a version tied to the source connection, account key and accepted chart snapshot, with reviewer identity and time. The server checks the latest chart and decision version under the connection lock. Identical retries reuse the existing review. Material changes to an account's type, description, currency, role or ancestry return it to review and display the prior decision. Accounts introduced after the first accepted chart enter the review queue. Previously confirmed accounts absent from the current chart are counted separately and retained in history. Dimension readiness distinguishes accepted empty datasets, unsupported capabilities and missing evidence from unclassified source accounts.
 
 A reviewed classification does not assign effective Accounting Actual authority, publish a statement or change FeedX Operational P&L. Future accounting consumers must explicitly resolve confirmed versions against their accepted source evidence and assign authority separately.
+
+
+## AutoCount accounting report authority
+
+AutoCount owns accounting balances and statement results. FeedX owns analytics, trends, ratios, forecasts and insights. Connector selection follows three steps.
+
+1. Use an AutoCount-maintained SQL balance or computed result when its grain, period, opening and closing rules, currency, signs and report options reconcile against an independent native export.
+2. Use an AutoCount Desktop report export when it provides the required result and identity. Retain its original artifact, Report Criteria, exact book, report type, fiscal or as-of period, currency, scope, options and capture time. An attended local export is the verified workflow.
+3. Derive a result in FeedX only when every required source input and accounting rule has been verified and the output reconciles independently. Track derived result provenance and leave Accounting Actual authority unassigned until its separate approval.
+
+Keep receipt-backed COA, GL, Department and Project replication for drill-down and analytics. A complete journal date range does not establish opening balances, period-close rules, subledger settlements or inventory costing. Missing native comparisons remain unverified. A result for an earlier period or different report configuration stays tied to that evidence and does not fulfill a current request.
+
+| Dataset | SQL assessment and reconciliation target | Desktop evidence |
+| --- | --- | --- |
+| Trial Balance | Validate `PBalance`, `AccPeriod`, `AccType` and related opening or closing objects for fiscal boundaries, adjustment periods, non-duplicated account grain and debit/credit totals. | Overall Trial Balance at the same cutoff, with account numbers and matching zero-balance and parent rollup options. |
+| P&L | Establish whether `PLFormat` stores presentation rules or results. Validate account types, signs, fiscal movement, closing stock and adjustments. | Matching monthly and fiscal-YTD P&L with the same format, comparison columns and dimensions. |
+| Balance Sheet | Assess `BSFormat` and whether source balances support as-of reporting, opening balances, retained earnings and current-period profit. | Balance Sheet at the same date, with account detail and the same scope and presentation settings. |
+| Account balances | Verify the actual dimensions of `PBalance` and separate opening, movement and closing balance with control-account treatment. | Account Detail or Account Inquiry with opening and closing values for equivalent account keys and currency. |
+| AR aging | Identify a source-maintained as-of balance or verify debtor document, settlement, opening and FX relationships. | Debtor Aging at the same cutoff with aging basis, bucket boundaries, currency, grouping and payment treatment. |
+| AP aging | Identify a source-maintained as-of balance or verify creditor document, settlement, opening and FX relationships. | Creditor Aging with the same choices and as-of cutoff. |
+| Inventory valuation | Verify source costing records, cutoff, stock location, units and the valuation method, including treatment of adjustments. | Stock valuation with matching date, warehouse scope, units and costing configuration. |
+
+The [AED_TEST evidence capture](../../public/downloads/FeedX-AED_TEST-Accounting-Evidence.ps1) checks the currently bound physical book with the installed restricted reader. It captures catalog visibility, object types, columns, keys and dependencies without querying candidate data rows or running AutoCount routines. The optional Windows catalog context uses the current Windows identity for catalog reads only. A catalog hit establishes object existence under that context. Semantics and accounting values require independent evidence. An optional directory records file names and SHA-256 hashes of native exports locally for review. The office capture does not require a Connector update.
+
+AutoCount documents report options that affect comparison, including Trial Balance parent rollups and the AR/AP days-or-months aging basis. The local export workflow supports Excel and PDF. [Trial Balance Report](https://www.autocountsoft.com/products/ac_accounting/helpfile/trial_balance_report.htm) · [Aging and Statement Options](https://www.autocountsoft.com/products/ac_accounting/helpfile/a_r__a_p__aging_and_statement.htm) · [Report export formats](https://member.autocountsoft.com/products/ac_accounting/info/features10.aspx)
