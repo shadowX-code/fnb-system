@@ -10,6 +10,7 @@ import { money } from '../reports/components/reportingFormatters.js';
 import { metricRegistry } from './metrics.js';
 import { dataSourceReadiness, mappingLabels, partitionAccountingConnections, readFinanceDataSources } from './dataSources.js';
 import { AutoCountActionModal, AutoCountDevices, AutoCountStatus } from './AutoCountConnector.jsx';
+import FinanceAccountMapping from './FinanceAccountMapping.jsx';
 import AccountingDatasetBrowser, { glCoverageText } from './AccountingDatasetBrowser.jsx';
 import './finance.css';
 
@@ -87,19 +88,34 @@ function AuthoritySection({ state, onViewConnections }) {
     })}</tbody></table></div>}
   </section>;
 }
-function MappingSection({ state, onBrowse, mappingConnectionId }) {
+function MappingSection({ state, onBrowse, mappingConnectionId, onSelectMappingSource, onMappingSaved }) {
   const sources = state.connections.filter(canBrowseAccounting);
-  const selected = sources.find((entry) => entry.connection.id === mappingConnectionId);
+  const selected = sources.find((entry) => entry.connection.id === mappingConnectionId) ?? sources[0];
   return <section aria-label="Mapping readiness" className="grid gap-2">
     <h2 className="type-body-sm font-semibold">Classification and dimension mapping</h2>
-    <p className="type-caption text-text-secondary">Review source accounts before assigning financial classifications.</p>
+    {sources.length > 1 && <label className="grid w-fit gap-1 type-caption">Account Book
+      <select className="control" value={selected.connection.id} onChange={(event) => onSelectMappingSource(event.target.value)}>
+        {sources.map((entry) => <option key={entry.connection.id} value={entry.connection.id}>
+          {entry.legalEntityLabel} · {entry.connection.externalTenantId} · {entry.connector.bookId?.slice(0, 8)}
+        </option>)}
+      </select>
+    </label>}
     {selected && <p className="type-caption text-text-secondary">Selected source · {selected.connection.externalTenantId} · Book {selected.connector.bookId?.slice(0, 8)}</p>}
     {onBrowse && sources.length > 0 && <div className="flex flex-wrap gap-2">
       {(selected ? [selected] : sources).map((entry) => <button key={entry.connection.id} type="button" className="btn-secondary" onClick={() => onBrowse(entry, 'COA')}>
         Browse source accounts{sources.length > 1 ? ` · ${entry.legalEntityLabel}` : ''}
       </button>)}
     </div>}
-    <ul className="divide-y divide-border">{Object.entries(mappingLabels).map(([kind, label]) => {
+    {selected && onBrowse && <FinanceAccountMapping key={selected.connection.id} connectionId={selected.connection.id} timestamp={timestamp} onChange={onMappingSaved} />}
+    {selected && <ul className="flex flex-wrap gap-x-4 gap-y-1 type-caption text-text-secondary" aria-label="Dimension evidence">
+      {['Department', 'Project'].map((dataset) => {
+        const accepted = selected.datasets?.find((entry) => entry.dataset === dataset);
+        const status = accepted ? (accepted.acceptedRows ? `${accepted.acceptedRows} accepted · Mapping not assessed` : 'Accepted dataset is empty')
+          : selected.connection.capabilities.financial_dimensions === 'unsupported' ? 'Unsupported by source' : 'No accepted evidence';
+        return <li key={dataset}>{dataset} · {status}</li>;
+      })}
+    </ul>}
+    <ul className="divide-y divide-border">{Object.entries(mappingLabels).filter(([kind]) => !selected || kind !== 'account').map(([kind, label]) => {
       const evidence = state.mappingReadiness.filter((entry) => entry.kind === kind && (!selected || selected.connection.id === entry.connectionId));
       return <li key={kind} className="flex flex-wrap items-start justify-between gap-2 py-2">
         <h3 className="type-body-sm font-medium">{label}</h3>
@@ -116,7 +132,7 @@ function ReconciliationSection({ state, onViewConnections }) {
     {!state.reconciliations.length ? <p className="type-body-sm text-text-secondary">No validated reconciliation evidence. Native report comparisons are pending.</p> : <div className="finance-source-table-wrap"><table className="finance-source-table"><caption className="sr-only">Validated financial comparisons</caption><thead><tr><th>Period</th><th>Source</th><th>Metric / balance</th><th>Difference</th><th>State</th></tr></thead><tbody>{state.reconciliations.map((entry, index) => <tr key={`${entry.connectionId}:${entry.metricId}:${index}`}><td>{periodLabel(entry.period)}</td><td>{entry.sourceLabel}</td><td>{metricRegistry[entry.metricId]?.label ?? entry.metricId}</td><td>{difference(entry)}</td><td>{entry.reconciliation.status}</td></tr>)}</tbody></table></div>}
   </section>;
 }
-export function FinanceDataSources({ state, onAction }) {
+export function FinanceDataSources({ state, onAction, onMappingSaved }) {
   const [section, setSection] = useState('Connection');
   const [browse, setBrowse] = useState(null);
   const [mappingConnectionId, setMappingConnectionId] = useState(null);
@@ -127,10 +143,11 @@ export function FinanceDataSources({ state, onAction }) {
   const openBrowser = onAction ? (entry, dataset) => setBrowse({ connectionId: entry.connection.id, dataset }) : undefined;
   return <div className="grid min-w-0 gap-3">
     <dl aria-label="Data health" className="grid grid-cols-2 gap-x-3 gap-y-2 rounded-lg border border-border bg-surface px-4 py-2 sm:grid-cols-4">
-      {ready.summary.slice(0, 4).map((item) => <div key={item.label}><dt className="type-caption text-text-secondary">{item.label}</dt><dd className="type-body-sm font-semibold">{item.value}</dd></div>)}
+      {ready.summary.slice(0, 4).map((item) => <div key={item.label}><dt className="type-caption text-text-secondary">{item.label}</dt><dd className="type-body-sm font-semibold">{item.value}</dd>
+        {item.label === 'Mapping readiness' && state.connections.some((entry) => entry.accountMapping) && <dd className="type-caption text-text-secondary">{item.detail}</dd>}</div>)}
     </dl>
     <FinanceAnalysisSurface label="Data source concerns" title="Source management" modes={sections} value={section} onChange={(value) => { setMappingConnectionId(null); setSection(value); }}>
-      <Panel state={state} onAction={onAction} onBrowse={openBrowser} mappingConnectionId={mappingConnectionId} onViewConnections={() => setSection('Connection')} />
+      <Panel state={state} onAction={onAction} onBrowse={openBrowser} mappingConnectionId={mappingConnectionId} onSelectMappingSource={setMappingConnectionId} onMappingSaved={onMappingSaved} onViewConnections={() => setSection('Connection')} />
     </FinanceAnalysisSurface>
     {activeBrowse && <AccountingDatasetBrowser key={activeBrowse.connection.id} connection={activeBrowse} initialDataset={browse.dataset} timestamp={timestamp}
       onClose={() => setBrowse(null)} onReviewMapping={() => { setMappingConnectionId(activeBrowse.connection.id); setBrowse(null); setSection('Mapping'); }} />}
@@ -164,7 +181,9 @@ function LiveFinanceDataSourcesPage() {
   }, [attempt]);
   return <WorkspacePage className="finance-workspace" section="Finance · Manage" title="Data Sources" description="Manage where financial evidence comes from and whether it is usable." actions={<button type="button" className="btn-secondary" disabled={!canManage || !state.connectorEntities.length} onClick={() => setModal({ action: 'pair' })}><Link2 size={15} />Connect provider</button>}>
     {notice && <p role="status" className="type-body-sm text-text-secondary">{notice}</p>}
-    <AsyncDataSurface loading={!state && !error} error={error} hasData={Boolean(state)} onRetry={() => setAttempt((value) => value + 1)}>{state ? <FinanceDataSources state={state} onAction={canManage ? (action, entry, details) => setModal({ action, entry, ...details }) : undefined} /> : null}</AsyncDataSurface>
+    <AsyncDataSurface loading={!state && !error} error={error} hasData={Boolean(state)} onRetry={() => setAttempt((value) => value + 1)}>{state ? <FinanceDataSources state={state} onMappingSaved={(connectionId, accountMapping) => setState((current) => ({
+      ...current, connections: current.connections.map((entry) => entry.connection.id === connectionId ? { ...entry, accountMapping } : entry),
+    }))} onAction={canManage ? (action, entry, details) => setModal({ action, entry, ...details }) : undefined} /> : null}</AsyncDataSurface>
     {modal && <AutoCountActionModal {...modal} entities={state.connectorEntities} onClose={() => { setModal(null); setAttempt((value) => value + 1); }} onSaved={onSaved} />}
   </WorkspacePage>;
 }

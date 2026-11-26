@@ -46,6 +46,18 @@ export function readAccountingDataset({ connectionId, dataset, scopeDate, snapsh
   });
 }
 
+export function readAccountMapping(connectionId, { summaryOnly = false } = {}) {
+  if (!stagingAccounting()) throw new Error('Account mapping is available on Staging.');
+  return accountingRpc('finance_account_mapping_review', { p_connection_id: connectionId, p_summary_only: summaryOnly });
+}
+
+export function confirmAccountMapping(connectionId, snapshotId, decisions) {
+  if (!stagingAccounting()) throw new Error('Account mapping is available on Staging.');
+  return accountingRpc('finance_account_mapping_review', {
+    p_connection_id: connectionId, p_snapshot_id: snapshotId, p_decisions: decisions,
+  });
+}
+
 const sourceResources = { COA: 'chart_of_accounts', GL: 'journal_lines', Department: 'financial_dimensions', Project: 'financial_dimensions' };
 
 function accountingConnection(source) {
@@ -90,7 +102,15 @@ export async function readFinanceDataSources() {
     ]);
     connections = sources.map(accountingConnection);
     connectorEntities = entities;
-    if (entities !== null) connectorDevices = await manageAutoCountDevice('catalog');
+    if (entities !== null) {
+      const active = connections.filter((entry) => entry.status === 'active' && entry.state === 'connected' && entry.datasets.some(({ dataset }) => dataset === 'COA'));
+      const [devices, ...mapping] = await Promise.all([
+        manageAutoCountDevice('catalog'),
+        ...active.map((entry) => readAccountMapping(entry.connection.id, { summaryOnly: true }).catch(() => undefined)),
+      ]);
+      connectorDevices = devices;
+      active.forEach((entry, index) => { entry.accountMapping = mapping[index]?.summary; });
+    }
   }
   return {
     connections, connectorEntities, connectorDevices, authorityPeriods: [], mappingReadiness: [], reconciliations: [],
@@ -116,7 +136,13 @@ export function dataSourceReadiness(state, authorityRequest = null) {
   const active = operational.filter((entry) => entry.state === 'connected');
   const coverage = authorityRequest ? authorityPlan(state.authorityPeriods, authorityRequest) : null;
   const mappingKinds = new Set(state.mappingReadiness.map((entry) => entry.kind));
-  const unresolved = state.mappingReadiness.some((entry) => entry.unresolved > 0);
+  const accountMappings = active.map((entry) => entry.accountMapping).filter(Boolean);
+  if (accountMappings.length) mappingKinds.add('account');
+  const unresolved = [...state.mappingReadiness, ...accountMappings].some((entry) => entry.unresolved > 0);
+  const assessed = state.mappingReadiness.length > 0 || accountMappings.length > 0;
+  const accountCounts = accountMappings.reduce((counts, entry) => ({
+    confirmed: counts.confirmed + entry.confirmed, unresolved: counts.unresolved + entry.unresolved,
+  }), { confirmed: 0, unresolved: 0 });
   const issues = [];
   if (!active.length) issues.push('No active accounting connection.');
   if (!state.authorityPeriods.length) issues.push('Accounting authority periods have not been assigned.');
@@ -134,7 +160,7 @@ export function dataSourceReadiness(state, authorityRequest = null) {
     summary: [
       { label: 'Connection', value: active.length ? `${active.length} active` : operational.some((entry) => entry.state === 'pending') ? 'Pending verification' : 'Not connected', detail: historical.length ? `${historical.length} historical · retained for history` : 'No historical accounting connections' },
       { label: 'Authority coverage', value: !state.authorityPeriods.length ? 'Not assigned' : coverage ? coverage.gaps.length ? 'Gaps identified' : 'Covered for selected period' : 'Not assessed', detail: coverage ? `${coverage.segments.length} authority segments · ${coverage.gaps.length} gaps` : `${state.authorityPeriods.length} defined resource periods` },
-      { label: 'Mapping readiness', value: !state.mappingReadiness.length ? 'Not assessed' : unresolved ? 'Needs review' : mappingKinds.size === Object.keys(mappingLabels).length ? 'Mapped evidence available' : 'Partial evidence', detail: !state.mappingReadiness.length ? 'Awaiting provider records' : 'Counts apply to the source, scope and period shown' },
+      { label: 'Mapping readiness', value: !assessed ? 'Not assessed' : unresolved ? 'Needs review' : mappingKinds.size === Object.keys(mappingLabels).length ? 'Mapped evidence available' : 'Partial evidence', detail: accountMappings.length ? `${accountCounts.confirmed} accounts confirmed · ${accountCounts.unresolved} need review` : assessed ? 'Counts apply to the source, scope and period shown' : 'Awaiting provider records' },
       { label: 'Reconciliation', value: !state.reconciliations.length ? 'Not assessed' : state.reconciliations.every((entry) => entry.reconciliation.status === 'reconciled') ? 'Reconciled evidence available' : 'Needs review', detail: `${state.reconciliations.length} validated comparison records` },
       { label: 'Unresolved issues', value: issues.length ? 'Assessment incomplete' : 'No identified blockers', detail: 'Known blockers shown below; no completeness score is inferred' },
     ],

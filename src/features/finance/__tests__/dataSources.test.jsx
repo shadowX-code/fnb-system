@@ -195,3 +195,50 @@ it('browses accepted records with a pinned snapshot and opens Mapping for the sa
   expect(screen.getByRole('tab', { name: 'Mapping' }).getAttribute('aria-selected')).toBe('true');
   expect(screen.getByText(/Selected source.*3037f4f7/)).toBeTruthy();
 });
+
+it('reviews suggestions and manual selections on the bound chart before saving', async () => {
+  const state = historicalState();
+  const current = state.connections[1];
+  current.connector = { bookId: '3037f4f7-current' };
+  current.connection.externalTenantId = 'AED_TEST';
+  current.datasets = [{ dataset: 'Department', acceptedRows: 0 }];
+  current.connection.capabilities = { financial_dimensions: 'partial' };
+  const classifications = [
+    { id: 'revenue', parent_id: null, statement: 'profit_loss', label: 'Revenue' },
+    { id: 'assets', parent_id: null, statement: 'balance_sheet', label: 'Assets' },
+  ];
+  const rows = [
+    { account_key: '100', source_type: 'SL', description: 'Sales', role: 'posting', status: 'suggested', suggestion: 'revenue', version: null, posted: true },
+    { account_key: '200', source_type: 'CA', description: 'Assets group', role: 'group', status: 'group', suggestion: null, version: null },
+    { account_key: '210', source_type: 'CA', description: 'Check source', role: 'posting', status: 'manual_review', suggestion: null, version: null },
+  ];
+  const summary = { total: 3, confirmed: 0, unresolved: 2, groups: 1 };
+  const review = { connectionId: 'new', snapshotId: '16', snapshotAt: '2026-11-19T15:20:03Z', rows, classifications, summary };
+  const read = vi.spyOn(financeSources, 'readAccountMapping').mockResolvedValue(review);
+  const save = vi.spyOn(financeSources, 'confirmAccountMapping').mockResolvedValue({
+    ...review, summary: { ...summary, confirmed: 2, unresolved: 0 },
+    rows: rows.map((row) => row.role === 'posting' ? { ...row, status: 'confirmed', classification: row.suggestion ?? 'assets' } : row),
+  });
+  const saved = vi.fn();
+  render(<FinanceDataSources state={state} onAction={() => {}} onMappingSaved={saved} />);
+  fireEvent.click(screen.getByRole('tab', { name: 'Mapping' }));
+  expect(await screen.findByText('3 source accounts · 0 confirmed · 2 need review · 1 group accounts')).toBeTruthy();
+  expect(read).toHaveBeenCalledWith('new');
+  expect(screen.getByText('Department · Accepted dataset is empty')).toBeTruthy();
+  expect(screen.queryByRole('combobox', { name: 'Classification for 200' })).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Select suggestions on this page' }));
+  fireEvent.change(screen.getByRole('searchbox', { name: 'Find accounts' }), { target: { value: 'check source' } });
+  fireEvent.change(screen.getByRole('combobox', { name: 'Classification for 210' }), { target: { value: 'assets' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Review selected (2)' }));
+  expect(save).not.toHaveBeenCalled();
+  const dialog = screen.getByRole('dialog', { name: 'Confirm account classifications' });
+  expect(within(dialog).getByText('Revenue')).toBeTruthy();
+  expect(within(dialog).getByText('Assets')).toBeTruthy();
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Confirm 2 classifications' }));
+  expect(await screen.findByText('2 classifications confirmed.')).toBeTruthy();
+  expect(save).toHaveBeenCalledWith('new', '16', [
+    { accountKey: '100', classificationId: 'revenue', expectedVersion: null },
+    { accountKey: '210', classificationId: 'assets', expectedVersion: null },
+  ]);
+  expect(saved).toHaveBeenCalledWith('new', { ...summary, confirmed: 2, unresolved: 0 });
+});

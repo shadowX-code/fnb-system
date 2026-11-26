@@ -41,6 +41,7 @@ export type FinancialConnectionView = {
     pendingRetries: number | null; sourceRows: number | null; retryRequestedAt: string | null;
     lastAttemptAt?: string | null; lastSyncReportAt?: string | null; deviceLastSeenAt?: string | null; nextPollAt?: string | null;
     backgroundMode?: 'unattended' | 'signed_in' | 'missing' | 'disabled' | null };
+  accountMapping?: AccountMappingSummary;
   glCoverage?: {
     firstDate: string | null; throughDate: string | null; latestPostingDate: string | null;
     acceptedDays: number; emptyDays: number; missingDays: number; acceptedRows: number; lastAcceptedAt: string | null;
@@ -48,6 +49,10 @@ export type FinancialConnectionView = {
     remainingDays: number | null; nextMissingDate: string | null;
   } | null;
   datasets?: { dataset: 'COA' | 'GL' | 'Department' | 'Project'; scopeDate: string | null; acceptedRows: number; acceptedAt: string }[];
+};
+export type AccountMappingSummary = {
+  total: number; posting: number; groups: number; ambiguous: number; confirmed: number; unresolved: number;
+  suggested: number; changed: number; new: number; removed: number;
 };
 export type MappingReadiness = {
   connectionId: Connection['id']; kind: Mapping['kind']; scope: Scope; scopeLabel: string; period: Period;
