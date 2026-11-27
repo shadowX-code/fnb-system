@@ -5,7 +5,20 @@ $accountingTables = [ordered]@{
     Department = @{ table='Dept'; columns=[ordered]@{key='DeptNo';parent='ParentDeptNo';description='Description';active='IsActive'} }
     Project = @{ table='Project'; columns=[ordered]@{key='ProjNo';parent='ParentProjNo';description='Description';active='IsActive'} }
 }
-function Get-AccountingReadPlan($Catalog) {
+# Verified AED_TEST GLDTL projection. Source and payment keys remain raw document identifiers.
+$ledgerEvidenceColumns = [ordered]@{
+    description=@('Description','d_GLDescription','nvarchar',200)
+    refNo1=@('RefNo1','nvarchar','nvarchar',60)
+    refNo2=@('RefNo2','nvarchar','nvarchar',60)
+    journalType=@('JournalType','d_JournalType','nvarchar',20)
+    sourceType=@('SourceType','d_SourceType','varchar',2)
+    sourceKey=@('SourceKey','bigint','bigint',8)
+    sourceDtlKey=@('SourceDtlKey','bigint','bigint',8)
+    paymentDocType=@('PaymentDocType','d_DocType','varchar',2)
+    paymentDocKey=@('PaymentDocKey','bigint','bigint',8)
+}
+
+function Get-AccountingReadPlan($Catalog,[switch]$IncludeLedgerEvidence) {
     $tables = @{}
     foreach ($kind in $accountingTables.Keys) {
         $definition = $accountingTables[$kind]
@@ -35,6 +48,18 @@ function Get-AccountingReadPlan($Catalog) {
         }
         $where = ''
         if ($kind -eq 'GL') {
+            if ($IncludeLedgerEvidence) {
+                foreach ($field in $ledgerEvidenceColumns.Keys) {
+                    $name,$type,$baseType,$maxLength = $ledgerEvidenceColumns[$field]
+                    $column = Get-ReadColumn $table $name @($type)
+                    if ($column.baseSqlType -cne $baseType -or $column.maxLength -ne $maxLength) {
+                        Stop-ReadPoc 'ACCOUNTING_GL_DETAIL_SCHEMA_CHANGED'
+                    }
+                    $identifier = Quote-ReadIdentifier $column.columnName
+                    if ($baseType -ceq 'bigint') { $identifier = "CONVERT(nvarchar(32), $identifier)" }
+                    $select += "$identifier AS $(Quote-ReadIdentifier $field)"
+                }
+            }
             $null = Get-ReadColumn $table 'TransDate' @('datetime')
             $where = ' WHERE [TransDate] >= CONVERT(datetime,@start) AND [TransDate] < CONVERT(datetime,@end)'
         }

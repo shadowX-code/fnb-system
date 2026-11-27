@@ -2,13 +2,14 @@
 [CmdletBinding()]
 param(
     [string]$NativeReportDirectory,
-    [switch]$IncludeWindowsCatalog
+    [switch]$IncludeWindowsCatalog,
+    [switch]$Guided
 )
 $ErrorActionPreference = 'Stop'
 $bookId = '3037f4f7-94e6-4050-a6c0-a790559fb056'
 $priority = @('PBalance','AccPeriod','AccType','PLFormat','BSFormat')
 $report = [ordered]@{
-    format = 'FeedX-AED_TEST-accounting-evidence-v1'
+    format = 'FeedX-AED_TEST-accounting-evidence-v2'
     bookId = $bookId
     database = 'AED_TEST'
     instance = 'A2006'
@@ -16,6 +17,7 @@ $report = [ordered]@{
     state = 'Blocked'
     nativeExportFiles = @()
     sql = $null
+    readerEvidence = [ordered]@{state='Not requested'}
 }
 $connection = $null
 $catalogConnection = $null
@@ -31,32 +33,21 @@ function Get-AssessmentFailure($ErrorRecord) {
     return 'LOCAL_ACCOUNTING_ASSESSMENT_FAILED'
 }
 
-# Every query reads the catalog. Matching names are leads for review.
+# Inventory all supported object types. Name matches and dependencies are leads, not proven report paths.
 $candidates = @'
 WITH Candidates AS (
     SELECT o.object_id, o.name, o.type, o.type_desc, s.name AS schema_name
     FROM sys.objects o JOIN sys.schemas s ON s.schema_id = o.schema_id
-    WHERE o.is_ms_shipped = 0 AND o.type IN ('U','V','P','PC','FN','FS','IF','TF','FT','SN')
-      AND (
-          LOWER(o.name) IN ('glmast','gldtl','profile','pbalance','accperiod','acctype','plformat','bsformat')
-          OR LOWER(o.name) LIKE '%balance%' OR LOWER(o.name) LIKE '%opening%'
-          OR LOWER(o.name) LIKE '%fiscal%' OR LOWER(o.name) LIKE '%yearend%'
-          OR LOWER(o.name) LIKE '%period%' OR LOWER(o.name) LIKE '%format%'
-          OR LOWER(o.name) LIKE '%aging%' OR LOWER(o.name) LIKE '%ageing%'
-          OR LOWER(o.name) LIKE '%knockoff%' OR LOWER(o.name) LIKE '%valuation%'
-          OR LOWER(o.name) LIKE '%stockvalue%' OR LOWER(o.name) LIKE '%stockcost%'
-          OR LOWER(o.name) LIKE 'ar[_]%' OR LOWER(o.name) LIKE 'ap[_]%'
-          OR LOWER(o.name) LIKE 'st[_]%' OR LOWER(o.name) LIKE 'debtor%'
-          OR LOWER(o.name) LIKE 'creditor%'
-      )
+    WHERE o.is_ms_shipped = 0 AND o.type IN ('U','V','ET','P','PC','FN','FS','IF','TF','FT','SN','TR','TA')
 )
 '@
 
 function Read-AssessmentCatalog($Connection,$ReaderConnection) {
     $visibleToReader = @(Invoke-ReadQuery $ReaderConnection ($candidates + @'
 
-SELECT TOP (501) o.object_id AS objectId,
-       HAS_PERMS_BY_NAME(QUOTENAME(o.schema_name)+N'.'+QUOTENAME(o.name),'OBJECT','SELECT') AS canSelect
+SELECT TOP (10001) o.object_id AS objectId,
+       CASE WHEN o.type IN ('U','V','ET','IF','TF','FT','SN')
+            THEN HAS_PERMS_BY_NAME(QUOTENAME(o.schema_name)+N'.'+QUOTENAME(o.name),'OBJECT','SELECT') END AS canSelect
 FROM Candidates o ORDER BY o.object_id;
 '@))
     $readerPermissions = @{}
@@ -64,9 +55,9 @@ FROM Candidates o ORDER BY o.object_id;
 
     $objects = @(Invoke-ReadQuery $Connection ($candidates + @'
 
-SELECT TOP (501) o.object_id AS objectId, o.schema_name AS schemaName,
+SELECT TOP (10001) o.object_id AS objectId, o.schema_name AS schemaName,
        o.name AS objectName, o.type_desc AS objectType,
-       CASE WHEN o.type='U' THEN p.approximateRows END AS approximateRows
+       o.type AS objectKind, CASE WHEN o.type='U' THEN p.approximateRows END AS approximateRows
 FROM Candidates o OUTER APPLY (
     SELECT SUM(part.rows) AS approximateRows
     FROM sys.partitions part WHERE part.object_id=o.object_id AND part.index_id IN (0,1)
@@ -75,10 +66,11 @@ ORDER BY o.schema_name,o.name;
 '@))
     $columns = @(Invoke-ReadQuery $Connection ($candidates + @'
 
-SELECT TOP (20001) c.object_id AS objectId, c.column_id AS ordinal,
-       c.name AS columnName, t.name AS sqlType, TYPE_NAME(c.system_type_id) AS baseType,
+SELECT TOP (100001) c.object_id AS objectId, c.column_id AS ordinal,
+       c.name AS columnName, c.collation_name AS collation, t.name AS sqlType, TYPE_NAME(c.system_type_id) AS baseType,
        c.precision, c.scale, c.max_length AS maxLength, c.is_nullable AS nullable,
-       c.is_computed AS computed, cc.is_persisted AS persisted
+       c.is_computed AS computed, cc.is_persisted AS persisted,
+       CAST(CASE WHEN c.default_object_id <> 0 THEN 1 ELSE 0 END AS bit) AS hasDefault
 FROM Candidates o JOIN sys.columns c ON o.object_id=c.object_id
 JOIN sys.types t ON c.user_type_id=t.user_type_id
 LEFT JOIN sys.computed_columns cc ON cc.object_id=c.object_id AND cc.column_id=c.column_id
@@ -86,7 +78,7 @@ ORDER BY c.object_id,c.column_id;
 '@))
     $keys = @(Invoke-ReadQuery $Connection ($candidates + @'
 
-SELECT TOP (20001) o.object_id AS objectId, ix.index_id AS keyId, ix.is_primary_key AS primaryKey,
+SELECT TOP (100001) o.object_id AS objectId, ix.index_id AS keyId, ix.is_primary_key AS primaryKey,
        ix.is_unique AS uniqueKey, ix.is_disabled AS disabled, ix.has_filter AS filtered,
        ic.key_ordinal AS ordinal, c.name AS columnName
 FROM Candidates o JOIN sys.indexes ix ON ix.object_id=o.object_id AND ix.is_unique=1 AND ix.is_hypothetical=0
@@ -96,7 +88,7 @@ ORDER BY o.object_id,ix.index_id,ic.key_ordinal;
 '@))
     $relations = @(Invoke-ReadQuery $Connection ($candidates + @'
 
-SELECT TOP (20001) fk.object_id AS relationId, fk.is_disabled AS disabled,
+SELECT TOP (100001) fk.object_id AS relationId, fk.is_disabled AS disabled,
        fk.is_not_trusted AS untrusted, fkc.constraint_column_id AS ordinal,
        fromSchema.name AS fromSchema, fromObject.name AS fromObject, fromColumn.name AS fromColumn,
        toSchema.name AS toSchema, toObject.name AS toObject, toColumn.name AS toColumn
@@ -114,7 +106,8 @@ ORDER BY fk.object_id,fkc.constraint_column_id;
     try {
         $dependencies.rows = @(Invoke-ReadQuery $Connection ($candidates + @'
 
-SELECT TOP (20001) o.object_id AS objectId,
+SELECT TOP (100001) o.object_id AS objectId, d.referencing_minor_id AS sourceColumnId,
+       d.referenced_id AS referencedObjectId, d.referenced_minor_id AS referencedColumnId,
        CASE WHEN d.referenced_database_name IS NULL AND d.referenced_server_name IS NULL
             THEN d.referenced_schema_name END AS referencedSchema,
        CASE WHEN d.referenced_database_name IS NULL AND d.referenced_server_name IS NULL
@@ -130,12 +123,31 @@ ORDER BY o.object_id,d.referenced_id,d.referenced_minor_id;
         $dependencies.error = Get-AssessmentFailure $_
     }
 
-    if ($objects.Count -gt 500 -or $visibleToReader.Count -gt 500 -or $columns.Count -gt 20000 -or
-        $keys.Count -gt 20000 -or $relations.Count -gt 20000 -or $dependencies.rows.Count -gt 20000) {
+    $moduleReferences = [ordered]@{state='Captured';rows=@()}
+    try {
+        $moduleReferences.rows = @(Invoke-ReadQuery $Connection ($candidates + @'
+
+SELECT TOP (100001) o.object_id AS objectId,
+       CAST(CASE WHEN m.definition IS NULL THEN 0 ELSE 1 END AS bit) AS definitionVisible,
+       CAST(CASE WHEN m.definition LIKE '%CashFlowCategory%' THEN 1 ELSE 0 END AS bit) AS mentionsCashFlowCategory,
+       CAST(CASE WHEN m.definition LIKE '%PaymentDocType%' OR m.definition LIKE '%PaymentDocKey%' THEN 1 ELSE 0 END AS bit) AS mentionsPaymentLink,
+       CAST(CASE WHEN m.definition LIKE '%SourceDtlKey%' THEN 1 ELSE 0 END AS bit) AS mentionsSourceDetailKey
+FROM Candidates o JOIN sys.sql_modules m ON m.object_id=o.object_id
+ORDER BY o.object_id;
+'@))
+    } catch {
+        $moduleReferences.state = 'Unavailable'
+        $moduleReferences.error = Get-AssessmentFailure $_
+    }
+
+    if ($objects.Count -gt 10000 -or $visibleToReader.Count -gt 10000 -or $columns.Count -gt 100000 -or
+        $keys.Count -gt 100000 -or $relations.Count -gt 100000 -or $dependencies.rows.Count -gt 100000 -or
+        $moduleReferences.rows.Count -gt 100000) {
         Stop-ReadPoc 'ACCOUNTING_CATALOG_LIMIT_REACHED'
     }
     foreach ($object in $objects) {
-        $canRead = if ($readerPermissions.ContainsKey($object.objectId)) {
+        $canRead = if ($object.objectKind -notin @('U','V','ET','IF','TF','FT','SN')) { 'Not a rowset projection' }
+        elseif ($readerPermissions.ContainsKey($object.objectId)) {
             if ($readerPermissions[$object.objectId] -eq 1) { 'Granted' } else { 'Not confirmed' }
         } else { 'Not visible to reader' }
         $object | Add-Member -NotePropertyName readerObjectSelect -NotePropertyValue $canRead
@@ -154,7 +166,55 @@ ORDER BY o.object_id,d.referenced_id,d.referenced_minor_id;
         uniqueKeys = $keys
         foreignKeys = $relations
         expressionDependencies = $dependencies
+        moduleReferences = $moduleReferences
+        approvalRequiredForNewData = $true
     }
+}
+
+function Read-ExistingAccountingEvidence($Connection) {
+    $evidence = [ordered]@{}
+    # Only aggregate from the two tables already authorized for the saved reader.
+    $from = [datetime]::new(2026,5,4)
+    $until = [datetime]::new(2026,10,1)
+    $evidence.glWindow = @{from='2026-05-04';through='2026-09-30'}
+    try {
+        $evidence.glFieldPopulation = Invoke-ReadQuery $Connection @'
+SELECT COUNT_BIG(*) AS rows,
+       COUNT_BIG(NULLIF(LTRIM(RTRIM([Description])),N'')) AS descriptionRows,
+       COUNT_BIG(NULLIF(LTRIM(RTRIM([RefNo1])),N'')) AS refNo1Rows,
+       COUNT_BIG(NULLIF(LTRIM(RTRIM([RefNo2])),N'')) AS refNo2Rows,
+       COUNT_BIG([JournalType]) AS journalTypeRows,
+       COUNT_BIG([SourceType]) AS sourceTypeRows, COUNT_BIG([SourceKey]) AS sourceKeyRows,
+       COUNT_BIG([SourceDtlKey]) AS sourceDetailKeyRows,
+       COUNT_BIG([PaymentDocType]) AS paymentDocTypeRows, COUNT_BIG([PaymentDocKey]) AS paymentDocKeyRows,
+       COUNT_BIG(CASE WHEN [PaymentDocType] IS NOT NULL AND [PaymentDocKey] IS NOT NULL THEN 1 END) AS paymentPairRows
+FROM dbo.GLDTL
+WHERE [TransDate]>=CONVERT(datetime,@start) AND [TransDate]<CONVERT(datetime,@end);
+'@ @{'@start'=$from;'@end'=$until}
+        $evidence.glTypes = @(Invoke-ReadQuery $Connection @'
+SELECT [SourceType] AS sourceType, [JournalType] AS journalType, [PaymentDocType] AS paymentDocType,
+       COUNT_BIG(*) AS rows, COUNT_BIG(DISTINCT [SourceKey]) AS distinctSourceKeys,
+       COUNT_BIG([SourceDtlKey]) AS sourceDetailKeyRows,
+       COUNT_BIG(DISTINCT [PaymentDocKey]) AS distinctPaymentKeys
+FROM dbo.GLDTL
+WHERE [TransDate]>=CONVERT(datetime,@start) AND [TransDate]<CONVERT(datetime,@end)
+GROUP BY [SourceType], [JournalType], [PaymentDocType]
+ORDER BY [SourceType], [JournalType], [PaymentDocType];
+'@ @{'@start'=$from;'@end'=$until})
+    } catch { $evidence.glError = Get-AssessmentFailure $_ }
+    try {
+        $evidence.cashFlowCategory = @(Invoke-ReadQuery $Connection @'
+SELECT [CashFlowCategory] AS rawCode, [AccType] AS accountType, COUNT_BIG(*) AS accounts
+FROM dbo.GLMast GROUP BY [CashFlowCategory], [AccType] ORDER BY [CashFlowCategory], [AccType];
+'@)
+    } catch { $evidence.cashFlowCategoryError = Get-AssessmentFailure $_ }
+    $evidence.state = if ($evidence.glError -or $evidence.cashFlowCategoryError) { 'Partial' } else { 'Captured' }
+    return $evidence
+}
+
+if ($Guided) {
+    Write-Host 'AED_TEST only. The Windows SQL identity will read catalog metadata. Separate approval allows aggregate evidence from GLDTL and GLMast through the saved FeedX reader.'
+    Write-Host 'The capture issues no GRANT, opens no other book, and does not upload results.'
 }
 
 if ($NativeReportDirectory) {
@@ -195,16 +255,27 @@ try {
     $report.company = $observed.company
     $report.sql = Read-AssessmentCatalog $connection $connection
     $report.catalogContext = 'Existing connector reader'
-    if ($IncludeWindowsCatalog) {
-        try {
-            # The Windows login is used only for catalog SELECTs after the saved reader proves the exact book.
-            $catalogConnection = Open-LocalBook 'A2006' 'AED_TEST'
-            $null = Assert-ReadIdentity $catalogConnection 'AED_TEST' 'A2006'
-            $report.sql = Read-AssessmentCatalog $catalogConnection $connection
-            $report.catalogContext = 'Windows integrated catalog visibility'
-        } catch { $report.windowsCatalogError = Get-AssessmentFailure $_ }
+    if ($IncludeWindowsCatalog -or $Guided) {
+        if ((Read-Host 'With SQL administrator approval, type AED_TEST CATALOG to read metadata in the Windows SQL context') -cne 'AED_TEST CATALOG') {
+            $report.windowsCatalogError = 'CATALOG_APPROVAL_DECLINED'
+        } else {
+            try {
+                # Use the Windows login only for catalog SELECTs after the reader proves the exact book.
+                $catalogConnection = Open-LocalBook 'A2006' 'AED_TEST'
+                $null = Assert-ReadIdentity $catalogConnection 'AED_TEST' 'A2006'
+                $visibility = Invoke-ReadQuery $catalogConnection "SELECT HAS_PERMS_BY_NAME(DB_NAME(),'DATABASE','VIEW DEFINITION') AS allowed"
+                if ($visibility.allowed -ne 1) { Stop-ReadPoc 'WINDOWS_DATABASE_VIEW_DEFINITION_MISSING' }
+                $report.sql = Read-AssessmentCatalog $catalogConnection $connection
+                $report.catalogContext = 'Windows integrated catalog visibility'
+            } catch { $report.windowsCatalogError = Get-AssessmentFailure $_ }
+        }
     }
-    $report.state = 'Catalog captured'
+    if ($Guided) {
+        if ((Read-Host 'Type AED_TEST AGGREGATES to read bounded GL field counts and COA category distributions as the saved reader') -ceq 'AED_TEST AGGREGATES') {
+            $report.readerEvidence = Read-ExistingAccountingEvidence $connection
+        } else { $report.readerEvidence = [ordered]@{state='Declined'} }
+    }
+    $report.state = if ($report.sql.databaseViewDefinition -and $report.sql.expressionDependencies.state -eq 'Captured') { 'Catalog captured' } else { 'Partial catalog' }
 } catch {
     $report.error = Get-AssessmentFailure $_
 } finally {
@@ -212,5 +283,14 @@ try {
     if ($connection) { $connection.Dispose() }
     if ($reader -is [Management.Automation.PSCredential]) { $reader.Password.Dispose() }
 }
-$report | ConvertTo-Json -Depth 8
+$json = $report | ConvertTo-Json -Depth 10
+if ($Guided) {
+    $output = Join-Path $PSScriptRoot ('AED_TEST-accounting-evidence-'+[guid]::NewGuid().ToString('N')+'.json')
+    [IO.File]::WriteAllText($output,$json,[Text.UTF8Encoding]::new($false))
+    Write-Host ('Catalog: '+$report.state+' | Saved reader evidence: '+$report.readerEvidence.state)
+    if ($report.windowsCatalogError -or $report.sql.expressionDependencies.error) {
+        Write-Host ('Catalog detail: '+(@($report.windowsCatalogError,$report.sql.expressionDependencies.error) -ne $null -join ', '))
+    }
+    Write-Host ('Local report: '+$output)
+} else { $json }
 if ($report.state -eq 'Blocked') { exit 1 }

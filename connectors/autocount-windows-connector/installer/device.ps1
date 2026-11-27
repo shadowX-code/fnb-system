@@ -216,7 +216,7 @@ FROM dbo.Profile p CROSS JOIN sys.databases d WHERE d.database_id=DB_ID()
     return @{company=$rows[0].company.Trim();key=(Get-BookDigest ('AutoCount|'+$Database+'|'+$rows[0].profileId+'|'+$rows[0].brokerId))}
 }
 
-function Get-BookReaderPlan($Connection,$Identity,[string]$Database,$GrantCatalogConnection) {
+function Get-BookReaderPlan($Connection,$Identity,[string]$Database,$GrantCatalogConnection,[switch]$IncludeLedgerEvidence) {
     $inventoryVisible = Invoke-ReadQuery $Connection "SELECT HAS_PERMS_BY_NAME(NULL,NULL,'VIEW ANY DATABASE') AS allowed"
     if ($inventoryVisible.allowed -ne 1) { Stop-ReadPoc 'READER_DATABASE_INVENTORY_UNVERIFIED' }
     # Offline databases cannot be opened. Recheck inventory before every extraction.
@@ -229,7 +229,7 @@ function Get-BookReaderPlan($Connection,$Identity,[string]$Database,$GrantCatalo
         }
     }
     $catalog = Get-ReadCatalog $Connection
-    $plan = Get-AccountingReadPlan $catalog
+    $plan = Get-AccountingReadPlan $catalog -IncludeLedgerEvidence:$IncludeLedgerEvidence
     Assert-ProvisionedReader $Connection $Identity @{
         names=@($plan.Values | ForEach-Object { $_.table.name })
         metadataColumns=@('CompanyName','Guid')

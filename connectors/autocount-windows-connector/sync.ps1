@@ -136,7 +136,9 @@ try {
         $script:ProvisionedLogin = $reader.UserName
         $connection = Open-LocalBook $InstalledBook.instance $InstalledBook.database $reader
         $identity = Assert-ReadIdentity $connection $InstalledBook.database (Get-InstanceIdentity $InstalledBook.instance)
-        $plan = Get-BookReaderPlan $connection $identity $InstalledBook.database
+        $includeLedgerEvidence = $InstalledBook.database -ceq 'AED_TEST' -and
+            $InstalledBook.bookId -ceq '3037f4f7-94e6-4050-a6c0-a790559fb056'
+        $plan = Get-BookReaderPlan $connection $identity $InstalledBook.database -IncludeLedgerEvidence:$includeLedgerEvidence
         $observed = Read-BookCompany $connection $InstalledBook.database
         if ($observed.key -cne $InstalledBook.key) { Stop-ReadPoc 'BOOK_COMPANY_IDENTITY_CHANGED' }
         $status.sqlConnection = 'Connected'
