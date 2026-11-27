@@ -39,9 +39,9 @@ function AcceptedGlTable({ connection, timestamp }) {
   const [loaded, setLoaded] = useState(null);
   const [error, setError] = useState('');
   const pin = useRef(null);
-  const window = period === 'month' ? monthlyPeriod(month) : null;
-  const from = window?.start ?? (period === 'range' ? range.from : '');
-  const to = window?.end ?? (period === 'range' ? range.to : '');
+  const monthWindow = period === 'month' ? monthlyPeriod(month) : null;
+  const from = monthWindow?.start ?? (period === 'range' ? range.from : '');
+  const to = monthWindow?.end ?? (period === 'range' ? range.to : '');
   const hasRange = period !== 'range' || Boolean(from && to);
   const connectionId = connection.connection.id;
   const requestKey = JSON.stringify([connectionId, from, to, account, search, page, pageSize, attempt]);
@@ -87,9 +87,9 @@ function AcceptedGlTable({ connection, timestamp }) {
     <form aria-label="Find accepted GL records" className="flex flex-wrap items-end gap-2" onSubmit={(event) => { event.preventDefault(); changeFilter(setSearch, query.trim()); }}>
       <SelectField label="Posting period" value={period} options={postingPeriods} onChange={(value) => changeFilter(setPeriod, value)} />
       {period === 'month' && <MonthPickerField label="Posting month" value={month} onChange={(value) => changeFilter(setMonth, value)} />}
-      {period === 'range' && <FeedXDateRangePicker label="Posting dates" from={range.from} to={range.to}
+      {period === 'range' && <FeedXDateRangePicker label="Posting dates" placeholder="Choose dates" from={range.from} to={range.to}
         today={operationalDateKey(new Date())}
-        onApply={(value) => changeFilter(setRange, value)} />}
+        onApply={(value) => { changeFilter(setRange, value); if (!value.from && !value.to) setPeriod('all'); }} />}
       <SelectField label="Account" className="min-w-40 max-w-full sm:max-w-60" searchable value={account} options={accountOptions} onChange={(value) => changeFilter(setAccount, value)} />
       <AdminSearchField label="Search journal lines" value={query} maxLength={128} onChange={setQuery} />
       <button type="submit" className="btn-secondary">Apply search</button>
