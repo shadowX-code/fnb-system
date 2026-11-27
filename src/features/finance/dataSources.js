@@ -46,6 +46,15 @@ export function readAccountingDataset({ connectionId, dataset, scopeDate, snapsh
   });
 }
 
+export function readAcceptedGl({ connectionId, from, to, asOf, coaSnapshotId, account, search, page, pageSize }) {
+  if (!stagingAccounting()) throw new Error('Accounting evidence is available on Staging.');
+  return accountingRpc('finance_accounting_gl_records', {
+    p_connection_id: connectionId, p_from: from || null, p_to: to || null, p_as_of: asOf ?? null,
+    p_coa_snapshot_id: coaSnapshotId ?? null, p_account: account || null, p_search: search,
+    p_offset: (page - 1) * pageSize, p_limit: pageSize,
+  });
+}
+
 export function readAccountMapping(connectionId, { summaryOnly = false } = {}) {
   if (!stagingAccounting()) throw new Error('Account mapping is available on Staging.');
   return accountingRpc('finance_account_mapping_review', { p_connection_id: connectionId, p_summary_only: summaryOnly });
@@ -131,7 +140,10 @@ export async function readFinanceDataSources() {
         ...active.map((entry) => readAccountMapping(entry.connection.id, { summaryOnly: true }).catch(() => undefined)),
       ]);
       connectorDevices = devices;
-      active.forEach((entry, index) => { entry.accountMapping = mapping[index]?.summary; });
+      active.forEach((entry, index) => {
+        entry.accountMapping = mapping[index]?.summary;
+        entry.mappingSnapshotId = mapping[index]?.snapshotId;
+      });
     }
   }
   return {

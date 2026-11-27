@@ -180,15 +180,18 @@ it('browses accepted records with a pinned snapshot and opens Mapping for the sa
   current.connection.externalTenantId = 'AED_TEST';
   current.glCoverage = { firstDate: '2026-01-01', throughDate: '2026-11-24', latestPostingDate: '2026-09-30',
     acceptedDays: 327, emptyDays: 318, acceptedRows: 59, remainingDays: 1, nextMissingDate: '2026-04-23' };
-  const read = vi.spyOn(financeSources, 'readAccountingDataset').mockImplementation(async ({ dataset, page, search, scopeDate }) => {
-    const rows = dataset === 'COA' ? [{ key: `TEST-${page}`, description: 'Fixture account' }]
-      : scopeDate === '2026-09-30' ? [{ key: 'GL-TEST', debit: '10.20' }] : [];
+  const read = vi.spyOn(financeSources, 'readAccountingDataset').mockImplementation(async ({ page, search }) => {
     return {
-      snapshotId: dataset === 'COA' ? '16' : '17', snapshotAt: '2026-11-20T00:00:00Z',
-      acceptedRows: dataset === 'COA' ? 123 : rows.length, filteredRows: dataset === 'COA' ? (search ? 1 : 123) : rows.length,
-      rows,
+      snapshotId: '16', snapshotAt: '2026-11-20T00:00:00Z', acceptedRows: 123, filteredRows: search ? 1 : 123,
+      rows: [{ key: `TEST-${page}`, description: 'Fixture account' }],
     };
   });
+  const readGl = vi.spyOn(financeSources, 'readAcceptedGl').mockImplementation(async ({ from, account }) => ({
+    asOf: '2026-11-24T03:00:00Z', coaSnapshotId: '16', acceptedRows: from ? 3 : 59, filteredRows: account ? 1 : from ? 3 : 59,
+    coverage: { acceptedDays: 30, emptyDays: 20, firstDate: '2026-09-01', throughDate: '2026-09-30', missingDays: 0 },
+    columns: { department: false, project: false }, accounts: [{ code: '100', name: 'Trade account' }],
+    rows: [{ key: 'GL-TEST', postingDate: '2026-09-30', account: '100', accountName: 'Trade account', debit: '1520.20', homeDebit: '1600.25' }],
+  }));
   render(<FinanceDataSources state={state} onAction={() => {}} />);
   fireEvent.click(screen.getByRole('button', { name: 'View Data' }));
   expect(await screen.findByText('TEST-1')).toBeTruthy();
@@ -201,17 +204,26 @@ it('browses accepted records with a pinned snapshot and opens Mapping for the sa
   expect(read).toHaveBeenLastCalledWith(expect.objectContaining({ search: 'Fixture', page: 1, snapshotId: '16' }));
   fireEvent.click(screen.getByRole('tab', { name: 'GL' }));
   expect(await screen.findByText('GL-TEST')).toBeTruthy();
-  expect(screen.getByText(/59 accepted GL rows across all dates/)).toBeTruthy();
-  expect(screen.getByText(/Backfill · 1 day.*pending · Next 2026-04-23/)).toBeTruthy();
-  expect(read).toHaveBeenLastCalledWith(expect.objectContaining({ dataset: 'GL', scopeDate: '2026-09-30' }));
-  fireEvent.change(screen.getByLabelText('Posting date'), { target: { value: '2026-11-24' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Apply' }));
-  expect(await screen.findByText('The accepted extraction found no postings for this date.')).toBeTruthy();
-  expect(read).toHaveBeenLastCalledWith(expect.objectContaining({ dataset: 'GL', scopeDate: '2026-11-24', snapshotId: null }));
+  expect(screen.getByText('Trade account')).toBeTruthy();
+  expect(screen.getByText('1,520.20')).toBeTruthy();
+  expect(screen.queryByRole('columnheader', { name: 'Department' })).toBeNull();
+  expect(readGl).toHaveBeenLastCalledWith(expect.objectContaining({ from: '', to: '' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Posting period' }));
+  fireEvent.click(screen.getByRole('option', { name: 'By month' }));
+  expect(await screen.findByText('GL-TEST')).toBeTruthy();
+  expect(readGl).toHaveBeenLastCalledWith(expect.objectContaining({ from: '2026-09-01', to: '2026-09-30', asOf: '2026-11-24T03:00:00Z', coaSnapshotId: '16' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Account', exact: true }));
+  fireEvent.click(screen.getByRole('option', { name: '100 · Trade account' }));
+  expect(await screen.findByText('GL-TEST')).toBeTruthy();
+  expect(readGl).toHaveBeenLastCalledWith(expect.objectContaining({ account: '100', page: 1 }));
+  fireEvent.click(screen.getByRole('button', { name: 'Amount basis' }));
+  fireEvent.click(screen.getByRole('option', { name: 'Book home currency' }));
+  expect(screen.getByText('1,600.25')).toBeTruthy();
+  expect(screen.queryByText('1,520.20')).toBeNull();
   fireEvent.click(screen.getByRole('tab', { name: 'COA' }));
   fireEvent.click(await screen.findByRole('button', { name: 'Review account mapping' }));
   expect(screen.getByRole('tab', { name: 'Mapping' }).getAttribute('aria-selected')).toBe('true');
-  expect(screen.getByText(/Selected source.*3037f4f7/)).toBeTruthy();
+  expect(screen.getByText(/AED_TEST.*3037f4f7/)).toBeTruthy();
 });
 
 it('reviews suggestions and manual selections on the bound chart before saving', async () => {
@@ -241,11 +253,20 @@ it('reviews suggestions and manual selections on the bound chart before saving',
   const saved = vi.fn();
   render(<FinanceDataSources state={state} onAction={() => {}} onMappingSaved={saved} />);
   fireEvent.click(screen.getByRole('tab', { name: 'Mapping' }));
-  expect(await screen.findByText('3 source accounts · 0 confirmed · 2 need review · 1 group accounts')).toBeTruthy();
+  expect(await screen.findByRole('progressbar', { name: 'Posting account confirmation progress' })).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Reload latest review' })).toBeNull();
   expect(read).toHaveBeenCalledWith('new');
   expect(screen.getByText('Department · Accepted dataset is empty')).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Classification Library' }));
+  const library = within(screen.getByRole('dialog', { name: 'Classification library' }));
+  expect(library.getByRole('heading', { name: 'Balance Sheet' })).toBeTruthy();
+  fireEvent.change(library.getByRole('searchbox', { name: 'Search classifications' }), { target: { value: 'delivery' } });
+  expect(library.getByText('revenue.delivery')).toBeTruthy();
+  expect(library.queryByRole('heading', { name: 'Balance Sheet' })).toBeNull();
+  fireEvent.click(library.getByRole('button', { name: 'Close drawer', exact: true }));
   expect(screen.queryByRole('button', { name: 'Classification for 200' })).toBeNull();
-  fireEvent.click(screen.getByRole('button', { name: 'Industry categories' }));
+  fireEvent.change(screen.getByRole('combobox', { name: 'Filter accounts' }), { target: { value: 'all' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Classification scope' }));
   fireEvent.click(screen.getByRole('option', { name: 'Restaurant' }));
   expect(screen.getByText('Delivery platform sales')).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Classification for 100' }));
@@ -255,9 +276,9 @@ it('reviews suggestions and manual selections on the bound chart before saving',
   fireEvent.change(screen.getByRole('textbox', { name: 'Search Classification for 100' }), { target: { value: 'delivery' } });
   expect(within(revenueOptions).getAllByRole('option')).toHaveLength(1);
   fireEvent.keyDown(within(revenueOptions).getByRole('option'), { key: 'Escape' });
-  fireEvent.click(screen.getByRole('button', { name: 'Industry categories' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Classification scope' }));
   fireEvent.click(screen.getByRole('option', { name: 'Core only' }));
-  fireEvent.click(screen.getByRole('button', { name: 'Select suggestions on this page' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Select all suggestions (1)' }));
   fireEvent.change(screen.getByRole('searchbox', { name: 'Find accounts' }), { target: { value: 'check source' } });
   fireEvent.click(screen.getByRole('button', { name: 'Classification for 210' }));
   fireEvent.click(within(screen.getByRole('listbox', { name: 'Classification for 210' })).getByRole('option', { name: 'Assets' }));
@@ -273,6 +294,35 @@ it('reviews suggestions and manual selections on the bound chart before saving',
     { accountKey: '210', classificationId: 'assets', expectedVersion: null },
   ]);
   expect(saved).toHaveBeenCalledWith('new', { ...summary, confirmed: 2, unresolved: 0 });
+});
+
+it('keeps 93 staged drafts separate from 10 newly reviewable suggestions and reloads only after conflict', async () => {
+  const state = historicalState();
+  state.connections[1].connector = { bookId: 'test-book' };
+  const classification = { id: 'assets', parent_id: null, statement: 'balance_sheet', label: 'Assets', source_scopes: ['current_asset'], selectable: true };
+  const rows = Array.from({ length: 103 }, (_, index) => ({ account_key: String(index), source_type: 'CA', source_scope: 'current_asset',
+    description: `Source ${index}`, role: 'posting', status: index < 93 ? 'suggested' : 'manual_review', suggestion: index < 93 ? 'assets' : null, version: null }));
+  const review = { connectionId: 'new', snapshotId: '16', rows, classifications: [classification], summary: { posting: 103, confirmed: 0 } };
+  const waiting = { snapshotId: '16', pending: 10, reviewed: 0, rows: Object.fromEntries(rows.slice(93).map((row) => [row.account_key, { targeted: true }])) };
+  vi.spyOn(financeSources, 'readAccountMapping').mockResolvedValue(review);
+  vi.spyOn(financeSources, 'readMappingAssistance').mockResolvedValue(waiting);
+  vi.spyOn(financeSources, 'analyzeMappingExceptions').mockResolvedValue({ state: 'completed', review: {
+    ...waiting, pending: 0, reviewed: 10, lastRun: { accounts: 10 },
+    rows: Object.fromEntries(rows.slice(93).map((row) => [row.account_key, { targeted: true, proposal: 'assets', checked: true, basis: 'source_support' }])),
+  }});
+  const confirm = vi.spyOn(financeSources, 'confirmAccountMapping').mockRejectedValue({ code: 'PT409' });
+  render(<FinanceDataSources state={state} onAction={() => {}} />);
+  fireEvent.click(screen.getByRole('tab', { name: 'Mapping' }));
+  await screen.findByRole('button', { name: 'Analyze exceptions (10)' });
+  fireEvent.click(screen.getByRole('button', { name: 'Select all suggestions (93)' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Analyze exceptions (10)' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Add remaining (10)' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Review selected (103)' }));
+  const dialog = screen.getByRole('dialog', { name: 'Confirm account classifications' });
+  expect(within(dialog).getAllByRole('listitem')).toHaveLength(103);
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Confirm 103 classifications' }));
+  expect(await screen.findByRole('button', { name: 'Reload latest review' })).toBeTruthy();
+  expect(confirm.mock.calls[0][2]).toHaveLength(103);
 });
 
 

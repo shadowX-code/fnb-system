@@ -228,9 +228,11 @@ function AuthoritySection({ state, onViewConnections }) {
 function MappingSection({ state, onBrowse, mappingConnectionId, onSelectMappingSource, onMappingSaved }) {
   const sources = state.connections.filter(canBrowseAccounting);
   const selected = sources.find((entry) => entry.connection.id === mappingConnectionId) ?? sources[0];
+  const revision = selected?.accountMapping && [selected.mappingSnapshotId, selected.accountMapping.confirmed, selected.accountMapping.changed,
+    selected.accountMapping.unresolved, selected.accountMapping.removed].join(':');
   return <section aria-label="Mapping readiness" className="grid gap-3">
     <SourceSectionHeading title="Account mapping" action={onBrowse && selected && <button type="button" className="btn-secondary" onClick={() => onBrowse(selected, 'COA')}>Browse source accounts</button>}>
-      {selected && <p className="mt-0.5 type-body-sm text-text-secondary">Selected source · {bookIdentity(selected)}</p>}
+      {selected && sources.length === 1 && <p className="mt-0.5 type-body-sm text-text-secondary">{bookIdentity(selected)}</p>}
     </SourceSectionHeading>
     {sources.length > 1 && <label className="grid w-fit gap-1 type-body-sm">Account Book
       <select className="control" value={selected.connection.id} onChange={(event) => onSelectMappingSource(event.target.value)}>
@@ -239,7 +241,8 @@ function MappingSection({ state, onBrowse, mappingConnectionId, onSelectMappingS
         </option>)}
       </select>
     </label>}
-    {selected && onBrowse && <FinanceAccountMapping key={selected.connection.id} connectionId={selected.connection.id} timestamp={timestamp} onChange={onMappingSaved} />}
+    {selected && onBrowse && <FinanceAccountMapping key={selected.connection.id} connectionId={selected.connection.id}
+      revision={revision} timestamp={timestamp} onChange={onMappingSaved} />}
     {selected && <ul className="flex flex-wrap gap-x-4 gap-y-1 type-caption text-text-secondary" aria-label="Dimension evidence">
       {['Department', 'Project'].map((dataset) => {
         const accepted = selected.datasets?.find((entry) => entry.dataset === dataset);

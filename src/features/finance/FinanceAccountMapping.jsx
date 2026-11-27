@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import AsyncDataSurface from '../../components/feedback/AsyncDataSurface.jsx';
 import Modal from '../../components/feedback/Modal.jsx';
 import AdminSearchField from '../../components/forms/AdminSearchField.jsx';
@@ -6,6 +6,8 @@ import SelectField from '../../components/forms/SelectField.jsx';
 import AdminPagination from '../../components/tables/AdminPagination.jsx';
 import DataTable from '../../components/tables/DataTable.jsx';
 import StatusBadge from '../../components/ui/StatusBadge.jsx';
+import Drawer from '../../components/ui/Drawer.jsx';
+import FinanceClassificationLibrary from './FinanceClassificationLibrary.jsx';
 import { analyzeMappingExceptions, readMappingAssistance, readAccountMapping, confirmAccountMapping } from './dataSources.js';
 
 const statuses = {
@@ -21,6 +23,7 @@ const issues = {
   group_postings: 'This group also has direct GL postings. Review it in the source.',
 };
 const maxSelected = 500;
+const noSelection = new Map();
 const industries = [
   { value: 'core', label: 'Core only' }, { value: 'restaurant', label: 'Restaurant' },
   { value: 'manufacturing', label: 'Manufacturing' }, { value: 'retail', label: 'Retail' },
@@ -56,7 +59,6 @@ function matches(row, status) {
   switch (status) {
     case 'all': return true;
     case 'unresolved': return row.role !== 'group' && row.status !== 'confirmed';
-    case 'suggested': return row.suggestion && row.status !== 'confirmed';
     case 'changed': return ['changed', 'new'].includes(row.status);
     case 'group': return row.role === 'group';
     case 'posted': return row.posted;
@@ -64,13 +66,13 @@ function matches(row, status) {
   }
 }
 
-function MappingReviewTable({ review, timestamp, onSaved, onReload }) {
+function MappingReviewTable({ review, timestamp, onSaved, onReload, onDraftChange }) {
   const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState('all');
+  const [filter, setFilter] = useState('exceptions');
   const [industry, setIndustry] = useState('core');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
-  const [staged, setStaged] = useState(() => new Map());
+  const [drafts, setDrafts] = useState({});
   const [confirming, setConfirming] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -80,6 +82,16 @@ function MappingReviewTable({ review, timestamp, onSaved, onReload }) {
   const [analysisNotice, setAnalysisNotice] = useState('');
   const [analyzing, setAnalyzing] = useState(false);
   const [remember, setRemember] = useState(false);
+  const [drawer, setDrawer] = useState(null);
+  const staged = drafts[industry] ?? noSelection;
+  const otherDrafts = Object.entries(drafts).reduce((count, [scope, items]) => count + (scope !== industry ? items.size : 0), 0);
+  const hasDrafts = otherDrafts + staged.size > 0;
+
+  useEffect(() => { onDraftChange(hasDrafts || saving || analyzing); }, [hasDrafts, saving, analyzing, onDraftChange]);
+
+  function setStaged(update) {
+    setDrafts((current) => ({ ...current, [industry]: typeof update === 'function' ? update(current[industry] ?? noSelection) : update }));
+  }
 
   useEffect(() => {
     const controller = new AbortController();
@@ -87,7 +99,7 @@ function MappingReviewTable({ review, timestamp, onSaved, onReload }) {
       .then((result) => { if (!controller.signal.aborted) setAssistance({ industry, result }); })
       .catch(() => { if (!controller.signal.aborted) setAssistance({ industry, result: null }); });
     return () => controller.abort();
-  }, [review.connectionId, review.snapshotId, review.summary.confirmed, industry]);
+  }, [review, industry]);
 
   const assist = assistance?.industry === industry && assistance.result?.snapshotId === review.snapshotId ? assistance.result : null;
   const assistanceFor = (row) => assist?.rows[row.account_key];
@@ -131,14 +143,16 @@ function MappingReviewTable({ review, timestamp, onSaved, onReload }) {
     }
     return registered;
   }
+  const reviewable = review.rows.filter((row) => row.role === 'posting' && row.version == null
+    && row.status !== 'confirmed' && !isException(row) && suggestionFor(row));
   const needle = search.trim().toLowerCase();
   const filtered = review.rows.filter((row) => (filter === 'exceptions' ? isException(row) : filter === 'suggested'
-    ? row.status !== 'confirmed' && suggestionFor(row) : matches(row, filter)) &&
+    ? reviewable.includes(row) : matches(row, filter)) &&
     [row.account_key, row.description, row.parent_key, row.parent_description, row.source_type, label(suggestionFor(row)), label(row.classification)]
       .some((value) => value?.toLowerCase().includes(needle)));
   const visible = filtered.slice((page - 1) * pageSize, page * pageSize);
-  const suggestions = review.rows.filter((row) => row.role === 'posting' && row.version == null
-    && row.status !== 'confirmed' && !isException(row) && suggestionFor(row) && !staged.has(row.account_key));
+  const suggestions = reviewable.filter((row) => !staged.has(row.account_key));
+  const pageSuggestions = suggestions.filter((row) => visible.includes(row));
   const entries = review.rows.filter((row) => staged.has(row.account_key));
   const blocked = stale || saving;
 
@@ -151,24 +165,15 @@ function MappingReviewTable({ review, timestamp, onSaved, onReload }) {
     });
     setNotice('');
   }
-  function selectVisible() {
+  function addSuggestions(rows) {
     setStaged((prev) => {
       const next = new Map(prev);
-      const visibleKeys = new Set(visible.map((row) => row.account_key));
-      for (const row of suggestions.filter((item) => visibleKeys.has(item.account_key)).slice(0, maxSelected - next.size)) {
+      for (const row of rows.filter((item) => !next.has(item.account_key)).slice(0, maxSelected - next.size)) {
         next.set(row.account_key, suggestionFor(row));
       }
       return next;
     });
     setNotice('');
-  }
-  function openSuggestionReview() {
-    const next = new Map(staged);
-    for (const row of suggestions.slice(0, maxSelected - next.size)) next.set(row.account_key, suggestionFor(row));
-    setStaged(next);
-    setRemember(false);
-    setError('');
-    setConfirming(true);
   }
   async function analyze() {
     setAnalyzing(true);
@@ -176,9 +181,9 @@ function MappingReviewTable({ review, timestamp, onSaved, onReload }) {
     try {
       const outcome = await analyzeMappingExceptions(review.connectionId, industry);
       if (outcome.review) setAssistance({ industry, result: outcome.review });
-      const usage = outcome.usage;
-      setAnalysisNotice(outcome.state === 'completed' ? `${outcome.review.lastRun.accounts} accounts analyzed. ${usage?.input ?? 'Unknown'} input and ${usage?.output ?? 'unknown'} output tokens.`
+      setAnalysisNotice(outcome.state === 'completed' ? `${outcome.review.lastRun.accounts} accounts analyzed.`
         : analysisNotices[outcome.state] ?? 'Analysis could not be completed. Rule suggestions and manual review are still available.');
+      if (outcome.state === 'chart_changed') setStale(true);
       if (outcome.state === 'completed') { setFilter('exceptions'); setPage(1); }
     } catch {
       setAnalysisNotice('Analysis could not be completed. Rule suggestions and manual review are still available.');
@@ -194,7 +199,9 @@ function MappingReviewTable({ review, timestamp, onSaved, onReload }) {
         accountKey: row.account_key, classificationId: staged.get(row.account_key), expectedVersion: row.version,
         ...(remember ? { remember: true } : {}),
       })));
-      setStaged(new Map());
+      setDrafts((current) => Object.fromEntries(Object.entries(current).map(([scope, items]) => [scope,
+        new Map([...items].filter(([key]) => scope !== industry && !staged.has(key))),
+      ])));
       setConfirming(false);
       setNotice(`${entries.length} ${entries.length === 1 ? 'classification' : 'classifications'} confirmed.`);
       onSaved(next);
@@ -229,23 +236,23 @@ function MappingReviewTable({ review, timestamp, onSaved, onReload }) {
       <StatusBadge status={row.status === 'confirmed' ? 'success' : ['changed', 'ambiguous', 'manual_review', 'new'].includes(row.status) ? 'warning' : 'neutral'}>{statuses[row.status]}</StatusBadge>
       {row.issue && <p className="type-caption text-text-secondary">{issues[row.issue]}</p>}
     </div> },
-    { key: 'suggestion', header: 'Suggested', width: 170, render: (row) => {
-      const support = assistanceFor(row);
-      return <div className="grid gap-1">
-        {label(suggestionFor(row))}
-        {support?.conflict ? <span className="type-caption text-text-secondary">Approved rules conflict. Review individually.</span>
-          : support?.memory ? <span className="type-caption text-text-secondary">Approved mapping memory</span>
-          : support?.checked && <span className="type-caption text-text-secondary">AI review · {assistanceReasons[support.basis]}</span>}
-      </div>;
-    } },
-    { key: 'classification', header: 'Analytical classification', width: 240, render: (row) => {
+    { key: 'classification', header: 'Analytical classification', width: 320, render: (row) => {
       const selected = staged.get(row.account_key) ?? (row.status === 'confirmed' ? row.classification : '');
-      return <div>
+      const suggestion = suggestionFor(row);
+      const support = assistanceFor(row);
+      const origin = support?.memory ? 'Approved memory' : support?.proposal ? 'AI suggestion' : 'Rule suggestion';
+      const originLabel = selected && staged.has(row.account_key) && selected !== suggestion ? 'Manual selection'
+        : suggestion && row.status !== 'confirmed' ? origin : null;
+      return <div className="grid min-w-0 gap-1">
         {row.role === 'posting' && row.source_scope && <SelectField
-          ariaLabel={`Classification for ${row.account_key}`} searchable placeholder="Choose classification"
+          ariaLabel={`Classification for ${row.account_key}`} searchable placeholder={suggestion ? label(suggestion) : 'Choose classification'}
           value={selected} options={choices(row, selected)}
           disabled={blocked || (staged.size >= maxSelected && !staged.has(row.account_key))}
           onChange={(value) => stage(row, value)} />}
+        {originLabel && <p className="type-caption text-text-secondary">{originLabel}
+          {selected && suggestion && selected !== suggestion ? ` · Suggested ${label(suggestion)}` : ''}</p>}
+        {support?.conflict ? <p className="type-caption text-text-secondary">Approved memory conflicts. Review individually.</p>
+          : support?.checked && <p className="type-caption text-text-secondary">{assistanceReasons[support.basis]}</p>}
         {row.role === 'posting' && !row.source_scope && <span className="type-caption text-text-secondary">
           {selected ? `${label(selected)} · ` : ''}Source type needs verification
         </span>}
@@ -255,50 +262,71 @@ function MappingReviewTable({ review, timestamp, onSaved, onReload }) {
     }},
   ];
 
-  const { total, confirmed, unresolved, groups, ambiguous, changed, removed } = review.summary;
+  const { confirmed, removed } = review.summary;
+  const posting = review.summary.posting ?? review.rows.filter((row) => row.role === 'posting').length;
+  const exceptions = review.rows.filter(isException).length;
   return <div className="grid min-w-0 gap-3">
-    <div className="flex flex-wrap items-start justify-between gap-2">
-      <div>
-        <h3 className="type-section-title font-semibold">Smart Mapping</h3>
-        <p className="type-body-sm text-text-secondary">Accepted chart · {timestamp(review.snapshotAt)}</p>
+    <div className="grid gap-2 rounded-lg border border-border bg-surface px-3 py-2 sm:px-4" aria-label="Mapping progress">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="flex flex-wrap gap-x-4 gap-y-1 type-body-sm text-text-secondary" aria-live="polite">
+          {[[posting, 'posting accounts'], [reviewable.length, 'reviewable suggestions'], [exceptions, 'exceptions'], [confirmed, 'confirmed']]
+            .map(([count, text]) => <span key={text}><strong className="text-text-primary">{count}</strong> {text}</span>)}
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <button className="btn-secondary" type="button" onClick={() => setDrawer('library')}>Classification Library</button>
+          <button className="btn-secondary" type="button" onClick={() => setDrawer('analysis')}>Analysis Details</button>
+        </div>
       </div>
-      <button className="btn-secondary" type="button" disabled={saving || (staged.size > 0 && !stale)} onClick={onReload}>Reload latest review</button>
+      {posting > 0 && <progress className="h-1.5 w-full accent-primary" aria-label="Posting account confirmation progress" value={confirmed} max={posting} />}
+      {removed > 0 && <p className="type-caption text-text-secondary">{removed} previously reviewed accounts absent.</p>}
     </div>
-    <p className="type-body-sm" aria-live="polite">{total} source accounts · {confirmed} confirmed · {unresolved} need review · {groups} group accounts
-      {ambiguous ? ` · ${ambiguous} hierarchy issues` : ''}{changed ? ` · ${changed} changed` : ''}{removed ? ` · ${removed} previously reviewed accounts absent` : ''}</p>
-    <div className="flex flex-wrap items-end gap-2">
+    <div className="flex flex-wrap items-end gap-2" aria-label="Mapping filters">
       <AdminSearchField label="Find accounts" value={search} maxLength={128} onChange={(value) => { setSearch(value); setPage(1); }} />
       <label className="grid gap-1 type-caption">Filter accounts
         <select className="control" value={filter} onChange={(event) => { setFilter(event.target.value); setPage(1); }}>
           {filters.map(([value, text]) => <option key={value} value={value}>{text}</option>)}
         </select>
       </label>
-      <SelectField label="Industry categories" value={industry} options={industries} disabled={analyzing}
+      <SelectField label="Classification scope" value={industry} options={industries} disabled={analyzing}
         onChange={(value) => { setIndustry(value); setAnalysisNotice(''); setPage(1); }} />
     </div>
-    {assist && <div className="grid gap-2 rounded-lg border border-border bg-surface-muted p-3 type-body-sm">
-      <p>{assist.pending} queued for AI review · {assist.reviewed} reviewed · {review.rows.filter(isException).length} exceptions</p>
-      <div className="flex flex-wrap gap-2">
-        <button className="btn-secondary" type="button" disabled={blocked || analyzing || !assist.pending} onClick={analyze}>
-          {analyzing ? 'Analyzing exceptions…' : 'Analyze exceptions with AI'}
-        </button>
-        <button className="btn-secondary" type="button" disabled={blocked || !suggestions.length || staged.size >= maxSelected}
-          onClick={openSuggestionReview}>Review all suggestions ({suggestions.length})</button>
-      </div>
-      {assist.lastRun?.finishedAt && <p className="text-text-secondary">Last batch · {assist.lastRun.accounts} accounts · {assist.lastRun.input ?? '—'} input / {assist.lastRun.output ?? '—'} output tokens</p>}
-    </div>}
     {analysisNotice && <p role="status" className="type-body-sm text-text-secondary">{analysisNotice}</p>}
-    <div className="flex flex-wrap items-center gap-2">
-      <button className="btn-secondary" type="button" disabled={blocked || !suggestions.some((row) => visible.includes(row)) || staged.size >= maxSelected} onClick={selectVisible}>Select suggestions on this page</button>
-      {staged.size > 0 && <button className="btn-secondary" type="button" disabled={saving} onClick={() => setStaged(new Map())}>Clear selection</button>}
-      <button className="btn-primary" type="button" disabled={blocked || !entries.length} onClick={() => { setError(''); setRemember(false); setConfirming(true); }}>Review selected ({entries.length})</button>
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-surface-muted px-3 py-2">
+      <p className="type-body-sm text-text-secondary" aria-live="polite"><strong className="text-text-primary">{entries.length} selected</strong> across pages
+        {otherDrafts > 0 ? ` · ${otherDrafts} in other scopes` : ''}</p>
+      <div className="flex flex-wrap items-center gap-2">
+        {assist?.pending > 0 && <button className="btn-secondary" type="button" disabled={blocked || analyzing} onClick={analyze}>
+          {analyzing ? 'Analyzing…' : `Analyze exceptions (${assist.pending})`}
+        </button>}
+        {pageSuggestions.length > 0 && <button className="btn-secondary" type="button" disabled={blocked || staged.size >= maxSelected}
+          onClick={() => addSuggestions(pageSuggestions)}>Select page ({Math.min(pageSuggestions.length, maxSelected - staged.size)})</button>}
+        {suggestions.length > 0 && <button className="btn-secondary" type="button" disabled={blocked || staged.size >= maxSelected}
+          title="Includes reviewable suggestions on every page in this classification scope" onClick={() => addSuggestions(suggestions)}>
+          {staged.size ? 'Add remaining' : 'Select all suggestions'} ({Math.min(suggestions.length, maxSelected - staged.size)})
+        </button>}
+        {staged.size > 0 && <button className="btn-secondary" type="button" disabled={saving} onClick={() => setStaged(new Map())}>Clear selection</button>}
+        <button className="btn-primary" type="button" disabled={blocked || !entries.length} onClick={() => { setError(''); setRemember(false); setConfirming(true); }}>Review selected ({entries.length})</button>
+      </div>
     </div>
     {notice && <p role="status" className="type-body-sm">{notice}</p>}
     {error && !confirming && <p role="alert" className="type-body-sm text-text-secondary">{error}</p>}
-    {visible.length ? <DataTable columns={columns} rows={visible} getRowKey={(row) => row.account_key} density="compact" minWidth={720} />
+    {stale && <button className="btn-secondary justify-self-start" type="button" onClick={onReload}>Reload latest review</button>}
+    {visible.length ? <DataTable columns={columns} rows={visible} getRowKey={(row) => row.account_key} density="compact" minWidth={610} />
       : <p className="type-body-sm text-text-secondary">No accounts match this filter.</p>}
     <AdminPagination compact page={page} total={filtered.length} pageSize={pageSize} onPageChange={setPage}
       onPageSizeChange={(value) => { setPage(1); setPageSize(value); }} />
+    {drawer === 'library' && <FinanceClassificationLibrary classifications={review.classifications} rows={review.rows} onClose={() => setDrawer(null)} />}
+    {drawer === 'analysis' && <Drawer title="Analysis Details" onClose={() => setDrawer(null)} bodyClassName="space-y-4">
+      <dl className="grid grid-cols-2 gap-3 type-body-sm">
+        {[
+          ['Accepted chart', timestamp(review.snapshotAt)], ['Classification scope', industries.find((option) => option.value === industry)?.label],
+          ['Queued for AI', assist?.pending], ['AI reviewed', assist?.reviewed], ['Last run', assist?.lastRun?.state],
+          ['Model', assist?.lastRun?.model], ['Completed', assist?.lastRun?.finishedAt && timestamp(assist.lastRun.finishedAt)],
+          ['Input tokens', assist?.lastRun?.input], ['Output tokens', assist?.lastRun?.output], ['Provider cached input tokens', assist?.lastRun?.cached],
+        ].map(([name, value]) => <div key={name}><dt className="text-text-secondary">{name}</dt><dd className="font-medium">{value ?? '—'}</dd></div>)}
+      </dl>
+      {assist?.lastRun?.error && <p className="type-body-sm text-text-secondary">Last run did not complete. Approved mappings and cached results remain available.</p>}
+    </Drawer>}
     {confirming && <Modal title="Confirm account classifications" description="Save analytical classifications to this Account Book. Source accounting treatment and official statement amounts stay as supplied."
       size="md" onClose={() => { if (!saving) setConfirming(false); }}>
       <ul className="max-h-64 divide-y divide-border overflow-y-auto type-body-sm" aria-label="Selected classifications">
@@ -320,22 +348,30 @@ function MappingReviewTable({ review, timestamp, onSaved, onReload }) {
   </div>;
 }
 
-export default function FinanceAccountMapping({ connectionId, timestamp, onChange }) {
-  const [loadId, setLoadId] = useState(0);
+export default function FinanceAccountMapping({ connectionId, revision, timestamp, onChange }) {
+  const [refresh, setRefresh] = useState(0);
+  const [hasDraft, setHasDraft] = useState(false);
   const [result, setResult] = useState({ loading: true });
-  const reload = () => { setResult({ loading: true }); setLoadId((value) => value + 1); };
+  const request = useRef(0);
+  const reload = () => { setHasDraft(false); setResult({ loading: true }); setRefresh((value) => value + 1); };
   useEffect(() => {
-    let active = true;
+    const onFocus = () => setRefresh((value) => value + 1);
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, []);
+  useEffect(() => {
+    if (hasDraft) return undefined;
+    const pending = ++request.current;
     Promise.resolve().then(() => readAccountMapping(connectionId)).then((review) => {
-      if (active) setResult({ review });
+      if (request.current === pending) setResult({ review });
     }).catch(() => {
-      if (active) setResult({ error: 'The accepted chart of accounts could not be loaded.' });
+      if (request.current === pending) setResult((current) => current.review ? current : { error: 'The accepted chart of accounts could not be loaded.' });
     });
-    return () => { active = false; };
-  }, [connectionId, loadId]);
+    return () => { request.current += 1; };
+  }, [connectionId, revision, refresh, hasDraft]);
   return <AsyncDataSurface loading={result.loading} error={result.error} hasData={Boolean(result.review)}
     isEmpty={result.review === null} emptyTitle="No accepted chart of accounts" loadingRows={3} onRetry={reload}>
-    {result.review && <MappingReviewTable review={result.review} timestamp={timestamp} onReload={reload}
-      onSaved={(review) => { setResult({ review }); onChange?.(connectionId, review.summary); }} />}
+    {result.review && <MappingReviewTable review={result.review} timestamp={timestamp} onReload={reload} onDraftChange={setHasDraft}
+      onSaved={(review) => { request.current += 1; setResult({ review }); onChange?.(connectionId, review.summary); }} />}
   </AsyncDataSurface>;
 }
